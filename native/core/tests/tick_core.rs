@@ -17,7 +17,7 @@
 //! as it is at each call (`load::following_host`, as `Geo::of` reads the overlay), contracts that
 //! take their input as given, no foreign handler, sinks into its calls, no LLM, `space_refreshed`
 //! Ok. The test does what `TickEngine.step` does around the phases: the minute moves on, then the
-//! end-of-tick check (`after_tick::check`, with no Python validator to ask).
+//! end-of-tick check (`after_tick::check`, with no Python validator to ask): `support/ticks.rs`.
 //!
 //! After each world's ticks the digests of the world's parts (the rows, the queue, the log, the
 //! fields, `model_state`, the scalars) and of the metric samples are the ones the native path gives
@@ -29,113 +29,19 @@ mod support;
 
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::Arc;
 
 use serde_json::Value;
 use sheltersim_core::checkpoint::sha256_hex;
-use sheltersim_core::config::movement::RouteCapacities;
-use sheltersim_core::config::overlay::overlay_schema;
 use sheltersim_core::config::SectionId;
-use sheltersim_core::error::{Error, Result};
 use sheltersim_core::host::Phase;
-use sheltersim_core::json::Encoder;
 use sheltersim_core::row::ValueRow;
-use sheltersim_core::rules::after_tick::{self, Checks, HeldNamespaces, Inputs, Memo};
-use sheltersim_core::rules::kit;
-use sheltersim_core::rules::metrics::MetricSample;
-use sheltersim_core::rules::tick::{self, Tick};
 use sheltersim_core::state::movement::MovementRow;
-use sheltersim_core::world::{Fit, Place, World, WorldCell, MODEL_CONFIGS};
+use sheltersim_core::world::{Place, World, WorldCell};
 
 use support::canonical;
 use support::load::{self, Loaded};
+use support::ticks::{metric_line, run as run_ticks};
 use support::{Call, TestHost};
-
-/// The end-of-tick check's questions to Python: a world without Python has no validator of its
-/// own, and every namespace's row is the world's.
-#[derive(Default)]
-struct NoPython {
-    asked: Vec<String>,
-}
-
-impl Checks for NoPython {
-    fn namespace(&mut self, name: &str) -> Result<Option<bool>> {
-        self.asked.push(format!("namespace {name}"));
-        Ok(Some(true))
-    }
-
-    fn body_rows(&mut self) -> Result<bool> {
-        self.asked.push("body_rows".to_owned());
-        Ok(true)
-    }
-
-    fn shared_operations(&mut self) -> Result<bool> {
-        self.asked.push("shared_operations".to_owned());
-        Ok(true)
-    }
-
-    fn effects(&mut self) -> Result<()> {
-        self.asked.push("effects".to_owned());
-        Ok(())
-    }
-
-    fn body_config_ids(&mut self) -> Result<Vec<Arc<str>>> {
-        self.asked.push("body_config_ids".to_owned());
-        Ok(Vec::new())
-    }
-}
-
-/// `WorldState.validate_after_tick`: the core's check, with the plan and the sections it reads.
-fn check_after_tick(loaded: &Loaded, host: &mut TestHost, memo: &mut Memo, checks: &mut NoPython) -> std::result::Result<(), Error> {
-    let cell = &loaded.cell;
-    let holding = kit::holding(cell, host)?;
-    let plan = kit::kept_of(kit::section(cell, host, &holding, SectionId::TickPlan, |configs| &configs.tick_plan)?);
-    let plan = kit::kept(&plan)?.clone();
-    let route_capacities = kit::kept_section_value(cell, host, &holding, SectionId::RouteCapacities, |configs| &configs.route_capacities, RouteCapacities::parse)?;
-    let overlay = kit::kept_section_value(cell, host, &holding, SectionId::OverlaySchema, |configs| &configs.overlay_schema, overlay_schema)?;
-    let stamp = cell.with(|world| world.slots.get(MODEL_CONFIGS).unwrap().try_borrow().map(|slot| slot.generation))??;
-    let mut held = HeldNamespaces::default();
-    let names = after_tick::READ.iter().copied().chain(plan.declared.iter().map(|(name, _)| &**name)).chain(plan.required.iter().map(|name| &**name));
-    for name in names {
-        held.insert(Arc::from(name), holding.held(name, "the world holds another tree than the namespace's"));
-    }
-    // Rules bound past times by the clock: a memo holds going forward only.
-    let minute = cell.with(|world| world.minute_index())??;
-    if memo.minute > minute {
-        *memo = Memo::default();
-    }
-    let inputs = Inputs { plan: &plan, configs: stamp, held: &held, route_capacities: &route_capacities, overlay_schema: &overlay };
-    after_tick::check(cell, memo, &inputs, checks)
-}
-
-/// `TickEngine.step`, `ticks` times: `run_tick` at the world's minute, the minute moved on, the
-/// check; `after` sees the world after each tick.
-fn run(loaded: &Loaded, host: &mut TestHost, ticks: i64, after: &mut dyn FnMut(&World)) -> Vec<String> {
-    let mut memo = Memo::default();
-    let mut checks = NoPython::default();
-    for _ in 0..ticks {
-        let (minute, duration) = loaded.cell.with(|world| (world.minute_index().unwrap(), world.duration_minutes().unwrap())).unwrap();
-        assert!(minute < duration, "the clock is complete");
-        let mut tick = Tick {
-            cell: &loaded.cell,
-            host: &mut *host,
-            run: &loaded.run,
-            policies: loaded.policies.clone(),
-            minute,
-            seed: loaded.seed.clone(),
-            neighbors: loaded.neighbors.clone(),
-        };
-        if let Err(failed) = tick::run_tick(&mut tick) {
-            panic!("minute {minute}: {:?} {:?}", failed.label, failed.error);
-        }
-        loaded.cell.with(|world| world.scalars.get_mut().minute_index = Fit::Ok(minute + 1)).unwrap();
-        if let Err(error) = check_after_tick(loaded, host, &mut memo, &mut checks) {
-            panic!("minute {minute}: the end-of-tick check: {error:?}");
-        }
-        loaded.cell.with(|world| after(world)).unwrap();
-    }
-    checks.asked
-}
 
 // ---- Digests of the world, as `tests/support/core_tick.py` writes them -----------------------------
 
@@ -211,47 +117,6 @@ fn metric_lines(host: &TestHost) -> Vec<Vec<u8>> {
         .collect()
 }
 
-fn metric_line(sample: &MetricSample, minute: i64) -> Vec<u8> {
-    let mut encoder = Encoder::with_capacity(256);
-    let ints = |encoder: &mut Encoder, value: usize| encoder.int(value as i64);
-    encoder.out.push(b'[');
-    encoder.int(minute);
-    let next = |encoder: &mut Encoder| encoder.out.push(b',');
-    next(&mut encoder);
-    ints(&mut encoder, sample.toilet_queue_length);
-    next(&mut encoder);
-    ints(&mut encoder, sample.toilet_active_users);
-    next(&mut encoder);
-    encoder.int(sample.toilet_working_units);
-    for value in [sample.toilet_wait_count, sample.toilet_wait_total_minutes, sample.toilet_wait_mean_minutes, sample.toilet_wait_max_minutes, sample.stress_mean] {
-        next(&mut encoder);
-        encoder.try_float(value).unwrap();
-    }
-    for value in [sample.stress_high_count, sample.staff_assigned_task_count, sample.staff_busy_count] {
-        next(&mut encoder);
-        ints(&mut encoder, value);
-    }
-    next(&mut encoder);
-    encoder.try_float(sample.staff_load_ratio).unwrap();
-    next(&mut encoder);
-    ints(&mut encoder, sample.unresolved_support_request_count);
-    next(&mut encoder);
-    encoder.string(&sample.source_ids_json);
-    next(&mut encoder);
-    ints(&mut encoder, sample.support_no_qualified_worker_count);
-    for value in [
-        sample.support_no_qualified_worker_request_minutes,
-        sample.support_fairness_promoted_assignment_count,
-        sample.support_wait_staff_busy_request_minutes,
-        sample.support_wait_staff_off_shift_request_minutes,
-    ] {
-        next(&mut encoder);
-        encoder.try_float(value).unwrap();
-    }
-    encoder.out.push(b']');
-    encoder.out
-}
-
 fn metrics_digest(host: &TestHost) -> String {
     sha256_hex(&metric_lines(host).join(&b'\n'))
 }
@@ -300,10 +165,15 @@ fn reaches_the_native_path(name: &str) -> (Value, Ran) {
     let loaded = Rc::new(load::loaded(&fixture));
     let mut host = load::following_host(&fixture, &loaded);
     let mut ticks_with_journeys = 0;
-    let asked = run(&loaded, &mut host, ticks, &mut |world| {
-        if let Ok(movement) = world.row::<MovementRow>("movement_v1") {
-            ticks_with_journeys += i64::from(!movement.journeys.is_empty());
-        }
+    let asked = run_ticks(&loaded, &mut host, ticks, &mut |loaded, _| {
+        loaded
+            .cell
+            .with(|world| {
+                if let Ok(movement) = world.row::<MovementRow>("movement_v1") {
+                    ticks_with_journeys += i64::from(!movement.journeys.is_empty());
+                }
+            })
+            .unwrap();
     });
     assert_eq!(asked.iter().filter(|question| *question == "effects").count() as i64, ticks, "{name}");
     for call in &host.calls {
@@ -407,7 +277,7 @@ fn two_runs_of_the_core_give_the_same_bytes() {
         for _ in 0..2 {
             let loaded = Rc::new(load::loaded(&fixture));
             let mut host = load::following_host(&fixture, &loaded);
-            run(&loaded, &mut host, 120, &mut |_| {});
+            run_ticks(&loaded, &mut host, 120, &mut |_, _| {});
             let bytes: Vec<Vec<u8>> = loaded.cell.with(|world| parts(world).into_iter().map(|(_, raw)| raw).collect()).unwrap();
             seen.push((bytes, metric_lines(&host)));
         }

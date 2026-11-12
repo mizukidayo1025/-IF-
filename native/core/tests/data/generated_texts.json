@@ -1,4 +1,59 @@
 {
+ "inputs": {
+  "arrived_at_a_slot": {
+   "people": [
+    "A001",
+    "A002",
+    "A003"
+   ],
+   "point": {
+    "x": 14.374175621006712,
+    "y": 10.477882672817003
+   },
+   "world": "own_queues_asked"
+  },
+  "arrived_with_an_independent_queue": {
+   "point": "toilet_01-left",
+   "queue": "toilet_01-left-fifo",
+   "world": "split_asked"
+  },
+  "at_the_point_asks_at_once": {
+   "meal": {
+    "facility": "meal_distribution_main",
+    "world": "own_queues_at_meal"
+   },
+   "toilet": {
+    "facility": "accessible_toilet_01",
+    "world": "own_queues_at_toilet"
+   },
+   "water": {
+    "facility": "water_station_main",
+    "world": "own_queues_at_water"
+   }
+  },
+  "last_minute": {
+   "cooldown": "last_minute_cooldown",
+   "world": "last_minute"
+  },
+  "no_service": {
+   "world": "no_resource_service"
+  },
+  "queue_turns_down": {
+   "active": "split_at_water_seeking",
+   "exclusive": "split_at_water_queued",
+   "queue": "restricted_at_water"
+  },
+  "service_at_an_independent_queue": {
+   "facility": "water_station_main",
+   "world": "split_at_water_plain"
+  },
+  "service_turns_down": {
+   "world": "split_at_water_moving"
+  },
+  "toilet_at_an_independent_queue": {
+   "world": "split_at_toilet"
+  }
+ },
  "worlds": {
   "add_staff": {
    "base": "generated",
@@ -9294,6 +9349,3873 @@
     ]
    ]
   },
+  "kernel_add_staff": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_structure",
+       "kind": "intervention",
+       "payload": {
+        "count": 2,
+        "effect_id": "effect-1",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "op": "add_staff",
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "add_staff",
+         "phase": "start",
+         "policy_dependencies": [
+          "staff_operations"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "staff_member"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     1
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "add_staff"
+        },
+        "program_hash": "77912bfc090db1a09b4b179f49c8f262f4f36715144ff18085c8861176f94908",
+        "scheduled_event_ids": [
+         "effect-event-0"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ]
+   ],
+   "contracts": []
+  },
+  "kernel_add_toilet": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_structure",
+       "kind": "intervention",
+       "payload": {
+        "count": 2,
+        "effect_id": "effect-1",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "op": "add_toilet",
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "add_toilet",
+         "phase": "start",
+         "policy_dependencies": [
+          "facility_capacity"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "toilet_stall"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     1
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "add_toilet"
+        },
+        "program_hash": "03bc8ebc4a4e21a79c75ce54570c8ae25413539b3535628f89a4ec9a1dad2067",
+        "scheduled_event_ids": [
+         "effect-event-0"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ]
+   ],
+   "contracts": []
+  },
+  "kernel_bound_add_staff": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_structure",
+       "kind": "intervention",
+       "payload": {
+        "count": 1,
+        "effect_id": "effect-1",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "op": "add_staff",
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "add_staff",
+         "phase": "start",
+         "policy_dependencies": [
+          "staff_operations"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "staff_member"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     1
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "geometry_overlay",
+      "schema_version"
+     ],
+     3
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "add_staff"
+        },
+        "program_hash": "5cf9a6a6a30de9efb2723df8130eb4eb07a19316c4c339133101e72235badb58",
+        "scheduled_event_ids": [
+         "effect-event-0"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ]
+   ],
+   "contracts": []
+  },
+  "kernel_bound_add_toilet": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_structure",
+       "kind": "intervention",
+       "payload": {
+        "count": 1,
+        "effect_id": "effect-1",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "op": "add_toilet",
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "add_toilet",
+         "phase": "start",
+         "policy_dependencies": [
+          "facility_capacity"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "toilet_stall"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     1
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "geometry_overlay",
+      "schema_version"
+     ],
+     3
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "add_toilet"
+        },
+        "program_hash": "a5f2945fe4cf06dc49d71d92d75cd8f0d30b4fbff7c50be77de2c1be83d2b1dc",
+        "scheduled_event_ids": [
+         "effect-event-0"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ]
+   ],
+   "contracts": []
+  },
+  "kernel_facility": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_apply",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "facility_id": "accessible_toilet_01",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "program_id": "program-1",
+        "working_units": 0
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_facility_availability",
+         "phase": "start",
+         "policy_dependencies": [
+          "facility_capacity"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "facility_unit"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      },
+      {
+       "causation_id": "effect-event-0",
+       "due_minute": 30,
+       "event_id": "effect-event-1",
+       "event_type": "effect_program_expire",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "facility_id": "accessible_toilet_01",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "program_id": "program-1"
+       },
+       "priority": 20,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_facility_availability",
+         "phase": "expiry",
+         "policy_dependencies": [
+          "facility_capacity"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "facility_unit"
+        }
+       },
+       "sequence": 1,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "set_facility_availability"
+        },
+        "program_hash": "9d226a7bba830e834403ce564801a650f24d3725eb364b7d7c7e0c7da2423871",
+        "scheduled_event_ids": [
+         "effect-event-0",
+         "effect-event-1"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ]
+   ],
+   "contracts": []
+  },
+  "kernel_facility_stack": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_apply",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "first",
+        "facility_id": "accessible_toilet_01",
+        "modifier_id": "modifier-c637dffd19ddaedf1458671a38a59f19",
+        "program_id": "program-1",
+        "working_units": 0
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "first",
+         "op": "set_facility_availability",
+         "phase": "start",
+         "policy_dependencies": [
+          "facility_capacity"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "facility_unit"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      },
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-2",
+       "event_type": "effect_program_apply",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "second",
+        "facility_id": "accessible_toilet_01",
+        "modifier_id": "modifier-c70a1ddf97e8155424a8dc6cbe6d261d",
+        "program_id": "program-1",
+        "working_units": 0
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "second",
+         "op": "set_facility_availability",
+         "phase": "start",
+         "policy_dependencies": [
+          "facility_capacity"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "facility_unit"
+        }
+       },
+       "sequence": 2,
+       "source_id": "TEST-EFFECT-KERNELS"
+      },
+      {
+       "causation_id": "effect-event-0",
+       "due_minute": 20,
+       "event_id": "effect-event-1",
+       "event_type": "effect_program_expire",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "first",
+        "facility_id": "accessible_toilet_01",
+        "modifier_id": "modifier-c637dffd19ddaedf1458671a38a59f19",
+        "program_id": "program-1"
+       },
+       "priority": 20,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "first",
+         "op": "set_facility_availability",
+         "phase": "expiry",
+         "policy_dependencies": [
+          "facility_capacity"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "facility_unit"
+        }
+       },
+       "sequence": 1,
+       "source_id": "TEST-EFFECT-KERNELS"
+      },
+      {
+       "causation_id": "effect-event-2",
+       "due_minute": 25,
+       "event_id": "effect-event-3",
+       "event_type": "effect_program_expire",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "second",
+        "facility_id": "accessible_toilet_01",
+        "modifier_id": "modifier-c70a1ddf97e8155424a8dc6cbe6d261d",
+        "program_id": "program-1"
+       },
+       "priority": 20,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "second",
+         "op": "set_facility_availability",
+         "phase": "expiry",
+         "policy_dependencies": [
+          "facility_capacity"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "facility_unit"
+        }
+       },
+       "sequence": 3,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     4
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "first",
+         "second"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "first": "set_facility_availability",
+         "second": "set_facility_availability"
+        },
+        "program_hash": "722dac9324627f654ba6786c50942d86f0642bcbef139e455f8870286d28fa07",
+        "scheduled_event_ids": [
+         "effect-event-0",
+         "effect-event-1",
+         "effect-event-2",
+         "effect-event-3"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ]
+   ],
+   "contracts": []
+  },
+  "kernel_order": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 0,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_structure",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "op": "staff_task_order",
+        "parameters": {
+         "reason": "a test order",
+         "target_id": null,
+         "target_zone_id": "sleeping",
+         "task_kind": "patrol"
+        },
+        "program_id": "program-1",
+        "staff_id": "staff_001"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "staff_task_order",
+         "phase": "start",
+         "policy_dependencies": [
+          "shared_operations_v1",
+          "staff_operations_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "staff_task_order"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     1
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "staff_task_order"
+        },
+        "program_hash": "99485fbff18ed806d3326153bd2d7db7a4496504a63be9641f7398ce944b7cc1",
+        "scheduled_event_ids": [
+         "effect-event-0"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ]
+   ],
+   "contracts": [
+    {
+     "dump": {
+      "reason": "a test order",
+      "target_id": null,
+      "target_zone_id": "sleeping",
+      "task_kind": "patrol"
+     },
+     "input": {
+      "reason": "a test order",
+      "target_id": null,
+      "target_zone_id": "sleeping",
+      "task_kind": "patrol"
+     },
+     "model": "_PARAMETER_MODELS",
+     "op": "staff_task_order"
+    }
+   ]
+  },
+  "kernel_repair": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_structure",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "facility_id": "accessible_toilet_01",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "op": "facility_repair",
+        "parameters": {
+         "component_id": "accessible_toilet_01",
+         "expected_working_units": 0,
+         "facility_id": "accessible_toilet_01",
+         "restored_working_units": 1,
+         "schema_version": 1,
+         "source_ids": []
+        },
+        "program_id": "program-1"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "facility_repair",
+         "phase": "start",
+         "policy_dependencies": [
+          "facility_capacity",
+          "shared_operations_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "facility_unit"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "facilities",
+      0,
+      "working_units"
+     ],
+     0
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     1
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "facility_repair"
+        },
+        "program_hash": "9e28408bda1b3be11fd01acf5bc096e8b768496026f377bce341abb76e9a04e0",
+        "scheduled_event_ids": [
+         "effect-event-0"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ]
+   ],
+   "contracts": [
+    {
+     "dump": {
+      "component_id": "accessible_toilet_01",
+      "expected_working_units": 0,
+      "facility_id": "accessible_toilet_01",
+      "restored_working_units": 1,
+      "schema_version": 1,
+      "source_ids": []
+     },
+     "input": {
+      "component_id": "accessible_toilet_01",
+      "expected_working_units": 0,
+      "facility_id": "accessible_toilet_01",
+      "restored_working_units": 1,
+      "schema_version": 1,
+      "source_ids": []
+     },
+     "model": "_PARAMETER_MODELS",
+     "op": "facility_repair"
+    }
+   ]
+  },
+  "kernel_role": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_structure",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "op": "set_staff_role",
+        "program_id": "program-1",
+        "skills": [
+         "zeta",
+         "alpha"
+        ],
+        "staff_id": "staff_001"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_staff_role",
+         "phase": "start",
+         "policy_dependencies": [
+          "staff_operations_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "staff_role"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     1
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "set_staff_role"
+        },
+        "program_hash": "979cd9ab206bdbfde5df15a81790ac6f69979761f6d2f23a76627d42dd0d1927",
+        "scheduled_event_ids": [
+         "effect-event-0"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ]
+   ],
+   "contracts": [
+    {
+     "dump": {
+      "skills": [
+       "zeta",
+       "alpha"
+      ]
+     },
+     "input": {
+      "skills": [
+       "zeta",
+       "alpha"
+      ]
+     },
+     "model": "_PARAMETER_MODELS",
+     "op": "set_staff_role"
+    }
+   ]
+  },
+  "kernel_temporary_space": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_temporary_space",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "end_minute": 30,
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "op": "add_temporary_space",
+        "parameters": {
+         "people_capacity": 5,
+         "sleeping_capacity": 2
+        },
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "add_temporary_space",
+         "phase": "start",
+         "policy_dependencies": [
+          "temporary_spaces_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "person_capacity"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      },
+      {
+       "causation_id": "effect-event-0",
+       "due_minute": 30,
+       "event_id": "effect-event-1",
+       "event_type": "effect_program_temporary_space_expire",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 20,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "add_temporary_space",
+         "phase": "expiry",
+         "policy_dependencies": [
+          "temporary_spaces_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "person_capacity"
+        }
+       },
+       "sequence": 1,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "add_temporary_space"
+        },
+        "program_hash": "56d351a2ca95262756186a602eb49c0df1af1393e1e710b491fc6ad13df03aa0",
+        "scheduled_event_ids": [
+         "effect-event-0",
+         "effect-event-1"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ]
+   ],
+   "contracts": [
+    {
+     "dump": {
+      "people_capacity": 5,
+      "sleeping_capacity": 2
+     },
+     "input": {
+      "people_capacity": 5,
+      "sleeping_capacity": 2
+     },
+     "model": "_PARAMETER_MODELS",
+     "op": "add_temporary_space"
+    }
+   ]
+  },
+  "kernel_zone_modify_demand_rate": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_environment",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "end_minute": 30,
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "op": "modify_demand_rate",
+        "parameters": {
+         "action": "rest",
+         "duration_multiplier": 2.0,
+         "probability_multiplier": 2.0
+        },
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "modify_demand_rate",
+         "phase": "start",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "relative_action_rate"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      },
+      {
+       "causation_id": "effect-event-0",
+       "due_minute": 30,
+       "event_id": "effect-event-1",
+       "event_type": "effect_program_environment_expire",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 20,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "modify_demand_rate",
+         "phase": "expiry",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "relative_action_rate"
+        }
+       },
+       "sequence": 1,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "modify_demand_rate"
+        },
+        "program_hash": "b7522a1d6f7dba1d029bef2bdfd8cad5a64948447e28925cbd1d45b66d49edb7",
+        "scheduled_event_ids": [
+         "effect-event-0",
+         "effect-event-1"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ]
+   ],
+   "contracts": [
+    {
+     "dump": {
+      "action": "rest",
+      "duration_multiplier": 2.0,
+      "probability_multiplier": 2.0
+     },
+     "input": {
+      "action": "rest",
+      "duration_multiplier": 2.0,
+      "probability_multiplier": 2.0
+     },
+     "model": "_PARAMETER_MODELS",
+     "op": "modify_demand_rate"
+    }
+   ]
+  },
+  "kernel_zone_modify_demand_rate_started": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_environment",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "end_minute": 30,
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "op": "modify_demand_rate",
+        "parameters": {
+         "action": "rest",
+         "duration_multiplier": 2.0,
+         "probability_multiplier": 2.0
+        },
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "modify_demand_rate",
+         "phase": "start",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "relative_action_rate"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      },
+      {
+       "causation_id": "effect-event-0",
+       "due_minute": 30,
+       "event_id": "effect-event-1",
+       "event_type": "effect_program_environment_expire",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 20,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "modify_demand_rate",
+         "phase": "expiry",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "relative_action_rate"
+        }
+       },
+       "sequence": 1,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "modify_demand_rate"
+        },
+        "program_hash": "b7522a1d6f7dba1d029bef2bdfd8cad5a64948447e28925cbd1d45b66d49edb7",
+        "scheduled_event_ids": [
+         "effect-event-0",
+         "effect-event-1"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "zone_environment_v1",
+      "modifiers",
+      "modifier-1a1febf9fee93453e26e19f2ed94ab22"
+     ],
+     {
+      "assumption_ids": [],
+      "effect_id": "effect-1",
+      "end_event_id": "effect-event-1",
+      "end_minute": 30,
+      "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+      "op": "modify_demand_rate",
+      "parameters": {
+       "action": "rest",
+       "duration_multiplier": 2.0,
+       "probability_multiplier": 2.0
+      },
+      "program_id": "program-1",
+      "source_id": "ASM-H19-ZONE-ENVIRONMENT-V2",
+      "start_event_id": "effect-event-0",
+      "start_minute": 5,
+      "zone_id": "corridor"
+     }
+    ],
+    [
+     "set",
+     [
+      "slots",
+      19,
+      0
+     ],
+     "operational_events_v1"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      19,
+      1
+     ],
+     false
+    ],
+    [
+     "set",
+     [
+      "slots",
+      20,
+      0
+     ],
+     "zone_environment_v1"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      20,
+      1
+     ],
+     false
+    ],
+    [
+     "set",
+     [
+      "slots",
+      21,
+      0
+     ],
+     "metric_state"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      22,
+      0
+     ],
+     "model_configs"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      23,
+      0
+     ],
+     "resources"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      23,
+      1
+     ],
+     true
+    ],
+    [
+     "set",
+     [
+      "slots",
+      24,
+      0
+     ],
+     "id_counters"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      24,
+      1
+     ],
+     true
+    ]
+   ]
+  },
+  "kernel_zone_set_ambient_noise": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_environment",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "end_minute": 30,
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "op": "set_ambient_noise",
+        "parameters": {
+         "level": 1.0
+        },
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_ambient_noise",
+         "phase": "start",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "normalized_noise_0_1"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      },
+      {
+       "causation_id": "effect-event-0",
+       "due_minute": 30,
+       "event_id": "effect-event-1",
+       "event_type": "effect_program_environment_expire",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 20,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_ambient_noise",
+         "phase": "expiry",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "normalized_noise_0_1"
+        }
+       },
+       "sequence": 1,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "set_ambient_noise"
+        },
+        "program_hash": "832e11f952d9fabdee527f9a799890321a011cdcc5fd85afb36587ccfa5677ec",
+        "scheduled_event_ids": [
+         "effect-event-0",
+         "effect-event-1"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ]
+   ],
+   "contracts": [
+    {
+     "dump": {
+      "level": 1.0
+     },
+     "input": {
+      "level": 1.0
+     },
+     "model": "_PARAMETER_MODELS",
+     "op": "set_ambient_noise"
+    }
+   ]
+  },
+  "kernel_zone_set_ambient_noise_started": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_environment",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "end_minute": 30,
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "op": "set_ambient_noise",
+        "parameters": {
+         "level": 1.0
+        },
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_ambient_noise",
+         "phase": "start",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "normalized_noise_0_1"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      },
+      {
+       "causation_id": "effect-event-0",
+       "due_minute": 30,
+       "event_id": "effect-event-1",
+       "event_type": "effect_program_environment_expire",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 20,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_ambient_noise",
+         "phase": "expiry",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "normalized_noise_0_1"
+        }
+       },
+       "sequence": 1,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "set_ambient_noise"
+        },
+        "program_hash": "832e11f952d9fabdee527f9a799890321a011cdcc5fd85afb36587ccfa5677ec",
+        "scheduled_event_ids": [
+         "effect-event-0",
+         "effect-event-1"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "zone_environment_v1",
+      "modifiers",
+      "modifier-1a1febf9fee93453e26e19f2ed94ab22"
+     ],
+     {
+      "assumption_ids": [],
+      "effect_id": "effect-1",
+      "end_event_id": "effect-event-1",
+      "end_minute": 30,
+      "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+      "op": "set_ambient_noise",
+      "parameters": {
+       "level": 1.0
+      },
+      "program_id": "program-1",
+      "source_id": "ASM-H19-ZONE-ENVIRONMENT-V2",
+      "start_event_id": "effect-event-0",
+      "start_minute": 5,
+      "zone_id": "corridor"
+     }
+    ],
+    [
+     "set",
+     [
+      "slots",
+      19,
+      0
+     ],
+     "operational_events_v1"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      19,
+      1
+     ],
+     false
+    ],
+    [
+     "set",
+     [
+      "slots",
+      20,
+      0
+     ],
+     "zone_environment_v1"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      20,
+      1
+     ],
+     false
+    ],
+    [
+     "set",
+     [
+      "slots",
+      21,
+      0
+     ],
+     "metric_state"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      22,
+      0
+     ],
+     "model_configs"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      23,
+      0
+     ],
+     "resources"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      23,
+      1
+     ],
+     true
+    ],
+    [
+     "set",
+     [
+      "slots",
+      24,
+      0
+     ],
+     "id_counters"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      24,
+      1
+     ],
+     true
+    ]
+   ]
+  },
+  "kernel_zone_set_lighting": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_environment",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "end_minute": 30,
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "op": "set_lighting",
+        "parameters": {
+         "level": 1.0
+        },
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_lighting",
+         "phase": "start",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "normalized_lighting_0_1"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      },
+      {
+       "causation_id": "effect-event-0",
+       "due_minute": 30,
+       "event_id": "effect-event-1",
+       "event_type": "effect_program_environment_expire",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 20,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_lighting",
+         "phase": "expiry",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "normalized_lighting_0_1"
+        }
+       },
+       "sequence": 1,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "set_lighting"
+        },
+        "program_hash": "771f45e6e57b831f6c0288bea9846d08c20456ff6b3119f4e6fb6f71dd1066dd",
+        "scheduled_event_ids": [
+         "effect-event-0",
+         "effect-event-1"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ]
+   ],
+   "contracts": [
+    {
+     "dump": {
+      "level": 1.0
+     },
+     "input": {
+      "level": 1.0
+     },
+     "model": "_PARAMETER_MODELS",
+     "op": "set_lighting"
+    }
+   ]
+  },
+  "kernel_zone_set_lighting_started": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_environment",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "end_minute": 30,
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "op": "set_lighting",
+        "parameters": {
+         "level": 1.0
+        },
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_lighting",
+         "phase": "start",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "normalized_lighting_0_1"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      },
+      {
+       "causation_id": "effect-event-0",
+       "due_minute": 30,
+       "event_id": "effect-event-1",
+       "event_type": "effect_program_environment_expire",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 20,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_lighting",
+         "phase": "expiry",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "normalized_lighting_0_1"
+        }
+       },
+       "sequence": 1,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "set_lighting"
+        },
+        "program_hash": "771f45e6e57b831f6c0288bea9846d08c20456ff6b3119f4e6fb6f71dd1066dd",
+        "scheduled_event_ids": [
+         "effect-event-0",
+         "effect-event-1"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "zone_environment_v1",
+      "modifiers",
+      "modifier-1a1febf9fee93453e26e19f2ed94ab22"
+     ],
+     {
+      "assumption_ids": [],
+      "effect_id": "effect-1",
+      "end_event_id": "effect-event-1",
+      "end_minute": 30,
+      "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+      "op": "set_lighting",
+      "parameters": {
+       "level": 1.0
+      },
+      "program_id": "program-1",
+      "source_id": "ASM-H19-ZONE-ENVIRONMENT-V2",
+      "start_event_id": "effect-event-0",
+      "start_minute": 5,
+      "zone_id": "corridor"
+     }
+    ],
+    [
+     "set",
+     [
+      "slots",
+      19,
+      0
+     ],
+     "operational_events_v1"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      19,
+      1
+     ],
+     false
+    ],
+    [
+     "set",
+     [
+      "slots",
+      20,
+      0
+     ],
+     "zone_environment_v1"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      20,
+      1
+     ],
+     false
+    ],
+    [
+     "set",
+     [
+      "slots",
+      21,
+      0
+     ],
+     "metric_state"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      22,
+      0
+     ],
+     "model_configs"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      23,
+      0
+     ],
+     "resources"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      23,
+      1
+     ],
+     true
+    ],
+    [
+     "set",
+     [
+      "slots",
+      24,
+      0
+     ],
+     "id_counters"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      24,
+      1
+     ],
+     true
+    ]
+   ]
+  },
+  "kernel_zone_set_privacy": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_environment",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "end_minute": 30,
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "op": "set_privacy",
+        "parameters": {
+         "level": 0.0
+        },
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_privacy",
+         "phase": "start",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "normalized_privacy_0_1"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      },
+      {
+       "causation_id": "effect-event-0",
+       "due_minute": 30,
+       "event_id": "effect-event-1",
+       "event_type": "effect_program_environment_expire",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 20,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_privacy",
+         "phase": "expiry",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "normalized_privacy_0_1"
+        }
+       },
+       "sequence": 1,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "set_privacy"
+        },
+        "program_hash": "192b6659fb7cea3ecf2e7c93e4156e799e03e1554b3bc8e8906a70b6ec133fd8",
+        "scheduled_event_ids": [
+         "effect-event-0",
+         "effect-event-1"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ]
+   ],
+   "contracts": [
+    {
+     "dump": {
+      "level": 0.0
+     },
+     "input": {
+      "level": 0.0
+     },
+     "model": "_PARAMETER_MODELS",
+     "op": "set_privacy"
+    }
+   ]
+  },
+  "kernel_zone_set_privacy_started": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_environment",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "end_minute": 30,
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "op": "set_privacy",
+        "parameters": {
+         "level": 0.0
+        },
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_privacy",
+         "phase": "start",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "normalized_privacy_0_1"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      },
+      {
+       "causation_id": "effect-event-0",
+       "due_minute": 30,
+       "event_id": "effect-event-1",
+       "event_type": "effect_program_environment_expire",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 20,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_privacy",
+         "phase": "expiry",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "normalized_privacy_0_1"
+        }
+       },
+       "sequence": 1,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "set_privacy"
+        },
+        "program_hash": "192b6659fb7cea3ecf2e7c93e4156e799e03e1554b3bc8e8906a70b6ec133fd8",
+        "scheduled_event_ids": [
+         "effect-event-0",
+         "effect-event-1"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "zone_environment_v1",
+      "modifiers",
+      "modifier-1a1febf9fee93453e26e19f2ed94ab22"
+     ],
+     {
+      "assumption_ids": [],
+      "effect_id": "effect-1",
+      "end_event_id": "effect-event-1",
+      "end_minute": 30,
+      "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+      "op": "set_privacy",
+      "parameters": {
+       "level": 0.0
+      },
+      "program_id": "program-1",
+      "source_id": "ASM-H19-ZONE-ENVIRONMENT-V2",
+      "start_event_id": "effect-event-0",
+      "start_minute": 5,
+      "zone_id": "corridor"
+     }
+    ],
+    [
+     "set",
+     [
+      "slots",
+      19,
+      0
+     ],
+     "operational_events_v1"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      19,
+      1
+     ],
+     false
+    ],
+    [
+     "set",
+     [
+      "slots",
+      20,
+      0
+     ],
+     "zone_environment_v1"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      20,
+      1
+     ],
+     false
+    ],
+    [
+     "set",
+     [
+      "slots",
+      21,
+      0
+     ],
+     "metric_state"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      22,
+      0
+     ],
+     "model_configs"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      23,
+      0
+     ],
+     "resources"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      23,
+      1
+     ],
+     true
+    ],
+    [
+     "set",
+     [
+      "slots",
+      24,
+      0
+     ],
+     "id_counters"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      24,
+      1
+     ],
+     true
+    ]
+   ]
+  },
+  "kernel_zone_set_temperature": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_environment",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "end_minute": 30,
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "op": "set_temperature",
+        "parameters": {
+         "temperature_c": 35.0
+        },
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_temperature",
+         "phase": "start",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "celsius"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      },
+      {
+       "causation_id": "effect-event-0",
+       "due_minute": 30,
+       "event_id": "effect-event-1",
+       "event_type": "effect_program_environment_expire",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 20,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_temperature",
+         "phase": "expiry",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "celsius"
+        }
+       },
+       "sequence": 1,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "set_temperature"
+        },
+        "program_hash": "a5d272d270bf65384fe017262a200bad6a114fdb42654ddb9ad3941846bc3197",
+        "scheduled_event_ids": [
+         "effect-event-0",
+         "effect-event-1"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ]
+   ],
+   "contracts": [
+    {
+     "dump": {
+      "temperature_c": 35.0
+     },
+     "input": {
+      "temperature_c": 35.0
+     },
+     "model": "_PARAMETER_MODELS",
+     "op": "set_temperature"
+    }
+   ]
+  },
+  "kernel_zone_set_temperature_started": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_environment",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "end_minute": 30,
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "op": "set_temperature",
+        "parameters": {
+         "temperature_c": 35.0
+        },
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_temperature",
+         "phase": "start",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "celsius"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      },
+      {
+       "causation_id": "effect-event-0",
+       "due_minute": 30,
+       "event_id": "effect-event-1",
+       "event_type": "effect_program_environment_expire",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 20,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_temperature",
+         "phase": "expiry",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "celsius"
+        }
+       },
+       "sequence": 1,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "set_temperature"
+        },
+        "program_hash": "a5d272d270bf65384fe017262a200bad6a114fdb42654ddb9ad3941846bc3197",
+        "scheduled_event_ids": [
+         "effect-event-0",
+         "effect-event-1"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "zone_environment_v1",
+      "modifiers",
+      "modifier-1a1febf9fee93453e26e19f2ed94ab22"
+     ],
+     {
+      "assumption_ids": [],
+      "effect_id": "effect-1",
+      "end_event_id": "effect-event-1",
+      "end_minute": 30,
+      "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+      "op": "set_temperature",
+      "parameters": {
+       "temperature_c": 35.0
+      },
+      "program_id": "program-1",
+      "source_id": "ASM-H19-ZONE-ENVIRONMENT-V2",
+      "start_event_id": "effect-event-0",
+      "start_minute": 5,
+      "zone_id": "corridor"
+     }
+    ],
+    [
+     "set",
+     [
+      "slots",
+      19,
+      0
+     ],
+     "operational_events_v1"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      19,
+      1
+     ],
+     false
+    ],
+    [
+     "set",
+     [
+      "slots",
+      20,
+      0
+     ],
+     "zone_environment_v1"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      20,
+      1
+     ],
+     false
+    ],
+    [
+     "set",
+     [
+      "slots",
+      21,
+      0
+     ],
+     "metric_state"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      22,
+      0
+     ],
+     "model_configs"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      23,
+      0
+     ],
+     "resources"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      23,
+      1
+     ],
+     true
+    ],
+    [
+     "set",
+     [
+      "slots",
+      24,
+      0
+     ],
+     "id_counters"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      24,
+      1
+     ],
+     true
+    ]
+   ]
+  },
+  "kernel_zone_set_ventilation": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_environment",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "end_minute": 30,
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "op": "set_ventilation",
+        "parameters": {
+         "effectiveness": 0.0
+        },
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_ventilation",
+         "phase": "start",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "relative_ventilation_effectiveness_0_1"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      },
+      {
+       "causation_id": "effect-event-0",
+       "due_minute": 30,
+       "event_id": "effect-event-1",
+       "event_type": "effect_program_environment_expire",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 20,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_ventilation",
+         "phase": "expiry",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "relative_ventilation_effectiveness_0_1"
+        }
+       },
+       "sequence": 1,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "set_ventilation"
+        },
+        "program_hash": "83092a3e580cf55b25b89363601d5d2ee0eac307e37b373533753f42c8bfa960",
+        "scheduled_event_ids": [
+         "effect-event-0",
+         "effect-event-1"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ]
+   ],
+   "contracts": [
+    {
+     "dump": {
+      "effectiveness": 0.0
+     },
+     "input": {
+      "effectiveness": 0.0
+     },
+     "model": "_PARAMETER_MODELS",
+     "op": "set_ventilation"
+    }
+   ]
+  },
+  "kernel_zone_set_ventilation_started": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 5,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_environment",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "end_minute": 30,
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "op": "set_ventilation",
+        "parameters": {
+         "effectiveness": 0.0
+        },
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_ventilation",
+         "phase": "start",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "relative_ventilation_effectiveness_0_1"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-EFFECT-KERNELS"
+      },
+      {
+       "causation_id": "effect-event-0",
+       "due_minute": 30,
+       "event_id": "effect-event-1",
+       "event_type": "effect_program_environment_expire",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "effect-1",
+        "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+        "program_id": "program-1",
+        "zone_id": "corridor"
+       },
+       "priority": 20,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "effect-1",
+         "op": "set_ventilation",
+         "phase": "expiry",
+         "policy_dependencies": [
+          "zone_environment_v1"
+         ],
+         "program_id": "program-1",
+         "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+         "units": "relative_ventilation_effectiveness_0_1"
+        }
+       },
+       "sequence": 1,
+       "source_id": "TEST-EFFECT-KERNELS"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-1": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "effect-1"
+        ],
+        "narrative": "a test program",
+        "operators": {
+         "effect-1": "set_ventilation"
+        },
+        "program_hash": "83092a3e580cf55b25b89363601d5d2ee0eac307e37b373533753f42c8bfa960",
+        "scheduled_event_ids": [
+         "effect-event-0",
+         "effect-event-1"
+        ],
+        "source_text_hash": "cebd6474a4d4c35b5f91f94c3b010a73bb658b5513acb12b3c56e784c857e113",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "zone_environment_v1",
+      "modifiers",
+      "modifier-1a1febf9fee93453e26e19f2ed94ab22"
+     ],
+     {
+      "assumption_ids": [],
+      "effect_id": "effect-1",
+      "end_event_id": "effect-event-1",
+      "end_minute": 30,
+      "modifier_id": "modifier-1a1febf9fee93453e26e19f2ed94ab22",
+      "op": "set_ventilation",
+      "parameters": {
+       "effectiveness": 0.0
+      },
+      "program_id": "program-1",
+      "source_id": "ASM-H19-ZONE-ENVIRONMENT-V2",
+      "start_event_id": "effect-event-0",
+      "start_minute": 5,
+      "zone_id": "corridor"
+     }
+    ],
+    [
+     "set",
+     [
+      "slots",
+      19,
+      0
+     ],
+     "operational_events_v1"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      19,
+      1
+     ],
+     false
+    ],
+    [
+     "set",
+     [
+      "slots",
+      20,
+      0
+     ],
+     "zone_environment_v1"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      20,
+      1
+     ],
+     false
+    ],
+    [
+     "set",
+     [
+      "slots",
+      21,
+      0
+     ],
+     "metric_state"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      22,
+      0
+     ],
+     "model_configs"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      23,
+      0
+     ],
+     "resources"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      23,
+      1
+     ],
+     true
+    ],
+    [
+     "set",
+     [
+      "slots",
+      24,
+      0
+     ],
+     "id_counters"
+    ],
+    [
+     "set",
+     [
+      "slots",
+      24,
+      1
+     ],
+     true
+    ]
+   ]
+  },
+  "last_minute": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "minute_index"
+     ],
+     359
+    ]
+   ]
+  },
+  "last_minute_cooldown": {
+   "base": "last_minute",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "support_cooldown_until"
+     ],
+     365
+    ]
+   ]
+  },
   "lighting": {
    "base": "generated",
    "changes": [
@@ -9488,6 +13410,358 @@
     ]
    ]
   },
+  "no_resource_service": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "run",
+      "policies",
+      "controller",
+      "attrs",
+      "resource_service",
+      "object"
+     ]
+    ],
+    [
+     "set",
+     [
+      "run",
+      "policies",
+      "controller",
+      "attrs",
+      "resource_service",
+      "value"
+     ],
+     null
+    ]
+   ]
+  },
+  "own_queues_asked": {
+   "base": "own_queues_at_toilet",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "active_tasks"
+     ],
+     [
+      {
+       "agent_id": "A002",
+       "due_minute": 0,
+       "id": "toilet-queue-50d06755e15344ad320c445b",
+       "kind": "toilet_queue",
+       "resource_id": "toilet_01",
+       "staff_id": null,
+       "start_minute": 0
+      },
+      {
+       "agent_id": "A003",
+       "due_minute": 0,
+       "id": "toilet-queue-a2af0396b8a24a1c4da025b4",
+       "kind": "toilet_queue",
+       "resource_id": "toilet_01",
+       "staff_id": null,
+       "start_minute": 0
+      },
+      {
+       "agent_id": "A001",
+       "due_minute": 0,
+       "id": "toilet-queue-b43050ed9b0a68f614e50fa7",
+       "kind": "toilet_queue",
+       "resource_id": "toilet_01",
+       "staff_id": null,
+       "start_minute": 0
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "activity"
+     ],
+     "queued"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "target_id"
+     ],
+     "toilet_01"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      1,
+      "activity"
+     ],
+     "queued"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      1,
+      "target_id"
+     ],
+     "toilet_01"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      1,
+      "zone_id"
+     ],
+     "toilet"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      2,
+      "activity"
+     ],
+     "queued"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      2,
+      "target_id"
+     ],
+     "toilet_01"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      2,
+      "zone_id"
+     ],
+     "toilet"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "facilities",
+      5,
+      "queue_agent_ids"
+     ],
+     [
+      "A001",
+      "A002",
+      "A003"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A001",
+      "point",
+      "x"
+     ],
+     3.887087810503355
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A001",
+      "point",
+      "y"
+     ],
+     7.091391873668904
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A002",
+      "zone_id"
+     ],
+     "toilet"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A003",
+      "zone_id"
+     ],
+     "toilet"
+    ]
+   ]
+  },
+  "own_queues_at_meal": {
+   "base": "own_queues_at_water",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A001",
+      "point",
+      "x"
+     ],
+     11.97417562100671
+    ]
+   ]
+  },
+  "own_queues_at_toilet": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "zone_id"
+     ],
+     "toilet"
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "facility_queues"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points"
+     ],
+     []
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A001",
+      "point",
+      "x"
+     ],
+     13.77417562100671
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A001",
+      "point",
+      "y"
+     ],
+     10.477882672817003
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A001",
+      "zone_id"
+     ],
+     "toilet"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points"
+     ],
+     []
+    ]
+   ]
+  },
+  "own_queues_at_water": {
+   "base": "own_queues_at_toilet",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "zone_id"
+     ],
+     "food"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A001",
+      "point",
+      "x"
+     ],
+     12.574175621006711
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A001",
+      "zone_id"
+     ],
+     "food"
+    ]
+   ]
+  },
   "repair": {
    "base": "generated",
    "changes": [
@@ -9606,6 +13880,123 @@
       },
       "schema_version": 1
      }
+    ]
+   ]
+  },
+  "restricted_at_water": {
+   "base": "split_at_water_plain",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      7,
+      "access",
+      "accessibility"
+     ],
+     "restricted"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      7,
+      "access",
+      "required_access_tags"
+     ],
+     [
+      "staff_key"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      8,
+      "access",
+      "accessibility"
+     ],
+     "restricted"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      8,
+      "access",
+      "required_access_tags"
+     ],
+     [
+      "staff_key"
+     ]
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      7,
+      "access",
+      "accessibility"
+     ],
+     "restricted"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      7,
+      "access",
+      "required_access_tags"
+     ],
+     [
+      "staff_key"
+     ]
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      8,
+      "access",
+      "accessibility"
+     ],
+     "restricted"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      8,
+      "access",
+      "required_access_tags"
+     ],
+     [
+      "staff_key"
+     ]
     ]
    ]
   },
@@ -10099,6 +14490,1036 @@
     ]
    ]
   },
+  "split_asked": {
+   "base": "split_at_toilet",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "active_tasks"
+     ],
+     [
+      {
+       "agent_id": "A001",
+       "due_minute": 0,
+       "id": "toilet-queue-b43050ed9b0a68f614e50fa7",
+       "kind": "toilet_queue",
+       "resource_id": "toilet_01",
+       "staff_id": null,
+       "start_minute": 0
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "activity"
+     ],
+     "queued"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "target_id"
+     ],
+     "toilet_01"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_log"
+     ],
+     [
+      {
+       "detail": null,
+       "event": {
+        "causation_id": null,
+        "due_minute": 0,
+        "event_id": "facility-queue-transition-0",
+        "event_type": "facility_queue_transition",
+        "kind": "endogenous",
+        "payload": {
+         "agent_id": "A001",
+         "causation_id": null,
+         "event_id": "facility-queue-transition-0",
+         "event_type": "facility_queue_transition",
+         "facility_id": "toilet_01",
+         "minute": 0,
+         "queue_id": "toilet_01-left-fifo",
+         "queue_position": 1,
+         "record_type": "operations",
+         "request_id": "toilet-queue-b43050ed9b0a68f614e50fa7",
+         "requested_minute": 0,
+         "schema_version": 1,
+         "service_capacity_concurrent": 1,
+         "service_kind": "toilet",
+         "service_point_id": "toilet_01-left",
+         "task_id": "toilet-queue-b43050ed9b0a68f614e50fa7",
+         "transition": "queued",
+         "wait_minutes": null
+        },
+        "priority": 0,
+        "provenance": {
+         "policy_version": "independent-facility-queues-v1",
+         "source_id": "ASM-FACILITY-QUEUES-V1",
+         "source_type": "assumption"
+        },
+        "sequence": 0,
+        "source_id": "independent-facility-queues-v1"
+       },
+       "realized_minute": 0,
+       "status": "applied"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "facilities",
+      5,
+      "queue_agent_ids"
+     ],
+     [
+      "A001"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     1
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "facility_queues_v1",
+      "queues",
+      "toilet_01-left-fifo",
+      "queued_request_ids"
+     ],
+     [
+      "toilet-queue-b43050ed9b0a68f614e50fa7"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "facility_queues_v1",
+      "requests",
+      "toilet-queue-b43050ed9b0a68f614e50fa7"
+     ],
+     {
+      "active_task_id": "toilet-queue-b43050ed9b0a68f614e50fa7",
+      "agent_id": "A001",
+      "facility_id": "toilet_01",
+      "queue_id": "toilet_01-left-fifo",
+      "queue_task_id": "toilet-queue-b43050ed9b0a68f614e50fa7",
+      "request_id": "toilet-queue-b43050ed9b0a68f614e50fa7",
+      "requested_minute": 0,
+      "service_kind": "toilet",
+      "service_point_id": "toilet_01-left",
+      "status": "queued"
+     }
+    ]
+   ]
+  },
+  "split_at_toilet": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "zone_id"
+     ],
+     "toilet"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "facilities",
+      5,
+      "capacity"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "facilities",
+      5,
+      "working_units"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "facilities",
+      6,
+      "capacity"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "facilities",
+      6,
+      "working_units"
+     ],
+     2
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      5,
+      "access",
+      "required_access_tags"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      5,
+      "access",
+      "accessibility"
+     ],
+     "accessible"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      5,
+      "access",
+      "required_staff_skills"
+     ],
+     [
+      "toilet_service"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      5,
+      "id"
+     ],
+     "toilet_01-left"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      5,
+      "point_m",
+      "y"
+     ],
+     9.477882672817003
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      5,
+      "queue_id"
+     ],
+     "toilet_01-left-fifo"
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      6,
+      "access",
+      "required_access_tags"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      6,
+      "access",
+      "accessibility"
+     ],
+     "accessible"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      6,
+      "access",
+      "required_staff_skills"
+     ],
+     [
+      "toilet_service"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      6,
+      "facility_id"
+     ],
+     "toilet_01"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      6,
+      "id"
+     ],
+     "toilet_01-right"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      6,
+      "point_m",
+      "x"
+     ],
+     14.374175621006712
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      6,
+      "point_m",
+      "y"
+     ],
+     11.477882672817003
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      6,
+      "queue_id"
+     ],
+     "toilet_01-right-fifo"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      7
+     ],
+     {
+      "access": {
+       "accessibility": "accessible",
+       "required_staff_skills": [
+        "water_service"
+       ]
+      },
+      "facility_id": "water_station_main",
+      "id": "water_station_main-left",
+      "point_m": {
+       "x": 12.574175621006711,
+       "y": 9.477882672817003
+      },
+      "queue_id": "water_station_main-left-fifo",
+      "schema_version": 1,
+      "service_capacity": 1
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      8
+     ],
+     {
+      "access": {
+       "accessibility": "accessible",
+       "required_staff_skills": [
+        "water_service"
+       ]
+      },
+      "facility_id": "water_station_main",
+      "id": "water_station_main-right",
+      "point_m": {
+       "x": 12.574175621006711,
+       "y": 11.477882672817003
+      },
+      "queue_id": "water_station_main-right-fifo",
+      "schema_version": 1,
+      "service_capacity": 1
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "facility_queues_v1"
+     ],
+     {
+      "policy_version": "independent-facility-queues-v1",
+      "queues": {
+       "accessible_toilet_01": {
+        "active_request_ids": [],
+        "facility_id": "accessible_toilet_01",
+        "last_stall": null,
+        "queued_request_ids": [],
+        "service_point_id": "legacy-service:d34bc5076754a08e28331f68"
+       },
+       "intake_desk": {
+        "active_request_ids": [],
+        "facility_id": "intake_desk",
+        "last_stall": null,
+        "queued_request_ids": [],
+        "service_point_id": "legacy-service:788cc82320ce4b6e07a59965"
+       },
+       "meal_distribution_main": {
+        "active_request_ids": [],
+        "facility_id": "meal_distribution_main",
+        "last_stall": null,
+        "queued_request_ids": [],
+        "service_point_id": "legacy-service:4483648d70d51dce47b29586"
+       },
+       "medical_desk": {
+        "active_request_ids": [],
+        "facility_id": "medical_desk",
+        "last_stall": null,
+        "queued_request_ids": [],
+        "service_point_id": "legacy-service:24a22dc837f7add348c91a46"
+       },
+       "quiet_support": {
+        "active_request_ids": [],
+        "facility_id": "quiet_support",
+        "last_stall": null,
+        "queued_request_ids": [],
+        "service_point_id": "legacy-service:1a50d56190f3f558ae2e7fd5"
+       },
+       "toilet_01-left-fifo": {
+        "active_request_ids": [],
+        "facility_id": "toilet_01",
+        "last_stall": null,
+        "queued_request_ids": [],
+        "service_point_id": "toilet_01-left"
+       },
+       "toilet_01-right-fifo": {
+        "active_request_ids": [],
+        "facility_id": "toilet_01",
+        "last_stall": null,
+        "queued_request_ids": [],
+        "service_point_id": "toilet_01-right"
+       },
+       "water_station_main-left-fifo": {
+        "active_request_ids": [],
+        "facility_id": "water_station_main",
+        "last_stall": null,
+        "queued_request_ids": [],
+        "service_point_id": "water_station_main-left"
+       },
+       "water_station_main-right-fifo": {
+        "active_request_ids": [],
+        "facility_id": "water_station_main",
+        "last_stall": null,
+        "queued_request_ids": [],
+        "service_point_id": "water_station_main-right"
+       }
+      },
+      "requests": {},
+      "schema_version": 1
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A001",
+      "zone_id"
+     ],
+     "toilet"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "staff_positions",
+      "toilet_staff_01"
+     ],
+     {
+      "edge_id": null,
+      "point": {
+       "x": 14.074175621006717,
+       "y": 7.091391873668907
+      },
+      "position_kind": "physical",
+      "progress": 0.0,
+      "zone_id": "toilet"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "operational_events_v1",
+      "staff_status",
+      "toilet_staff_01"
+     ],
+     {
+      "available": true,
+      "restore_event_id": null,
+      "unavailability_event_id": null,
+      "until_minute": null
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "staff_dynamics_v1",
+      "staff",
+      "toilet_staff_01"
+     ],
+     {
+      "consecutive_work_minutes": 0,
+      "fatigue": 0.0,
+      "last_activity": "off_duty",
+      "rest_until_minute": 0,
+      "total_rest_minutes": 0,
+      "total_work_minutes": 0
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "staff_operations_v1",
+      "staff",
+      "toilet_staff_01"
+     ],
+     {
+      "arrival_minute": null,
+      "causation_event_ids": [],
+      "due_minute": null,
+      "phase": "idle",
+      "reason": null,
+      "route_edge_ids": [],
+      "route_zone_ids": [],
+      "started_minute": null,
+      "target_id": null,
+      "target_zone_id": null,
+      "task_id": null,
+      "task_kind": null,
+      "travel_due_minute": null,
+      "travel_minutes": 0
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "staff",
+      3
+     ],
+     {
+      "active_task_id": null,
+      "busy_until": 0,
+      "id": "toilet_staff_01",
+      "skills": [
+       "toilet_service"
+      ],
+      "work_queue": [],
+      "zone_id": "toilet"
+     }
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "required",
+      2
+     ],
+     "facility_queues_v1"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "required",
+      3
+     ],
+     "geometry_overlay_v1"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "required",
+      4
+     ],
+     "movement_v1"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "required",
+      5
+     ],
+     "population_dynamics_v1"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "required",
+      6
+     ],
+     "population_lifecycle_v1"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "required",
+      7
+     ],
+     "shared_operations_v1"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "required",
+      8
+     ],
+     "social_network_v1"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "required",
+      9
+     ],
+     "staff_dynamics_v1"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "required",
+      10
+     ],
+     "staff_operations_v1"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "required",
+      11
+     ],
+     "temporary_spaces_v1"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "independent_queues"
+     ],
+     true
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      5,
+      "id"
+     ],
+     "toilet_01-left"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      5,
+      "point_m",
+      "y"
+     ],
+     9.477882672817003
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      5,
+      "access",
+      "accessibility"
+     ],
+     "accessible"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      5,
+      "access",
+      "required_staff_skills"
+     ],
+     [
+      "toilet_service"
+     ]
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      5,
+      "queue_id"
+     ],
+     "toilet_01-left-fifo"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      6,
+      "id"
+     ],
+     "toilet_01-right"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      6,
+      "facility_id"
+     ],
+     "toilet_01"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      6,
+      "point_m",
+      "x"
+     ],
+     14.374175621006712
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      6,
+      "point_m",
+      "y"
+     ],
+     11.477882672817003
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      6,
+      "access",
+      "accessibility"
+     ],
+     "accessible"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      6,
+      "access",
+      "required_staff_skills"
+     ],
+     [
+      "toilet_service"
+     ]
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      6,
+      "queue_id"
+     ],
+     "toilet_01-right-fifo"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      7
+     ],
+     {
+      "access": {
+       "accessibility": "accessible",
+       "required_access_tags": [],
+       "required_staff_skills": [
+        "water_service"
+       ]
+      },
+      "facility_id": "water_station_main",
+      "id": "water_station_main-left",
+      "point_m": {
+       "x": 12.574175621006711,
+       "y": 9.477882672817003
+      },
+      "queue_id": "water_station_main-left-fifo",
+      "schema_version": 1,
+      "service_capacity": 1
+     }
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      8
+     ],
+     {
+      "access": {
+       "accessibility": "accessible",
+       "required_access_tags": [],
+       "required_staff_skills": [
+        "water_service"
+       ]
+      },
+      "facility_id": "water_station_main",
+      "id": "water_station_main-right",
+      "point_m": {
+       "x": 12.574175621006711,
+       "y": 11.477882672817003
+      },
+      "queue_id": "water_station_main-right-fifo",
+      "schema_version": 1,
+      "service_capacity": 1
+     }
+    ]
+   ]
+  },
+  "split_at_water_moving": {
+   "base": "split_at_water_plain",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "activity"
+     ],
+     "moving"
+    ]
+   ]
+  },
+  "split_at_water_plain": {
+   "base": "split_at_toilet",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "zone_id"
+     ],
+     "food"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A001",
+      "zone_id"
+     ],
+     "food"
+    ]
+   ]
+  },
+  "split_at_water_queued": {
+   "base": "split_at_water_plain",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "facilities",
+      5,
+      "queue_agent_ids"
+     ],
+     [
+      "A001"
+     ]
+    ]
+   ]
+  },
+  "split_at_water_seeking": {
+   "base": "split_at_water_plain",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "activity"
+     ],
+     "seeking_help"
+    ]
+   ]
+  },
   "temporary_space": {
    "base": "generated",
    "changes": [
@@ -10390,6 +15811,529 @@
       },
       "schema_version": 1
      }
+    ]
+   ]
+  },
+  "views_claims": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "duration_minutes"
+     ],
+     60
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 0,
+       "event_id": "rumor-event",
+       "event_type": "information_rumor",
+       "kind": "exogenous",
+       "payload": {
+        "message_id": "claim-water-1",
+        "origin_agent_id": "A001",
+        "truth_status": "unknown"
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 10,
+       "source_id": "scenario-rumor-source"
+      },
+      {
+       "causation_id": "rumor-event",
+       "due_minute": 3,
+       "event_id": "correction-event",
+       "event_type": "information_correction",
+       "kind": "exogenous",
+       "payload": {
+        "belief": "verified",
+        "message_id": "claim-water-1",
+        "zone_id": "sleeping"
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 11,
+       "source_id": "staff-notice-source"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     12
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "information_spread",
+      "adjacent_zone_contact_multiplier"
+     ],
+     1.0
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "information_spread",
+      "base_transmission_probability"
+     ],
+     1.0
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "information_spread",
+      "contact_duration_scale_minutes"
+     ],
+     1
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "information_spread",
+      "correction_transmission_multiplier"
+     ],
+     1.0
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "information_spread",
+      "family_contact_multiplier"
+     ],
+     1.0
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "information_spread",
+      "max_contacts_per_agent"
+     ],
+     16
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "information_spread",
+      "minimum_contact_minutes"
+     ],
+     1
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "information_spread",
+      "query_pressure_decay_per_minute"
+     ],
+     0.0
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "information_spread",
+      "query_threshold"
+     ],
+     0.5
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "information_spread",
+      "query_utility_weight"
+     ],
+     4.0
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "information_spread",
+      "trust_sensitivity"
+     ],
+     0.0
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "information_spread",
+      "value",
+      "minimum_contact_minutes"
+     ],
+     1
+    ],
+    [
+     "set",
+     [
+      "run",
+      "policies",
+      "controller",
+      "attrs",
+      "decisions",
+      "object",
+      "attrs",
+      "policy",
+      "object",
+      "attrs",
+      "information_query_threshold",
+      "value"
+     ],
+     0.5
+    ],
+    [
+     "set",
+     [
+      "run",
+      "policies",
+      "controller",
+      "attrs",
+      "decisions",
+      "object",
+      "attrs",
+      "policy",
+      "object",
+      "attrs",
+      "information_query_utility_weight",
+      "value"
+     ],
+     4.0
+    ],
+    [
+     "set",
+     [
+      "run",
+      "policies",
+      "controller",
+      "attrs",
+      "information_policy",
+      "object",
+      "attrs",
+      "config",
+      "object",
+      "attrs",
+      "max_contacts_per_agent",
+      "value"
+     ],
+     16
+    ],
+    [
+     "set",
+     [
+      "run",
+      "policies",
+      "controller",
+      "attrs",
+      "information_policy",
+      "object",
+      "attrs",
+      "config",
+      "object",
+      "attrs",
+      "minimum_contact_minutes",
+      "value"
+     ],
+     1
+    ],
+    [
+     "set",
+     [
+      "run",
+      "policies",
+      "controller",
+      "attrs",
+      "information_policy",
+      "object",
+      "attrs",
+      "config",
+      "object",
+      "attrs",
+      "contact_duration_scale_minutes",
+      "value"
+     ],
+     1
+    ],
+    [
+     "set",
+     [
+      "run",
+      "policies",
+      "controller",
+      "attrs",
+      "information_policy",
+      "object",
+      "attrs",
+      "config",
+      "object",
+      "attrs",
+      "base_transmission_probability",
+      "value"
+     ],
+     1.0
+    ],
+    [
+     "set",
+     [
+      "run",
+      "policies",
+      "controller",
+      "attrs",
+      "information_policy",
+      "object",
+      "attrs",
+      "config",
+      "object",
+      "attrs",
+      "correction_transmission_multiplier",
+      "value"
+     ],
+     1.0
+    ],
+    [
+     "set",
+     [
+      "run",
+      "policies",
+      "controller",
+      "attrs",
+      "information_policy",
+      "object",
+      "attrs",
+      "config",
+      "object",
+      "attrs",
+      "trust_sensitivity",
+      "value"
+     ],
+     0.0
+    ],
+    [
+     "set",
+     [
+      "run",
+      "policies",
+      "controller",
+      "attrs",
+      "information_policy",
+      "object",
+      "attrs",
+      "config",
+      "object",
+      "attrs",
+      "family_contact_multiplier",
+      "value"
+     ],
+     1.0
+    ],
+    [
+     "set",
+     [
+      "run",
+      "policies",
+      "controller",
+      "attrs",
+      "information_policy",
+      "object",
+      "attrs",
+      "config",
+      "object",
+      "attrs",
+      "adjacent_zone_contact_multiplier",
+      "value"
+     ],
+     1.0
+    ],
+    [
+     "set",
+     [
+      "run",
+      "policies",
+      "controller",
+      "attrs",
+      "information_policy",
+      "object",
+      "attrs",
+      "config",
+      "object",
+      "attrs",
+      "query_pressure_decay_per_minute",
+      "value"
+     ],
+     0.0
+    ],
+    [
+     "set",
+     [
+      "run",
+      "policies",
+      "controller",
+      "attrs",
+      "information_policy",
+      "object",
+      "attrs",
+      "config",
+      "object",
+      "attrs",
+      "query_threshold",
+      "value"
+     ],
+     0.5
+    ],
+    [
+     "set",
+     [
+      "run",
+      "policies",
+      "controller",
+      "attrs",
+      "information_policy",
+      "object",
+      "attrs",
+      "config",
+      "object",
+      "attrs",
+      "query_utility_weight",
+      "value"
+     ],
+     4.0
+    ]
+   ]
+  },
+  "views_information_no_life": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "population_context"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "body_state_v1"
+     ]
+    ]
+   ]
+  },
+  "views_no_information_life": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "information_spread_v1"
+     ]
+    ]
+   ]
+  },
+  "views_no_information_no_life": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "population_context"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "body_state_v1"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "information_spread_v1"
+     ]
+    ]
+   ]
+  },
+  "views_run": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "duration_minutes"
+     ],
+     120
     ]
    ]
   }

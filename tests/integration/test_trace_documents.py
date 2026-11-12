@@ -11,6 +11,10 @@ then it is held to the digests of what both Runs wrote (DECISION_ANSWERS).
 Model version 2 (step 4, L11: the pinned libm crate and the information events' draw keys)
 changed some of these results: those digests were re-recorded from the kernels of that model
 and are no longer the deleted Python rules'.
+
+The documents of each model on the shuffled worlds are the core's test
+(`the_document_of_each_model_is_the_deleted_rule_s` of `native/core/tests/psychology_steps.rs`,
+#225), with the same digests; this file keeps the entry test of the ints a Scenario may write.
 """
 
 from __future__ import annotations
@@ -33,7 +37,6 @@ from sheltersim.core.world import WorldState
 from sheltersim.domain.models import SupportRequestState, SupportRequestStatus
 from sheltersim.experiments.runner import OfflineSimulationController, run_scenario
 from sheltersim.inspection.traces import RunArtifactWriter
-from sheltersim.policies.alternatives import BoundedStressPolicy
 from sheltersim.policies.psychology import (
     IntegratedDistressLifeStatePolicy,
     LifeStatePsychologyPolicy,
@@ -136,18 +139,6 @@ PSYCHOLOGY_ANSWERS: dict[str, str] = {
     ),
     "ints-full": ("abaed98d7e6d7a28a3d53028be0c3c5f084a104613ffbd306a72bdb5c74c627b"),
     "ints-summary": ("abaed98d7e6d7a28a3d53028be0c3c5f084a104613ffbd306a72bdb5c74c627b"),
-    "models-0-full": ("640ed4e7a101957606fcddcd486c7030758ff4658be73a39bf25370877272c81"),
-    "models-0-summary": ("640ed4e7a101957606fcddcd486c7030758ff4658be73a39bf25370877272c81"),
-    "models-1-full": ("cfa05fafeec31e3646ed5207a524a17be226b2eb2f6eab428ffbc628c49ef0e5"),
-    "models-1-summary": ("cfa05fafeec31e3646ed5207a524a17be226b2eb2f6eab428ffbc628c49ef0e5"),
-    "models-2-full": ("36b75b85d6acd4c719b7c3b8fbf456ac773665de29e0b669f350c6e959a19de4"),
-    "models-2-summary": ("36b75b85d6acd4c719b7c3b8fbf456ac773665de29e0b669f350c6e959a19de4"),
-    "models-3-full": ("787c2c165087682b368863caab8719d90719eebbfa85df6a49aca1ad25aeac2d"),
-    "models-3-summary": ("787c2c165087682b368863caab8719d90719eebbfa85df6a49aca1ad25aeac2d"),
-    "models-4-full": ("735c4e5d454fa51f58798bd8fd699f0aabd6c04aee6a2f25153a26f6f0753fc7"),
-    "models-4-summary": ("735c4e5d454fa51f58798bd8fd699f0aabd6c04aee6a2f25153a26f6f0753fc7"),
-    "models-5-full": ("4d964b10d02eafeabfc15ea50eace84a454a013e51beed194e8eb1a2ecb3338a"),
-    "models-5-summary": ("4d964b10d02eafeabfc15ea50eace84a454a013e51beed194e8eb1a2ecb3338a"),
     "psychology-bounded-stress-v1-full": (
         "9c5f529b5e0a9319970986f5155f1cd84ae72a8eea3c889d67765b82582f4a7e"
     ),
@@ -310,38 +301,6 @@ def _shuffle(world: WorldState, draws: random.Random) -> None:
         agent.support_request_id = request.id
 
 
-def _policies(draws: random.Random, ids: list[str]) -> list[Any]:
-    def rate() -> float:
-        return draws.choice((0.0, draws.random() * 0.25))
-
-    parameters = PsychologyParameters(
-        toilet_growth=rate(),
-        hunger_growth=rate(),
-        awake_fatigue_growth=rate(),
-        resting_fatigue_recovery=rate(),
-        sleeping_fatigue_recovery=rate(),
-        stress_pressure=rate(),
-        queued_stress=rate(),
-        resting_stress_recovery=rate(),
-        sleeping_stress_recovery=rate(),
-        need_pressure_threshold=draws.random(),
-        support_wait_stress=rate(),
-        natural_recovery_rate_per_minute=rate(),
-        baseline_distress_by_agent={ids[0]: draws.random()},
-    )
-    body = {"uncertainty_drift_per_minute": draws.random() * 0.01}
-    formula = BodyDynamicsFormula("body-feedback-complete-v1", "S")
-    return [
-        SimplePsychologyPolicy(parameters),
-        SimplePsychologyPolicy(parameters, include_direct_rest_stress_recovery=False),
-        BoundedStressPolicy(parameters),
-        MeanRevertingDistressPolicy(parameters),
-        LifeStatePsychologyPolicy(parameters, body_config=body),
-        LifeStatePsychologyPolicy(parameters, body_config=body, body_formula=formula),
-        IntegratedDistressLifeStatePolicy(parameters, body_config=body, body_formula=formula),
-    ]
-
-
 class _Keeping:
     """What a sink is given, as text."""
 
@@ -359,40 +318,6 @@ def _documents(controller: Any, view: Any, final_of: Any) -> str:
     native.rules("trace").record_psychology_trace(controller, result, final_of(result.deltas), 0)
     (document,) = controller.artifacts.documents
     return document
-
-
-@pytest.mark.parametrize("seed", range(6))
-@pytest.mark.parametrize(
-    "level", [TraceLevel.SUMMARY, TraceLevel.FULL], ids=lambda level: level.value
-)
-def test_the_document_of_each_model_is_the_deleted_rule_s(
-    generated_scenario: Any, tmp_path: Path, seed: int, level: TraceLevel
-) -> None:
-    draws = random.Random(seed)
-    world = WorldState.from_scenario(generated_scenario)
-    artifacts = RunArtifactWriter(generated_scenario, tmp_path, trace_level=TraceLevel.OFF)
-    artifacts.write_initial(world, execution_mode="offline")
-    controller = OfflineSimulationController(world, artifacts)
-    _shuffle(world, draws)
-    view = controller._view_after_movement(world)
-    documents = []
-    for policy in _policies(draws, sorted(world.agents)):
-        controller.psychology = policy
-        controller.artifacts = _Keeping(level)
-        # The kernels read the policies the Run read (lane P8 a3).
-        controller._run_core.refresh_policies(controller)
-        # What the social step does between the two.
-        documents.append(
-            _documents(
-                controller,
-                view,
-                lambda deltas: tuple(
-                    delta.with_stress(draws.random()) if number % 2 else delta
-                    for number, delta in enumerate(deltas)
-                ),
-            )
-        )
-    _psychology_answers(f"models-{seed}-{level.value}", documents)
 
 
 def _int_policies(ids: list[str]) -> list[Any]:

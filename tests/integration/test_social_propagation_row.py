@@ -4,6 +4,12 @@ The step is rules/social_propagation.rs alone (docs/rust-port/lanes/b-social-pro
 Python rules of policies/social.py and policies/alternatives.py are gone. What they answered, on
 small worlds and on values no scenario reaches, was recorded once as digests (ANSWERS), which the
 kernel's answers must equal on every OS; a float's bits are compared through its hex.
+
+The tests of the step's answers on the small worlds (each model, the trace's documents, a restored
+namespace, the view's households, contacts without weight, unsorted deltas, int coefficients) are
+the core's, `native/core/tests/social_steps.rs` (#225), with the same digests. This file keeps the
+entry test of one model, the row, what the entry turns down, the bits of `plan_of_values` on random
+values, and the Runs.
 """
 
 from __future__ import annotations
@@ -116,65 +122,9 @@ def test_forwarded_writes_reach_the_row() -> None:
 # 2d8fb46), as sha256 of the answers' texts, recorded once on Linux. With SHELTERSIM_RECORD_SOCIAL
 # set, the tests wrote these digests of the Python rules' answers to that file instead.
 ANSWERS: dict[str, str] = {
-    "group": ("dd7c12c930b88477983e7ef0b47333e405e2dc251446845d128e4d1ab0d1ac5e"),
-    "ints-channel-[('family_channel_strength', 1), ('same_zone_channel_strength', 0)]": (
-        "f27599cb9e7be64bb0e04d3732512345eeb9379ef80ce5b9deea7ca3ec854164"
-    ),
-    "ints-channel-[('max_agent_stress_increase_per_minute', 0)]": (
-        "78e08c31dd81258ece624b9625ff9f75c2056e444f6ed8caffb035d88e4b839c"
-    ),
-    "ints-channel-[('max_pair_stress_increase', 0), ('nearby_zone_channel_strength', 1)]": (
-        "cbc200bf68ff866b3711a7e64733be0b206569a7d8ba11abc091c5ad32bb42bf"
-    ),
-    "ints-channel-[('max_pair_stress_increase', 0)]": (
-        "d08ee46091c2329f707b75c73ad6d4e8e19df45ad9270a8a9e573063e76a0d9c"
-    ),
-    "ints-channel-[('natural_recovery_per_minute', 0), ('stress_spread_per_minute', 0)]": (
-        "8b9d1886b023f0e87d5697ea2eba532852c554fb630fa81e45de6a9012f185c8"
-    ),
-    "ints-degroot-[('family_channel_strength', 1), ('same_zone_channel_strength', 0)]": (
-        "071ace780e0a06f1c99488d2fee78bc95064ac8fe8566d67093e513e09ccd2fd"
-    ),
-    "ints-degroot-[('max_agent_stress_increase_per_minute', 0)]": (
-        "6d2117d806b1b12e7b5213639112aa22b7d32c1e035dc79fc496804ffbf77556"
-    ),
-    "ints-degroot-[('max_pair_stress_increase', 0), ('nearby_zone_channel_strength', 1)]": (
-        "d386c14a045db9f35648e564e32835f508bb923a993727bde0ed15b38d24e7e1"
-    ),
-    "ints-degroot-[('max_pair_stress_increase', 0)]": (
-        "d386c14a045db9f35648e564e32835f508bb923a993727bde0ed15b38d24e7e1"
-    ),
-    "ints-degroot-[('natural_recovery_per_minute', 0), ('stress_spread_per_minute', 0)]": (
-        "ebe9af54bc1d4aba7429d7ed14063790a212bab2e3f4c7ac57006b2676bb2bf8"
-    ),
-    "ints-sparse-[('family_channel_strength', 1), ('same_zone_channel_strength', 0)]": (
-        "d7e36b1286cc9c9e344025fa620f5956ad7a92f19ade2aeb91c5e63e7c93e53c"
-    ),
-    "ints-sparse-[('max_agent_stress_increase_per_minute', 0)]": (
-        "af75a4dfd95ebd5d7dbd9ddb8d07fa7b73e53c9d133dfac2098f490d0f2742c0"
-    ),
-    "ints-sparse-[('max_pair_stress_increase', 0), ('nearby_zone_channel_strength', 1)]": (
-        "9000a526e3201281762b9f7e5a5e6391799f96194a775d0efbaa074b25812d96"
-    ),
-    "ints-sparse-[('max_pair_stress_increase', 0)]": (
-        "9000a526e3201281762b9f7e5a5e6391799f96194a775d0efbaa074b25812d96"
-    ),
-    "ints-sparse-[('natural_recovery_per_minute', 0), ('stress_spread_per_minute', 0)]": (
-        "c611db881b258e0203118183e718ae3f3980001bf1c3f85746256215366c74d3"
-    ),
-    "no-weight-channel_strength": (
-        "ee34cc5baccaf04b28e8e07db7e40f6f44f0bb802d16be353aff841ca7afc76e"
-    ),
-    "no-weight-source_expressiveness": (
-        "ee34cc5baccaf04b28e8e07db7e40f6f44f0bb802d16be353aff841ca7afc76e"
-    ),
-    "no-weight-stress_sensitivity": (
-        "ee34cc5baccaf04b28e8e07db7e40f6f44f0bb802d16be353aff841ca7afc76e"
-    ),
     "random-channel": ("b3c68b6b02dbe536a83670cb8b5ffa01d7ad8c91250ef92c48b6b3a034f6f037"),
     "random-degroot": ("f5bebc51bbbf2f949480df578091c55beea7c4bd1024b3f99e8cce020241235b"),
     "random-sparse": ("30443fb28baea6f03cec9351bdc890ed0e2648a9097c3816ffdd92f60c7e6681"),
-    "restored": ("410610de6cf26039c13f61fba9fd4183998e4be8623ba1ed44bc27e26697156a"),
     "run-degroot-contact-v1": ("2519d1789c69d1d618b264953f27802b26d087cf533d7a29a7f47d4c67acde52"),
     "run-expressiveness-channel-openness-v1": (
         "d699ce16a6900720a790d2a35001feadff0f12ff091db070b6305ee9a343e439"
@@ -183,20 +133,6 @@ ANSWERS: dict[str, str] = {
         "23eb9a3c7f479b3085bf0ec4a723ea97b4aa84f739aab9a663db519a857a51f1"
     ),
     "step-channel": ("7f8ea0412eff688936fc0644a8f464773230ac675108c0eb0b37e7f8c349f289"),
-    "step-degroot": ("70c26453be7b10a908dc0407375e76dada5998b7250b7acd259358f1092f483d"),
-    "step-sparse": ("a805ab722e0a4f0b9b8223f82c66b388eb126180849b2b52045c59d1f5e39ea2"),
-    "trace-channel-0": ("361ae546e0a0329277715bef8c63a62b45d1657562332487aafdef8b0ae5c4dd"),
-    "trace-channel-1": ("1516096d50a09fad18da50faf43e730ced552e104c8fd51504e29844cdac22b0"),
-    "trace-channel-2": ("5935d8fdcedd095fcca3261ec945889d15f6a5e8ec2a0252f92978f0c00a92c5"),
-    "trace-channel-3": ("e43a1f504dcb29830f58cd04eb49a400e79cb57dc40e08890816a3bdef29cdc8"),
-    "trace-degroot-0": ("8a8aac06e4021f51c912648f3e433091476021c9cf774225bf5a42e039c383c1"),
-    "trace-degroot-1": ("76f74f88fe26ad98214844ba0b18c0764350d0bf10e21193b6b767d30538ca99"),
-    "trace-degroot-2": ("3e7181475396149c842fe5e9556b28ec41b5558a79a3e7d6dab4e02b8b454808"),
-    "trace-degroot-3": ("711fdf38ca20c7e6b85caa167e8033107d3bc178ffb1975ac8d4ef0baa167d34"),
-    "trace-sparse-0": ("2d8bbe76417ddfcad2b6b7c3c11700ed23dfb0fefc6b53df7c1eba9a1e575f62"),
-    "trace-sparse-1": ("7baf14348b0a758c011765886c7000e28b72d2c6461d390e3fa926eebb689d8c"),
-    "trace-sparse-2": ("d54b14c13f866cfe0a37347b843760e7c4861a0a486cda53dff1f3e517badbc2"),
-    "trace-sparse-3": ("5a87b37453a94349e6d4cfab0c996bd93b855aa78ce470bc6ae7a9b26887364b"),
 }
 _RECORD = os.environ.get("SHELTERSIM_RECORD_SOCIAL")
 
@@ -263,8 +199,10 @@ def _deltas_text(deltas: Any) -> str:
     return json.dumps([{**asdict(delta), "stress": delta.stress.hex()} for delta in deltas])
 
 
-@pytest.mark.parametrize("policy", POLICIES)
-def test_the_step_writes_what_the_python_rule_wrote(generated_scenario: Any, policy: str) -> None:
+def test_the_step_writes_what_the_python_rule_wrote(generated_scenario: Any) -> None:
+    """The entry with one model; each model's answer is the core's test
+    (`the_step_writes_what_the_python_rule_wrote` of `social_steps.rs`)."""
+    policy = "channel"
     arguments = _small(generated_scenario, policy=policy, cooldown_minutes=2)
     world = arguments[0]
     if _RECORD:
@@ -276,61 +214,6 @@ def test_the_step_writes_what_the_python_rule_wrote(generated_scenario: Any, pol
     assert _mirror(world).row_json() == native.canonical_json(state)
     assert any(delta.stress != 0.5 for delta in final)
     _answers(f"step-{policy}", [json.dumps(state), _deltas_text(final)])
-
-
-class _KeepingSink:
-    """What a Run's sink is given, as text."""
-
-    trace_level = TraceLevel.FULL
-
-    def __init__(self) -> None:
-        self.documents: list[str] = []
-
-    def record_social_contact_trace(self, trace: Any) -> None:
-        self.documents.append(json.dumps(trace, ensure_ascii=False))
-
-
-@pytest.mark.parametrize("seed", range(4))
-@pytest.mark.parametrize("policy", POLICIES)
-def test_the_document_of_a_trace_is_the_python_rule_s(
-    generated_scenario: Any, policy: str, seed: int
-) -> None:
-    """Over several minutes, so contacts last and cooldowns count, on values no scenario has."""
-    draws = random.Random(seed)
-    world, controller, _view, deltas, rng = _small(
-        generated_scenario,
-        policy=policy,
-        stress_spread_per_minute=draws.choice((0.01, 0.2, 2.0)),
-        max_pair_stress_increase=draws.choice((0.001, 0.05, 0.25)),
-        max_agent_stress_increase_per_minute=draws.choice((0.002, 0.05, 0.25)),
-        minimum_contact_minutes=draws.choice((1, 2)),
-        cooldown_minutes=draws.choice((1, 2, 30)),
-        natural_recovery_per_minute=draws.choice((0.0, 0.01)),
-        max_contacts_per_agent=draws.choice((1, 3, 16)),
-    )
-    sink = _KeepingSink()
-    controller.artifacts = sink
-    texts = []
-    for minute in range(5):
-        world.minute_index = minute
-        for agent in world.agents.values():
-            agent.stress = draws.choice((0.0, 1.0, draws.random()))
-        view = view_of(world, include_state_hash=False)
-        base = tuple(
-            replace(delta, minute_index=minute, stress=draws.choice((0.0, 1.0, draws.random())))
-            for delta in deltas
-        )
-        if _RECORD:
-            python = _python_result(world, controller, view, base, rng)
-            texts += [
-                json.dumps(python.trace_document(minute), ensure_ascii=False),
-                json.dumps(python.runtime_state),
-            ]
-        _run_kernel(world, controller, view, base, rng)
-        if not _RECORD:
-            texts += [sink.documents[-1], json.dumps(world.model_state[KEY])]
-    assert len(sink.documents) == 5
-    _answers(f"trace-{policy}-{seed}", texts)
 
 
 def test_records_change_keys_and_later_writes_reach_their_new_place(
@@ -354,61 +237,6 @@ def test_records_change_keys_and_later_writes_reach_their_new_place(
     popped["consecutive_minutes"] = 100
     assert key not in json.loads(_mirror(world).row_json())["contacts"]
     assert _mirror(world).verify()
-
-
-def test_a_restored_namespace_gets_the_order_of_the_python_rule(generated_scenario: Any) -> None:
-    """Keys sorted by the checkpoint's JSON, which a new dict of the rule does not have.
-
-    The namespace is detached (test_detached_namespaces.py): a restore loads its row, and a read
-    builds a tree in the row's order, which is the rule's."""
-    world, controller, view, deltas, rng = _small(generated_scenario)
-    _run_kernel(world, controller, view, deltas, rng)
-    moved = replace(view, minute_index=1)
-    shifted = tuple(replace(delta, minute_index=1) for delta in deltas)
-    world.model_state[KEY] = json.loads(json.dumps(world.model_state[KEY], sort_keys=True))
-    assert next(iter(next(iter(world.model_state[KEY]["contacts"].values())))) == (
-        "last_seen_minute"
-    )
-    old_record = next(iter(world.model_state[KEY]["contacts"].values()))
-    if _RECORD:
-        _answers(
-            "restored",
-            [json.dumps(_python_result(world, controller, moved, shifted, rng).runtime_state)],
-        )
-        return
-    _run_kernel(world, controller, moved, shifted, rng)
-    state = world.model_state[KEY]
-    # A new dict of the rule's: each record's keys in the order it writes them.
-    assert all(
-        list(record) == ["last_seen_minute", "consecutive_minutes"]
-        for record in state["contacts"].values()
-    )
-    _answers("restored", [json.dumps(state)])
-    assert _mirror(world).stats()["live_nodes"] == 3 + len(state["contacts"])
-    old_record["consecutive_minutes"] = 5  # Out of the tree, so it reaches nothing.
-    assert _mirror(world).verify()
-
-
-def test_the_group_comes_from_the_view_and_not_the_profile(generated_scenario: Any) -> None:
-    """A household in population_presence_v1 replaces profile.group_id in the view."""
-    world, controller, view, deltas, rng = _small(generated_scenario)
-    agents = {
-        agent_id: replace(agent, group_id="everyone" if index % 2 else None)
-        for index, (agent_id, agent) in enumerate(view.agents.items())
-    }
-    other = WorldView(minute_index=0, agents=agents, facilities={}, state_hash=None)
-    if _RECORD:
-        python = _python_result(world, controller, other, deltas, rng)
-        _answers("group", [json.dumps(python.runtime_state)])
-        return
-    from_profiles = WorldState.from_scenario(generated_scenario)
-    from_profiles.model_state[KEY] = json.loads(json.dumps(world.model_state[KEY]))
-    for target, source in zip(from_profiles.agents.values(), world.agents.values(), strict=True):
-        target.stress = source.stress
-    _run_kernel(from_profiles, controller, view, deltas, rng)
-    _run_kernel(world, controller, other, deltas, rng)
-    assert world.model_state[KEY]["contacts"] != from_profiles.model_state[KEY]["contacts"]
-    _answers("group", [json.dumps(world.model_state[KEY])])
 
 
 def test_a_disabled_model_returns_the_deltas_and_writes_nothing(generated_scenario: Any) -> None:
@@ -518,82 +346,6 @@ def test_a_tainted_entity_store_is_a_refusal(generated_scenario: Any) -> None:
         _run_kernel(world, controller, view, deltas, rng)
 
 
-@pytest.mark.parametrize(
-    "case", ["stress_sensitivity", "source_expressiveness", "channel_strength"]
-)
-def test_contacts_without_weight_shift_nothing(generated_scenario: Any, case: str) -> None:
-    """#87 (元 #301): a total weight of 0 is no propagation.
-
-    Before, the Python rule raised the ValueError of its strict zip and the kernel gave
-    Unsupported, so a Run stopped. The trace, the row and the draws are the Python rule's.
-    """
-    document = generated_scenario.model_dump(mode="json")
-    parameters: dict[str, Any] = {}
-    if case == "stress_sensitivity":
-        for profile in document["profiles"]:
-            profile["stress_sensitivity"] = 0.0
-    elif case == "source_expressiveness":
-        parameters["source_expressiveness_by_agent"] = {
-            profile["id"]: 0.0 for profile in document["profiles"]
-        }
-    else:
-        parameters |= {
-            f"{basis}_channel_strength": 0.0 for basis in ("family", "same_zone", "nearby_zone")
-        }
-    scenario = type(generated_scenario).model_validate(document)
-    world, controller, view, deltas, _rng = _small(scenario, **parameters)
-    sink = _KeepingSink()
-    controller.artifacts = sink
-    if _RECORD:
-        python_rng = _KeepingRNG(1)
-        python = _python_result(world, controller, view, deltas, python_rng)
-        _answers(
-            f"no-weight-{case}",
-            [
-                json.dumps(python_rng.draws),
-                json.dumps(python.trace_document(0), ensure_ascii=False),
-                json.dumps(python.runtime_state),
-            ],
-        )
-        return
-    _rules().start_draw_log()
-    try:
-        final = _run_kernel(world, controller, view, deltas, CounterRNG(1))
-    finally:
-        rust_draws = _rules().take_draw_log()
-    # Contacts were made, and none of them moved a stress or started a cooldown.
-    document_of = json.loads(sink.documents[0])
-    assert document_of["selected_contact_count"] and final == deltas
-    assert document_of["contributing_contact_count"] == 0
-    assert world.model_state[KEY]["agent_cooldown_until"] == {}
-    _answers(
-        f"no-weight-{case}",
-        [
-            json.dumps([(key, value.hex()) for key, value in rust_draws]),
-            sink.documents[0],
-            json.dumps(world.model_state[KEY]),
-        ],
-    )
-
-
-def test_unsorted_deltas_are_sorted_except_for_degroot(generated_scenario: Any) -> None:
-    """The Python rules sorted the deltas by ID, except DeGroot's, which kept their order."""
-    world, controller, view, deltas, rng = _small(generated_scenario)
-    sorted_world = WorldState.from_scenario(generated_scenario)
-    sorted_world.model_state[KEY] = json.loads(json.dumps(world.model_state[KEY]))
-    for target, source in zip(sorted_world.agents.values(), world.agents.values(), strict=True):
-        target.stress = source.stress
-    backwards = tuple(reversed(deltas))
-    final = _run_kernel(world, controller, view, backwards, rng)
-    expected = _run_kernel(sorted_world, controller, view, deltas, rng)
-    assert [asdict(delta) for delta in final] == [asdict(delta) for delta in expected]
-    with pytest.raises(native.Unsupported, match="one person"):
-        _run_kernel(world, controller, view, (deltas[0], *deltas[:-1]), rng)
-    world, controller, view, deltas, rng = _small(generated_scenario, policy="degroot")
-    with pytest.raises(native.Unsupported, match="id order"):
-        _run_kernel(world, controller, view, tuple(reversed(deltas)), rng)
-
-
 # ---- The step on a whole Run -------------------------------------------------------------------
 
 
@@ -684,60 +436,6 @@ def test_a_run_with_a_trace_is_the_same_world_as_one_without(
     # The kernel runs with a trace too, and rules/trace.rs writes its document.
     assert _mirror(traced).stats()["whole_writes"] == 1
     assert _mirror(plain).stats()["whole_writes"] == 1
-
-
-@pytest.mark.parametrize("policy", POLICIES)
-@pytest.mark.parametrize(
-    "ints",
-    [
-        {"max_pair_stress_increase": 0},
-        {"max_agent_stress_increase_per_minute": 0},
-        {"stress_spread_per_minute": 0, "natural_recovery_per_minute": 0},
-        {"family_channel_strength": 1, "same_zone_channel_strength": 0},
-        {"nearby_zone_channel_strength": 1, "max_pair_stress_increase": 0},
-    ],
-    ids=str,
-)
-def test_int_coefficients_of_a_scenario_give_the_python_rule_s_answers(
-    generated_scenario: Any, policy: str, ints: dict[str, int]
-) -> None:
-    """A Scenario may write a coefficient as `0` or `1`. The kernel turned these down before and
-    the Python rule ran; now it takes them as the Python rule did, keeping an int cap an int in
-    the trace (`min(0, x)` is the int 0, which JSON writes as `0`)."""
-    world, controller, _view, deltas, rng = _small(
-        generated_scenario, policy=policy, cooldown_minutes=2, **ints
-    )
-    neighbors = sorted(world.zones)
-    controller.zone_neighbors = {zone: tuple(neighbors) for zone in neighbors}
-    if policy == "channel":
-        first = sorted(world.agents)[0]
-        controller.stress_policy = POLICIES[policy][0](
-            replace(controller.stress_policy.parameters, source_expressiveness_by_agent={first: 0})
-        )
-    sink = _KeepingSink()
-    controller.artifacts = sink
-    texts = []
-    draws = random.Random(7)
-    for minute in range(4):
-        world.minute_index = minute
-        for agent in world.agents.values():
-            agent.stress = draws.choice((0.0, 1.0, draws.random()))
-        view = view_of(world, include_state_hash=False)
-        base = tuple(
-            replace(delta, minute_index=minute, stress=draws.choice((0.0, 1.0, draws.random())))
-            for delta in deltas
-        )
-        if _RECORD:
-            python = _python_result(world, controller, view, base, rng)
-            texts += [
-                json.dumps(python.trace_document(minute), ensure_ascii=False),
-                json.dumps(python.runtime_state),
-                _deltas_text(python.deltas),
-            ]
-        final = _run_kernel(world, controller, view, base, rng)
-        if not _RECORD:
-            texts += [sink.documents[-1], json.dumps(world.model_state[KEY]), _deltas_text(final)]
-    _answers(f"ints-{policy}-{sorted(ints.items())}", texts)
 
 
 # ---- The bits, on values no scenario reaches -----------------------------------------------------

@@ -96,10 +96,54 @@ def changes(base: Any, made: Any, path: list[Any] | None = None) -> list[Any]:
     return out
 
 
-class Fixture:
-    """The worlds and the cases of one file."""
+def variant(name: str, base: Any, made: Any, *, dotted: bool = False) -> dict[str, Any]:
+    """`made` as a variant of the world (or other value) `name`, which is `base`: its `changes`.
+    With `dotted`, each change that sets a value at a path `base` has, or at a new key of a dict,
+    is in `set` instead, by its path joined with dots (`"world.agents.3.stress"`), which a file
+    written with an indent holds in one line; the others stay in `changes`, which come first."""
+    found = changes(base, made)
+    if not dotted:
+        return {"base": name, "changes": found}
+    kept: list[Any] = []
+    settable: dict[str, Any] = {}
+    for change in found:
+        path = change[1]
+        if change[0] == "set" and path and _dottable(base, path):
+            settable[".".join(str(key) for key in path)] = change[2]
+        else:
+            kept.append(change)
+    out: dict[str, Any] = {"base": name}
+    if kept:
+        out["changes"] = kept
+    if settable:
+        out["set"] = settable
+    return out
 
-    def __init__(self) -> None:
+
+def _dottable(base: Any, path: list[Any]) -> bool:
+    """Whether a set at this path can be written with dots: no key has a dot or is all digits,
+    and the path ends at a key or an index `base` has (not one past a list's end)."""
+    node = base
+    for depth, key in enumerate(path):
+        last = depth == len(path) - 1
+        if isinstance(node, list):
+            if not isinstance(key, int) or key >= len(node):
+                return False
+        elif not isinstance(node, dict) or not isinstance(key, str):
+            return False
+        elif "." in key or key.isdigit() or (key not in node and not last):
+            return False
+        if not last:
+            node = node[key]
+    return True
+
+
+class Fixture:
+    """The worlds and the cases of one file. With `dotted`, a variant writes its changes in the
+    shorter form of `variant`."""
+
+    def __init__(self, *, dotted: bool = False) -> None:
+        self.dotted = dotted
         self.worlds: dict[str, Any] = {}
         self.entries: dict[str, Any] = {}
         self.cases: dict[str, list[Any]] = {}
@@ -112,7 +156,11 @@ class Fixture:
     def world(self, name: str, world: Any, controller: Any, *, full: bool = False) -> str:
         """Add a world: whole if `full`, else as the variant of the world added before whose changes
         are the shortest. A world equal to one added is that one."""
-        entry = json.loads(json.dumps(export_world(world, controller, validate=False)))
+        return self.add(name, export_world(world, controller, validate=False), full=full)
+
+    def add(self, name: str, entry: dict[str, Any], *, full: bool = False) -> str:
+        """Add an entry of `export_world` (which a builder may have changed), as `world` does."""
+        entry = json.loads(json.dumps(entry))
         # Compared as text: `==` takes True for 1 and 1 for 1.0.
         text = json.dumps(entry, sort_keys=True)
         for known, other in self.entries.items():
@@ -123,7 +171,7 @@ class Fixture:
             self.worlds[name] = entry
         else:
             variants = (
-                {"base": base, "changes": changes(other, entry)}
+                variant(base, other, entry, dotted=self.dotted)
                 for base, other in self.entries.items()
             )
             self.worlds[name] = min(variants, key=lambda variant: len(json.dumps(variant)))

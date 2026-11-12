@@ -1,10 +1,12 @@
-"""staff_operations_v1 and shared_operations_v1 owned by Rust, with the rules of a tick.
+"""staff_operations_v1 and shared_operations_v1 owned by Rust: the boundary of the staff's rules.
 
-native/src/rules/staff.rs and common_operations.rs move the rules of the staff's assignment and a
-care receipt (docs/rust-port/lanes/m4-staff.md, l2-staff.md). The staff's rules of a tick have no
-Python body left (lane L10, `kernel_only`): they are checked against the Python rule's formula, or
-a digest of what it gave on the same random inputs, taken before it went. The rules that still have
-a Python rule are compared with it, on the gate by benchmarks/rule_shadow and here.
+native/src/rules/staff.rs and common_operations.rs are the glue of the core's rules of the staff's
+assignment and a care receipt (docs/rust-port/lanes/m4-staff.md, l2-staff.md). Those rules have no
+Python body left (lane L10, `kernel_only`); the core's tests check them on the worlds this file
+built, against the Python rule's formula or a digest of what it gave
+(`native/core/tests/staff_rules.rs`, #225). This file keeps what only Python can check: the rows
+and their trees, a taint, a restore, the comparisons with the Python validators still in src, and
+one test of each kernel's entry, which still reaches the kernel and gives its answer.
 """
 
 from __future__ import annotations
@@ -12,15 +14,14 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-import random
 from typing import Any
 
 import pytest
-from support.paths import SMALL_REPLAY
-from support.receipts import care_transition_record, facility_recovery_record
+from support.core_fixtures_staff import staff_world
+from support.receipts import care_transition_record
 
 from sheltersim import native
-from sheltersim.contracts.operations import SHARED_OPERATIONS_KEY, NumericStateChange
+from sheltersim.contracts.operations import SHARED_OPERATIONS_KEY
 from sheltersim.core import state_mirror
 from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.state_mirror import rust_validated
@@ -31,13 +32,8 @@ from sheltersim.domain.common_operations import (
     record_shared_operation,
     validate_shared_operations_state,
 )
-from sheltersim.domain.models import (
-    Activity,
-    SupportRequestState,
-    SupportRequestStatus,
-)
-from sheltersim.domain.simulator_state import initialize_simulator_extensions
-from sheltersim.domain.staff import _CARE_SKILL_ALTERNATIVES, StaffService
+from sheltersim.domain.models import SupportRequestState, SupportRequestStatus
+from sheltersim.domain.staff import StaffService
 from sheltersim.domain.staff_operations import (
     STAFF_OPERATIONS_STATE_KEY,
     assign_staff_operations,
@@ -47,12 +43,10 @@ from sheltersim.domain.staff_operations import (
 )
 from sheltersim.domain.zones import ZoneGraph
 from sheltersim.experiments import metrics
-from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.policies.space import SpaceRouter
 
 KEY = STAFF_OPERATIONS_STATE_KEY
 SHARED = SHARED_OPERATIONS_KEY
-KINDS = (*_CARE_SKILL_ALTERNATIVES, "a_kind_of_no_table")
 
 
 @pytest.fixture(autouse=True)
@@ -62,26 +56,7 @@ def _trees(keep_trees: Any) -> None:
     keep_trees(SHARED)
 
 
-def _world(
-    *, skills: tuple[str, ...] = ("support",), configs: dict[str, Any] | None = None
-) -> WorldState:
-    document = json.loads(SMALL_REPLAY.read_text(encoding="utf-8"))
-    document["schema_version"] = 3
-    document["duration_minutes"] = 200
-    document["scheduled_events"] = []
-    document["model_configs"]["staff_operations"] = {}
-    document["model_configs"]["shared_operations"] = {
-        "schema_version": 1,
-        "policy_version": "shared-operations-v1",
-    }
-    document["model_configs"].update(configs or {})
-    template = document["staff"][0]
-    document["staff"] = [
-        {**template, "id": f"S{index:02}", "skills": list(skills)} for index in range(1, 4)
-    ]
-    world = WorldState.from_scenario(ScenarioSpec.model_validate(document))
-    initialize_simulator_extensions(world)
-    return world
+_world = staff_world
 
 
 def _twins(**options: Any) -> tuple[WorldState, WorldState]:
@@ -154,47 +129,8 @@ def test_a_value_the_row_cant_hold_taints_it_and_the_rule_refuses() -> None:
 # ---- update_staff_operations ----
 
 
-def _python_sanitation(world: WorldState, state: dict[str, Any], minute: int) -> dict[str, Any]:
-    """The zones as `update_staff_operations` left them: each zone's sanitation falls by
-    `load * rate * elapsed`, down to 0.0, and its `updated_minute` is the minute."""
-    zones = json.loads(json.dumps(state["zones"]))
-    config = state["config"]
-    for zone_id in sorted(world.zones):
-        load = sum(agent.zone_id == zone_id for agent in world.agents.values())
-        zone = zones[zone_id]
-        elapsed = max(0, minute - zone["updated_minute"])
-        rate = (
-            config["effects_by_zone"]
-            .get(zone_id, {})
-            .get("sanitation_use_per_person_minute", config["sanitation_use_per_person_minute"])
-        )
-        zone["sanitation"] = max(0.0, zone["sanitation"] - load * rate * elapsed)
-        zone["updated_minute"] = minute
-    return zones
-
-
-def test_the_sanitation_is_the_python_rules_on_random_rates() -> None:
-    generator = random.Random(7)
-    for _round in range(40):
-        rate = generator.uniform(0.0, 1.0) ** 3
-        zone_rate = generator.uniform(0.0, 0.01)
-        world = _world()
-        zone = generator.choice(_zones(world))
-        config = world.model_state[KEY]["config"]
-        config["sanitation_use_per_person_minute"] = rate
-        config["effects_by_zone"] = {zone: {"sanitation_use_per_person_minute": zone_rate}}
-        minute = 0
-        for _step in range(4):
-            minute += generator.randrange(0, 90)
-            expected = _python_sanitation(world, world.model_state[KEY], minute)
-            kernel_before = dict(_mirror(world).stats())
-            update_staff_operations(world, minute)
-            assert _mirror(world).stats()["whole_writes"] == kernel_before["whole_writes"]
-            assert _text(world.model_state[KEY]["zones"]) == _text(expected)
-        assert _mirror(world).verify()
-
-
 def test_a_rate_of_one_percent_more_shows() -> None:
+    """The entry of `update_staff_operations`."""
     world, other = _twins()
     other.model_state[KEY]["config"]["sanitation_use_per_person_minute"] = 0.000005 * 1.01
     update_staff_operations(world, 100)
@@ -202,33 +138,9 @@ def test_a_rate_of_one_percent_more_shows() -> None:
     assert _text(world.model_state[KEY]["zones"]) != _text(other.model_state[KEY]["zones"])
 
 
-@pytest.mark.parametrize(
-    "spoil",
-    [
-        lambda config, _zone: config.__setitem__("sanitation_use_per_person_minute", 0),
-        lambda config, _zone: config.__setitem__("sanitation_use_per_person_minute", 1),
-        lambda config, zone: config.__setitem__(
-            "effects_by_zone", {zone: {"sanitation_use_per_person_minute": 0}}
-        ),
-    ],
-)
-def test_an_int_rate_the_config_takes_is_the_python_rule_s(spoil: Any) -> None:
-    """`canonical_staff_operations_config` takes an int rate in its range (0, or 1 for the global
-    one); the Python rule's product was then an int, taken off the sanitation as its float."""
-    world = _world()
-    zone = _zones(world)[0]
-    spoil(world.model_state[KEY]["config"], zone)
-    for agent in world.agents.values():
-        agent.zone_id = zone
-    world.model_state[KEY]["zones"][zone]["sanitation"] = 0.75
-    expected = _python_sanitation(world, world.model_state[KEY], 50)
-    update_staff_operations(world, 50)
-    assert _text(world.model_state[KEY]["zones"]) == _text(expected)
-    assert _mirror(world).verify()
-
-
 def test_a_config_without_its_table_changes_nothing_and_is_refused() -> None:
-    """`config["effects_by_zone"]`: the Python rule raised KeyError for a config no rule writes."""
+    """`config["effects_by_zone"]`: the Python rule raised KeyError for a config no rule writes.
+    The core's refusal is Unsupported, and KernelRefusal from the Python step."""
     world = _world()
     world.model_state[KEY]["config"].pop("effects_by_zone")
     before = _text(world.model_state[KEY])
@@ -242,102 +154,9 @@ def test_a_config_without_its_table_changes_nothing_and_is_refused() -> None:
 # ---- assign_staff_operations, schedule_staff_operation_relief ----
 
 
-def _set_stress(world: WorldState, zone: str, stress: float) -> None:
-    for agent in world.agents.values():
-        agent.zone_id = zone
-        agent.stress = stress
-
-
-@pytest.mark.parametrize(
-    ("skills", "name", "threshold", "above_is_a_task"),
-    [(("patrol",), "patrol_stress_at_least", 0.6, True)],
-)
-def test_a_free_worker_with_a_task_reads_the_router_and_without_one_doesnt(
-    skills: tuple[str, ...], name: str, threshold: float, above_is_a_task: bool
-) -> None:
-    world = _world(skills=skills)
-    zone = _zones(world)[0]
-    router = object()
-    kernel = native.rules("staff").assign_operations
-    _set_stress(world, zone, threshold)
-    with pytest.raises(native.Unsupported):
-        kernel(world, 1, router)
-    _set_stress(world, zone, 0.5999999)
-    assert kernel(world, 1, router) == ()
-    # A zone's own threshold replaces it, as an int too.
-    world.model_state[KEY]["config"]["thresholds_by_zone"] = {zone: {name: 1}}
-    _set_stress(world, zone, 0.9)
-    assert kernel(world, 1, router) == ()
-    _set_stress(world, zone, 1.0)
-    with pytest.raises(native.Unsupported):
-        kernel(world, 1, router)
-
-
-def test_the_cleaning_threshold_is_the_rules() -> None:
-    world = _world(skills=("cleaning",))
-    zone = _zones(world)[0]
-    kernel = native.rules("staff").assign_operations
-    state = world.model_state[KEY]
-    state["zones"][zone]["sanitation"] = 0.85
-    assert kernel(world, 1, object()) == ()
-    state["zones"][zone]["sanitation"] = 0.8499999
-    with pytest.raises(native.Unsupported):
-        kernel(world, 1, object())
-    # The zone is taken by a worker on it: S02 stays free and has nothing to do.
-    state["staff"]["S01"] = {
-        **state["staff"]["S01"],
-        "phase": "working",
-        "task_id": "t",
-        "task_kind": "cleaning",
-        "target_zone_id": zone,
-        "reason": "r",
-        "started_minute": 0,
-        "arrival_minute": 0,
-        "due_minute": 9,
-    }
-    assert kernel(world, 1, object()) == ()
-
-
-def test_the_outreach_threshold_is_the_rules() -> None:
-    from sheltersim.domain.body_state import canonical_body_config
-
-    world = _world(
-        skills=("information",),
-        configs={
-            "body_dynamics": canonical_body_config(None),
-            "policy_registry": {"schema_version": 2, "psychology": "life-state-feedback-v1"},
-        },
-    )
-    zone = _zones(world)[0]
-    kernel = native.rules("staff").assign_operations
-    body = world.model_state["body_state_v1"]["agents"]
-    for agent in world.agents.values():
-        agent.zone_id = zone
-    for record in body.values():
-        record["uncertainty"] = 0.45
-    with pytest.raises(native.Unsupported):
-        kernel(world, 1, object())
-    for record in body.values():
-        record["uncertainty"] = 0.4499999
-    assert kernel(world, 1, object()) == ()
-
-
-def test_a_repair_reads_the_router_and_another_formula_goes_to_the_python_rule() -> None:
-    world = _world(skills=("maintenance",))
-    kernel = native.rules("staff").assign_operations
-    assert kernel(world, 1, object()) == ()
-    facility = next(iter(world.facilities.values()))
-    facility.working_units = facility.capacity - 1
-    with pytest.raises(native.Unsupported):
-        kernel(world, 1, object())
-    facility.working_units = facility.capacity
-    world.model_configs["policy_registry"] = {"staff_operations": "a-later-formula"}
-    with pytest.raises(native.Unsupported):
-        kernel(world, 1, object())
-
-
 @pytest.mark.parametrize("skills", [("support",), ("patrol",), ("cleaning",), ("repair",), ("x",)])
 def test_a_tick_with_nothing_to_start_changes_nothing(skills: tuple[str, ...]) -> None:
+    """The entries of `assign_staff_operations` and `schedule_staff_operation_relief`."""
     world = _world(skills=skills)
     before = world.state_digest()
     assert native.rules("staff").relief(world, 3) == ()
@@ -347,15 +166,6 @@ def test_a_tick_with_nothing_to_start_changes_nothing(skills: tuple[str, ...]) -
     graph = ZoneGraph.from_states(world.zones, world.zone_edges)
     assert assign_staff_operations(world, 3, SpaceRouter(graph)) == ()
     assert world.state_digest() == before
-
-
-def test_a_task_with_no_id_sends_the_relief_to_the_python_rule() -> None:
-    world = _world()
-    state = world.model_state[KEY]
-    state["staff"]["S01"] = {**state["staff"]["S01"], "phase": "working"}
-    with pytest.raises(native.Unsupported):
-        native.rules("staff").relief(world, 3)
-    assert native.rules("staff").relief(world, world.duration_minutes - 1) == ()
 
 
 # ---- The validator ----
@@ -465,19 +275,6 @@ def _request(world: WorldState, number: int, agent_id: str, minute: int = 0) -> 
     return request
 
 
-def _care(world: WorldState, request: SupportRequestState, kind: str) -> None:
-    world.model_state[SHARED]["support_requests"][request.id] = {
-        "request_id": request.id,
-        "agent_id": request.agent_id,
-        "household_id": None,
-        "support_kind": kind,
-        "status": "requested",
-        "created_minute": request.requested_minute,
-        "updated_minute": request.requested_minute,
-        "latest_event_id": f"care-{request.id}",
-    }
-
-
 def _waiting_fields(world: WorldState) -> list[Any]:
     return [
         (
@@ -489,80 +286,18 @@ def _waiting_fields(world: WorldState) -> list[Any]:
     ]
 
 
-def _busy(world: WorldState, staff_id: str) -> None:
-    world.staff[staff_id].active_task_id = f"task-{staff_id}"
-
-
-def _pending_round(generator: random.Random) -> str:
-    """The waiting fields and metrics of one random round of requests that all stay pending, as
-    text; after a second call at the same minute too."""
-    world = _world(skills=generator.choice([("support",), ("nursing",), ("hygiene",)]))
-    minute = 0
-    people = sorted(world.agents)
-    kinds = [generator.choice(KINDS[:-1]) for _ in people]
-    world.minute_index = minute
-    for number, (agent_id, kind) in enumerate(zip(people, kinds)):
-        request = _request(world, number, agent_id)
-        if number % 2:
-            _care(world, request, kind)
-    for staff_id in world.staff:
-        _busy(world, staff_id)
-    service = StaffService(world)
-    assert service.assign_pending(minute, validate_state=False) == ()
-    first = _text([_waiting_fields(world), dict(world.metric_state)])
-    # A second call at the same minute adds nothing, as in the rule.
-    assert service.assign_pending(minute, validate_state=False) == ()
-    return first + _text(dict(world.metric_state))
-
-
-# The digest of the 30 rounds' texts with the Python rule, taken before it went (lane L10).
-PENDING_DIGEST = "9762d43e25ebc4eb"
-
-
-def test_requests_that_stay_pending_are_the_python_rules() -> None:
-    generator = random.Random(11)
-    texts = [_pending_round(generator) for _round in range(30)]
-    assert hashlib.sha256("\n".join(texts).encode()).hexdigest()[:16] == PENDING_DIGEST
-
-
-def test_the_wait_counts_staff_off_shift_away_and_busy_as_the_python_rule_does() -> None:
-    windows = {"S01": [{"start_minute": 100, "end_minute": 110}]}
-    configs = {"staff_dynamics": {"shift_windows_by_staff": windows}}
-    world = _world(configs=configs)
-    for staff_id in ("S02", "S03"):
-        _busy(world, staff_id)
-    _request(world, 1, sorted(world.agents)[0])
-    assert StaffService(world).assign_pending(0, validate_state=False) == ()
-    assert world.metric_state["support_assignment_metrics_minute"] == 0.0
-    assert world.metric_state["support_wait_staff_off_shift_request_minutes"] == 1.0
-    assert world.metric_state["support_wait_staff_busy_request_minutes"] == 1.0
-    assert world.metric_state["support_no_qualified_worker_request_minutes"] == 0.0
-
-
 def test_a_free_worker_goes_past_the_plain_kernel() -> None:
     world = _world()
     _request(world, 1, sorted(world.agents)[0])
     service = StaffService(world)
     before = (_waiting_fields(world), _text(dict(world.metric_state)))
+    # The entries of `assign_none` and `assign_pending`; with the validation `assign_none` leaves
+    # the step to `assign_pending`.
+    assert native.rules("staff").assign_none(service, 0) is None
     assert native.rules("staff").assign_none(service, 0, validate_state=False) is None
     assert (_waiting_fields(world), _text(dict(world.metric_state))) == before
     # No route is known here, so it is assigned where it stands.
     assert service.assign_pending(0, validate_state=False) == ("support-1",)
-
-
-def test_what_the_plain_kernel_doesnt_decide_goes_to_assign_work() -> None:
-    world = _world()
-    for staff_id in world.staff:
-        _busy(world, staff_id)
-    request = _request(world, 1, sorted(world.agents)[0])
-    service = StaffService(world)
-    kernel = native.rules("staff").assign_none
-    assert kernel(service, 0) is None  # It validates the state.
-    assert kernel(service, 1, validate_state=False) is None  # Not the world's minute.
-    world.model_state["llm"] = {"support_priorities": {request.id: 1}}
-    assert kernel(service, 0, validate_state=False) is None
-    world.model_state["llm"] = {"support_priorities": {request.id: True}}
-    assert kernel(service, 0, validate_state=False) == ()
 
 
 # ---- What the metrics read ----
@@ -572,8 +307,6 @@ def test_what_the_plain_kernel_doesnt_decide_goes_to_assign_work() -> None:
 
 
 def _digest(text: str) -> str:
-    import hashlib
-
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
@@ -589,88 +322,8 @@ def _both_snapshots(world: WorldState, minute: int) -> str:
     return _text(metrics._support_wait_snapshot(world, active, minute))
 
 
-@pytest.mark.parametrize("kind", KINDS)
-def test_each_kind_asks_for_the_skills_of_the_table(kind: str) -> None:
-    required = _CARE_SKILL_ALTERNATIVES.get(kind, {"support"})
-    every_skill = sorted(
-        {skill for skills in _CARE_SKILL_ALTERNATIVES.values() for skill in skills}
-    )
-    for skill in [*every_skill, "other"]:
-        world = _world(skills=(skill,))
-        for staff_id in world.staff:
-            _busy(world, staff_id)
-        request = _request(world, 1, sorted(world.agents)[0])
-        if kind != "emotional_support":
-            # A head of the row's shape: the kind is read from the row (lane P8 b3), and a kind
-            # no contract takes reads the same.
-            world.model_state[SHARED]["support_requests"][request.id] = {
-                "request_id": request.id,
-                "agent_id": request.agent_id,
-                "household_id": None,
-                "support_kind": kind,
-                "status": "requested",
-                "created_minute": 0,
-                "updated_minute": 0,
-                "latest_event_id": "event-1",
-            }
-        answer = json.loads(_both_snapshots(world, 0))
-        assert (answer[1] == []) == (skill in required)
-
-
-def test_the_reasons_are_the_python_rules_on_random_staff() -> None:
-    generator = random.Random(23)
-    reasons_seen: set[str] = set()
-    answers: list[str] = []
-    for _round in range(120):
-        windows = {
-            "S01": [{"start_minute": 0, "end_minute": generator.choice([1, 60])}],
-        }
-        world = _world(
-            skills=generator.choice([("support",), ("nursing", "support"), ("privacy",)]),
-            configs={"staff_dynamics": {"shift_windows_by_staff": windows}},
-        )
-        minute = generator.randrange(0, 90)
-        world.minute_index = minute
-        operations = world.model_state[KEY]["staff"]
-        dynamics = world.model_state["staff_dynamics_v1"]["staff"]
-        for staff_id in world.staff:
-            choice = generator.randrange(5)
-            # Every worker but those of the last branches is busy, so no route is read.
-            _busy(world, staff_id)
-            if choice == 1:
-                operations[staff_id] = {**operations[staff_id], "phase": "working"}
-            elif choice == 2:
-                dynamics[staff_id]["rest_until_minute"] = minute + 5
-            elif choice == 3:
-                dynamics[staff_id]["rest_until_minute"] = minute
-            elif choice == 4:
-                world.staff[staff_id].active_task_id = None
-                dynamics[staff_id]["rest_until_minute"] = minute + 1
-        people = sorted(world.agents)
-        for number, agent_id in enumerate(people[:6]):
-            request = _request(world, number, agent_id, generator.randrange(0, minute + 1))
-            if number % 2:
-                _care(world, request, generator.choice(KINDS[:-1]))
-            if number % 3 == 2:
-                request.status = SupportRequestStatus.ASSIGNED
-                request.task_id = f"task-{number}"
-                world.agents[agent_id].activity = generator.choice(
-                    [Activity.MOVING, Activity.SEEKING_HELP]
-                )
-        answers.append(_both_snapshots(world, minute))
-        for detail in json.loads(answers[-1])[0].values():
-            reasons_seen.update(detail["reason_codes"])
-    assert _digest("\n".join(answers)) == "a4fb2a9f6acf083b"
-    assert {
-        "staff_busy",
-        "staff_on_other_operation",
-        "staff_resting",
-        "resident_travel",
-        "support_in_progress",
-    } <= reasons_seen
-
-
 def test_a_free_worker_s_route_is_read_as_the_python_rule_reads_it() -> None:
+    """The entry of `_support_wait_snapshot`."""
     world = _world()
     _request(world, 1, sorted(world.agents)[0])
     text = _both_snapshots(world, 0)
@@ -697,110 +350,6 @@ def _receipt(world: WorldState, number: int, status: str, **fields: Any) -> Any:
 
 def _record(world: Any, receipt: Any) -> None:
     native.rules("common_operations").record_shared_operation(world, receipt)
-
-
-def test_a_request_s_receipts_are_the_python_rules_and_kept_in_the_row() -> None:
-    world = _world()
-    stress_change = NumericStateChange(
-        entity_id=sorted(world.agents)[0],
-        entity_kind="agent",
-        field_path="stress",
-        before=0.5,
-        after=world.agents[sorted(world.agents)[0]].stress,
-        unit="index",
-    )
-    states = []
-    for status, fields in (
-        ("requested", {}),
-        ("assigned", {"staff_id": "S01"}),
-        ("started", {"staff_id": "S01"}),
-        (
-            "completed",
-            {
-                "staff_id": "S01",
-                "outcome_observation": "observed_change",
-                "state_changes": (stress_change,),
-            },
-        ),
-    ):
-        world.minute_index += 1
-        receipt = _receipt(world, 1, status, **fields)
-        _record(world, receipt)
-        states.append(_text(world.model_state[SHARED]))
-        assert _mirror(world, SHARED).verify()
-        head = world.model_state[SHARED]["support_requests"].get("request-1")
-        assert (head or {}).get("status") == (None if status == "completed" else status)
-    assert world.model_state[SHARED]["support_requests"] == {}
-    assert len(world.model_state[SHARED]["history"]) == 4
-    # The stress after it is a float of the run, pinned as the gate's hashes are.
-    assert _digest("\n".join(states)) == "f685064e884a4da6"
-
-
-@pytest.mark.parametrize(
-    ("spoil", "text"),
-    [
-        (
-            lambda world, receipt: setattr(world, "minute_index", 9),
-            "shared operation receipt must use the current simulation boundary minute",
-        ),
-        (lambda world, receipt: None, "shared operation event ID has already been recorded"),
-    ],
-)
-def test_a_receipt_the_rule_refuses_changes_nothing_and_has_its_text(spoil: Any, text: str) -> None:
-    world = _world()
-    world.minute_index = 3
-    receipt = _receipt(world, 1, "requested")
-    if "already" in text:
-        record_shared_operation(world, receipt)
-    spoil(world, receipt)
-    before = _text(world.model_state[SHARED])
-    with pytest.raises(ValueError) as raised:
-        record_shared_operation(world, receipt)
-    assert type(raised.value) is ValueError
-    assert str(raised.value) == text
-    assert _text(world.model_state[SHARED]) == before
-
-
-def test_an_order_or_identity_the_rule_refuses_is_its_own() -> None:
-    world = _world()
-    world.minute_index = 3
-    record_shared_operation(world, _receipt(world, 1, "requested"))
-    with pytest.raises(ValueError, match="out of order"):
-        record_shared_operation(world, _receipt(world, 1, "completed"))
-    with pytest.raises(ValueError, match="out of order"):
-        record_shared_operation(world, _receipt(world, 2, "assigned"))
-    other = care_transition_record(
-        world,
-        request_id="request-1",
-        agent_id=sorted(world.agents)[1],
-        household_id=None,
-        support_kind="emotional_support",
-        status="assigned",
-    )
-    world.event_log.append(other[0])
-    with pytest.raises(ValueError, match="identity changed"):
-        record_shared_operation(world, other[1])
-
-
-def test_a_state_change_that_is_not_the_world_s_is_the_rules_to_refuse() -> None:
-    world = _world()
-    world.minute_index = 3
-    agent = sorted(world.agents)[0]
-    for status in ("requested", "started"):
-        record_shared_operation(world, _receipt(world, 1, status, staff_id=None))
-    change = NumericStateChange(
-        entity_id=agent,
-        entity_kind="agent",
-        field_path="stress",
-        before=0.5,
-        after=world.agents[agent].stress + 0.25,
-        unit="index",
-    )
-    receipt = _receipt(
-        world, 1, "completed", outcome_observation="observed_change", state_changes=(change,)
-    )
-    with pytest.raises(ValueError, match="does not match the current saved"):
-        record_shared_operation(world, receipt)
 
 
 def _restored(world: WorldState) -> WorldState:
@@ -844,65 +393,6 @@ def test_a_restored_receipt_is_read_by_the_python_rule_once_and_then_trusted() -
     world_two.minute_index = 4
     _record(world_two, _receipt(world_two, 3, "requested"))
     assert _mirror(world_two, SHARED).verify()
-
-
-def _same_receipt(world: WorldState, record: Any, digest: str) -> None:
-    """The kernel leaves the document the rule left, by its digest recorded from the rule.
-
-    Since #152 P8b-1 the kernel writes the row and the tree follows it, so a receipt appended to the
-    tree has the row's key order (sorted, as a tree built again from the row always had): the
-    digests were recorded again then, with only that order changed."""
-    _record(world, record)
-    assert _mirror(world, SHARED).verify()
-    assert _digest(json.dumps(world.model_state[SHARED])) == digest
-
-
-def test_a_facility_s_recovery_receipt_is_the_rule_s() -> None:
-    world = _world()
-    world.minute_index = 3
-    facility = next(iter(world.facilities.values()))
-    made = facility_recovery_record(
-        world,
-        facility_id=facility.id,
-        component_id="component",
-        status="restored",
-        previous_working_units=0,
-        working_units=facility.working_units,
-        causation_id="cause",
-    )
-    event_record, receipt = made
-    world.event_log.append(event_record)
-    _same_receipt(world, receipt, "60ddeee8a3409092")
-    # The rule turns down a second receipt of one event.
-    before = json.dumps(world.model_state[SHARED])
-    with pytest.raises(ValueError) as raised:
-        record_shared_operation(world, receipt)
-    assert str(raised.value) == "shared operation event ID has already been recorded"
-    assert json.dumps(world.model_state[SHARED]) == before
-
-
-def test_a_recovery_receipt_of_another_state_is_left_to_the_rule_s_text() -> None:
-    world = _world()
-    world.minute_index = 3
-    facility = next(iter(world.facilities.values()))
-    event_record, receipt = facility_recovery_record(
-        world,
-        facility_id=facility.id,
-        component_id="component",
-        status="restored",
-        previous_working_units=0,
-        working_units=facility.working_units,
-        causation_id="cause",
-    )
-    world.event_log.append(event_record)
-    facility.working_units -= 1
-    before = json.dumps(world.model_state[SHARED])
-    with pytest.raises(ValueError) as raised:
-        record_shared_operation(world, receipt)
-    assert str(raised.value) == (
-        "facility recovery receipt does not match the applied facility state"
-    )
-    assert json.dumps(world.model_state[SHARED]) == before
 
 
 def test_a_passed_staff_receipt_stays_with_the_python_rule() -> None:

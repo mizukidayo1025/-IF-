@@ -5,6 +5,12 @@ they answered, on worlds whose values no scenario reaches and on whole ticks, wa
 digests (ANSWERS), which the kernel's answers must equal on every OS; a float's bits all show in the
 JSON text. What the deleted rules' checks turned down, the kernels turn down, and the steps raise
 KernelRefusal before anything changes.
+
+The digests of each model on the shuffled worlds (eleven models and settings drawn by seed, a one
+percent change, the ints a Scenario may write) are the core's tests,
+`native/core/tests/psychology_steps.rs` (#225). This file keeps the entry test of one model
+(`test_people_of_a_group_are_separated_as_the_deleted_rule_said`), what the entries turn down,
+the writing of the values, and whole ticks.
 """
 
 from __future__ import annotations
@@ -29,36 +35,21 @@ from sheltersim.domain.models import Activity, SupportRequestState, SupportReque
 from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
-from sheltersim.policies.alternatives import BoundedStressPolicy
 from sheltersim.policies.psychology import (
     AgentStateDelta,
     IntegratedDistressLifeStatePolicy,
     LifeStatePsychologyPolicy,
-    MeanRevertingDistressPolicy,
     PsychologyParameters,
     SimplePsychologyPolicy,
 )
 from sheltersim.policies.registry import BodyDynamicsFormula
 
 FULL = BodyDynamicsFormula("body-feedback-complete-v1", "S")
-SLEEP_ONLY = BodyDynamicsFormula("body-feedback-sleep-debt-v1", "S")
 
 # What the deleted Python rules answered (policies/psychology.py, policies/alternatives.py and the
 # update phase's Python steps at 45a9bc9), as sha256 of the answers' texts, recorded once on Linux.
 ANSWERS: dict[str, str] = {
     "group": ("8208a4d334ad6307d11d306de2f41d0e887637e1df88c54fba09b2942a1a427e"),
-    "ints-0": ("fb6093685a0aa159c4b2e34c33d8ef488d2d6cfab9824db8d154f4ae4bf4e266"),
-    "ints-1": ("b5123a4fdd6fda5f6037c332e421c683a21100f62637c045a7a92860660154a4"),
-    "ints-2": ("81330efb55356eb79d75658b9f7100999f40d621f77a20106bef2345e76c553f"),
-    "models-0": ("b3a010870ea3f7b624b0dd09629fd0ff9407012d28754b7f5572fcdc3178c7d6"),
-    "models-1": ("de4291d76b22c58d22c97b451851622bc4b0dfbe4764f87d5151450a5965913b"),
-    "models-2": ("bbc661e8d439b21b4b2ab67dbd9b43a5cefb1764dad97666fe641945199f06ba"),
-    "models-3": ("8776482f8b3df765a9964ef1508045b147c8b3c8e84ae4f41a5cbf3b8605f08b"),
-    "models-4": ("d23a08311e64f92397a925e05d3f00cf6a285924c3ff994c19cdf99167d7ff44"),
-    "models-5": ("640b058ed3f594e8f55cbc9f691d1ea2864850be70a7adb54a45a29fecf08421"),
-    "models-6": ("68f5b75c362c695af2a75ef8012d9fd3b977b26bedc4adac54efa2844409e6d9"),
-    "models-7": ("1fe904d07fdb20f7f7b50ea6b9d4f49cc566b65e0d3d48099ee4c9b3cd2ce57e"),
-    "one-percent": ("747ac51334eb2003d4a5e5f7cd53df787172656c655d9ca0ea3f0299829fc413"),
     "ticks": ("44646ce1fe7fd7bc0bdc7c90f2941716a9434c143f0cfac618c89118819b6d19"),
     "writing-False": ("bf2dd829482d2419d163e4dce6974edf2d1de8ac0f403fef9a18753109db07b1"),
     "writing-True": ("9d710b4c06f9ad84cf9edb3bbd773aa90a0ec8b92100d5a7cf540739d512597f"),
@@ -91,62 +82,6 @@ def _people_text(world: WorldState) -> str:
     return json.dumps(
         [[agent.stress, agent.trust, agent.needs.to_dict()] for agent in world.agents.values()]
     )
-
-
-def _draw_parameters(draws: random.Random, ids: list[str]) -> PsychologyParameters:
-    def rate() -> float:
-        return draws.choice((0.0, draws.random() * 0.25))
-
-    return PsychologyParameters(
-        toilet_growth=rate(),
-        hunger_growth=rate(),
-        awake_fatigue_growth=rate(),
-        resting_fatigue_recovery=rate(),
-        sleeping_fatigue_recovery=rate(),
-        stress_pressure=rate(),
-        queued_stress=rate(),
-        resting_stress_recovery=rate(),
-        sleeping_stress_recovery=rate(),
-        need_pressure_threshold=draws.random(),
-        hydration_growth=rate(),
-        support_wait_stress=rate(),
-        natural_recovery_rate_per_minute=rate(),
-        toilet_growth_by_agent={ids[0]: rate()},
-        hunger_growth_by_agent={ids[0]: rate()},
-        awake_fatigue_growth_by_agent={ids[0]: rate()},
-        natural_recovery_rate_by_agent={ids[0]: rate()},
-        baseline_distress_by_agent={ids[0]: draws.random()},
-    )
-
-
-def _draw_policies(draws: random.Random, ids: list[str]) -> list[Any]:
-    body = {
-        "uncertainty_drift_per_minute": draws.random() * 0.01,
-        "discontent_stress_rate": draws.random() * 0.01,
-        "sleep_debt_stress_rate_by_agent": {ids[0]: draws.random() * 0.01},
-        "negative_affect_stress_rate_by_agent": {ids[0]: draws.random() * 0.01},
-        "discontent_stress_rate_by_agent": {ids[0]: draws.random() * 0.01},
-    }
-    parameters = _draw_parameters(draws, ids)
-    return [
-        SimplePsychologyPolicy(parameters),
-        SimplePsychologyPolicy(parameters, include_direct_rest_stress_recovery=False),
-        BoundedStressPolicy(parameters),
-        MeanRevertingDistressPolicy(parameters),
-        LifeStatePsychologyPolicy(parameters, body_config=body),
-        LifeStatePsychologyPolicy(parameters, body_config=body, body_formula=FULL),
-        LifeStatePsychologyPolicy(parameters, body_config=body, body_formula=SLEEP_ONLY),
-        LifeStatePsychologyPolicy(
-            parameters,
-            body_config=body,
-            body_formula=FULL,
-            include_direct_rest_stress_recovery=False,
-            use_tick_start_stress_for_feedback=True,
-        ),
-        IntegratedDistressLifeStatePolicy(parameters, body_config=body),
-        IntegratedDistressLifeStatePolicy(parameters, body_config=body, body_formula=FULL),
-        IntegratedDistressLifeStatePolicy(parameters, body_config=body, body_formula=SLEEP_ONLY),
-    ]
 
 
 def _shuffled_world(scenario: Any, draws: random.Random) -> WorldState:
@@ -189,19 +124,6 @@ def _texts_of_models(world: WorldState, policies: list[Any], view: Any) -> list[
     return [_text(delta) for policy in policies for delta in _deltas(world, policy, view)]
 
 
-@pytest.mark.parametrize("seed", range(8))
-def test_every_model_gives_the_bits_of_the_deleted_rules(
-    generated_scenario: Any, seed: int
-) -> None:
-    draws = random.Random(seed)
-    world = _shuffled_world(generated_scenario, draws)
-    view = view_of(world, include_state_hash=False)
-    for agent in world.agents.values():
-        assert view.agents[agent.id].needs.hunger == agent.needs.hunger
-    policies = _draw_policies(draws, sorted(world.agents))
-    _answers(f"models-{seed}", _texts_of_models(world, policies, view))
-
-
 def test_people_of_a_group_are_separated_as_the_deleted_rule_said(
     generated_scenario: Any,
 ) -> None:
@@ -219,22 +141,6 @@ def test_people_of_a_group_are_separated_as_the_deleted_rule_said(
     assert separated and separated != set(view.agents)
     policy = LifeStatePsychologyPolicy(PsychologyParameters(), body_formula=FULL)
     _answers("group", _texts_of_models(world, [policy], view))
-
-
-def test_a_one_percent_change_shows(generated_scenario: Any) -> None:
-    draws = random.Random(1)
-    world = _shuffled_world(generated_scenario, draws)
-    view = view_of(world, include_state_hash=False)
-    parameters = PsychologyParameters()
-    changed = replace(parameters, stress_pressure=parameters.stress_pressure * 1.01)
-    same = _texts_of_models(
-        world, [IntegratedDistressLifeStatePolicy(parameters, body_formula=FULL)], view
-    )
-    _answers("one-percent", same)
-    other = _texts_of_models(
-        world, [IntegratedDistressLifeStatePolicy(changed, body_formula=FULL)], view
-    )
-    assert other != same
 
 
 def _view_with(view: Any, agent_id: str, **changes: Any) -> Any:
@@ -308,55 +214,6 @@ def test_what_the_kernel_does_not_handle_is_refused(
         OfflineSimulationController._psychology_update(
             _controller(world, policy, trace), view, minute
         )
-
-
-def _int_policies(ids: list[str]) -> list[Any]:
-    """Each model with the ints a Scenario may write: per-person rates and baselines of `0` or `1`
-    (StrictInt in its psychology config), a resource service's hydration growth of `0`, and body
-    rates of `0` or `1` (canonical_body_config allows ints)."""
-    first, second, third = ids[:3]
-    parameters = PsychologyParameters(
-        toilet_growth_by_agent={first: 0, second: 0.01},
-        hunger_growth_by_agent={first: 0},
-        awake_fatigue_growth_by_agent={third: 0},
-        natural_recovery_rate_by_agent={first: 0, second: 0},
-        baseline_distress_by_agent={first: 1, second: 0, third: 0.3},
-        hydration_growth=0,
-    )
-    body = {
-        "discontent_stress_rate": 1,
-        "awake_sleep_debt_minutes_per_minute": 1,
-        "sleep_debt_stress_rate": 0,
-        "uncertainty_decay_per_minute": 0,
-        "discontent_queue_rate": 1,
-        "reassurance_decay_per_minute": 0,
-        "positive_affect_decay_per_minute": 1,
-        "sleep_debt_stress_rate_by_agent": {first: 1},
-        "negative_affect_stress_rate_by_agent": {second: 0},
-        "discontent_stress_rate_by_agent": {third: 1},
-    }
-    return [
-        SimplePsychologyPolicy(parameters),
-        BoundedStressPolicy(parameters),
-        MeanRevertingDistressPolicy(parameters),
-        LifeStatePsychologyPolicy(parameters, body_config=body),
-        LifeStatePsychologyPolicy(parameters, body_config=body, body_formula=FULL),
-        LifeStatePsychologyPolicy(parameters, body_config=body, body_formula=SLEEP_ONLY),
-        IntegratedDistressLifeStatePolicy(parameters, body_config=body),
-        IntegratedDistressLifeStatePolicy(parameters, body_config=body, body_formula=FULL),
-    ]
-
-
-@pytest.mark.parametrize("seed", range(3))
-def test_int_values_of_a_scenario_give_the_bits_of_the_deleted_rules(
-    generated_scenario: Any, seed: int
-) -> None:
-    """They meet floats in every expression, where they are the same f64. With a trace, a
-    separated household's int pressure stays an int (tests/integration/test_trace_documents.py)."""
-    draws = random.Random(seed)
-    world = _shuffled_world(generated_scenario, draws)
-    view = view_of(world, include_state_hash=False)
-    _answers(f"ints-{seed}", _texts_of_models(world, _int_policies(sorted(world.agents)), view))
 
 
 def test_a_tainted_store_is_refused(generated_scenario: Any) -> None:
