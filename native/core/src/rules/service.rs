@@ -2131,7 +2131,7 @@ fn serve_of<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(
     let served = tick.cell.with(|world| serve(world, &inputs.manager(), &serve_pass, &pending)).map_err(H::Error::from)?;
     match served {
         Ok(Served::Started(event_id, balance)) => {
-            tick.host.resources_changed(balance.index, balance.remaining)?;
+            tick.resources_taken(balance)?;
             Ok((Some(event_id), None))
         }
         Ok(Served::Stopped(stall)) => Ok((None, stall)),

@@ -3363,6 +3363,7 @@ fn population_config<C: WorldCell, H: Host>(cell: &C, host: &mut H, dynamics: &H
 /// `model_state[DYNAMICS] = state`, the first write of a rule whose plan made the state, and what
 /// the world holds of it read again.
 fn install_dynamics<C: WorldCell, H: Host>(cell: &C, host: &mut H, state: &V, inputs: &mut Inputs) -> std::result::Result<(), H::Error> {
+    cell.with(|world| world.start_namespace(DYNAMICS, Box::new(ValueRow(state.clone())))).and_then(|done| done).map_err(H::Error::from)?;
     host.start_namespace(DYNAMICS, state)?;
     inputs.namespaces.dynamics = kit::holding(cell, host)?.held(DYNAMICS, OTHER_DYNAMICS);
     Ok(())

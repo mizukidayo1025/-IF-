@@ -424,8 +424,6 @@ pub const NO_DRAW: &str = "not a CounterRNG";
 pub const NO_RECORDS: &str = "the host has no records";
 /// The text of a host that cannot read the floor plan (`Host::floor_plan`).
 pub const NO_PLAN: &str = "the host has no floor plan";
-/// The text of a host that cannot start a namespace in `model_state` (`Host::start_namespace`).
-pub const NO_NAMESPACE: &str = "the host starts no namespace";
 /// The text of a host whose sink samples no metrics itself (`Host::capture_by_sink`).
 pub const NO_SINK: &str = "the host has no sink that samples";
 
@@ -654,17 +652,21 @@ pub trait Host {
         Ok(())
     }
 
-    /// `world.resources` took `remaining` for `RESOURCE_IDS[index]` (an operation of the ledger): the
-    /// native host gives the field a new dict, as the Python rule did.
+    /// The core wrote `remaining` for `RESOURCE_IDS[index]` in `world.resources` (an operation of
+    /// the ledger, `World::set_resource`; Issue #244, decision 2). A notice: a host without Python
+    /// views has nothing to do. The native host gives the Python field a new dict, as the Python rule
+    /// did.
     fn resources_changed(&mut self, _index: usize, _remaining: i64) -> Result<(), Self::Error> {
         Ok(())
     }
 
-    /// `model_state[name] = value` for a namespace a rule starts (the social model's first tick, as
-    /// the deleted Python rule stored it), before the rule writes its row. What the world holds
-    /// changes, so a rule asks for the holding again after it.
+    /// The core started the namespace `name` of `model_state` with `value` (`World::start_namespace`:
+    /// the social model's first tick, the population's dynamics), before the rule writes its row
+    /// (Issue #244, decision 2). A notice: a host without Python views has nothing to do. The native
+    /// host stores the value in the Python `model_state`. What the world holds changes, so a rule
+    /// asks for the holding again after it.
     fn start_namespace(&mut self, _name: &str, _value: &V) -> Result<(), Self::Error> {
-        Err(Error::unsupported(NO_NAMESPACE).into())
+        Ok(())
     }
 
     /// Where this minute's metrics go, read at each tick (a test may put its own `capture_metric`

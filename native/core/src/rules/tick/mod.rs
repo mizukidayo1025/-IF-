@@ -144,6 +144,14 @@ impl<C: WorldCell, H: Host, R: RunCell> Tick<'_, C, H, R> {
         self.cell.with(f).and_then(|done| done).map_err(H::Error::from)
     }
 
+    /// An operation of the ledger took a stock (Issue #244, decision 2): the core writes
+    /// `world.resources` (`World::set_resource`), then tells the host (`Host::resources_changed`).
+    pub fn resources_taken(&mut self, applied: crate::rules::resources::Applied) -> std::result::Result<(), H::Error> {
+        let resource = crate::state::resource_ledger::RESOURCE_IDS[applied.index];
+        self.world(|world| world.set_resource(resource, applied.remaining))?;
+        self.host.resources_changed(applied.index, applied.remaining)
+    }
+
     /// Run f on the Run.
     pub fn on_run<T>(&self, f: impl FnOnce(&mut Run) -> T) -> std::result::Result<T, H::Error> {
         self.run.with(f).map_err(H::Error::from)

@@ -90,7 +90,7 @@ fn serve(case: &mut Case, facility: &str, resource: &str) -> Result<Option<Arc<s
         let pass = Serve { facility_id: facility, resource_id: resource, minute, queue_id: None, walk: walk.as_ref(), placement: walking.as_ref().map(|walking| &*walking.geo) };
         match tick.cell.with(|world| service::serve(world, &manager.manager(), &pass, &pending))? {
             Ok(Served::Started(event_id, balance)) => {
-                tick.host.resources_changed(balance.index, balance.remaining)?;
+                tick.resources_taken(balance)?;
                 Ok(Some(event_id))
             }
             Ok(Served::Stopped(_)) => Ok(None),
@@ -109,7 +109,7 @@ fn complete(case: &mut Case, event_id: &str) -> Result<(), Error> {
     let result = case.tick(|tick| {
         let manager = service::manager_in(tick)?;
         match tick.cell.with(|world| service::complete(world, &manager.manager(), &row))? {
-            Ok(balance) => tick.host.resources_changed(balance.index, balance.remaining),
+            Ok(balance) => tick.resources_taken(balance),
             Err(failure) => Err(service::failure_of::<TestHost>(failure)),
         }
     });
