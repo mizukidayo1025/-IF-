@@ -215,7 +215,11 @@ CI's lint job runs these, after `cargo test -p sheltersim_core` with the feature
   lane P8-0b; `dispatch.rs`, the dispatcher's handlers by event type, each a `HandlerKind` the core
   runs with what it reads of the handler, or foreign, lane P9-0). `tests/support/` holds
   `TestHost`, the host of a build without Python, which fills every section of the configs from
-  outside the crate.
+  outside the crate, and `load.rs`, a test-only loader of a World and a Run's `Policies` from
+  JSON (lane P10-1b; not part of the crate). `tests/tick_core.rs` runs 1,440 ticks of a small
+  world with `TestHost` alone and reaches the digests the native path gives on the same world
+  (`tests/data/tick_core.json`, written by `benchmarks/core_tick_fixture.py`; the native side is
+  `tests/integration/test_core_tick.py`).
   The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,

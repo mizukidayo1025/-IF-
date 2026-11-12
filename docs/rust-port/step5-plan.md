@@ -989,6 +989,21 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
 - **7日分**（100人、project の経路、生成 Scenario）：base（`b397ff33` のビルド）と交互に2組。4回とも world、events、metrics のハッシュは同じです（69aba659…、5e4c7645…、94c8cbb2…）。load average は 9.4 から 1.6 へ下がる中でした。thread は base 57.87・57.92 s、この PR 58.46・57.98 s、`TickEngine.step` は 13.93・14.02 s と 14.06・13.97 s、`phase.dispatch_due_events` は 2.44・2.46 s と 2.48・2.46 s、wall は 67.49・67.40 s と 67.98・67.39 s、`computation_mib` は base 905.9・904.7、この PR 896.7・905.3 MiB です。負荷の低い2組目どうしで +0.1% で、7日分の経路は人口の規則をほとんど通らないので同じです。
 - **PR P9-2b の後に載せ直して**（`main` `d15ab5b8` の上で。衝突は `architecture.md` と `step5-plan.md` だけで、コードは自動で合わさりました）：`cargo check --workspace`（警告なし）、`cargo test -p sheltersim_core`（473件）、clippy、`cargo tree` に `pyo3` なし。加えて、ビルドし直して offline の pytest（5319 passed、6 skipped）と `--verify-rows` 付きのゲート（0 problems。実体 0 differed、木 189362 本 0 differed。ホストの handler 0 件）。
 
+### PR P10-1b：Python のない中核の tick のテスト（レーン P10-1b）
+
+- **何をしたか**：#152 の終わりの条件 4.1-(4)（設計 P8 §4）のテストを足しました。中核が Python なしで tick を進め、ネイティブの経路と同じバイトになることを確かめます。シミュレーションのコードは変えていません。
+  - **世界**：`tests/support/core_tick.py` の小さな世界です。h00_small_replay（4人、4区域、6辺、トイレ4、職員5）に、15分のトイレの停止と90分の復旧を足し、Run と同じに準備した 0 分の世界です。`benchmarks/core_tick_fixture.py` が、この世界の正規の文書、核が持つ slot の名前、Run がコントローラーから読んだもの、モデルの選択、ネイティブの経路で 1,440 tick 進めた後の digest を `native/core/tests/data/tick_core.json` に書きます。
+  - **JSON から World**（オーケストレーターの決定 (b)）：`native/core/tests/support/load.rs`。crate には入れません。スカラー、実体の行、slot（4つの欄と名前空間）、列のイベント、記録を作ります。型のある行を持つ名前空間は読めません（この世界の `model_state` は空です。`ValueRow` の名前空間だけ読みます）。Run の `Policies` も、読んだものの文書から作り直します。
+  - **窓口に1つ足したもの**：`RunCore.policies_document()`。Run がコントローラーと dispatcher から読んだもの（`Obj`、値、誤り、handler の表）を JSON の値で返します。テストの道具で、tick は呼びません。中核に足した公開の API はありません。
+  - **tick**：`native/core/tests/tick_core.rs`。`TestHost`（決定 (c)：契約は入力のまま、外の handler は断り、sink は記録、LLM なし、`space_refreshed` は Ok）で、`tick::run_tick` を 1,440 回呼びます。`TickEngine.step` の分もテストがします。分を1つ進め、終わりの検査（`after_tick::check`）をします。検査が Python に聞くこと（登録した名前空間の検証と EffectProgram の検査）には、Python がないので「通る」と答えます（方針 E6）。ホストが埋める Python の節で tick が読むのは3つです。モデルの選択（fixture の値）、拡張が有効か（この設定にはないので false）、検査の計画（テストの値）です。床の図面は、施設の形も空間の制約もない設定の `Geo::new(None, None, None, None)` です。
+  - **比べたもの**：実体の各表、列、記録、`id_counters`、`metric_state`、`model_configs`、`model_state`、スカラーの正規の JSON の sha256（`rng_state` は World にないので外します）、指標のスナップショット 1,440 件の digest、記録のイベントの型の順（333件：行動 179、職員の支援の完了 54、支援待ちの時間切れ 54、移動の完了 32、トイレの完了 12、停止と復旧 各1）。どれもネイティブの経路と同じでした。0 分の世界を読み込んだだけのバイトも同じです。2回の実行が同じバイトになることも確かめます。
+  - **交差の確認**：`tests/integration/test_core_tick.py`（2件）。fixture が今の `core_tick.py` の世界であること、同じ世界を `TickEngine`（offline）で 1,440 tick 進めると fixture の digest になることを確かめます。Rust のテストは同じ digest を確かめるので、2つの経路が同じバイトを出すことになります。
+  - **まだ中核にないもの**：update の段階の移動と経路の引き直しは窓口の関数のままです（P9-3b）。この世界には `movement_v1` がないので、ネイティブの経路でも動かず、テストの `movement` は何もしません。`TickEngine` の Python の部分（`require_tickable`、`detach_unread`、行の見張り、trace）は中核にありません。
+- **handler のテスト**（P9-1b の残り）：`native/core/tests/effect_handlers.rs`（4件）。同じ World に、3つの効果の承認済みの program、空の間取りの上書き、待機中の職員の作業、共有の運営の状態を書いて、`TestHost` で動かします。
+  - 間取りの変更：経路を閉じて辺と上書きの状態を書き、トランザクションを残します（床の図面の読み、契約、世界の検証、commit）。期限で開き直し、2回目の期限は抑止の文です。承認のない modifier、ない経路、終わりのない閉鎖、上書きのない世界は、それぞれの文で失敗し、世界は前のままです（トランザクションが2回戻します）。
+  - 職員の作業の指示と引き継ぎ：S01 に案内所の巡回を指示すると、移動なしで作業が始まり、作業と完了のイベントができます。1分後に S02 へ引き継ぐと、作業、職員の行、作業の記録、保留の完了イベントが S02 のものになり、共有の運営の受領記録ができます。忙しい職員への指示、同じ引き継ぎのやり直し、期日でない指示、登録のない作業の種類、ない作業の引き継ぎ、共有の運営のない世界は、それぞれの文で断ります。
+- **確かめたこと**（`main` `d15ab5b8` の上で）：`cargo test -p sheltersim_core`（471件）と `--no-default-features`（471件）、`wasm32-unknown-unknown` の `--no-default-features` のビルド、`cargo clippy --workspace --all-targets -- -A clippy::all -D clippy::disallowed_methods`、`cargo tree -p sheltersim_core -e normal,build` に `pyo3` がないこと、`ruff check .`、`ruff format --check .`、offline の pytest（`-m "not long_simulation"`：5321 passed、6 skipped。`native/pylib` にこのビルド。base の 5319 にこの PR の2件）、全経路のゲート（55 scenarios、0 problems。替わった行 1171 件、ホストの handler 102 件、その場の規則のトランザクション 390）。シミュレーションのコードを変えていないので、7日分は走らせていません。
+
 ### この後
 
 残りの PR は、下の「レーン」の順に進めます。各レーンは、終わったときにこの節の前に記録を足します。

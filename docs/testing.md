@@ -101,7 +101,7 @@ python -m coverage report --sort=cover
 | `support/world.py` | WorldState・イベント・検証の部品 | `make_event`、`record_handler`、`stress_delta`、`count_validations`、`live_checkpoint_world`、`keep_trees`（切り離す名前空間に木を持たせる。kernel が書く木を鍵の順まで固定したテストに） |
 | `support/python_rules.py` | `python_rules`の印：そのテストでは検証のRustの双子を切り、Pythonの検証（`validate_*`）にすべての名前空間を読ませる | `_python_rules`（自動）、`without_kernels` |
 
-`support/paths.py`（`fixtures/`のファイルのパス）、`support/receipts.py`（共有の運営の受領書と、その適用済みの記録をPythonで作る。`record_shared_operation`や受領書の取り込みのテストの入力。kernelが作るので、`domain/care_receipts.py`の`make_*_record`は#152 P8b-1で消しました）、`support/isolation.py`（隔離の処理）、`support/psychology.py`（心理の手順のkernelを世界の上で動かし、差分とtraceの文書を返す）、`support/world_order.py`（ゲートのScenarioの世界を決まった分まで進めるRunと、2つの世界をすべての辞書の順と値の型まで比べる指紋。世界の写しとトランザクションのテスト用）は、fixtureを持たない部品です。テストで使う`fixtures/`のファイルが増えたら、`support/paths.py`に定数を足します。
+`support/paths.py`（`fixtures/`のファイルのパス）、`support/receipts.py`（共有の運営の受領書と、その適用済みの記録をPythonで作る。`record_shared_operation`や受領書の取り込みのテストの入力。kernelが作るので、`domain/care_receipts.py`の`make_*_record`は#152 P8b-1で消しました）、`support/isolation.py`（隔離の処理）、`support/psychology.py`（心理の手順のkernelを世界の上で動かし、差分とtraceの文書を返す）、`support/world_order.py`（ゲートのScenarioの世界を決まった分まで進めるRunと、2つの世界をすべての辞書の順と値の型まで比べる指紋。世界の写しとトランザクションのテスト用）、`support/core_tick.py`（Pythonのない中核のtickのテスト`native/core/tests/tick_core.rs`の小さな世界と、世界の部分と指標のdigest。`integration/test_core_tick.py`が使い、`benchmarks/core_tick_fixture.py`が`native/core/tests/data/tick_core.json`を書き直します）は、fixtureを持たない部品です。テストで使う`fixtures/`のファイルが増えたら、`support/paths.py`に定数を足します。
 
 `support/world.py`の`view_of`と`decisions_of`も、fixtureを持たない部品です。段階が作る`WorldView`と提案を、Runと同じkernel（`native/src/rules/world_view.rs`など）で作ります。PythonでWorldViewを作る規則（`WorldView.from_world`）はないので、Pythonの方策に渡すviewもこれで作ります。
 
