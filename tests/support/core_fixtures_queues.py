@@ -142,8 +142,8 @@ def _xy(point: Any) -> list[float]:
 
 
 def _follower(scenario: Any) -> dict[str, Any]:
-    """`test_a_follower_within_the_tolerance_stands_in_their_slot`: the head stands at the end of
-    its approach route, and the follower's slot."""
+    """For the core's `a_follower_within_the_tolerance_stands_in_their_slot`: the head stands at
+    the end of its approach route, and the follower's slot."""
     from sheltersim.domain import movement
 
     world = queue_world(scenario)
@@ -158,8 +158,8 @@ def _follower(scenario: Any) -> dict[str, Any]:
 
 
 def _walk_speed(scenario: Any, phase: str) -> float:
-    """`test_a_walk_s_minutes_turn_over_where_python_s_do`: the speed that puts the walk of one
-    person lined up at the toilet just under 5 minutes."""
+    """For the core's `a_walk_s_minutes_turn_over_where_python_s_do`: the speed that puts the walk
+    of one person lined up at the toilet just under 5 minutes."""
     from sheltersim.contracts.extensions import Point2D
     from sheltersim.domain import movement
 
@@ -192,8 +192,8 @@ def _walk_speed(scenario: Any, phase: str) -> float:
 
 
 def _head_route(scenario: Any) -> dict[str, Any]:
-    """`test_the_head_walks_from_its_slot_to_the_service_point`: the approach route of the one
-    person lined up at the toilet."""
+    """For the core's `the_head_walks_from_its_slot_to_the_service_point`: the approach route of
+    the one person lined up at the toilet."""
     from sheltersim.domain import movement
 
     world = queue_world(scenario)
