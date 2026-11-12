@@ -4,7 +4,7 @@
 `population_texts.rs` check the texts of the EventSuppressed, EventApplicationError and ValueError
 the core's rules raise (they are saved as an event's or a request's `detail`), on the worlds the
 pytest files of the same names built. This module builds those worlds and exports them
-(`core_fixtures.export_world`):
+(`world_export.export_world`):
 
 - `resource_service_texts.json`: `serving`, h00_small_replay with the water station and the meal
   point, A001 being served water at minute 0; `visiting`, the gate's generated Scenario at the
@@ -32,7 +32,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from support.core_fixtures import export_world
+from sheltersim.core.world_export import export_world
 from support.core_fixtures_service import at_once_worlds
 from support.core_texts import changes
 

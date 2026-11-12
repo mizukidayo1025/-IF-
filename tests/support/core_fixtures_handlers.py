@@ -1545,8 +1545,8 @@ def _operations(fixture: Calls) -> None:
 
 def _draws(fixture: Calls, world: Any, controller: Any) -> None:
     from sheltersim.core.rng import CounterRNG
+    from sheltersim.core.world_export import INFORMATION_FIELDS
     from sheltersim.domain.models import InformationSpreadConfig
-    from support.core_fixtures import INFORMATION_FIELDS
 
     def fields(config: Any) -> dict[str, Any]:
         return {**{name: getattr(config, name) for name in INFORMATION_FIELDS}, "present": True}

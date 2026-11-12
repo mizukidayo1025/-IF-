@@ -35,6 +35,37 @@ const _: fn() = || {
 };
 
 impl V {
+    /// What `json.loads` reads, as a `V`: a number with a point or an exponent is a float, an int
+    /// outside i64 is `Big`, and a map keeps the order `serde_json` gives its keys. None for a
+    /// number Python's `float` would not read.
+    pub fn from_json(value: &serde_json::Value) -> Option<V> {
+        use serde_json::Value;
+        Some(match value {
+            Value::Null => V::Null,
+            Value::Bool(flag) => V::Bool(*flag),
+            Value::String(text) => V::Str(Arc::from(text.as_str())),
+            Value::Number(number) => {
+                let text = number.to_string();
+                if text.contains(['.', 'e', 'E']) {
+                    V::Float(text.parse().ok()?)
+                } else {
+                    match text.parse::<i64>() {
+                        Ok(small) => V::Int(small),
+                        Err(_) => V::Big(text.into()),
+                    }
+                }
+            }
+            Value::Array(items) => V::List(items.iter().map(V::from_json).collect::<Option<Vec<_>>>()?),
+            Value::Object(object) => {
+                let mut map = IndexMap::with_capacity(object.len());
+                for (key, item) in object {
+                    map.insert(Arc::from(key.as_str()), V::from_json(item)?);
+                }
+                V::Map(map)
+            }
+        })
+    }
+
     /// `bool(value)`.
     pub fn is_truthy(&self) -> bool {
         match self {

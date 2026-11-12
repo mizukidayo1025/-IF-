@@ -17,6 +17,7 @@ pub mod geometry;
 pub mod host;
 pub mod interner;
 pub mod json;
+pub mod load;
 pub mod mathx;
 pub mod parallel;
 pub mod rng;

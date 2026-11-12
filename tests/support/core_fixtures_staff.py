@@ -10,7 +10,7 @@ digest of what it gave, which the core's test makes again.
 
 `staff_rules.json` is `{"worlds": {...}, "service": {...}, "tests": {group: ...}}`:
 
-- A world is `core_fixtures.export_world`'s entry of `staff_world()` (`plain`), or a variant of
+- A world is `world_export.export_world`'s entry of `staff_world()` (`plain`), or a variant of
   another world of the file, `{"base": name, "changes": [...]}` (`core_texts.changes`; read back by
   `native/core/tests/support/cases.rs`), each made by the edits the pytest made.
 - `service` is what `assign_pending` takes of a `StaffService(world)` of no route.
@@ -27,7 +27,7 @@ import random
 from collections.abc import Iterator
 from typing import Any
 
-from support.core_fixtures import export_world
+from sheltersim.core.world_export import export_world
 from support.core_texts import changes
 from support.paths import SMALL_REPLAY
 

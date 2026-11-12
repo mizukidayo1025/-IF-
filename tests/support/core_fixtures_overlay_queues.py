@@ -51,15 +51,15 @@ ACCESS_EDITS = (
 
 def _access_is_its_section(world: Any, queue_id: str, access: dict[str, Any]) -> None:
     """The section of the configs with this access at the queue's point is the section with it."""
-    from support.core_fixtures import _facility_geometry
+    from sheltersim.core.world_export import facility_geometry_section
 
     configs = copy.deepcopy(world.model_configs)
-    section = copy.deepcopy(_facility_geometry(configs)["value"])
+    section = copy.deepcopy(facility_geometry_section(configs)["value"])
     raw = configs["facility_geometry"]["service_points"]
     for point in (*raw, *section["service_points"]):
         if point["queue_id"] == queue_id:
             point["access"] = copy.deepcopy(access)
-    assert _facility_geometry(configs)["value"] == section
+    assert facility_geometry_section(configs)["value"] == section
 
 
 def _sink() -> Any:
@@ -73,10 +73,10 @@ def _sink() -> Any:
 def overlay_queues_fixture() -> dict[str, Any]:
     """`overlay_queues.json`: the split world, with what the tests read in Python."""
     from sheltersim.core.world import WorldState
+    from sheltersim.core.world_export import export_world
     from sheltersim.domain.facilities import ToiletServiceManager
     from sheltersim.domain.resource_service import ResourceServiceManager
     from sheltersim.experiments.runner import OfflineSimulationController
-    from support.core_fixtures import export_world
     from support.core_fixtures_queues import generated
     from support.generated import split_queues
 

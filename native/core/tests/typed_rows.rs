@@ -17,10 +17,10 @@ mod support;
 use serde_json::Value;
 use sheltersim_core::checkpoint::sha256_hex;
 use sheltersim_core::json::Encoder;
+use sheltersim_core::load::{typed_row, TYPED};
 use sheltersim_core::row::Row;
 use sheltersim_core::value::{MAX_DEPTH, V};
 use support::load;
-use support::typed::{typed_row, TYPED};
 
 fn fixture() -> Value {
     let raw = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/typed_rows.json")).unwrap();

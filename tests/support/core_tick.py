@@ -29,7 +29,8 @@ import hashlib
 import json
 from typing import Any
 
-from support.core_fixtures import export_world, run_world
+from sheltersim.core.world_export import export_world
+from support.core_fixtures import run_world
 from support.paths import SMALL_REPLAY
 
 # The length of the test of `small_replay`, in ticks.
