@@ -255,7 +255,7 @@ fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
         return Ok(false);
     }
     let geo = Geo::of(world)?;
-    let movement = movement_held(&*PyHost::of_entry(world).holding_now()?);
+    let movement = movement_held(&*PyHost::of_entry(world).holding_of(&["movement_v1"], &[])?);
     with_world(world, |world| core::validate(world, &Held::Held, &geo, &movement))?.or_py()
 }
 

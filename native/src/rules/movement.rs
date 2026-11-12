@@ -366,7 +366,7 @@ fn agent_is_at_queue_trip_destination(world: &Bound<'_, PyAny>, agent_id: &Bound
     }
     let destination = plain_point(&points.get_item(points.len() - 1)?)?;
     let agent_id = exact_str(agent_id)?;
-    let movement = movement_held(&*host_of(world).holding_now()?);
+    let movement = movement_held(&*host_of(world).holding_of(&[KEY], &[])?);
     with_world(world, |world| core::near_point(world, &movement, agent_id, destination))?.or_py()
 }
 
@@ -464,7 +464,7 @@ pub(crate) fn start_movement<'py>(
     support_staff_id: Option<&Bound<'py, PyAny>>,
 ) -> PyResult<()> {
     let py = world.py();
-    mirror_held(world, &*host_of(world).holding_now()?)?;
+    mirror_held(world, &*host_of(world).holding_of(&[KEY], &[])?)?;
     let started = exact_int(started_minute)?;
     let due = exact_int(due_minute)?;
     let duration = due.checked_sub(started).filter(|duration| *duration > 0 && *duration < EXACT_INT);
@@ -580,7 +580,7 @@ fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     if held.is_none() {
         return Ok(true);
     }
-    let holding = host_of(world).holding_now()?;
+    let holding = host_of(world).holding_of(&[KEY, "facility_queues_v1"], &[])?;
     mirror_held(world, &holding)?;
     let queues = queues_held(&holding);
     let mut found = with_world(world, |world| core::validate(world, &queues, None))?.or_py()?;

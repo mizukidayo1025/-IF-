@@ -117,7 +117,7 @@ fn request<'py>(
 pub(crate) fn facilities_to_serve<'py>(manager: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyList>> {
     let py = manager.py();
     let world = attribute(manager, intern!(py, "world"))?;
-    let queues = queues_held(&*PyHost::of_entry(&world).holding_now()?);
+    let queues = queues_held(&*PyHost::of_entry(&world).holding_of(&["facility_queues_v1"], &[])?);
     let due = with_world(&world, |world| core::facilities_to_serve(world, &queues))?.or_py()?;
     let result = PyList::empty(py);
     if !due.is_empty() {
@@ -139,7 +139,7 @@ pub(crate) fn has_room<'py>(manager: &Bound<'py, PyAny>, facility_id: &Bound<'py
     let world = attribute(manager, intern!(py, "world"))?;
     exact_dict(&attribute(&world, intern!(py, "model_state"))?)?;
     let name = exact_str(facility_id)?;
-    let queues = queues_held(&*PyHost::of_entry(&world).holding_now()?);
+    let queues = queues_held(&*PyHost::of_entry(&world).holding_of(&["facility_queues_v1"], &[])?);
     let placement = placement(&world)?;
     with_world(&world, |world| core::has_room(world, &queues, placement.as_deref(), name))?.or_py()
 }

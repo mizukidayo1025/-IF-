@@ -43,7 +43,7 @@ pub(crate) fn sample_contacts<'py>(controller: &Bound<'py, PyAny>, minute: &Boun
         return Ok(());
     };
     let world = controller.getattr(intern!(py, "world"))?;
-    let movement = movement_held(&*PyHost::of_entry(&world).holding_now()?);
+    let movement = movement_held(&*PyHost::of_entry(&world).holding_of(&["movement_v1"], &[])?);
     let sampled = with_world(&world, |cell| core::sample_contacts(cell, &policies.proximity, minute, &movement))?;
     policy_fault(controller, write_result(py, sampled))
 }
@@ -53,7 +53,7 @@ pub(crate) fn sample_contacts<'py>(controller: &Bound<'py, PyAny>, minute: &Boun
 fn sample_of<'py>(world: &Bound<'py, PyAny>, policy_config: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyList>> {
     let py = world.py();
     let config = <V as VPy>::from_py(policy_config)?;
-    let movement = movement_held(&*PyHost::of_entry(world).holding_now()?);
+    let movement = movement_held(&*PyHost::of_entry(world).holding_of(&["movement_v1"], &[])?);
     let (points, pairs) = with_world(world, |cell| core::sample(cell, &config, &movement))?.or_py()?;
     let result = PyList::empty(py);
     let point_of = |point: &Placed| -> PyResult<Bound<'py, PyDict>> {

@@ -129,7 +129,7 @@ pub(crate) fn update_long_term<'py>(
     for (id, stress) in &people {
         finals.push((id.to_str()?, *stress));
     }
-    let held = PyHost::of_entry(world).holding_now()?.field(METRIC_STATE);
+    let held = PyHost::of_entry(world).holding_of(&[], &[METRIC_STATE])?.field(METRIC_STATE);
     with_world(world, |world| core::update_long_term(world, &long_term, &finals, minute, held))?.or_py()
 }
 
@@ -255,7 +255,7 @@ pub(crate) fn update_psychology<'py>(
 
 /// Whether `model_state` holds `body_state_v1`; anything else it holds there is refused.
 fn body_state_of(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let holding = PyHost::of_entry(world).holding_now()?;
+    let holding = PyHost::of_entry(world).holding_of(&[BODY_STATE], &[])?;
     if !holding.table {
         return unsupported("model_state is not readable");
     }

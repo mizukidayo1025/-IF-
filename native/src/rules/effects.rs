@@ -114,7 +114,7 @@ fn should_apply_guard(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyR
         }
         let row = event_row(event)?;
         let mut host = host_of(world);
-        let guarded = Guarded::of(&*host.holding_now()?);
+        let guarded = Guarded::of(&*host.holding_of(&[core::MARKER, "resource_ledger_v1"], &[])?);
         raised(core::guard(&PyWorldCell(world), &mut host, &guarded.ins(), &row))
     })();
     counted(py, "guard", result)
@@ -128,7 +128,7 @@ fn has_active_modifier(world: &Bound<'_, PyAny>, facility_id: &Bound<'_, PyAny>)
     let py = world.py();
     let result = (|| {
         let id = exact_str(facility_id)?;
-        let program = program_held(&*host_of(world).holding_now()?);
+        let program = program_held(&*host_of(world).holding_of(&[core::MARKER], &[])?);
         with_world(world, |world| core::has_active_modifier(world, &program, id))?.or_py()
     })();
     counted(py, "has_active_modifier", result)
@@ -265,7 +265,7 @@ fn validate_state(world: &Bound<'_, PyAny>, validate_event_history: bool) -> PyR
     let py = world.py();
     let label = if validate_event_history { "validate_state.history" } else { "validate_state.tick" };
     let result = (|| {
-        let program = program_held(&*host_of(world).holding_now()?);
+        let program = program_held(&*host_of(world).holding_of(&[core::MARKER], &[])?);
         let check = || raised(core::check_state(&PyWorldCell(world), &mut host_of(world), &program, validate_event_history));
         match check() {
             // The rows of the events Python scheduled, read only when a check needs them.

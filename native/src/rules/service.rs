@@ -436,7 +436,7 @@ fn interrupt_with<'py>(inputs: &Inputs<'py>, staff_id: &Bound<'py, PyAny>, causa
 /// `record_request_outcome`: the record at the end of the service's `request_history`, on the row
 /// (an attached tree follows it).
 pub(crate) fn append_outcome(world: &Bound<'_, PyAny>, record: RequestRecord) -> PyResult<()> {
-    let service = PyHost::of_entry(world).holding_now()?.held(SERVICE_KEY, "the world holds another service state");
+    let service = PyHost::of_entry(world).holding_of(&[SERVICE_KEY], &[])?.held(SERVICE_KEY, "the world holds another service state");
     with_world(world, |world| core::append_outcome(world, &service, record))?.or_py()
 }
 

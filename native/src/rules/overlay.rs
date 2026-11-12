@@ -93,9 +93,10 @@ fn movement_held(holding: &Holding) -> Held {
     holding.held(crate::rules::movement::KEY, "the world holds another movement state")
 }
 
-/// The holding read now, through the native host of an entry.
-fn holding_now(world: &Bound<'_, PyAny>) -> PyResult<Arc<Holding>> {
-    PyHost::of_entry(world).holding_now()
+/// The holding of these namespaces read now, through the native host of an entry
+/// (`PyHost::holding_of`).
+fn holding_of(world: &Bound<'_, PyAny>, names: &[&str]) -> PyResult<Arc<Holding>> {
+    PyHost::of_entry(world).holding_of(names, &[])
 }
 
 /// `config.get("schema_version")` of the overlay's config, for a dict config: the section
@@ -165,7 +166,7 @@ impl Plan {
 fn register_temporary_space(world: &Bound<'_, PyAny>, record: &Bound<'_, PyAny>, event_id: &Bound<'_, PyAny>) -> PyResult<()> {
     let result = (|| {
         let event_id = exact_str(event_id)?;
-        let held = spaces_held(&*holding_now(world)?);
+        let held = spaces_held(&*holding_of(world, &[SPACES_KEY])?);
         let record = <V as VPy>::from_py(record)?;
         with_world(world, |world| core::register_space(world, &held, record, event_id))?.or_py()
     })();
@@ -183,7 +184,7 @@ fn expire_temporary_space(
     let result = (|| {
         let cause = if causation_id.is_none() { None } else { Some(exact_str(causation_id)?) };
         let (space_id, event_id) = (exact_str(space_id)?, exact_str(event_id)?);
-        let held = spaces_held(&*holding_now(world)?);
+        let held = spaces_held(&*holding_of(world, &[SPACES_KEY])?);
         with_world(world, |world| core::expire_space(world, &held, space_id, event_id, cause))?.or_py()
     })();
     counted(world.py(), "expire_temporary_space", result)
@@ -193,7 +194,7 @@ fn expire_temporary_space(
 #[pyfunction]
 fn validate_spaces(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let result = (|| {
-        let held = spaces_held(&*holding_now(world)?);
+        let held = spaces_held(&*holding_of(world, &[SPACES_KEY])?);
         with_world(world, |world| core::validate_spaces(world, &held))?.or_py()
     })();
     counted(world.py(), "validate_spaces", result)
@@ -353,7 +354,7 @@ fn incoming_travelers(world: &Bound<'_, PyAny>, zone_id: &Bound<'_, PyAny>, excl
 
 /// `release_sleep_bed` (`part` "bed_reservations") or `release_temporary_room_admission`.
 fn release_from(world: &Bound<'_, PyAny>, part: &str, agent_id: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let held = overlay_held(&*holding_now(world)?);
+    let held = overlay_held(&*holding_of(world, &[OVERLAY_KEY])?);
     with_world(world, |world| core::release(world, &held, part, str_value(agent_id)))?.or_py()
 }
 
@@ -482,7 +483,7 @@ pub(crate) fn write_bed(world: &Bound<'_, PyAny>, agent_id: &str, bed: &Bed) -> 
     if !bed.is_new {
         return Ok(());
     }
-    let held = overlay_held(&*holding_now(world)?);
+    let held = overlay_held(&*holding_of(world, &[OVERLAY_KEY])?);
     with_world(world, |world| core::write_bed(world, &held, agent_id, bed))?.or_py()
 }
 
@@ -530,7 +531,7 @@ fn installed_facility_point<'py>(world: &Bound<'py, PyAny>, facility_id: &Bound<
     let py = world.py();
     let result = (|| {
         let facility_id = exact_str(facility_id)?;
-        let held = overlay_held(&*holding_now(world)?);
+        let held = overlay_held(&*holding_of(world, &[OVERLAY_KEY])?);
         let plan = Plan::of(world);
         match plan.finish(py, with_world(world, |world| core::installed_point(world, &held, plan.get(), facility_id))?.or_py())? {
             Some(point) => point_object(py, point),
@@ -554,7 +555,7 @@ fn place_installed_facility<'py>(
         let held: Vec<Bound<'_, PyAny>> = tuple.iter().collect();
         let names = held.iter().map(|item| exact_str(item)).collect::<PyResult<Vec<&str>>>()?;
         let (facility_id, event_id) = (exact_str(facility_id)?, exact_str(event_id)?);
-        let overlay = overlay_held(&*holding_now(world)?);
+        let overlay = overlay_held(&*holding_of(world, &[OVERLAY_KEY])?);
         let plan = Plan::of(world);
         let point = plan.finish(py, with_world(world, |world| core::place_facility(world, &overlay, plan.get(), facility_id, event_id, &names))?.or_py())?;
         point_object(py, point)
@@ -651,7 +652,7 @@ fn apply_geometry_change(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, exp
 fn validate_overlay(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = world.py();
     let result = (|| {
-        let held = overlay_held(&*holding_now(world)?);
+        let held = overlay_held(&*holding_of(world, &[OVERLAY_KEY])?);
         let plan = Plan::with(world, &held);
         plan.finish(py, with_world(world, |world| core::check_overlay(world, &held, plan.get()))?.or_py())
     })();
