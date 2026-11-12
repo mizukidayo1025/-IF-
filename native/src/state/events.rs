@@ -32,7 +32,7 @@ use sheltersim_core::cell::{CowShard, Shard, ShardMut};
 use sheltersim_core::world::World;
 
 pub(crate) use sheltersim_core::events::queue::{Key, Queue};
-pub(crate) use sheltersim_core::events::writer::{Reserved, WriteError, MAX_RULE_COUNTER};
+pub(crate) use sheltersim_core::events::writer::{WriteError, MAX_RULE_COUNTER};
 pub(crate) use sheltersim_core::events::{EventKind, EventRow, EventStatus};
 
 use crate::core::errors::{to_py_err, OrPy};
@@ -899,7 +899,6 @@ pub(crate) struct EventWriter<'py> {
     /// The mirror of `world.id_counters`, whose row the counter is read from and written to.
     counters: Bound<'py, NamespaceMirror>,
     duration: i64,
-    reserved: Reserved,
 }
 
 impl<'py> EventWriter<'py> {
@@ -922,13 +921,7 @@ impl<'py> EventWriter<'py> {
             .getattr(intern!(py, "duration_minutes"))?
             .extract::<i64>()
             .map_err(|_| Unsupported::new_err("the duration is not an int"))?;
-        Ok(Self { queue, log, counters, duration, reserved: Reserved::default() })
-    }
-
-    /// Sets how many sequences `allocate_reserved` will take before what is planned from now on.
-    /// How many sequences `allocate_reserved` will still take.
-    pub(crate) fn reserved(&self) -> usize {
-        self.reserved.count()
+        Ok(Self { queue, log, counters, duration })
     }
 
     fn counter(&self) -> PyResult<i64> {
