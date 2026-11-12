@@ -32,12 +32,9 @@ KEY = "movement_v1"
 def generated(**fields: Any) -> Any:
     """The `generated_scenario` (or `generated_scenario_with(**fields)`) of `support/generated.py`,
     made through the Project screen's preview as the fixture makes it."""
-    from sheltersim.experiments.scenario import ScenarioSpec
-    from support.generated import _generated_request, _ui_preview
+    from support.generated import preview_scenario
 
-    root = pathlib.Path(tempfile.mkdtemp(prefix="core-fixture-queues-"))
-    preview = _ui_preview(root, _generated_request(**fields))
-    return ScenarioSpec.model_validate(preview["scenario"])
+    return preview_scenario(pathlib.Path(tempfile.mkdtemp(prefix="core-fixture-queues-")), **fields)
 
 
 def run_minutes(scenario: Any, minutes: int) -> tuple[Any, Any]:
