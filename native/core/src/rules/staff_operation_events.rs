@@ -18,9 +18,9 @@
 //! `KernelRefusal` that call raised (`SNAPSHOTS`). So are `staff_dynamics_is_available` and
 //! `staff_dynamics_on_shift` (`staff_dynamics::is_available_now`, `on_shift_now`).
 //!
-//! The admission of an intake (`admit_pending_arrivals`) is still the PyO3 crate's: `plan_complete`
-//! says `Work::Intake`, the glue checks the waiting and admits, and then calls `write_complete`, in
-//! the order the Python rule did them. The queue's slots a rule takes out are added to `taken`, as
+//! The admission of an intake is the population rules' (`population::check_waiting`,
+//! `population::admit_arrivals`, lane P9-3a): `plan_complete` says `Work::Intake`, the caller checks
+//! the waiting and admits, and then calls `write_complete`, in the order the Python rule did them. The queue's slots a rule takes out are added to `taken`, as
 //! it goes, for the PyO3 crate to let their objects go.
 
 use std::sync::Arc;

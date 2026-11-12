@@ -8,8 +8,8 @@
 //!
 //! The floor plan and the formula are read before the core runs, and what their reads raised is
 //! raised where the core reads them (`FORMULA_UNREAD`, `PLAN_UNREAD`, and `SNAPSHOT_PLAN_UNREAD` as
-//! the staff positions' `KernelRefusal`). The admission of an intake is the population rules' here:
-//! the core plans the completion, the glue checks the waiting and admits, and the core writes the
+//! the staff positions' `KernelRefusal`). The admission of an intake is the population rules' (in the
+//! core, lane P9-3a): the core plans the completion, checks the waiting and admits, and writes the
 //! rest.
 
 use std::sync::Arc;
@@ -201,10 +201,11 @@ fn complete<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event:
         Step::Unavailable(id) => return stop_and_suppress(world, &id, &row, "staff became unavailable before completing the assigned task"),
         Step::Intake(plan) => {
             // What the admission will ask, while this can still refuse; then the admission, which
-            // is the work of an intake.
-            counted(py, "complete", crate::rules::population::check_waiting_for_admission(world))?;
-            let now = attribute(world, intern!(py, "minute_index"))?;
-            crate::rules::population::admit_pending_arrivals(world, &now)?;
+            // is the work of an intake (the core's, lane P9-3a).
+            let (cell, mut host) = (PyWorldCell(world), PyHost::of_world(world, pyo3::types::PyDict::new(py)));
+            counted(py, "complete", sheltersim_core::rules::population::check_waiting(&cell, &mut host).map_err(|error| error.0))?;
+            let now = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
+            sheltersim_core::rules::population::admit_arrivals(&cell, &mut host, now).map_err(|error| error.0)?;
             with_world(world, |cell| core::write_complete(cell, &gathered.inputs(), *plan))?.or_py()?
         }
     };

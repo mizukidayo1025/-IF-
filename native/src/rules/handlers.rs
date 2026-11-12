@@ -8,15 +8,14 @@
 //! A handler whose Python rule copied the world is the core's (`core::*_event`, lane P9-1b): it reads
 //! what the world's outside holds through the native host and runs in the core's rule transaction
 //! (`txn::rule`, policy E16), whose end (`settle`) validates the world (policy E6), looks up the
-//! EventLog's records and gives the contracts (policy E15). The population primitives' rules are the
-//! population lanes' glue, run as the body of the core's rule transaction.
+//! EventLog's records and gives the contracts (policy E15). The population primitives' rules read
+//! their inputs through the host too (lane P9-3a).
 //!
 //! The helpers at the start (`counted`, `get`, `get_is`, `status_member`) are for the kernels still in
 //! this crate.
 
 use std::sync::Arc;
 
-use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString, PyTuple};
@@ -24,24 +23,22 @@ use pyo3::types::{PyDict, PyString, PyTuple};
 use sheltersim_core::config::environment::Infrastructure;
 use sheltersim_core::config::proximity::Proximity;
 use sheltersim_core::rules::handlers::{
-    self as core, FacilityIn, Followed, Infra, LedgerIn, PopulationOp, COOLDOWN_UNREAD, COUNTS, INFRASTRUCTURE, OPERATIONAL,
+    self as core, FacilityIn, Followed, Infra, LedgerIn, COOLDOWN_UNREAD, COUNTS, INFRASTRUCTURE, OPERATIONAL,
 };
 use sheltersim_core::rules::kit::Held;
 use sheltersim_core::rules::staff_operation_events::FORMULA_UNREAD;
-use sheltersim_core::txn::TxnKind;
 
 use crate::core::configs;
 use crate::core::errors::{self, to_py_err, OrPy};
-use crate::core::row::{attribute, exact_int, exact_str, str_value};
+use crate::core::row::{attribute, exact_int, exact_str};
 use crate::core::value::{VPy, V};
 use crate::core::world_core::{namespace_held, with_world, PyWorldCell};
 use crate::host::PyHost;
 use crate::rules::care_receipts::made_record;
 use crate::rules::information_events::event_row;
-use crate::rules::population as population_rules;
 use crate::rules::resources::{raised, replace_resources};
 use crate::rules::travel::{movement_held, read_queue_rows};
-use crate::rules::{population_lifecycle, service};
+use crate::rules::service;
 use crate::state::events::EventRowPy;
 use crate::Unsupported;
 
@@ -378,112 +375,14 @@ fn interrupt_for_staff<'py>(manager: &Bound<'py, PyAny>, staff_id: &Bound<'py, P
 }
 
 // ---- EffectProgramPopulationHandler ------------------------------------------------------------------
-//
-// The core checks a primitive against its approved program; the rules themselves are the population
-// lanes' (`rules/population.rs`, `rules/population_lifecycle.rs`), called here in a transaction that
-// stands for the Python rule's copy.
 
-/// `except (TypeError, ValueError) as exc: raise EventApplicationError(str(exc))` of the rule, for an
-/// exception of a Python call made where the rule makes it. Any other error goes on as it is.
-fn wrapped(py: Python<'_>, error: PyErr) -> PyErr {
-    if error.is_instance_of::<Unsupported>(py) || errors::made_here(py, &error) || !(error.is_instance_of::<PyTypeError>(py) || error.is_instance_of::<PyValueError>(py)) {
-        return error;
-    }
-    match error.value(py).str() {
-        Ok(text) => errors::error(py, errors::Outcome::Failed, text.to_string_lossy().into_owned()),
-        Err(failure) => failure,
-    }
-}
-
-/// A population rule's kernel, as the handler's Python rule called that rule of `domain/`: its
-/// refusal is that rule's KernelRefusal (`kernel_only` of `label`), which the rule's own `try` then
-/// takes as any other ValueError.
-fn population_rule(py: Python<'_>, kernel: PyResult<()>, label: &str) -> PyResult<()> {
-    kernel.map_err(|error| errors::kernel_refusal(py, label, error))
-}
-
-/// `EffectProgramPopulationHandler.apply`.
+/// `EffectProgramPopulationHandler.apply`: the core's (`core::population_event`, lane P9-3a), which
+/// reads what the population rules read through the native host.
 #[pyfunction]
 fn population<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    if str_value(&attribute(event, intern!(py, "event_type"))?) == Some("population_approach_complete") {
-        let kernel = population_rules::apply_arrival_approach_completion(world, event);
-        let done = population_rule(py, kernel, "population.apply_arrival_approach_completion");
-        return counted(py, "population.approach", done);
-    }
-    let checked = (|| -> PyResult<PopulationOp> {
-        let row = event_row(event)?;
-        let program = program_held(world)?;
-        with_world(world, |cell| core::population_checks(cell, &program, &row))?.or_py()
-    })();
-    let op = counted(py, "population.checks", checked)?;
-    let payload = attribute(event, intern!(py, "payload"))?;
-    if op == PopulationOp::Presence {
-        // Past its checks the Python rule lets this rule's exceptions go, as this does.
-        let command = payload.get_item("command")?;
-        let kernel = population_lifecycle::apply_presence_command(world, event, &command).map(|_| ());
-        return population_rule(py, kernel, "population_lifecycle.apply_presence_command");
-    }
-    // A deferral: the transaction with its retry commits, and the event is suppressed. The rules
-    // are the population lanes' glue, in the core's rule transaction (lane P9-1b).
-    let changed = (|| -> PyResult<Option<PyErr>> {
-        let mut host = PyHost::of_world(world, PyDict::new(py));
-        let written = sheltersim_core::txn::rule_kept(&PyWorldCell(world), &mut host, TxnKind::Full, |_, _| {
-            population_writes(world, event, &payload, op).map_err(crate::host::HostError)
-        });
-        written.map_err(|error| error.0)
-    })();
-    // Past the checks a call's exception is the Python rule's own: it made the same calls.
-    match counted(py, "population.copy", changed)? {
-        Some(deferred) => Err(deferred),
-        None => Ok(()),
-    }
-}
-
-/// The arrivals or departures of `population`, and the checks of the world they leave through the
-/// native host: a deferral (`EventSuppressed`) is kept and returned, to be raised after the commit.
-fn population_writes<'py>(candidate: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>, payload: &Bound<'py, PyAny>, op: PopulationOp) -> PyResult<Option<PyErr>> {
-    let py = candidate.py();
-    let (zone, count) = (payload.get_item("zone_id")?, payload.get_item("count")?);
-    let done = if op == PopulationOp::Add {
-        let tuple = py.import("builtins")?.getattr("tuple")?;
-        let empty = PyTuple::empty(py);
-        // The call's arguments, in the order the rule's call evaluates them, in its `try`: what
-        // `tuple()` raises there is the rule's `EventApplicationError(str(exc))`.
-        let as_tuple = |key: &str| -> PyResult<Bound<'py, PyAny>> {
-            tuple.call1((payload.call_method1(intern!(py, "get"), (key, &empty))?,)).map_err(|error| wrapped(py, error))
-        };
-        let options = population_rules::ArrivalOptions {
-            household_size: Some(payload.get_item("household_size")?),
-            mobility: Some(payload.get_item("mobility")?),
-            language: Some(payload.get_item("language")?),
-            admission_zone_ids: Some(as_tuple("admission_zone_ids")?),
-            approach_route_id: Some(get(payload, "approach_route_id")?),
-            person_context_overrides: Some(as_tuple("person_context_overrides")?),
-        };
-        let kernel = population_rules::arrivals(candidate, event, &zone, &count, &options).map(|_| ());
-        population_rule(py, kernel, "population.queue_arrivals")
-    } else {
-        let include = payload.call_method1(intern!(py, "get"), ("include_initial", false))?;
-        let kernel = population_rules::departures(candidate, event, &zone, &count, Some(&include)).map(|_| ());
-        population_rule(py, kernel, "population.queue_departures").and_then(|_| {
-            let minute = attribute(event, intern!(py, "due_minute"))?;
-            let kernel = population_lifecycle::admit_pending_returns(candidate, &minute).map(|_| ());
-            population_rule(py, kernel, "population_lifecycle.admit_pending_returns")
-        })
-    };
-    // The rule's `try`: a deferral keeps what was written and is the outcome; its own failures go on;
-    // `except (TypeError, ValueError) as exc: raise EventApplicationError(str(exc))`.
-    let deferred = match done {
-        Ok(()) => None,
-        Err(error) if error.is_instance(py, &models(py)?.getattr(intern!(py, "EventSuppressed"))?) => Some(error),
-        Err(error) => return Err(wrapped(py, error)),
-    };
-    let mut host = PyHost::of_world(candidate, PyDict::new(py));
-    use sheltersim_core::host::Host;
-    host.validate_world().map_err(|error| error.0)?;
-    host.validate_extensions().map_err(|error| error.0)?;
-    Ok(deferred)
+    let row = event_row(event)?;
+    let mut host = PyHost::of_world(world, PyDict::new(world.py()));
+    core::population_event(&PyWorldCell(world), &mut host, &row).map_err(|error| error.0)
 }
 
 // ---- InfrastructureEventHandler --------------------------------------------------------------------

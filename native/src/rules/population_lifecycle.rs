@@ -1,45 +1,38 @@
 //! `domain/population_lifecycle.py`: the glue of the core's kernels
-//! (`sheltersim_core::rules::population_lifecycle`, lane c7 of Issue #152). Each entry reads its
-//! arguments and what Python holds (whether `model_state` holds each namespace, the sections of the
-//! configs, the floor plan, a relocation's movement model, the EventLog's records of a command's
-//! program), runs the core on the world borrowed whole, and makes the Python values of what it
-//! returns. The core writes the rows: a person archived leaves `agents`, and one restored is a new
-//! row at its end, whose object the entity store makes; the attached trees follow their rows when
-//! the world is given back.
+//! (`sheltersim_core::rules::population_lifecycle`, lanes c7 and P9-3a of Issue #152). Each entry
+//! reads its Python arguments, makes the core call with the native host, and makes the Python
+//! values of what it returns. The core reads what the world's outside holds through the host (what
+//! `model_state` holds, the configs' sections, the floor plan, a relocation's movement model, the
+//! EventLog's records of a command's program) and runs a presence command in its rule transaction
+//! (`sheltersim_core::txn::rule`), with the validation of the world it changed through the host.
 //!
-//! What stays here: the command's contract (`PopulationPresenceCommand`, read back as the core's
-//! `Command`), the command's body in the core's rule transaction that stands for the Python rule's
-//! copy (`sheltersim_core::txn::rule`, lane P9-1b; the body reaches the world through `with_world`
-//! and its own hosts, with nothing of the world borrowed across a Python call) and
-//! the validation of the world it changed through the native host (`Host::validate_world`,
-//! `Host::validate_extensions`), the retry of a deferred command, and letting go the Python objects
-//! of the events an archive settled (`QueueStore::forget`). A world the core does not hold (a
-//! save's world before its core) is validated from its Python values (`validate_values`).
+//! What stays here: the parse of a command a Python caller gives (`PopulationPresenceCommand`, a
+//! typed command or a dict, whose dump the core takes), `_apply_presence_action` of a candidate that
+//! is not the world, and the validation of a world the core does not hold (a save's world before its
+//! core) from its Python values (`validate_values`, policy E6).
 
 use std::sync::Arc;
 
-use pyo3::exceptions::{PyKeyError, PyTypeError, PyValueError};
+use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 
-use sheltersim_core::error::{Error as CoreError, Result as CoreResult};
-use sheltersim_core::host::Host;
-use sheltersim_core::rules::kit::Held;
-use sheltersim_core::rules::population::{NO_ROW, PRESENCE};
-use sheltersim_core::rules::population_lifecycle::{self as core, Acted, Command, Facts, Inputs, Logged, Relocation, TaskFacts, KEY};
-use sheltersim_core::world::World;
+use sheltersim_core::error::Result as CoreResult;
+use sheltersim_core::rules::kit::{self, Held};
+use sheltersim_core::rules::population::{OTHER_PROGRAM, PRESENCE};
+use sheltersim_core::rules::population_lifecycle::{self as core, Acted, Command, Facts, Logged, Read, TaskFacts, KEY};
+use sheltersim_core::value::V;
 
 use crate::core::configs;
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str};
 use crate::core::value::VPy;
 use crate::core::world_core::{state_value, with_world, PyWorldCell};
-use crate::host::PyHost;
-use crate::rules::population::{as_refusal, event_row, get_map, held, optional_text, plan_read, planning, schedule_population_retry, text, PopulationIn};
-use crate::state::events::{EventRow, EventRowPy, EventWriter, QueueStore};
+use crate::host::HostError;
+use crate::rules::population::{as_refusal, event_row, get_map, held, host_of, optional_text, plan_read, planning, schedule_population_retry, text};
+use crate::state::events::{EventRow, EventWriter, QueueStore};
 use crate::Unsupported;
-use sheltersim_core::txn::{TxnEnd, TxnKind};
 
 const EFFECT_PROGRAM: &str = "effect_program_v1";
 
@@ -54,62 +47,8 @@ pub(crate) fn transit_capacities(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     get_map(&get_map(&configs, "layout_routing")?, "max_agents_in_transit_by_edge")?.is_truthy()
 }
 
-fn lifecycle_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    held(world, KEY, "the world holds another lifecycle state")
-}
-
 fn presence_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
     held(world, PRESENCE, "the world holds another presence state")
-}
-
-/// What a relocation reads of the configs, each read's error the refusal the plan gives.
-fn relocation_of(world: &Bound<'_, PyAny>) -> Relocation {
-    let py = world.py();
-    let transit_capacities = transit_capacities_of(world).map_err(|error| plan_read(py, &error));
-    let timing = (|| -> PyResult<_> {
-        let movement = crate::rules::movement::movement_of(world)?;
-        if !movement.times_routes() {
-            return Ok(None);
-        }
-        Ok(Some(configs::read(movement.model.clone())?))
-    })()
-    .map_err(|error| plan_read(py, &error));
-    Relocation { transit_capacities, timing }
-}
-
-/// What the core's rules read of the Python world.
-pub(crate) struct LifecycleIn {
-    read: PopulationIn,
-    lifecycle: Held,
-    relocation: Option<Relocation>,
-}
-
-impl LifecycleIn {
-    /// `relocation`: whether the rule plans a relocation, which reads the floor plan and the
-    /// movement model.
-    pub(crate) fn of(world: &Bound<'_, PyAny>, relocation: bool) -> PyResult<Self> {
-        Ok(Self { read: PopulationIn::reading(world, false, relocation)?, lifecycle: lifecycle_held(world)?, relocation: relocation.then(|| relocation_of(world)) })
-    }
-
-    pub(crate) fn inputs(&self) -> Inputs<'_> {
-        Inputs { population: &self.read.inputs, lifecycle: self.lifecycle.clone(), relocation: self.relocation.as_ref() }
-    }
-
-    /// The core's result, with what reading the floor plan raised where the core read the plan.
-    pub(crate) fn finish<T>(&self, py: Python<'_>, result: PyResult<T>) -> PyResult<T> {
-        self.read.finish(py, result)
-    }
-
-    fn run<T>(&self, world: &Bound<'_, PyAny>, kernel: impl FnOnce(&World, &Inputs<'_>) -> CoreResult<T>) -> PyResult<T> {
-        let inputs = self.inputs();
-        let result = with_world(world, |cell| kernel(cell, &inputs))?.or_py();
-        self.finish(world.py(), result)
-    }
-}
-
-/// Whether this error is the refusal of a pending event without a row.
-fn no_row(py: Python<'_>, error: &PyErr) -> bool {
-    error.is_instance_of::<Unsupported>(py) && error.value(py).to_string() == NO_ROW
 }
 
 /// `current_household_id`.
@@ -143,71 +82,27 @@ fn command_of(typed: &Bound<'_, PyAny>, ids: &Bound<'_, PyAny>) -> PyResult<Comm
     })
 }
 
-/// The EventLog's records of the program of the event's provenance, as the plan of an exit or a
-/// return reads them: the row of each `effect_program_population` event found.
-fn logged(world: &Bound<'_, PyAny>, effects: &Held, row: &EventRow) -> PyResult<Logged> {
-    let py = world.py();
-    let mut found = Logged::new();
-    let ids = with_world(world, |cell| core::program_event_ids(cell, effects, row))?.or_py()?;
-    if ids.is_empty() {
-        return Ok(found);
-    }
-    let log = attribute(world, intern!(py, "event_log"))?;
-    for event_id in ids {
-        let record = log.call_method1(intern!(py, "find"), (&*event_id,))?;
-        if record.is_none() {
-            continue;
-        }
-        let event = attribute(&record, intern!(py, "event"))?;
-        if !attribute(&event, intern!(py, "event_type"))?.eq("effect_program_population")? {
-            continue;
-        }
-        let read = match EventRow::from_event(&event) {
-            Ok(Some(row)) => Ok(row),
-            Ok(None) => Err(CoreError::unsupported("the event has no row")),
-            Err(error) => Err(plan_read(py, &error)),
-        };
-        found.insert(event_id, read);
-    }
-    Ok(found)
-}
-
-/// The command on `candidate`, whose plan reads `world` too (the same world in a transaction).
+/// The command on `candidate`, whose plan reads `world` too (the same world in a transaction):
+/// what the core reads of each through its own host.
 fn act(world: &Bound<'_, PyAny>, candidate: &Bound<'_, PyAny>, row: &EventRow, command: &Command) -> PyResult<Acted> {
-    let py = world.py();
-    let same = world.is(candidate);
-    let read = LifecycleIn::of(candidate, &*command.action == "relocate")?;
-    let effects = held(world, EFFECT_PROGRAM, "the world holds another effect program state")?;
-    // The plan reads the pending events as rows (an archive cancels the person's): those Python
-    // scheduled are read first.
+    let (cell, other) = (PyWorldCell(world), PyWorldCell(candidate));
+    if world.is(candidate) {
+        return core::act(&cell, &mut host_of(world), row, command).map_err(|error| error.0);
+    }
+    let mut host = host_of(candidate);
+    let read = Read::read(&other, &mut host, &*command.action == "relocate").map_err(|error| error.0)?;
+    let mut world_host = host_of(world);
+    let effects = kit::holding(&cell, &mut world_host).map_err(|error| error.0)?.held(EFFECT_PROGRAM, OTHER_PROGRAM);
+    // The plan reads the pending events as rows (an archive cancels the person's).
     crate::rules::travel::read_queue_rows(world)?;
-    if !same {
-        crate::rules::travel::read_queue_rows(candidate)?;
-    }
-    let once = || -> PyResult<Acted> {
-        let logged = if matches!(&*command.action, "temporary_exit" | "return") { logged(world, &effects, row)? } else { Logged::new() };
-        let inputs = read.inputs();
-        let acted = if same {
-            with_world(candidate, |cell| {
-                let reads = core::world_reads(cell, &effects, &logged, row, command);
-                core::presence_action(cell, &inputs, row, command, &reads)
-            })?
-        } else {
-            let reads = with_world(world, |cell| core::world_reads(cell, &effects, &logged, row, command))?;
-            with_world(candidate, |cell| core::presence_action(cell, &inputs, row, command, &reads))?
-        };
-        read.finish(py, acted.or_py())
+    crate::rules::travel::read_queue_rows(candidate)?;
+    let logged = if matches!(&*command.action, "temporary_exit" | "return") {
+        core::logged_through(&cell, &mut world_host, &effects, row).map_err(|error| error.0)?
+    } else {
+        Logged::new()
     };
-    match once() {
-        Err(error) if no_row(py, &error) => {
-            crate::rules::travel::read_queue_rows(world)?;
-            if !same {
-                crate::rules::travel::read_queue_rows(candidate)?;
-            }
-            once()
-        }
-        result => result,
-    }
+    let reads = with_world(world, |world| core::world_reads(world, &effects, &logged, row, command))?;
+    read.run::<_, HostError, _>(&other, |world, inputs| core::presence_action(world, inputs, row, command, &reads)).map_err(|error| error.0)
 }
 
 /// What a command wrote, made Python's: the queue's objects of the events it settled let go, and
@@ -241,112 +136,45 @@ fn apply_presence_action<'py>(
     }
 }
 
-/// `apply_population_presence_command`. The command's contract stays Python's, and what it refuses
-/// is the Python rule's text. The command runs in a transaction that stands for the Python rule's
-/// copy (`from_dict(deepcopy(to_dict()))`, the EventLog included); anything but its receipt rolls
-/// it back. A deferral then schedules its retry on the world as it was, as the Python rule did on
-/// the world it had copied.
+/// `apply_population_presence_command` called from Python, with a typed command or a dict: the
+/// contract's parse here, whose `TypeError` or `ValueError` is the rule's text, and the rule the
+/// core's (`presence_command_typed`) on the contract's dump.
 #[pyfunction]
 pub(crate) fn apply_presence_command<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>, command: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     let py = world.py();
-    let (row, command) = planning((|| {
+    let (row, dumped) = planning((|| {
         let module = py.import("sheltersim.domain.population_lifecycle")?;
         let contract = module.getattr("PopulationPresenceCommand")?;
-        // The contract's parse in the rule's `try`: its TypeError or ValueError is the rule's text.
-        let parsed = (|| -> PyResult<_> {
-            let typed = if command.is_instance(&contract)? { command.clone() } else { contract.call_method1("model_validate", (command,))? };
-            let ids = typed.call_method0("selected_ids")?;
-            Ok((typed, ids))
-        })();
-        let (typed, ids) = match parsed {
-            Ok(parsed) => parsed,
+        let parsed = if command.is_instance(&contract)? { Ok(command.clone()) } else { contract.call_method1("model_validate", (command,)) };
+        let typed = match parsed {
+            Ok(typed) => typed,
             Err(error) if !error.is_instance_of::<Unsupported>(py) && (error.is_instance_of::<PyTypeError>(py) || error.is_instance_of::<PyValueError>(py)) => {
                 return errors::failed(py, format!("population command is invalid: {}", error.value(py).str()?));
             }
             Err(error) => return Err(error),
         };
-        if !exact_dict(&attribute(world, intern!(py, "model_state"))?)?.contains(KEY)? {
-            return errors::failed(py, "population lifecycle contract is not installed");
-        }
-        Ok((event_row(event)?, command_of(&typed, &ids)?))
+        let options = PyDict::new(py);
+        options.set_item("mode", "json")?;
+        let dumped = V::from_py(&typed.call_method("model_dump", (), Some(&options))?)?;
+        Ok((event_row(event)?, dumped))
     })())?;
-    // The command's rule, in the core's rule transaction (lane P9-1b): a dropped exit, a deferral
-    // and a world that fails its checks roll it back, and their outcome is raised after.
-    let mut host = PyHost::of_world(world, PyDict::new(py));
-    let ended = sheltersim_core::txn::rule(&PyWorldCell(world), &mut host, TxnKind::Full, |_, _| {
-        (|| -> PyResult<TxnEnd<Step<'py>>> {
-            let checked = planning(with_world(world, |cell| core::check_command(cell, &row, command.expected_return)).and_then(OrPy::or_py))?;
-            if checked {
-                return Ok(TxnEnd::Rollback(Step::Dropped));
-            }
-            let done = match act(world, world, &row, &command)? {
-                Acted::Done(done) => done,
-                Acted::Deferred(reason) => return Ok(TxnEnd::Rollback(Step::Deferred(reason))),
-            };
-            let receipt = written(world, done)?;
-            let checked = (|| -> PyResult<()> {
-                validate_population_lifecycle_state(world)?;
-                let mut host = PyHost::of_world(world, PyDict::new(py));
-                host.validate_world().map_err(|error| error.0)?;
-                host.validate_extensions().map_err(|error| error.0)?;
-                Ok(())
-            })();
-            Ok(match checked {
-                Ok(()) => TxnEnd::Commit(Step::Done(receipt)),
-                Err(error) => TxnEnd::Rollback(Step::Invalid(error)),
-            })
-        })()
-        .map_err(crate::host::HostError)
-    });
-    match ended.map_err(|error| error.0)? {
-        Step::Done(receipt) => Ok(receipt),
-        Step::Dropped => errors::suppressed(py, core::DROPPED),
-        Step::Deferred(reason) => {
-            schedule_population_retry(world, event, "presence-retry", "population exit")?;
-            errors::suppressed(py, core::deferred_text(&reason))
-        }
-        Step::Invalid(error) => {
-            if error.is_instance_of::<PyTypeError>(py) || error.is_instance_of::<PyKeyError>(py) || error.is_instance_of::<PyValueError>(py) {
-                return errors::failed(py, format!("population command failed validation: {}", error.value(py).str()?));
-            }
-            Err(error)
-        }
-    }
+    let receipt = core::presence_command_typed(&PyWorldCell(world), &mut host_of(world), &row, &dumped).map_err(|error| error.0)?;
+    receipt.to_py(py)
 }
 
-/// How a presence command's transaction ended.
-enum Step<'py> {
-    Done(Bound<'py, PyAny>),
-    /// The exit was dropped: the person was not free before the expected return.
-    Dropped,
-    /// The command waits: its retry is scheduled on the world as it was.
-    Deferred(String),
-    /// The world it left failed its checks.
-    Invalid(PyErr),
-}
-
-/// `admit_pending_returns`: nothing is read past the namespace while no one waits.
+/// `admit_pending_returns`.
 #[pyfunction]
 pub(crate) fn admit_pending_returns<'py>(world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyTuple>> {
-    let py = world.py();
     let minute = exact_int(minute)?;
-    let lifecycle = lifecycle_held(world)?;
-    if planning(with_world(world, |cell| core::nothing_to_admit(cell, &lifecycle))?.or_py())? {
-        return Ok(PyTuple::empty(py));
-    }
-    let read = LifecycleIn::of(world, false)?;
-    crate::rules::travel::read_queue_rows(world)?;
-    let admitted = crate::rules::population::with_rows(world, || read.run(world, |cell, inputs| core::admit_returns(cell, inputs, minute)))?;
-    PyTuple::new(py, admitted.iter().map(|id| &**id))
+    let admitted = core::admit_returns_through(&PyWorldCell(world), &mut host_of(world), minute).map_err(|error| error.0)?;
+    PyTuple::new(world.py(), admitted.iter().map(|id| &**id))
 }
 
 /// `complete_presence_relocation`.
 #[pyfunction]
 pub(crate) fn complete_presence_relocation(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
     let row = event_row(event)?;
-    let read = LifecycleIn::of(world, false)?;
-    crate::rules::travel::read_queue_rows(world)?;
-    crate::rules::population::with_rows(world, || read.run(world, |cell, inputs| core::complete_relocation(cell, inputs, &row))).map(drop)
+    core::complete_relocation_through(&PyWorldCell(world), &mut host_of(world), &row).map(drop).map_err(|error| error.0)
 }
 
 /// `_zone_has_room`.
@@ -354,8 +182,10 @@ pub(crate) fn complete_presence_relocation(world: &Bound<'_, PyAny>, event: &Bou
 #[pyo3(signature = (world, zone_id, *, excluding=None))]
 fn zone_has_room(world: &Bound<'_, PyAny>, zone_id: &Bound<'_, PyAny>, excluding: Option<&str>) -> PyResult<bool> {
     let zone_id = exact_str(zone_id)?;
-    let read = LifecycleIn::of(world, false)?;
-    planning(read.run(world, |cell, inputs| core::zone_has_room(cell, inputs, zone_id, excluding)))
+    let cell = PyWorldCell(world);
+    let mut host = host_of(world);
+    let read = Read::read(&cell, &mut host, false).map_err(|error| error.0)?;
+    planning(read.run::<_, HostError, _>(&cell, |cell, inputs| core::zone_has_room(cell, inputs, zone_id, excluding)).map_err(|error| error.0))
 }
 
 // ---- `validate_population_lifecycle_state` -------------------------------------------------------

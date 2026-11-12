@@ -21,15 +21,15 @@ use pyo3::types::{PyBool, PyDict, PyString};
 
 
 use sheltersim_core::rules::kit;
+use sheltersim_core::rules::population_lifecycle as lifecycle;
 use sheltersim_core::rules::travel_completion::{self as core, Applied, Managers};
 use sheltersim_core::value::V;
 use sheltersim_core::world::WorldCell;
 
 use crate::core::errors::{self, to_py_err, OrPy};
-use crate::core::row::{attribute, exact_dict, exact_str, str_value, unsupported};
+use crate::core::row::{attribute, exact_str, str_value, unsupported};
 use crate::core::world_core::{raw_dict_get, PyWorldCell};
 use crate::host::{HostError, PyHost};
-use crate::rules::population_lifecycle::LifecycleIn;
 use crate::rules::{service, toilet};
 use crate::state::events::{write_result, EventRow, EventRowPy, EventWriter};
 use crate::Unsupported;
@@ -124,8 +124,8 @@ fn arrive<'py>(
     if !is_toilet && purpose != "resource_request" {
         return Ok(());
     }
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let has_geometry = exact_dict(&configs)?.contains(intern!(py, "facility_geometry"))?;
+    // `"facility_geometry" in model_configs`, read through the host (H1, lane P9-3a).
+    let has_geometry = core::has_geometry(&PyWorldCell(world), &mut host_of(world)).map_err(|error| error.0)?;
     if has_geometry {
         // The approach writes through the world's event stores.
         EventWriter::of(world)?;
@@ -186,32 +186,26 @@ fn apply_event<'py>(handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, even
     let cell = PyWorldCell(world);
     let mut host = host_of(world);
     let read = core::Gathered::read(&cell, &mut host, row).map_err(|error| error.0)?;
-    let lifecycle_in = match kit::payload(row, "purpose") {
-        Some(V::Str(purpose)) if &**purpose == "presence_relocation" => Some(LifecycleIn::of(world, false)?),
+    // A relocation's completion reads the lifecycle's inputs through the host (lane P9-3a).
+    let relocation = match kit::payload(row, "purpose") {
+        Some(V::Str(purpose)) if &**purpose == "presence_relocation" => Some(lifecycle::Read::read(&cell, &mut host, false).map_err(|error| error.0)?),
         _ => None,
     };
-    if lifecycle_in.is_some() {
-        // A relocation's completion reads the pending events as rows.
-        crate::rules::travel::read_queue_rows(world)?;
-    }
-    let lifecycle = lifecycle_in.as_ref().map(LifecycleIn::inputs);
+    let lifecycle = relocation.as_ref().map(lifecycle::Read::inputs);
     let resource_service = !attribute(handler, intern!(py, "resource_service"))?.is_none();
     let inputs = read.inputs(resource_service, lifecycle.as_ref());
-    let finish = |error: PyErr| match &lifecycle_in {
-        Some(lifecycle) => lifecycle.finish(py, Err::<(), _>(error)).unwrap_err(),
-        None => error,
-    };
-    let applied = crate::rules::population::with_rows(world, || match cell.with(|world| core::apply(world, &inputs, row)).or_py()? {
-        Ok(walk) => Ok(Ok(walk)),
-        Err(Applied::After(error)) if matches!(&error, sheltersim_core::error::Error::Unsupported(reason) if reason == sheltersim_core::rules::population::NO_ROW) => {
-            Err(Unsupported::new_err(sheltersim_core::rules::population::NO_ROW))
-        }
-        Err(applied) => Ok(Err(applied)),
-    })?;
-    let walk = match applied {
+    // The walk reads the pending events as rows.
+    crate::rules::travel::read_queue_rows(world)?;
+    let walk = match cell.with(|world| core::apply(world, &inputs, row)).or_py()? {
         Ok(Some(walk)) => walk,
         Ok(None) => return Ok(()),
-        Err(Applied::Checks(error) | Applied::After(error)) => return Err(finish(to_py_err(error))),
+        Err(Applied::Checks(error) | Applied::After(error)) => {
+            let error = HostError(to_py_err(error));
+            return Err(match &relocation {
+                Some(read) => read.finish::<(), HostError>(Err(error)).err().map_or_else(|| PyRuntimeError::new_err("a finished error"), |error| error.0),
+                None => error.0,
+            });
+        }
     };
     if matches!(&*walk.purpose, "toilet_request" | "resource_request") {
         let facility = walk.facility_id.as_deref().unwrap_or_default();
