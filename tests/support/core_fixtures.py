@@ -41,6 +41,9 @@ FIXTURES: dict[str, str] = {
     "tick_core": "support.core_tick:tick_core_fixture",
     "sections": "support.core_fixtures:sections_fixture",
     "typed_rows": "support.core_typed_rows:typed_rows_document",
+    "event_texts": "support.core_texts:event_texts_fixture",
+    "rumor_texts": "support.core_texts:rumor_texts_fixture",
+    "travel_texts": "support.core_texts:travel_texts_fixture",
 }
 
 # The attributes of `InformationSpreadConfig` the PyO3 crate reads (`InformationSpread::FIELDS` of
@@ -113,15 +116,20 @@ def run_world(scenario: Any, ticks: int = 0) -> tuple[Any, Any, Any]:
     return world, controller, engine
 
 
-def export_world(world: Any, controller: Any | None = None) -> dict[str, Any]:
+def export_world(
+    world: Any, controller: Any | None = None, *, validate: bool = True
+) -> dict[str, Any]:
     """What a core test reads of one world as it is now: its canonical document, the slots its
     core owns (`[name, is_field]`), what the Run read of the controller (without a controller,
-    nothing), and the Python-parsed sections of its configs (`sections`)."""
+    nothing), and the Python-parsed sections of its configs (`sections`). Without `validate`, a
+    world the test edited into a state `WorldState.validate` turns down is written as it is (the
+    same text as `canonical_json`, which validates first)."""
     from sheltersim.core.state_mirror import OWNED_FIELDS
 
     core = world.__dict__["_core"]
+    text = world.canonical_json() if validate else world._canonical_text(world._canonical_data())
     entry: dict[str, Any] = {
-        "world": json.loads(world.canonical_json()),
+        "world": json.loads(text),
         "slots": [[name, name in OWNED_FIELDS] for name in core.owned_names()],
         "sections": sections(world),
     }
