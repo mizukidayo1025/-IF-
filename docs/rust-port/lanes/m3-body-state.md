@@ -28,7 +28,7 @@ Rust が `body_state_v1` を持ち、毎 tick と毎イベントの書き手が�
 | `apply_deltas` の本体の書き込み | `native/src/rules/psychology.rs` |
 | 検証 `rows_valid` | `native/src/state/body_state.rs` |
 | 比較 | `benchmarks/rule_shadow/shadow_body_state.py` |
-| テスト | `tests/integration/test_body_state_row.py` |
+| テスト | `tests/integration/test_body_state_row.py`（規則と Python の規則の digest の比較は、#225 で中核のテスト `native/core/tests/body_state_rows.rs` に移しました） |
 
 - **履歴は項目ごとの正準 bytes です。** 規則は履歴を読みません。古い項目への書き込みは合わないので taint します。
 - **`rows_valid` は、書かれた関係だけを読みます。** Rust の書き込みも転送もキーを控えます。人の ID が変わると全部を読み直します。`false` のあとの確認も全部を読みます。

@@ -105,7 +105,7 @@ agent_dynamics::remember_decision(world, &Decision { agent_id, action, target_id
 | `gate_all_paths.py --expect --reversed-order` | 55シナリオ、問題0件 |
 | 道具の確認（コピー） | kernel の `current_needs.fatigue` を 1.01 倍：`long_generated` で違い 4,065件、ゲートは world と events で失敗。`last_decision_minute + 1`：違い 3,116件、ゲートは world で失敗 |
 | ゲートの行の網羅（kernel ありとなしの合計 / kernel ありだけ） | `domain/action_lifecycle.py` 94% / 61%、`domain/agent_dynamics.py` 90% / 33% |
-| ゲートに届かない枝 | 記録の `abandoned`。ゲートでも7日分でも0件で、`test_action_lifecycle_rows.py` の小さな入力だけが比べます |
+| ゲートに届かない枝 | 記録の `abandoned`。ゲートでも7日分でも0件で、`test_action_lifecycle_rows.py` の小さな入力だけが比べます（#225 で中核のテスト `native/core/tests/action_lifecycle_rows.rs` に移しました） |
 
 両モードの全テスト、ゲート、7日分、`ruff`、`clippy` の最終結果は統合した版の `lane_check.sh` で確かめます。
 
