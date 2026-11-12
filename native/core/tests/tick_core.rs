@@ -16,9 +16,8 @@
 //! same world through `TickEngine` (frozen in the fixture by `benchmarks/core_tick_fixture.py`, and
 //! checked against the native path by `tests/integration/test_core_tick.py`).
 //!
-//! What the core does not run here, as of P10-1b: the update phase's movement and replanning are
-//! still the PyO3 crate's (`movement` of `run_tick`, P9-3b); this world has no `movement_v1`, so the
-//! native path runs neither and the test's `movement` does nothing.
+//! The update phase's movement and replanning are the core's since P9-3b (`update_movement`); this
+//! world has no `movement_v1`, so neither path walks anyone (extending the fixture is P10 work).
 
 mod support;
 
@@ -36,7 +35,7 @@ use sheltersim_core::json::Encoder;
 use sheltersim_core::rules::after_tick::{self, Checks, HeldNamespaces, Inputs, Memo};
 use sheltersim_core::rules::kit;
 use sheltersim_core::rules::metrics::MetricSample;
-use sheltersim_core::rules::tick::{self, Step, Tick};
+use sheltersim_core::rules::tick::{self, Tick};
 use sheltersim_core::world::{Fit, Place, World, WorldCell, MODEL_CONFIGS};
 
 use support::load::{self, Loaded};
@@ -116,9 +115,7 @@ fn run(loaded: &Loaded, host: &mut TestHost, ticks: i64) -> Vec<String> {
             seed: loaded.seed.clone(),
             neighbors: loaded.neighbors.clone(),
         };
-        // No `movement_v1`: the native path's movement step does nothing either.
-        let mut movement = |_: &mut TestHost| -> Step<(), Error> { Ok(()) };
-        if let Err(failed) = tick::run_tick(&mut tick, &mut movement) {
+        if let Err(failed) = tick::run_tick(&mut tick) {
             panic!("minute {minute}: {:?} {:?}", failed.label, failed.error);
         }
         loaded.cell.with(|world| world.scalars.get_mut().minute_index = Fit::Ok(minute + 1)).unwrap();
