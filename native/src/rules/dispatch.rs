@@ -159,44 +159,12 @@ fn refuse<T>(reason: &str) -> PyResult<T> {
 /// `_run_dispatch_phase` (the E10 phase path, a `KERNEL_ONLY_SEGMENTS` step).
 #[pyfunction]
 fn run_phase<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<()> {
-    run_for_driver(controller, world, minute)
-}
-
-/// The phase, for `run_phase` and `rules/tick.rs`.
-pub(crate) fn run_for_driver<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<()> {
     let py = world.py();
-    let Some(table) = TABLE.get(py) else {
-        return refuse("events/handlers.py has not installed the table");
+    let minute_value = match ready(controller, world, minute)? {
+        Ok(minute_value) => minute_value,
+        Err(reason) => return refuse(&reason),
     };
-    let Ok(minute_value) = exact_int(minute) else {
-        return refuse("a minute is not an int");
-    };
-    if minute_value < 0 {
-        return refuse("a negative minute");
-    }
-    let dispatcher = attribute(controller, intern!(py, "event_dispatcher"))?;
-    if !dispatcher.get_type().is(table.dispatcher.bind(py)) {
-        return refuse("another kind of dispatcher");
-    }
-    if let Err(error) = EventWriter::of(world) {
-        return refuse(&error.value(py).to_string());
-    }
-    let Ok(run) = run_of(controller) else {
-        return refuse("the controller has no run core");
-    };
-    // The open actions the core closes are the Run's rows: a store that holds a plain dict is read
-    // into them first.
-    let active = attribute(controller, intern!(py, "active_actions"))?;
-    let Ok(active) = active.downcast::<crate::rules::action_lifecycle::ActiveActions>() else {
-        return refuse("the open actions are not a store of the Run");
-    };
-    if !active.borrow().is_of(run.get()) {
-        return refuse("the open actions are not a store of the Run");
-    }
-    if active.try_borrow_mut()?.with_rows(py, |_| Ok(())).is_err() {
-        return refuse("the open actions do not fit their rows");
-    }
-    marks(table, controller, &dispatcher, run.get())?;
+    let run = run_of(controller)?;
     let policies = run.get().policies()?;
     let mut host = PyHost::of_controller(controller)?.on_world(world);
     let cell = PyWorldCell(world);
@@ -204,6 +172,46 @@ pub(crate) fn run_for_driver<'py>(controller: &Bound<'py, PyAny>, world: &Bound<
     let mut tick = Tick { cell: &cell, host: &mut host, run: run.get(), policies, minute: minute_value, seed: Seed::Other, neighbors };
     // The phase has begun: a refusal past its checks is KernelRefusal too.
     core::run(&mut tick).map_err(|error: HostError| errors::kernel_refusal(py, core::RUN_PHASE, error.0))
+}
+
+/// What the phase checks before its first event, for `run_phase` and the tick driver
+/// (`rules/tick.rs`, whose core `run_tick` runs the phase): the minute, or the reason the phase is
+/// refused (counted by the caller). The dispatcher's handlers are read again where they changed.
+pub(crate) fn ready<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<Result<i64, String>> {
+    let py = world.py();
+    let Some(table) = TABLE.get(py) else {
+        return Ok(Err("events/handlers.py has not installed the table".to_owned()));
+    };
+    let Ok(minute_value) = exact_int(minute) else {
+        return Ok(Err("a minute is not an int".to_owned()));
+    };
+    if minute_value < 0 {
+        return Ok(Err("a negative minute".to_owned()));
+    }
+    let dispatcher = attribute(controller, intern!(py, "event_dispatcher"))?;
+    if !dispatcher.get_type().is(table.dispatcher.bind(py)) {
+        return Ok(Err("another kind of dispatcher".to_owned()));
+    }
+    if let Err(error) = EventWriter::of(world) {
+        return Ok(Err(error.value(py).to_string()));
+    }
+    let Ok(run) = run_of(controller) else {
+        return Ok(Err("the controller has no run core".to_owned()));
+    };
+    // The open actions the core closes are the Run's rows: a store that holds a plain dict is read
+    // into them first.
+    let active = attribute(controller, intern!(py, "active_actions"))?;
+    let Ok(active) = active.downcast::<crate::rules::action_lifecycle::ActiveActions>() else {
+        return Ok(Err("the open actions are not a store of the Run".to_owned()));
+    };
+    if !active.borrow().is_of(run.get()) {
+        return Ok(Err("the open actions are not a store of the Run".to_owned()));
+    }
+    if active.try_borrow_mut()?.with_rows(py, |_| Ok(())).is_err() {
+        return Ok(Err("the open actions do not fit their rows".to_owned()));
+    }
+    marks(table, controller, &dispatcher, run.get())?;
+    Ok(Ok(minute_value))
 }
 
 /// What the dispatch reads of the controller's neighbors: nothing.
