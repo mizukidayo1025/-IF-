@@ -115,7 +115,7 @@ Python の規則が途中で例外を出す状態（列の task がないなど�
 
 **ゲートの行の網羅（kernel ありとなしの合計 / kernel ありだけ）：** `domain/movement.py` 994行のうち 806行（81%）/ 209行（21%。M4 の時点は 47%）、`phases/propose.py` 359行のうち 293行（82%）/ 118行（33%。同じく 58%）、`phases/update.py` 187行のうち 132行（71%）/ 64行（34%）。Rust の行の網羅は測っていません。
 
-**ゲートに届かず、テストだけが比べるもの：** 順序に依存する枝の全部（`test_movement_walk_order.py`、乱数の40個の歩きを含む）、`replan_journeys` の支援以外の枝（`test_replan_journeys.py`）。#225 で、どちらも中核のテスト（`native/core/tests/movement_walk_order.rs`、`replan_journeys.rs`）に移しました。
+**ゲートに届かず、テストだけが比べるもの：** 順序に依存する枝の全部（`test_movement_walk_order.py`、乱数の40個の歩きを含む）、`replan_journeys` の支援以外の枝（`test_replan_journeys.py`）。#225 で、乱数の歩きのほかは中核のテスト（`native/core/tests/movement_walk_order.rs`、`replan_journeys.rs`）に移しました。乱数の歩きは pytest に残っています。
 
 **予算：** `tick_budget.py`、`fork-b1` の 9600分から 480 tick、3回、基準 `585d9f9`。**1.005**（1.037、1.005、0.997）。A/A 1.051（1.051、1.052、1.041）。状態は3つとも一致。load average 約 20〜30。上限の中です。毎 tick の道は変えていません（`Changes` の `Vec` と、枝の判定の1回の比較だけ）。部品ごとの費用は測っていません。
 

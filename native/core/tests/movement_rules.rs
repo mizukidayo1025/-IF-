@@ -347,7 +347,8 @@ fn a_route_s_minutes_follow_speed_and_crowding() {
 /// facility of the floor plan, by ID, a square footprint around its point in the spatial
 /// constraints, and three people of each mobility at the centre of its zone. The pytest took the
 /// Scenario's world at minute 2; here it is the world at minute 5, which the other tests of this file
-/// share. Pytest digest `f6bffc4d4625`.
+/// share (the walks of both are the same: their digest was recorded on each). Pytest digest
+/// `f6bffc4d4625`.
 #[test]
 fn the_walk_to_a_facility_with_a_footprint_is_the_deleted_rule_s() {
     let prefix = "the_walk_to_a_facility_with_a_footprint_is_the_deleted_rule_s/";

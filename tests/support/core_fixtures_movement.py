@@ -4,7 +4,7 @@
 core's step of `_replan_journeys` (`rules::tick::update::replan_journeys`), its walk of
 `advance_movement` (`rules::movement::advance_through`) and the other rules of `domain/movement.py`
 on the worlds that the pytest files of the same names (`integration/test_replan_journeys.py`,
-`test_movement_walk_order.py`, which moved whole, and `test_movement_rules.py`) built in Python:
+`test_movement_walk_order.py` and `test_movement_rules.py`) built in Python:
 the generated Scenario (`support/generated.py`, the Project screen's), edited and set going as
 those files did (a trip scheduled through the controller, people put in a queue by the toilet's
 service, a temporary room by its EffectProgram), up to the call of the rule. The helpers that build
@@ -26,7 +26,6 @@ import copy
 import json
 import math
 import pathlib
-import random
 import tempfile
 from dataclasses import replace
 from typing import Any
@@ -564,7 +563,7 @@ def _without_independent_queues(scenario: Any) -> Any:
     return type(scenario).model_validate(document)
 
 
-def _trips_of_the_facility_s_own_queue(scenario: Any, people: tuple[str, ...]) -> Any:
+def trips_of_the_facility_s_own_queue(scenario: Any, people: tuple[str, ...]) -> Any:
     """People in a queue without independent FIFOs, as arbitration leaves them."""
     from sheltersim.core.rng import CounterRNG
     from sheltersim.core.world import WorldState
@@ -670,7 +669,7 @@ def _queue_trip(world: Any, agent_id: str, due: int = 300) -> None:
 
 def _own_queue_with_trips(scenario: Any, people: tuple[str, ...]) -> Any:
     """Everyone in the facility's own queue on a queue trip that must replan once it has moved."""
-    world = _trips_of_the_facility_s_own_queue(scenario, people)
+    world = trips_of_the_facility_s_own_queue(scenario, people)
     world.model_state[KEY]["journeys"].clear()
     for key in [event.event_id for event in world.event_queue.pending()]:
         if key.startswith("physical-queue-trip-"):
@@ -680,122 +679,10 @@ def _own_queue_with_trips(scenario: Any, people: tuple[str, ...]) -> Any:
     return world
 
 
-def _toilet_area(world: Any) -> Any:
+def toilet_area(world: Any) -> Any:
     from sheltersim.domain import movement
 
     return next(item for item in movement._geometry(world).zones if item.zone_id == "toilet")
-
-
-def _random_trips(world: Any, rng: random.Random, people: tuple[str, ...]) -> None:
-    """Everyone in a queue, each with a trip of a kind drawn at random, some of them stale."""
-    from sheltersim.domain.models import ActiveTask
-
-    state = world.model_state[KEY]
-    for key in [event.event_id for event in world.event_queue.pending()]:
-        if key.startswith("physical-queue-trip-"):
-            world.event_queue.remove(key)
-    area = _toilet_area(world)
-    xs = [point.x for point in area.polygon]
-    ys = [point.y for point in area.polygon]
-
-    def somewhere() -> dict[str, float]:
-        return {
-            "x": rng.uniform(min(xs) + 0.2, max(xs) - 0.2),
-            "y": rng.uniform(min(ys) + 0.2, max(ys) - 0.2),
-        }
-
-    state["journeys"].clear()
-    tasks = {
-        task.agent_id: key
-        for key, task in world.active_tasks.items()
-        if task.kind == "toilet_queue"
-    }
-    for agent_id in rng.sample(people, len(people)):
-        kind = rng.choice(("position", "service", "other", "none", "stale", "gone"))
-        state["positions"][agent_id]["point"] = somewhere()
-        state["positions"][agent_id]["progress"] = rng.choice((0.0, 0.25, 1.0))
-        if kind == "none":
-            continue
-        event_id = f"trip-{agent_id}"
-        purpose = {
-            "position": "toilet_queue_position",
-            "service": "toilet_queue_service",
-            "stale": "toilet_queue_position",
-            "gone": "toilet_queue_position",
-            "other": "return",
-        }[kind]
-        task_id = tasks[agent_id]
-        if kind == "other":
-            task_id = f"other-{agent_id}"
-        add_task_and_event(
-            world,
-            agent_id,
-            f"holder-{agent_id}",
-            event_id,
-            200 + rng.randrange(50),
-            "travel_return",
-        )
-        del world.active_tasks[f"holder-{agent_id}"]
-        if kind == "other":
-            world.active_tasks[task_id] = ActiveTask(
-                id=task_id,
-                kind="travel_return",
-                agent_id=agent_id,
-                resource_id=None,
-                start_minute=0,
-                due_minute=300,
-            )
-        if kind == "stale":
-            world.event_queue.remove(event_id)
-        if kind == "gone":
-            task_id = f"task-that-went-{agent_id}"
-        state["journeys"][agent_id] = {
-            "event_id": event_id,
-            "task_id": task_id,
-            "purpose": purpose,
-            "facility_id": TOILET if kind != "other" else None,
-            "destination_zone_id": "toilet",
-            "route_zone_ids": ["toilet", "toilet"],
-            "route_edge_ids": [],
-            "route_points": [somewhere(), somewhere(), somewhere()],
-            "started_minute": rng.choice((0, 7)),
-            "due_minute": 300,
-        }
-
-
-def _random_walk(scenario: Any, seed: int) -> Any:
-    """The world of a random walk, at minute 1: the walk then runs minutes 1, 2 and 3."""
-    rng = random.Random(seed)
-    people = tuple(rng.sample(("A001", "A002", "A003", "A004", "A005", "A006"), 6))
-    world = _trips_of_the_facility_s_own_queue(scenario, people)
-    _random_trips(world, rng, people)
-    point = world.model_configs["facility_geometry"]["facility_points"][TOILET]
-    move_the_toilet(world, {"x": point["x"] - rng.uniform(0.0, 0.4), "y": point["y"]})
-    if rng.random() < 0.5:
-        area = _toilet_area(world)
-        xs = [item.x for item in area.polygon]
-        ys = [item.y for item in area.polygon]
-        x, y = rng.uniform(min(xs), max(xs)), rng.uniform(min(ys), max(ys))
-        world.model_configs.setdefault("spatial_constraints", {}).setdefault(
-            "obstacles", []
-        ).append(
-            {
-                "id": "random-block",
-                "polygon": [
-                    {"x": x - 0.2, "y": y - 0.2},
-                    {"x": x + 0.2, "y": y - 0.2},
-                    {"x": x + 0.2, "y": y + 0.2},
-                    {"x": x - 0.2, "y": y + 0.2},
-                ],
-                "source_ids": ["ASM-TEST"],
-            }
-        )
-    world.minute_index = 1
-    return world
-
-
-# The seeds of the random walks (the pytest drew 40; 30 keep the file small).
-RANDOM_WALKS = 30
 
 
 def _walk_order_worlds(scenario: Any, export: Any) -> None:
@@ -937,9 +824,6 @@ def _walk_order_worlds(scenario: Any, export: Any) -> None:
     world.active_tasks[task_id].resource_id = "another"
     move_the_toilet(world)
     add("a_trip_with_no_queue_task_is_python_s_error_before_any_change", world)
-
-    for seed in range(RANDOM_WALKS):
-        add(f"random_walks_are_python_s_bit_for_bit[{seed}]", _random_walk(scenario, seed))
 
 
 # ---- The worlds of the other movement rules ------------------------------------------------------

@@ -3,7 +3,9 @@
 //! here.
 //!
 //! The gate and the 7-day run never reach them (docs/rust-port/lanes/l3-movement.md), so these tests
-//! are all that checks them: a queue trip that replans, and a person placed in a slot in the walk.
+//! are what checks them: a queue trip that replans, and a person placed in a slot in the walk. The
+//! random walks of the pytest file stay there, as their inputs are drawn with Python's
+//! `random.Random` (decision 5 of #225).
 //! Each world is the pytest's just before its first call, read from
 //! `tests/data/movement_walk_order.json` (`tests/support/core_fixtures_movement.py` writes it): the
 //! generated Scenario (or the one with split queues, `split_queues`) with people sent to the
@@ -39,8 +41,6 @@ const OVERLAY: &str = "geometry_overlay_v1";
 const TOILET: &str = "toilet_01";
 const QUEUE_REPLANS: &str = "physical_queue_replan_count";
 const QUEUE_BLOCKED: &str = "physical_queue_replan_blocked_count";
-/// The seeds of the random walks.
-const RANDOM_WALKS: usize = 30;
 
 fn data() -> &'static Value {
     static DATA: OnceLock<Value> = OnceLock::new();
@@ -344,74 +344,4 @@ fn a_trip_with_no_queue_task_is_python_s_error_before_any_change() {
     let refused = advance_through(&loaded.cell, &mut case.host, 1);
     assert_eq!(refused, Err(Error::Value("physical queue reservation has no matching active queue task".to_owned())));
     assert_eq!(case.bytes(), before);
-}
-
-// ---- At random -----------------------------------------------------------------------------------
-
-/// A random walk: everyone in the facility's own queue, in an order drawn at random, each with a
-/// trip of a kind drawn at random (some of them stale, or of a task that went), the toilet moved a
-/// little and, half the time, a block put in its area; the walk then runs minutes 1, 2 and 3.
-fn random_walk(seed: usize) -> Case {
-    let (mut case, _) = setup(&format!("random_walks_are_python_s_bit_for_bit[{seed}]"));
-    for minute in 1..=3 {
-        at_minute(&mut case, minute);
-        walk(&mut case, minute).unwrap();
-    }
-    case
-}
-
-/// The digests of the random walks, by seed (the pytest drew 40 and compared each with the deleted
-/// Python rule's; the first 30 are kept here, to keep the fixture small). On the same kernel the
-/// pytest passed for every seed.
-const RANDOM_ANSWERS: [&str; RANDOM_WALKS] = [
-    "04390f70681132a849f9b61ddbf91cf4cb2ef06b3dd88060c02521816f39a0de",
-    "8aca516234af28f8c91abcb5d7edacf70cf59aebcde618ed56543027ba9ce5ae",
-    "89c5eb15a2cf4b1aec22bb44fc5e4036d1c02b4d5f90881150aae4d545823777",
-    "3f2dd762adac882933bc503ffb6c87ce486dd1ea08fd838f3950016752517d97",
-    "d787b30fb78418798aa89df921d22567b6d42439bd8eeaa6eadbce39111663fc",
-    "7d0b8da5e6e4329e8a7bdd4052955865ec5d00b8d769f2fc89fad762d74d689a",
-    "69764441acaca6160abd7c69baefe7e2130638956de6567579a190d576069c2d",
-    "f9940ff753b1fec4e8504486e215730330d114587677f9a77ab4f68557f8b93e",
-    "2418a3460d72cf1181636288a1c72f6945cf4b8b7f3647db6ae1c25771bf354b",
-    "7cf9150fda81b86870da8bb4aff3166d7edacfcbfa49eae83dc5c77245f71762",
-    "74d8ba842e76a2d96bc4dac33146157ec06265f952e2e19a14bbd1250897edd4",
-    "1edf2a760cb050dd47e5ba264c0aeead41a326e79899325b7a4745fad9af4262",
-    "5aab298af502fa869c7ac6fd6b2bc2cc641d36c362257d7328b92ed27e9ee925",
-    "5970a41bedd9557194e743b8e7b0d3bd28744dc462d6737ddbb0649cb6d624d9",
-    "f0c7d6d4d165c6ec2e2b1dfed84dd600afca83d6c3a2158f492b8c3aff528c91",
-    "d2dfbbc7e05e11d9d9a7c81a9396b043151c18ec086be6aa207c8a1cce5eb82a",
-    "9f1dd8c14596129bd4ea4034a020e5bead14f49c239cd297d12aaa8968012bf5",
-    "d036728c5ab93c69e1cdb0300c3180d8cd254b92c7c4b664b117b3f73353b7d3",
-    "208ff8e80fabc2f4981810861e1254722e95634f86b4801d747d3ba8add444ac",
-    "7010f0dc353b8ecedf3c8ebf264c72da892e800894702a8df6641c7096183998",
-    "28273f2d4134e948f2e293df775df507efadf7c216aeecef781ebf529d1907d8",
-    "24432880fcad9ee3233fddf14ad9263eca2f18d464cb7d2ba81c3e3c3a9871ef",
-    "584f2a53d1a0301650a5c1552cc2a85dfb17ae2d1a72da6248b242de24adfe3b",
-    "c8c904b3302cfd1a02b97aae60f8871b08d6d3c72fc5b3664e9e092d8044b04e",
-    "cc08150dc26916e3c23d834f046fde475809cbc08528043b9fb7d5585daffffa",
-    "9054ec7081ef6612ef28d22072fa3d6338eb8d1398897e8c8fcc5a351605a0df",
-    "9e605bee2976de2beb31fb2586c165cd297687072ddbc1df7145cdd4542a9c3f",
-    "bbca75b286ff19ce81886e482f4251472ec95d10b86caaa7ba9b65e1b8627ecd",
-    "f063547931db7f49847293e8168a4dbe7b3a6b89bfbcff6dac695d2f3a9faf5b",
-    "865bcbe3ada73a006037b6f99b5db8310d8c4a259d5b82fbfe5fe4a3c12e6970",
-];
-
-#[test]
-fn random_walks_are_the_recorded_ones() {
-    let found: Vec<String> = (0..RANDOM_WALKS).map(|seed| random_walk(seed).hex()).collect();
-    assert_eq!(found, RANDOM_ANSWERS);
-}
-
-/// Or the test above compares little: replans of each ending, and people placed in slots.
-#[test]
-fn the_random_walks_reach_the_branches() {
-    let mut replans = 0.0;
-    let mut blocked = 0.0;
-    for seed in 0..12 {
-        let doc = random_walk(seed).doc();
-        replans += metric(&doc, QUEUE_REPLANS).unwrap_or(0.0);
-        blocked += metric(&doc, QUEUE_BLOCKED).unwrap_or(0.0);
-    }
-    assert!(replans > 0.0);
-    assert!(blocked > 0.0);
 }
