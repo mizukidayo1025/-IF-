@@ -16,11 +16,15 @@
 pub mod answers;
 pub mod canonical;
 pub mod cases;
+pub mod contracts;
 pub mod dumps;
 pub mod load;
 pub mod sections;
+pub mod steps;
 pub mod texts;
+pub mod ticks;
 pub mod typed;
+pub mod views;
 
 use std::sync::Arc;
 
@@ -101,7 +105,8 @@ pub struct TestHost {
     /// Run at each LLM call (`consider_*`, `prioritize_support_request`), as an LLM hook of the
     /// native host writes the world.
     pub on_llm: Option<Box<dyn FnMut()>>,
-    /// The EventLog's records `find_record` finds, by event ID (lane P9-1a).
+    /// The EventLog's records `find_record` finds, by event ID (lane P9-1a); past them, those of
+    /// the loaded world's log where `world` is set (#225 lane M9).
     pub records: IndexMap<Arc<str>, Logged>,
     /// The floor plan `floor_plan` gives; none means it refuses as a host without one does.
     pub plan: Option<Arc<Geo>>,
@@ -359,7 +364,13 @@ impl Host for TestHost {
 
     fn find_record(&mut self, event_id: &str) -> Result<Option<Logged>, Error> {
         self.calls.push(Call::FindRecord(text(event_id)));
-        Ok(self.records.get(event_id).cloned())
+        if let Some(found) = self.records.get(event_id) {
+            return Ok(Some(found.clone()));
+        }
+        match &self.world {
+            Some(world) => world.find_record(event_id),
+            None => Ok(None),
+        }
     }
 
     fn floor_plan(&mut self) -> Result<Arc<Geo>, Error> {

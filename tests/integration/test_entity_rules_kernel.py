@@ -5,7 +5,8 @@ KPI kernels must give the Python rule's values to the bit. The check kernel has 
 hold is that a yes means the Python rules pass, and that a state it turns down gets the Python text.
 These run on worlds from the middle of a Run, where queues, trips and open requests are in use, of
 WorldState v6 (a Scenario with resource_service) and v5 (one without, docs/rust-port/lanes/
-l7b-world-v5.md).
+l7b-world-v5.md). The snapshot's columns on the worlds of the Run, and the zones the entity rules
+leave to the zone's check, are the core's tests (native/core/tests/generated_run.rs, Issue #225).
 """
 
 from __future__ import annotations
@@ -547,22 +548,6 @@ def test_random_writes_to_a_v5_world_taken_by_the_check_pass_the_python_rules(
     assert taken > 0 and refused > 0
 
 
-def test_a_zone_with_temporary_space_is_left_to_the_python_rule(documents) -> None:
-    world = _world(documents[0])
-    state = world.model_state.setdefault(
-        "temporary_spaces_v1", {"schema_version": 1, "spaces": {}, "history": []}
-    )
-    assert isinstance(entity_kernel(world, _resource_config(world)), list)
-    state["spaces"]["room"] = {"zone_id": next(iter(world.zones))}
-    left = entity_kernel(world, _resource_config(world))
-    with_capacity = [zone for zone in world.zones.values() if zone.capacity is not None]
-    assert {zone for zone, _ in left} == {zone.id for zone in with_capacity}
-    occupancy = {zone: 0 for zone in world.zones}
-    for agent in world.agents.values():
-        occupancy[agent.zone_id] += 1
-    assert all(occupancy[zone] == count for zone, count in left)
-
-
 def test_a_zone_over_its_capacity_is_left_to_the_python_rule(documents) -> None:
     world = _world(documents[0])
     zone = next(zone for zone in world.zones.values() if zone.capacity is not None)
@@ -637,18 +622,14 @@ def test_the_population_kernel_leaves_someone_pending_to_the_rule(documents) -> 
 # ---- The KPI columns ---------------------------------------------------------------------------
 
 
-# `_snapshot_fields` and `operational_kpi_values` have no Python rule left (lane L10,
-# `kernel_only`). What they gave on the worlds of the run, recorded from them: a digest of the
-# columns (on every OS, as the gate's hashes), and the order of the KPIs.
-SNAPSHOTS_OF_THE_RUN = "b486e7a17d3d3943"
+# `operational_kpi_values` reads the rows through the core and puts the columns together in the
+# PyO3 crate (native/src/rules/metrics.rs; no Python rule left, lane L10, `kernel_only`). What it
+# gave on the worlds of the run, recorded from the Python rule: a digest of the columns (on every
+# OS, as the gate's hashes), and the order of the KPIs. The snapshot's columns (`_snapshot_fields`)
+# are the core's tests (native/core/tests/generated_run.rs, Issue #225), on the same worlds; the
+# snapshot is reached here through `MetricSnapshot.from_world`.
 KPIS_OF_THE_RUN = "e5d613691486b7e3"
 KPI_ORDER = "1f099193412561a6"
-
-
-def _fields(world: WorldState) -> list:
-    unsettled = list(world.unsettled_support_requests())
-    fields = metrics._snapshot_fields(world, unsettled, world.minute_index)
-    return json.loads(json.dumps(fields))
 
 
 def _digest(value: Any) -> str:
@@ -659,82 +640,6 @@ def _digest(value: Any) -> str:
 
 def _is_the_python_rules(value: Any, digest: str) -> None:
     assert _digest(value) == digest
-
-
-def _source_ids(world: WorldState) -> dict[str, Any]:
-    return json.loads(_fields(world)[14])
-
-
-def test_the_snapshot_is_the_python_rules_on_the_worlds_of_a_run(documents) -> None:
-    _is_the_python_rules(
-        [_fields(_world(document)) for document in documents], SNAPSHOTS_OF_THE_RUN
-    )
-
-
-def test_the_stress_threshold_is_where_the_python_rule_has_it(documents) -> None:
-    world = _world(documents[0])
-    agents = list(world.agents.values())
-    agents[0].stress = 0.7
-    agents[1].stress = 0.6999999999999999
-    agents[2].stress = 0.707
-    # The Python rule: `agent.stress >= 0.7`.
-    high = sorted(agent.id for agent in world.agents.values() if agent.stress >= 0.7)
-    assert agents[0].id in high and agents[1].id not in high and agents[2].id in high
-    fields = _fields(world)
-    assert fields[9] == len(high)
-    assert json.loads(fields[14])["high_stress_agents"] == high
-
-
-def test_a_person_with_two_open_requests_is_the_last_in_the_snapshot(documents) -> None:
-    """The Python rule's dict by agent: the later of two requests of one person, in the order of
-    the unsettled requests, is the one kept; the list of who waits names the person twice."""
-    for document in documents:
-        world = _world(document)
-        active = [
-            request
-            for request in world.unsettled_support_requests()
-            if request.status is SupportRequestStatus.PENDING
-        ]
-        if len(active) >= 2:
-            active[1].agent_id = active[0].agent_id
-            source_ids = _source_ids(world)
-            person = active[0].agent_id
-            assert source_ids["support_wait_by_agent"][person]["request_id"] == active[1].id
-            assert source_ids["unresolved_support_agents"].count(person) == 2
-            return
-    pytest.fail("no document had two pending requests")
-
-
-@pytest.mark.parametrize(
-    ("kind", "like"),
-    [
-        # `"toilet" in kind.casefold()`: ß folds to ss and the rest to lower case.
-        ("Straße-TOILET", "toilet"),
-        # İ folds to i and a combining dot, so "toilet" is not in it.
-        ("TOİLET", "storage"),
-        # ﬆ folds to "st", which no lower casing gives (the core's full fold, P8-0a).
-        ("ﬆoilet", "toilet"),
-    ],
-)
-def test_a_kind_that_is_not_ascii_is_folded_as_python_folds_it(
-    documents, kind: str, like: str
-) -> None:
-    world = _world(documents[0])
-    twin = _world(documents[0])
-    facility_id = next(iter(world.facilities))
-    world.facilities[facility_id].kind = kind
-    twin.facilities[facility_id].kind = like
-    assert _fields(world) == _fields(twin)
-
-
-def test_kinds_that_are_not_ascii_are_folded_once_each(documents) -> None:
-    """Every kind that isn't ASCII is folded as Python folds it (the core's table since P8-0a)."""
-    world = _world(documents[0])
-    twin = _world(documents[0])
-    for (key, facility), like in zip(world.facilities.items(), ("Ⓣoilet", "ﬆoilet", "TOİLET")):
-        facility.kind = like
-        twin.facilities[key].kind = "toilet" if like == "ﬆoilet" else "storage"
-    assert _fields(world) == _fields(twin)
 
 
 def test_a_metric_state_assigned_whole_is_refused(documents) -> None:

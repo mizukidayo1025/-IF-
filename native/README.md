@@ -275,13 +275,20 @@ split PR by PR; its last section sums up what is where.
   Python-parsed sections and the floor plan of an exported world (#225, #214); `dumps.rs`,
   the text of Python's `json.dumps` for the digests the pytest files took of it; `canonical.rs`,
   a World's `canonical_json()` bytes, part by part; and `cases.rs`, the files of events given to
-  one handler of an exported world (worlds stored as the changes from another world of the file)
+  one handler of an exported world (worlds stored as the changes from another world of the file,
+  or of another file)
   with the outcome or the world the Python rule left, checked through `dispatch::apply_alone`,
   the kernel a handler's PyO3 entry calls (#225); and `texts.rs`, for the tests that call a rule
   directly: the canonical text of a world in a cell, the outcome a rule raised, and events
   changed as the pytest files changed them. `answers.rs`
   chains a test's answers and the world's canonical parts after each, for the digests a moved
-  test records again from the core. The JSON under
+  test records again from the core. `steps.rs` is for the tests that call one step of a tick on
+  an exported world: `Case` (the world, its Run and a following host; the step's `Tick`; edits of
+  the world's canonical document between steps) and the inputs a builder wrote down. The JSON under
+  ticks.rs` steps a loaded Run as `TickEngine.step` does
+  (`run_tick`, the minute moved on, the end-of-tick check); `contracts.rs` answers a
+  `TestHost`'s contracts as a fixture recorded pydantic's answers; `views.rs` makes the update and
+  the propose phases' views of a loaded world and writes every field of one. The JSON under
   `tests/data/` (worlds the Python side built) is written by the builders that
   `tests/support/core_fixtures.py` registers (`benchmarks/core_fixtures.py`), and
   `tests/integration/test_core_fixtures.py` checks that each file is what its builder makes
@@ -289,7 +296,8 @@ split PR by PR; its last section sums up what is where.
   (the World, the Run and its policies) and `load::host` (the sections and the floor plan), or
   `load::following_host` for a Run's ticks: a host that also does what the PyO3 crate's host does
   to the world it owns (the floor plan of the overlay at each call, a namespace a rule starts,
-  `world.resources` after a ledger operation).
+  `world.resources` after a ledger operation, the records of the world's log as `find_record`
+  finds them).
   `tests/tick_core.rs` runs the ticks of each world of `tests/data/tick_core.json` with `TestHost`
   alone and reaches the digests the native path gives on the same world;
   `tests/typed_rows.rs` reads every typed namespace of `tests/data/typed_rows.json` and writes
@@ -301,13 +309,36 @@ split PR by PR; its last section sums up what is where.
   `tests/resource_service_texts.rs`, `tests/effect_program_texts.rs` and `tests/population_texts.rs`
   check the texts the service's, the EffectProgram handlers' and the population's rules save, on
   the worlds of the pytest files of the same names, with the world unchanged where a check comes
-  before any write;
+  before any write; `tests/service_rules.rs`, `tests/requests_at_once.rs` and
+  `tests/staff_assignment.rs` call `_apply_effect` (`tick::propose::apply_alone`), `_route`,
+  `_schedule_travel`, the water and meal service and the staff's assignment, relief and support
+  waits on the worlds of the pytest files of the same names (`tests/data/service_rules.json`,
+  `generated_texts.json`, `staff_assignment.json`); `tests/replan_journeys.rs`,
+  `tests/movement_walk_order.rs` and `tests/movement_rules.rs` call `_replan_journeys`
+  (`tick::update::replan_journeys`), the walk of `advance_movement` (`advance_through`) and the
+  other rules of `domain/movement.py` on the worlds of the pytest files of the same names
+  (`tests/data/replan_journeys.json`, `movement_walk_order.json`, `movement_rules.json`).
   `tests/handler_rules.rs` checks the handlers' kernels and the steps around them (the toilet's
   queue and service, the care receipts, a seek, a request's and a support's end, the walk home,
   the care formulas, the social events, the draws of a claim) on the worlds of
   `tests/data/handler_rules.json`, calling each kernel as its PyO3 entry does
   (`dispatch::apply_alone_made` for a handler's records, `tick::propose::apply_alone` for
   `_apply_effect`).
+  `tests/staff_rules.rs` checks the staff's rules of a tick and the shared
+  operations' receipts on the worlds of `tests/data/staff_rules.json`.
+  `tests/service_rules.rs`, `tests/requests_at_once.rs` and
+  `tests/staff_assignment.rs` call `_apply_effect` (`tick::propose::apply_alone`), `_route`,
+  `_schedule_travel`, the water and meal service and the staff's assignment, relief and support
+  waits on the worlds of the pytest files of the same names (`tests/data/service_rules.json`,
+  `generated_texts.json`, `staff_assignment.json`).
+  `tests/population_rules.rs` checks the population rules' answers and the
+  worlds they leave against the digests of what the Python rules gave
+  (`tests/data/population_rules.json`).
+  .
+  `tests/effect_kernels.rs` and `tests/effect_guard_dispatch.rs` check the EffectProgram
+  handlers and the guard (alone, and in the dispatch phase); `tests/world_view_reads.rs` and
+  `tests/world_view_run.rs` the views; `tests/generated_run.rs` the metric snapshot and the entity
+  rules on the worlds of a Run the core steps; `tests/event_log_indexes.rs` the log's indexes.
   `tests/social_steps.rs`, `tests/information_steps.rs` and
   `tests/psychology_steps.rs` run the people models' steps (the social model, the information
   model's contacts, each person's minute and its trace's document) on the worlds and the policies
