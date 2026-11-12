@@ -62,7 +62,8 @@ split PR by PR; its last section sums up what is where.
   (`txn.rs`), the Run (`run/`: the `Policies` read once from the controller, `Scratch`, the
   dispatch table), every rule of the tick (`rules/`) and the tick itself:
   `rules::tick::run_tick` runs the dispatch, complete, update, propose, arbitrate, sample and
-  metrics phases in `TICK_PHASE_ORDER` on a `WorldCell`, a `RunCell` and one `Host`.
+  metrics phases in `TICK_PHASE_ORDER` on a `WorldCell`, a `RunCell` and one `Host`, and
+  `rules::tick::run_phases` some of them in that order.
 - **`src/` (`sheltersim_native`)**: the thin PyO3 wrapper. It converts between Python and the
   core (`src/state/`, `src/core/`), holds a Python world's core (`WorldCore`) and a controller's
   `Run`, parses the config sections a Python contract interprets (`src/core/configs.rs`,
@@ -80,8 +81,9 @@ split PR by PR; its last section sums up what is where.
   observer), what Python still owns (`holding`, `fill_section`, `floor_plan`, `find_record`, the
   queue's Python events) and the test hooks (`apply_foreign`, `draw`). The section of PR P9-3b
   (2/2) in `step5-plan.md` lists each method with why it stays. The native `run_tick`
-  (`src/rules/tick.rs`) is the E10 check (a patched or shadowed step goes back to the Python
-  phase path) and one call of the core's `run_tick` with a `PyHost`.
+  (`src/rules/tick.rs`) is the E10 check (a patched step or rule fails the tick with
+  `KernelRefusal`; there is no Python path to run it instead, #221) and one call of the core's
+  `run_phases` with a `PyHost`.
 - **A tick without Python**: `cargo test -p sheltersim_core --test tick_core` builds a small
   World from `core/tests/data/tick_core.json` (`core/tests/support/load.rs`, test code only,
   decision 4) and runs 1,440 ticks with a `TestHost` (no LLM; the whole-world validation answers
@@ -510,8 +512,8 @@ are correctly rounded everywhere, and not `**` with a float.
   (`update_long_term`) and writing the final deltas (`apply_deltas`). They replace steps of the
   update phase (`experiments/phases/segments.py`). The model is what the controller's `Policies`
   read (`run::policies_of`); the core reads the entity rows, the view's `ViewData` and the slot rows,
-  and writes the rows alone. The `AgentStateDelta`s are made here at the edge, for the social step
-  and the Python phase path, and read back by `apply_deltas`. Every float operation keeps the Python
+  and writes the rows alone. The `AgentStateDelta`s are made here at the edge, for the social step's
+  entry and Python callers, and read back by `apply_deltas`. Every float operation keeps the Python
   order; `max`/`min` return the first argument on a tie and `sum` is CPython 3.12's compensated sum,
   so the results are the same floats. A value `AgentStateDelta`'s checks might refuse raises
   `Unsupported` before anything changes.
@@ -544,16 +546,18 @@ are correctly rounded everywhere, and not `**` with a float.
   body, and the commit or the rollback. There is no copy of the world any more. A rule called inside
   another's open transaction validates the world as a start does and writes it as it is.
 
-- `rules/tick.rs`: `run_tick(controller, world, minute, rng, observer)`, one tick, through
-  `controller.run_tick` (`experiments/phases/driver.py`). Unsupported before anything changes for a
-  tick that a hook changes (a shadow, a patched step or rule in the table of `install`, a toilet,
-  resource or staff manager of another class than the installed one) or whose dispatch phase its own
-  checks turn down (`dispatch::ready`: the dispatcher's class, the world's stores, the open actions);
-  `phase_handler` then runs the tick, and its dispatch phase refuses with the same text. It reads the
+- `rules/tick.rs`: `run_tick(controller, world, minute, rng, observer, phases=None)`, one tick,
+  through `controller.run_tick` (`experiments/phases/driver.py`), the only path of a controller's
+  tick (#221); `phases` (values of `TickPhase`) runs only those, for a test that steps a part of a
+  tick. `KernelRefusal` of `tick.run_tick` before anything changes for a tick that a hook would
+  change (a patched step or rule in the table of `install`, a toilet, resource or staff manager of
+  another class than the installed one), and of `dispatch.run_phase`, with the text the phase's entry
+  gives, for a dispatch phase its own checks turn down (`dispatch::ready`: the dispatcher's class,
+  the world's stores, the open actions). It reads the
   Run's policies again when the controller holds another manager, proximity config or table of
   neighbors than they were read with (`_tick_marks` on the controller), and the dispatcher's handlers
   when they changed (`_dispatch_marks`), and the open actions into the Run's rows. Then the tick is one
-  call of the core's `rules::tick::run_tick` (`core/src/rules/tick/mod.rs`, lane P9-2b) with one
+  call of the core's `rules::tick::run_phases` (`core/src/rules/tick/mod.rs`, lane P9-2b) with one
   `PyHost` for all the phases, which has the observer and the random source: the Run's scratch begins,
   and each phase of `TICK_PHASE_ORDER` runs between `Host::phase` before and after, with the clock
   checked after it (`Error::Clock`, `TickExecutionError`). The update phase's movement and replanning

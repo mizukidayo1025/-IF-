@@ -1,4 +1,4 @@
-//! The propose phase (`_run_propose_phase` of `experiments/phases/propose.py`): the view for the
+//! The propose phase (`ProposePhase` of `experiments/phases/propose.py` gives its steps): the view for the
 //! proposals (the update phase's, read again, or a new one, with its audit hash), the proposals of
 //! those due, and for each its observed state, its effect and its record.
 //!

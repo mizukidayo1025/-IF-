@@ -57,8 +57,9 @@ def install(observers: Iterable[Observer]) -> Callable[[], None]:
     """Make every TickEngine built from now on call the observers; returns the undo.
 
     Engines are numbered in the order they are built, which a run repeats. They watch through
-    `TickEngine.phase_observer`, between the phases of whichever path a tick takes, so the driver of
-    rules/tick.rs keeps running. An observer already there is called first.
+    `TickEngine.phase_observer`, which the driver of rules/tick.rs calls between its phases (and
+    the engine, for a handler without `run_tick`), so the driver keeps running. An observer
+    already there is called first.
     """
     chosen = tuple(observers)
     built = TickEngine.__init__

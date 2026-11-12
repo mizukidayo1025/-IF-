@@ -1,4 +1,4 @@
-//! The sample phase (`_run_sample_phase` of `experiments/phases/sample.py`): the information
+//! The sample phase (`SamplePhase` of `experiments/phases/sample.py` gives its steps): the information
 //! contacts of the minute, then the proximity contacts where the controller has their config.
 
 use crate::error::Error;

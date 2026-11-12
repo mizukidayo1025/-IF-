@@ -13,9 +13,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from support.world import apply_proposal, tick_phases, update_movement
+
 from sheltersim.core.checkpoint import Checkpoint
 from sheltersim.core.engine import TickPhase, TraceLevel
-from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.domain.geometry_overlay import reserve_sleep_bed
 from sheltersim.domain.models import ZoneEdgeState
@@ -261,7 +262,7 @@ def test_equipment_transfer_replans_resident_trip_to_moved_facility(generated_sc
     )
     # Generated people carry minute-by-minute psychology, so minute 0 is updated
     # before minute 1, as a tick would.
-    controller(TickPhase.UPDATE_AGENT_STATE, world, 0, CounterRNG(world.seed))
+    tick_phases(controller, 0, TickPhase.UPDATE_AGENT_STATE)
     original = world.model_state["movement_v1"]["journeys"]["A001"]["event_id"]
     # The corridor's centre line level with the toilet, clear of both corridor walls.
     corridor_ys = [point["y"] for point in _zone_polygon(world, "corridor")]
@@ -289,8 +290,7 @@ def test_equipment_transfer_replans_resident_trip_to_moved_facility(generated_sc
     schedule_effect_program(world, program)
 
     world.minute_index = 1
-    controller(TickPhase.DISPATCH_DUE_EVENTS, world, 1, CounterRNG(world.seed))
-    controller(TickPhase.UPDATE_AGENT_STATE, world, 1, CounterRNG(world.seed))
+    tick_phases(controller, 1, TickPhase.DISPATCH_DUE_EVENTS, TickPhase.UPDATE_AGENT_STATE)
 
     journey = world.model_state["movement_v1"]["journeys"]["A001"]
     assert journey["facility_id"] == "toilet_01"
@@ -312,8 +312,12 @@ def test_equipment_transfer_replans_resident_trip_to_moved_facility(generated_sc
     for minute in range(2, 30):
         for each, each_controller in ((world, controller), (restored, restored_controller)):
             each.minute_index = minute
-            for phase in (TickPhase.DISPATCH_DUE_EVENTS, TickPhase.UPDATE_AGENT_STATE):
-                each_controller(phase, each, minute, CounterRNG(each.seed))
+            tick_phases(
+                each_controller,
+                minute,
+                TickPhase.DISPATCH_DUE_EVENTS,
+                TickPhase.UPDATE_AGENT_STATE,
+            )
         if "A001" not in world.model_state["movement_v1"]["journeys"]:
             break
     assert world.agents["A001"].zone_id == "corridor"
@@ -358,13 +362,13 @@ def test_closing_route_replans_resident_trip_and_suppresses_old_completion(
         minute=1,
     )
     initial = dict(world.model_state["movement_v1"]["journeys"]["A001"])
-    controller._update_movement(1)
+    update_movement(controller, 1)
     world.minute_index = 2
 
-    controller(TickPhase.DISPATCH_DUE_EVENTS, world, 2, object())
+    tick_phases(controller, 2, TickPhase.DISPATCH_DUE_EVENTS, rng=object())
     assert world.zone_edges["route_sleeping_corridor"].closed is True
     live_position = dict(world.model_state["movement_v1"]["positions"]["A001"])
-    controller._update_movement(2)
+    update_movement(controller, 2)
 
     replacement = world.model_state["movement_v1"]["journeys"]["A001"]
     assert replacement["route_edge_ids"] == ["route_sleeping_toilet_alt"]
@@ -416,7 +420,7 @@ def test_sleep_action_routes_to_exclusive_temporary_bed_and_restores(generated_s
     assert reserve_sleep_bed(legacy_restored, "A001") is not None
 
     controller = OfflineSimulationController(world, ArtifactSink())
-    controller._apply_proposal(_sleep_proposal(world.minute_index))
+    apply_proposal(controller, _sleep_proposal(world.minute_index))
     agent = world.agents["A001"]
     assert agent.activity.value == "moving"
     assert world.model_state["movement_v1"]["journeys"]["A001"]["purpose"] == "sleep_bed"
@@ -444,8 +448,8 @@ def test_sleep_action_routes_to_exclusive_temporary_bed_and_restores(generated_s
     assert world.model_state["movement_v1"]["positions"]["A001"]["point"] == bed
     assert world.canonical_json() == restored.canonical_json()
 
-    controller._apply_proposal(_sleep_proposal(due_minute))
-    restored_controller._apply_proposal(_sleep_proposal(due_minute))
+    apply_proposal(controller, _sleep_proposal(due_minute))
+    apply_proposal(restored_controller, _sleep_proposal(due_minute))
     assert world.agents["A001"].activity.value == "sleeping"
     frame = world_frame(world, run_id="run-bed", branch_id="main", computed_until=due_minute)
     room = frame["geometry_overlay"]["temporary_rooms"]["quiet-room-sleep"]
@@ -492,10 +496,10 @@ def test_sleep_bed_route_replans_from_live_position_after_obstacle_change(
     assert _dispatcher().dispatch_due(world, 1)[0].status is EventStatus.APPLIED
 
     controller = OfflineSimulationController(world, ArtifactSink())
-    controller._apply_proposal(_sleep_proposal(1))
+    apply_proposal(controller, _sleep_proposal(1))
     initial_journey = dict(world.model_state["movement_v1"]["journeys"]["A001"])
     assert len(initial_journey["route_points"]) == 2
-    controller._update_movement(1)
+    update_movement(controller, 1)
     live_position = dict(world.model_state["movement_v1"]["positions"]["A001"]["point"])
     world.minute_index = 2
 
@@ -507,7 +511,7 @@ def test_sleep_bed_route_replans_from_live_position_after_obstacle_change(
             "source_ids": ["ASM-ROOM-OBSTRUCTION-TEST-V1"],
         }
     )
-    controller._update_movement(2)
+    update_movement(controller, 2)
 
     replanned = world.model_state["movement_v1"]["journeys"]["A001"]
     assert replanned["purpose"] == "sleep_bed"

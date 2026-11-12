@@ -6,9 +6,8 @@ from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Callable
 
 from sheltersim.contracts.policies import selected_models, selected_models_scope
-from sheltersim.core.engine import TickEngine, TickPhase, TraceLevel
+from sheltersim.core.engine import TickEngine, TraceLevel
 from sheltersim.core.model_version import require_tickable
-from sheltersim.core.rng import KeyedRandom
 from sheltersim.core.state_mirror import field_stamp, same_stamp
 from sheltersim.core.world import WorldState
 from sheltersim.domain.action_lifecycle import active_action_store
@@ -103,7 +102,10 @@ if TYPE_CHECKING:
 class OfflineSimulationController(
     DispatchPhase, UpdatePhase, ProposePhase, ArbitratePhase, SamplePhase, MetricsPhase
 ):
-    """Connect the seven tick phases to deterministic, offline domain handlers."""
+    """Connect the seven tick phases to deterministic, offline domain handlers.
+
+    `TickEngine` runs each tick through `run_tick` (phases/driver.py), the Rust driver.
+    """
 
     def __init__(
         self,
@@ -341,8 +343,8 @@ class OfflineSimulationController(
         """Rebuild immutable routing snapshots after an applied graph/geometry change."""
         world = self.world
         # The kernels' routers, from the world's zone and edge tables now, with ZoneGraph's checks
-        # (native/src/core/run.rs). The graphs below are for Python readers: the phases'
-        # assign_staff_operations, and the kernels where the tables cannot be read.
+        # (native/src/core/run.rs). The graphs below are for Python readers, and the kernels
+        # where the tables cannot be read.
         self._run_core.refresh_routes(world)
         self.space = SpaceRouter(
             ZoneGraph.from_states(
@@ -362,12 +364,6 @@ class OfflineSimulationController(
                 ),
             )
         self.staff_space = SpaceRouter(staff_graph, self.space.policy)
-
-    def __call__(self, phase: TickPhase, world: WorldState, minute: int, rng: KeyedRandom) -> None:
-        self._refresh_config_scopes(world, minute)
-        first, second = self._config_scopes()
-        with first, second:
-            self._run_phase(phase, world, minute, rng)
 
     def _refresh_config_scopes(self, world: WorldState, minute: int) -> None:
         # No phase edits model_configs in place, and a phase that swaps the object brings
@@ -393,24 +389,6 @@ class OfflineSimulationController(
             geometry_config_scope(self._parsed_configs),
             selected_models_scope(self._model_selections),
         )
-
-    def _run_phase(
-        self, phase: TickPhase, world: WorldState, minute: int, rng: KeyedRandom
-    ) -> None:
-        if world is not self.world:
-            raise ValueError("offline simulation controller is bound to a different WorldState")
-        if phase is TickPhase.DISPATCH_DUE_EVENTS:
-            self._run_dispatch_phase(world, minute)
-        elif phase is TickPhase.UPDATE_AGENT_STATE:
-            self._run_update_phase(world, minute, rng)
-        elif phase is TickPhase.PROPOSE_ACTIONS:
-            self._run_propose_phase(world, minute, rng)
-        elif phase is TickPhase.ARBITRATE_ACTIONS:
-            self._run_arbitrate_phase(world, minute, rng)
-        elif phase is TickPhase.SAMPLE_ENDOGENOUS_EVENTS:
-            self._run_sample_phase(minute, rng)
-        elif phase is TickPhase.COLLECT_METRICS:
-            self._run_metrics_phase(world, minute)
 
 
 install_segments(OfflineSimulationController)

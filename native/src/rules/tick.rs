@@ -1,13 +1,14 @@
-//! The glue of a tick (`TickEngine.step` asks `controller.run_tick`): the core's
-//! `sheltersim_core::rules::tick::run_tick` runs the phases (lane P9-2b of Issue #152).
+//! The glue of a tick (`TickEngine.step` calls `controller.run_tick`): the core's
+//! `sheltersim_core::rules::tick::run_phases` runs the phases (lane P9-2b of Issue #152).
 //!
-//! `TickEngine.step` asks `controller.run_tick` and, on false, runs the phases through `phase_handler`
-//! as without the kernels. This refuses, with Unsupported and before anything has changed, a tick that
-//! a hook changes: a benchmark's shadow, a patch of any step or rule it would skip, a manager of
-//! another class, or a dispatch phase that its own checks turn down (`dispatch::ready`). `install`
-//! gives what those are as defined, and they are compared at each tick, so a patch shows there. A
-//! trace and a Provider run here: the kernels write the trace's documents, and the Provider's hooks
-//! are Python that the kernels call through the host where the phases call them.
+//! This is the only path of a controller's tick (#221). It refuses, before anything has changed, a
+//! tick that a hook would change: a patch of any step or rule it doesn't call through Python, a
+//! manager of another class, or a dispatch phase that its own checks turn down (`dispatch::ready`).
+//! The refusal is `KernelRefusal` of `tick.run_tick`, or of `dispatch.run_phase` with the text the
+//! phase's own entry gives; nothing runs the tick instead. `install` gives what those are as defined,
+//! and they are compared at each tick, so a patch shows there. A trace and a Provider run here: the
+//! kernels write the trace's documents, and the Provider's hooks are Python that the kernels call
+//! through the host.
 //!
 //! After that, the tick is one call of the core with one native host (`PyHost`) for all its phases.
 //! A kernel's Unsupported is `KernelRefusal`, which names the kernel and gives its reason
@@ -26,6 +27,8 @@ use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBool, PyDict, PyInt, PyString, PyTuple, PyType};
 
+use sheltersim_core::host::Phase;
+use sheltersim_core::rules::dispatch::RUN_PHASE;
 use sheltersim_core::rules::tick::{self as core, Seed, ZoneNeighbors};
 
 use crate::core::census;
@@ -95,7 +98,32 @@ pub(crate) fn seed_of(rng: &Bound<'_, PyAny>) -> PyResult<Seed> {
     })
 }
 
-/// Why Python runs this tick, before anything has changed.
+/// A refusal before anything has changed, counted as caught by the driver: `KernelRefusal` of
+/// `label`. Any other error goes on as it is.
+fn refused(py: Python<'_>, label: &str, error: PyErr) -> PyErr {
+    if error.is_instance_of::<Unsupported>(py) {
+        census::caught(py, core::RUN_TICK, &error);
+    }
+    errors::kernel_refusal(py, label, error)
+}
+
+/// The phases a call runs: each `TickPhase` value of `phases`, or the whole tick.
+fn phases_of(phases: Option<Vec<String>>) -> PyResult<Vec<Phase>> {
+    let Some(names) = phases else {
+        return Ok(Phase::ORDER.to_vec());
+    };
+    names
+        .iter()
+        .map(|name| {
+            Phase::ORDER
+                .into_iter()
+                .find(|phase| phase.name() == name)
+                .ok_or_else(|| errors::value_error(format!("no phase of a tick is called {name:?}")))
+        })
+        .collect()
+}
+
+/// Why this tick can't run on the driver, before anything has changed.
 fn accept(table: &Table, controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>) -> PyResult<()> {
     let py = world.py();
     let class = table.controller.bind(py);
@@ -120,8 +148,7 @@ fn accept(table: &Table, controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>
             return refuse("a rule a step calls is patched");
         }
     }
-    // The core arbitrates the managers of the classes installed (policy E10): any other runs the
-    // tick through `phase_handler`.
+    // The core arbitrates the managers of the classes installed (policy E10): any other is refused.
     if !controller.getattr(intern!(py, "toilet_service"))?.get_type().is(table.toilet.bind(py)) {
         return refuse("another class of toilet service");
     }
@@ -238,27 +265,33 @@ pub(crate) fn arbitrate_alone<'py>(
     host.pending_events(&started)
 }
 
-/// One tick, or Unsupported with nothing changed. `observer(phase, before)` is `TickEngine.phase_observer`.
+/// One tick, or `KernelRefusal` with nothing changed (`refused`). `observer(phase, before)` is
+/// `TickEngine.phase_observer`. `phases`, the values of `TickPhase`, runs only those of the tick, in
+/// its order, for a test that steps a part of a tick; None runs the whole tick.
 #[pyfunction]
+#[pyo3(signature = (controller, world, minute, rng, observer, phases=None))]
 fn run_tick<'py>(
     controller: &Bound<'py, PyAny>,
     world: &Bound<'py, PyAny>,
     minute: &Bound<'py, PyAny>,
     rng: &Bound<'py, PyAny>,
     observer: &Bound<'py, PyAny>,
+    phases: Option<Vec<String>>,
 ) -> PyResult<()> {
     let py = world.py();
+    let phases = phases_of(phases)?;
     let Some(table) = TABLE.get(py) else {
-        return refuse("experiments/phases/driver.py has not installed the table");
+        return refuse("experiments/phases/driver.py has not installed the table").map_err(|error| refused(py, core::RUN_TICK, error));
     };
-    accept(table, controller, world)?;
-    let minute_value = exact_int(minute)?;
-    // The dispatch phase's own checks, before anything has changed: a refusal sends the tick to
-    // `phase_handler`, whose dispatch phase refuses with the same text.
-    if let Err(reason) = dispatch::ready(controller, world, minute)? {
-        counted(format!("dispatch: {reason}"));
-        // Not counted in the census here: the phase path counts its own refusal.
-        return Err(Unsupported::counted(reason));
+    accept(table, controller, world).map_err(|error| refused(py, core::RUN_TICK, error))?;
+    let minute_value = exact_int(minute).map_err(|error| refused(py, core::RUN_TICK, error))?;
+    // The dispatch phase's own checks, before anything has changed: its refusal is the one the
+    // phase's entry (`_run_dispatch_phase`) gives, with the same text.
+    if phases.contains(&Phase::DispatchDueEvents) {
+        if let Err(reason) = dispatch::ready(controller, world, minute)? {
+            counted(format!("dispatch: {reason}"));
+            return Err(refused(py, RUN_PHASE, Unsupported::counted(reason)));
+        }
     }
     // H7: the tick's random source as the kernels read it.
     let seed = seed_of(rng)?;
@@ -271,8 +304,8 @@ fn run_tick<'py>(
     let mut host = PyHost::of_controller(controller)?.on_world(world).with_observer(observer).with_rng(rng);
     let cell = PyWorldCell(world);
     let mut tick = core::Tick { cell: &cell, host: &mut host, run: run.get(), policies, minute: minute_value, seed, neighbors };
-    // The tick has begun, so the Python path must not run over it: a refusal is KernelRefusal.
-    core::run_tick(&mut tick).map_err(|failed| {
+    // The tick has begun: a refusal is KernelRefusal of its step.
+    core::run_phases(&mut tick, &phases).map_err(|failed| {
         let error = match failed.label {
             Some(label) => match only(py, label, Err::<(), _>(failed.error.0)) {
                 Err(error) => error,

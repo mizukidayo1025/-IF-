@@ -1,4 +1,4 @@
-//! The update phase (`_run_update_phase` of `experiments/phases/update.py`): movement, the view,
+//! The update phase (`UpdatePhase` of `experiments/phases/update.py` gives its steps): movement, the view,
 //! each person's psychology, the social model, the psychology trace, the long-term distress, the new
 //! values, and the view handed on to the propose phase (`Run.scratch`, decision D4).
 //!
@@ -111,7 +111,7 @@ where
     Ok(())
 }
 
-/// `_update_movement` (lane P9-3b): with a movement state in `model_state` (a key whose value is not
+/// The movement of the phase (lane P9-3b): with a movement state in `model_state` (a key whose value is not
 /// None), the walk of the minute, and the replan of those whose route changed under them.
 pub fn update_movement<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>) -> Step<(), H::Error>
 where

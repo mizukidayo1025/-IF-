@@ -9,8 +9,9 @@
 //! call of the core with one native host (`PyHost`): the core runs a handler it knows, and gives any
 //! other to the host (`Host::apply_foreign`, H4).
 //!
-//! What the phase turns down before its first event is `Unsupported` (policy E10: the tick goes
-//! through `phase_handler`); past that, a refusal is `KernelRefusal` (`errors::kernel_refusal`).
+//! What the phase turns down before its first event is `Unsupported`, which its entry and the tick's
+//! driver (`rules/tick.rs`) raise as `KernelRefusal` of `dispatch.run_phase` with nothing changed
+//! (policy E10); past that, a refusal is `KernelRefusal` too (`errors::kernel_refusal`).
 
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -155,7 +156,7 @@ fn refuse<T>(reason: &str) -> PyResult<T> {
     Err(Unsupported::new_err(reason.to_owned()))
 }
 
-/// `_run_dispatch_phase` (the E10 phase path, a `KERNEL_ONLY_SEGMENTS` step).
+/// `_run_dispatch_phase` (a `KERNEL_ONLY_SEGMENTS` step), the phase alone.
 #[pyfunction]
 fn run_phase<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<()> {
     let py = world.py();

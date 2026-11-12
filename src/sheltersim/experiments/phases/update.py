@@ -6,13 +6,20 @@ from typing import Any
 
 from sheltersim.core.rng import KeyedRandom
 from sheltersim.core.world import WorldState
-from sheltersim.domain.movement import MOVEMENT_STATE_KEY, advance_movement
 from sheltersim.policies.psychology import PsychologyUpdateResult
 from sheltersim.policies.world_view import WorldView
 
 
 class UpdatePhase:
-    """Steps of TickPhase.UPDATE_AGENT_STATE, a mixin of OfflineSimulationController."""
+    """Steps of TickPhase.UPDATE_AGENT_STATE, a mixin of OfflineSimulationController.
+
+    The driver runs the phase in native/core/src/rules/tick/update.rs, in this order: the movement
+    (with `movement_v1`, `advance_movement` of domain/movement.py, then `_replan_journeys` of the
+    people it returns), `_view_after_movement`, `_psychology_update` of that view,
+    `_social_propagation` of its deltas, then with the final deltas `_record_psychology_trace`,
+    `_update_long_term_psychology` and `_apply_state_deltas`. The view is kept for the propose
+    phase (`_view_before_proposals`).
+    """
 
     @property
     def _view_before_proposals(self) -> WorldView | None:
@@ -36,16 +43,6 @@ class UpdatePhase:
                 raise RuntimeError("the controller has no Run core to keep a view")
             return
         run.set_view_before_proposals(view)
-
-    def _run_update_phase(self, world: WorldState, minute: int, rng: KeyedRandom) -> None:
-        self._update_movement(minute)
-        view = self._view_after_movement(world)
-        psychology_result = self._psychology_update(view, minute)
-        final_deltas = self._social_propagation(world, view, psychology_result.deltas, minute, rng)
-        self._record_psychology_trace(psychology_result, final_deltas, minute)
-        self._update_long_term_psychology(world, view, final_deltas, minute)
-        self._apply_state_deltas(world, final_deltas)
-        self._view_before_proposals = view
 
     def _view_after_movement(self, world: WorldState) -> WorldView:
         """The view the update phase reads, which native/src/rules/world_view.rs makes.
@@ -149,13 +146,6 @@ class UpdatePhase:
         delta of another minute, a value that is not a float within 0..1, body values without a
         body record.
         """
-
-    def _update_movement(self, minute: int) -> None:
-        """Advance route interpolation and atomically reschedule changed paths."""
-        state = self.world.model_state.get(MOVEMENT_STATE_KEY)
-        if state is None:
-            return
-        self._replan_journeys(state, advance_movement(self.world, minute), minute)
 
     def _replan_journeys(self, state: Any, agent_ids: Any, minute: int) -> None:
         """New routes for the people whose route changed: native/core/src/rules/replan.rs.

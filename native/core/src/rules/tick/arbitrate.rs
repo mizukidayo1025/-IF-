@@ -1,4 +1,4 @@
-//! The arbitrate phase (`_run_arbitrate_phase` of `experiments/phases/arbitrate.py`): the staff's
+//! The arbitrate phase (`ArbitratePhase` of `experiments/phases/arbitrate.py` gives its steps): the staff's
 //! fatigue and operations, the toilets' and the resource service's queues (`toilet::arbitrate`,
 //! `service::arbitrate`, which were the driver's loops), the assignment of support with its
 //! receipts, the staff's operations, the complaints and the relief.
@@ -39,7 +39,7 @@ const SERVICE: &str = "resource_service_v1";
 pub fn arbitrate<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>) -> Step<(), H::Error> {
     staff_dynamics(tick).at("staff_dynamics.update")?;
     update_operations(tick).at("staff.update_operations")?;
-    // `_arbitrate_services`: the driver refused another class of manager before the tick began.
+    // The services: the driver refused another class of manager before the tick began.
     crate::rules::toilet::arbitrate(tick)?;
     let policies = tick.policies.clone();
     let none = policies.services.resource.is_none().map_err(|fault| tick.policy_error(&["resource_service"], &fault)).bare()?;

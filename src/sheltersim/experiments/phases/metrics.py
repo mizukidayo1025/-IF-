@@ -2,17 +2,13 @@
 
 from __future__ import annotations
 
-from sheltersim.core.world import WorldState
-from sheltersim.domain.action_lifecycle import finalize_active_actions
-
 
 class MetricsPhase:
-    """Steps of TickPhase.COLLECT_METRICS, a mixin of OfflineSimulationController."""
+    """TickPhase.COLLECT_METRICS, a mixin of OfflineSimulationController.
 
-    def _run_metrics_phase(self, world: WorldState, minute: int) -> None:
-        self.artifacts.capture_metric(world, minute=minute)
-        self._finalize_actions_at_end(world, minute)
-
-    def _finalize_actions_at_end(self, world: WorldState, minute: int) -> None:
-        if minute + 1 >= world.duration_minutes:
-            finalize_active_actions(world, minute, active_actions=self.active_actions)
+    The phase has no step of its own: the driver runs it in native/core/src/rules/tick/metrics.rs.
+    `artifacts.capture_metric(world, minute=minute)` (the recorder's sample, or the sink's own
+    method when a subclass or a patch changes it), then at the Run's last minute
+    `finalize_active_actions(world, minute, active_actions=active_actions)` of
+    domain/action_lifecycle.py.
+    """

@@ -1,5 +1,6 @@
 """The tick phases of OfflineSimulationController, one module per phase.
 
-Each module holds one mixin of the controller. Its `_run_*_phase` method is the phase's
-list of steps, each a named method, so one step can be replaced on its own.
+Each module holds one mixin of the controller. Its docstring gives the phase's steps in their order,
+which the Rust driver runs (driver.py); each step with a Python entry is a named method whose
+docstring states its contract (segments.py).
 """

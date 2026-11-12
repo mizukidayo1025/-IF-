@@ -1,15 +1,18 @@
 //! A tick of a Run in the core (Issue #152, lanes P9-2a and P9-2b; design-p9.md section 5): the
-//! dispatch, complete, update, propose, arbitrate, sample and metrics phases of
-//! `experiments/phases/*.py`, in `TICK_PHASE_ORDER`, over the Run's `Scratch`, with the observer of
-//! the phases through the host (`Host::phase`) and the engine's clock checked after each phase.
+//! dispatch, complete, update, propose, arbitrate, sample and metrics phases, in `TICK_PHASE_ORDER`,
+//! over the Run's `Scratch`, with the observer of the phases through the host (`Host::phase`) and the
+//! engine's clock checked after each phase. `experiments/phases/*.py` states the contract of each
+//! step that has a Python entry.
 //!
-//! `run_tick` is the whole tick. The PyO3 crate's driver (`native/src/rules/tick.rs`) checks, before
-//! anything has changed, that no hook changes the tick and that the dispatch can begin (`accept`,
-//! policy E10), reads the tick's random source (H7), and then calls `run_tick` once with one native
-//! host. Each step is the core's kernel, called directly; what a kernel reads besides the world comes
-//! from the host (what the world holds, H1; the configs' sections, H2; the floor plan; the queue's
-//! rows, H6) and from the Run's `Policies`, read when the controller starts. Only the update phase's
-//! movement and replanning are still the PyO3 crate's: the caller gives them as `movement`.
+//! `run_tick` is the whole tick, and `run_phases` some of its phases. The PyO3 crate's driver
+//! (`native/src/rules/tick.rs`) checks, before anything has changed, that no hook changes the tick
+//! and that the dispatch can begin (`accept`, policy E10), reads the tick's random source (H7), and
+//! then calls `run_phases` once with one native host. Nothing else runs a tick: a refusal of those
+//! checks is an error of the tick (#221). Each step is the core's kernel, called directly; what a
+//! kernel reads besides the world comes from the host (what the world holds, H1; the configs'
+//! sections, H2; the floor plan; the queue's rows, H6) and from the Run's `Policies`, read when the
+//! controller starts. Only the update phase's movement and replanning are still the PyO3 crate's:
+//! the caller gives them as `movement`.
 //!
 //! Each step's error carries the label of the kernel's Python entry (`module.name`), which the PyO3
 //! crate raises as that entry's `KernelRefusal` where it is a refusal (`Failed`), as the steps did
@@ -172,15 +175,27 @@ impl<C: WorldCell, H: Host, R: RunCell> Tick<'_, C, H, R> {
     }
 }
 
-/// One tick at `tick.minute`: the Run's scratch begins, then each phase in its order
-/// (`TICK_PHASE_ORDER`): the observer before, the phase, the check that the clock is the engine's,
-/// and the observer after.
+/// One tick at `tick.minute`: `run_phases` of every phase.
 pub fn run_tick<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>) -> Step<(), H::Error>
+where
+    H::Error: From<WriteError>,
+{
+    run_phases(tick, &Phase::ORDER)
+}
+
+/// The phases of `phases` of the tick at `tick.minute`: the Run's scratch begins, then each of them
+/// in the tick's order (`TICK_PHASE_ORDER`), whatever order `phases` has: the observer before, the
+/// phase, the check that the clock is the engine's, and the observer after. A phase not in
+/// `phases` does not run, for a test that steps a part of a tick (the driver's `phases`).
+pub fn run_phases<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>, phases: &[Phase]) -> Step<(), H::Error>
 where
     H::Error: From<WriteError>,
 {
     tick.on_run(|run| run.scratch.begin(tick.minute)).bare()?;
     for phase in Phase::ORDER {
+        if !phases.contains(&phase) {
+            continue;
+        }
         tick.host.phase(phase, true).bare()?;
         match phase {
             // A refusal past the dispatch's checks is `KernelRefusal` of its entry, as

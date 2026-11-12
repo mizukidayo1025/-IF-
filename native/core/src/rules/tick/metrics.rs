@@ -1,4 +1,4 @@
-//! The metrics phase (`_run_metrics_phase` of `experiments/phases/metrics.py`): the minute's
+//! The metrics phase (`MetricsPhase` of `experiments/phases/metrics.py` gives its steps): the minute's
 //! metrics, to the sink the host says (`Host::metric_sink`), and the open actions closed at the
 //! Run's last minute (`finalize_active_actions`, with the Run's actions).
 

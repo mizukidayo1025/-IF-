@@ -209,10 +209,24 @@ def test_a_refusal_of_a_step_without_a_python_rule_fails_the_tick(
     assert any("social_propagation" in str(item) for item in chain), chain
 
 
+def _refused_with_nothing_changed(
+    world: WorldState, controller: Any, engine: TickEngine, reason: str
+) -> None:
+    """The driver turns the tick down before anything changes, and nothing runs it instead."""
+    state = world.state_digest()
+    before = _ticks()
+    with pytest.raises(KernelRefusal, match=f"^tick.run_tick refused: {reason}$"):
+        engine.step()
+    assert _ticks() == before
+    assert world.state_digest() == state
+    assert world.minute_index == 0
+
+
 @pytest.mark.parametrize("step", DRIVEN_STEPS)
-def test_a_patched_step_sends_the_tick_to_the_phases(
+def test_a_patched_step_fails_the_tick(
     step: str, generated_scenario: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """The driver would not call the patch: the tick fails rather than leaving it unseen."""
     world, controller, engine = _build(generated_scenario, tmp_path)
     original = getattr(OfflineSimulationController, step)
 
@@ -220,15 +234,13 @@ def test_a_patched_step_sends_the_tick_to_the_phases(
         return original(self, *arguments, **options)
 
     monkeypatch.setattr(OfflineSimulationController, step, patched)
-    state = world.state_digest()
-    assert controller.run_tick(world, 0, engine.rng, None) is False
-    assert world.state_digest() == state
+    _refused_with_nothing_changed(world, controller, engine, "a step of the controller is patched")
 
 
 @pytest.mark.parametrize(
     "holder, name", DRIVEN_RULES, ids=[f"{item[0].__name__}.{item[1]}" for item in DRIVEN_RULES]
 )
-def test_a_patched_rule_sends_the_tick_to_the_phases(
+def test_a_patched_rule_fails_the_tick(
     holder: Any, name: str, generated_scenario: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     world, controller, engine = _build(generated_scenario, tmp_path)
@@ -238,25 +250,91 @@ def test_a_patched_rule_sends_the_tick_to_the_phases(
         return original(*arguments, **options)
 
     monkeypatch.setattr(holder, name, patched)
-    assert controller.run_tick(world, 0, engine.rng, None) is False
+    _refused_with_nothing_changed(world, controller, engine, "a rule a step calls is patched")
 
 
-def test_a_step_patched_on_the_controller_itself_sends_the_tick_to_the_phases(
+def test_a_step_patched_on_the_controller_itself_fails_the_tick(
     generated_scenario: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     world, controller, engine = _build(generated_scenario, tmp_path)
     calls = []
-    original = controller._apply_due_proposals
+    original = controller._propose_due
 
-    def counted(*arguments: Any) -> None:
+    def counted(*arguments: Any) -> Any:
         calls.append(arguments)
-        original(*arguments)
+        return original(*arguments)
 
-    monkeypatch.setattr(controller, "_apply_due_proposals", counted)
+    monkeypatch.setattr(controller, "_propose_due", counted)
+    _refused_with_nothing_changed(world, controller, engine, "a step of this controller is patched")
+    assert calls == []
+
+
+def test_a_manager_of_another_class_fails_the_tick(generated_scenario: Any, tmp_path: Path) -> None:
+    world, controller, engine = _build(generated_scenario, tmp_path)
+
+    class Other(type(controller.toilet_service)):
+        pass
+
+    controller.toilet_service.__class__ = Other
+    _refused_with_nothing_changed(world, controller, engine, "another class of toilet service")
+
+
+def test_a_dispatch_its_own_checks_refuse_fails_the_tick_as_the_phase_does(
+    generated_scenario: Any, tmp_path: Path
+) -> None:
+    """The dispatch phase's checks before its first event: the refusal its entry gives."""
+    world, controller, engine = _build(generated_scenario, tmp_path)
+
+    class Other(type(controller.event_dispatcher)):
+        pass
+
+    controller.event_dispatcher = Other(dict(controller.event_dispatcher.handlers))
+    state = world.state_digest()
     before = _ticks()
-    engine.run(3)
-    assert len(calls) == 3
+    with pytest.raises(
+        KernelRefusal, match="^dispatch.run_phase refused: another kind of dispatcher$"
+    ):
+        engine.step()
+    with pytest.raises(
+        KernelRefusal, match="^dispatch.run_phase refused: another kind of dispatcher$"
+    ):
+        controller._run_dispatch_phase(world, 0)
     assert _ticks() == before
+    assert world.state_digest() == state
+
+
+def test_some_phases_of_a_tick_run_alone_in_the_tick_s_order(
+    generated_scenario: Any, tmp_path: Path
+) -> None:
+    """For a test that steps a part of a tick: the phases asked for, as the whole tick runs them."""
+    world, controller, whole = _build(generated_scenario, tmp_path / "whole")
+    seen: list[tuple[TickPhase, bool]] = []
+    part, part_controller, _engine = _build(generated_scenario, tmp_path / "part")
+    asked = [TickPhase.UPDATE_AGENT_STATE, TickPhase.DISPATCH_DUE_EVENTS]
+    before = _ticks()
+    part_controller.run_tick(
+        part, 0, CounterRNG(part.seed), lambda phase, stage: seen.append((phase, stage)), asked
+    )
+    assert _ticks() - before == 1
+    assert seen == [
+        (TickPhase.DISPATCH_DUE_EVENTS, True),
+        (TickPhase.DISPATCH_DUE_EVENTS, False),
+        (TickPhase.UPDATE_AGENT_STATE, True),
+        (TickPhase.UPDATE_AGENT_STATE, False),
+    ]
+    # The whole tick's world after its update phase is the part's.
+    after_update: list[str] = []
+
+    def watch(phase: TickPhase, before: bool) -> None:
+        if phase is TickPhase.UPDATE_AGENT_STATE and not before:
+            after_update.append(world.state_digest())
+
+    whole.phase_observer = watch
+    whole.step()
+    assert after_update == [part.state_digest()]
+    assert part.minute_index == 0
+    with pytest.raises(ValueError, match='no phase of a tick is called "sleep"'):
+        part_controller.run_tick(part, 0, CounterRNG(part.seed), None, ["sleep"])
 
 
 @pytest.mark.parametrize("level", [TraceLevel.SUMMARY, TraceLevel.FULL])
@@ -515,15 +593,18 @@ def test_a_world_with_another_controller_is_refused_with_nothing_changed(
     world, controller, engine = _build(generated_scenario, tmp_path / "first")
     other = WorldState.from_scenario(generated_scenario)
     state = world.state_digest()
-    assert controller.run_tick(other, 0, engine.rng, None) is False
+    with pytest.raises(
+        KernelRefusal, match="^tick.run_tick refused: the controller is bound to another world$"
+    ):
+        controller.run_tick(other, 0, engine.rng, None)
     assert world.state_digest() == state
 
 
 # What each phase's steps are called in the core's phases (native/core/src/rules/tick/), in the
-# order of the phase's method.
+# order the phase's mixin gives in its docstring.
 _PHASE_STEPS = {
-    ("update", "UpdatePhase", "_run_update_phase", "pub fn update<"): {
-        "_update_movement": "update_movement(tick)",
+    ("update", "UpdatePhase", "pub fn update<"): {
+        "advance_movement": "update_movement(tick)",
         "_view_after_movement": "view_after_movement(tick)",
         "_psychology_update": "update_psychology(tick,",
         "_social_propagation": "update_social(tick,",
@@ -531,20 +612,24 @@ _PHASE_STEPS = {
         "_update_long_term_psychology": "update_long_term(tick,",
         "_apply_state_deltas": "apply_deltas(tick,",
     },
-    ("propose", "ProposePhase", "_run_propose_phase", "pub fn propose<"): {
+    ("propose", "ProposePhase", "pub fn propose<"): {
         "_view_for_proposals": "view_for_proposals(tick)",
-        "_apply_due_proposals": "due(tick,",
+        "_propose_due": "due(tick,",
+        "_observed_state": "observed(tick,",
+        "_apply_effect": "apply_effect(tick,",
+        "_record_outcome": "record_outcome(tick,",
     },
-    ("arbitrate", "ArbitratePhase", "_run_arbitrate_phase", "pub fn arbitrate<"): {
+    ("arbitrate", "ArbitratePhase", "pub fn arbitrate<"): {
         "update_staff_dynamics": "staff_dynamics(tick)",
         "update_staff_operations": "update_operations(tick)",
-        "_arbitrate_services": "// `_arbitrate_services`",
+        "toilet_service.arbitrate": "crate::rules::toilet::arbitrate(tick)",
+        "resource_service.arbitrate": "crate::rules::service::arbitrate(tick)",
         "_assign_staff_support": "// `_assign_staff_support`.",
         "assign_staff_operations": "assign_operations(tick)",
         "_consider_due_complaints": "consider_due_complaints(tick)",
         "schedule_staff_operation_relief": "relief(tick)",
     },
-    ("sample", "SamplePhase", "_run_sample_phase", "pub fn sample<"): {
+    ("sample", "SamplePhase", "pub fn sample<"): {
         "_sample_information_contacts": "sample_information(tick)",
         "_sample_proximity_contacts": "sample_proximity(tick)",
     },
@@ -553,22 +638,11 @@ _PHASE_STEPS = {
 CORE_TICK = ROOT / "native/core/src/rules/tick"
 
 
-def _called_names(method: ast.FunctionDef) -> list[str]:
-    names = []
-    for statement in method.body:
-        for node in ast.walk(statement):
-            if isinstance(node, ast.Call):
-                called = node.func
-                name = called.attr if isinstance(called, ast.Attribute) else called.id
-                names.append(name)
-    return names
-
-
 @pytest.mark.parametrize(
-    "module, owner, method, rust_function", _PHASE_STEPS, ids=[key[0] for key in _PHASE_STEPS]
+    "module, owner, rust_function", _PHASE_STEPS, ids=[key[0] for key in _PHASE_STEPS]
 )
-def test_the_driver_takes_a_phase_s_steps_in_the_order_of_its_python_method(
-    module: str, owner: str, method: str, rust_function: str
+def test_the_driver_takes_a_phase_s_steps_in_the_order_its_mixin_gives(
+    module: str, owner: str, rust_function: str
 ) -> None:
     """Most scenarios can't see two steps swapped when neither writes in the same minute."""
     source = (ROOT / "src/sheltersim/experiments/phases" / f"{module}.py").read_text("utf-8")
@@ -577,25 +651,23 @@ def test_the_driver_takes_a_phase_s_steps_in_the_order_of_its_python_method(
         for node in ast.parse(source).body
         if isinstance(node, ast.ClassDef) and node.name == owner
     )
-    body = next(
-        node for node in phase.body if isinstance(node, ast.FunctionDef) and node.name == method
-    )
-    steps = _PHASE_STEPS[(module, owner, method, rust_function)]
-    in_python = [name for name in _called_names(body) if name in steps]
-    assert in_python == list(steps)
+    contract = ast.get_docstring(phase) or ""
+    steps = _PHASE_STEPS[(module, owner, rust_function)]
+    in_python = [contract.index(f"`{name}") for name in steps]
+    assert in_python == sorted(in_python)
     rust = (CORE_TICK / f"{module}.rs").read_text("utf-8")
     start = rust.index(rust_function)
     end = rust.index("\n}\n", start)
-    places = [rust.index(steps[name], start, end) for name in in_python]
+    places = [rust.index(steps[name], start, end) for name in steps]
     assert places == sorted(places)
 
 
 def test_the_driver_takes_the_phases_in_the_engine_s_order() -> None:
-    """The PyO3 driver calls the core's `run_tick`, which runs the phases in `Phase::ORDER`, which
-    names `TICK_PHASE_ORDER`'s members in their order."""
+    """The PyO3 driver calls the core's `run_phases`, which runs the phases in `Phase::ORDER`,
+    which names `TICK_PHASE_ORDER`'s members in their order; the core's `run_tick` runs them all."""
     driver = (ROOT / "native/src/rules/tick.rs").read_text("utf-8")
     run = driver.index("fn run_tick<'py>(")
-    assert driver.index("core::run_tick(&mut tick)", run) > run
+    assert driver.index("core::run_phases(&mut tick, &phases)", run) > run
     host = (ROOT / "native/core/src/host.rs").read_text("utf-8")
     order = host.index("pub const ORDER: [Phase; 7] = [")
     names = host.index("pub fn name(self)", order)
@@ -604,7 +676,9 @@ def test_the_driver_takes_the_phases_in_the_engine_s_order() -> None:
     places = [host.index(f"Phase::{_camel(phase.value)},", order) for phase in TICK_PHASE_ORDER]
     assert places == sorted(places)
     phases = (CORE_TICK / "mod.rs").read_text("utf-8")
-    start = phases.index("pub fn run_tick<")
+    whole = phases.index("pub fn run_tick<")
+    assert phases.index("run_phases(tick, &Phase::ORDER)", whole) > whole
+    start = phases.index("pub fn run_phases<")
     assert phases.index("for phase in Phase::ORDER {", start) > start
     bodies = {
         TickPhase.DISPATCH_DUE_EVENTS: "Phase::DispatchDueEvents => crate::rules::dispatch::run(",

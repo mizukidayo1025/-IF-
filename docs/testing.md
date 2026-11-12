@@ -105,7 +105,7 @@ python -m coverage report --sort=cover
 
 `support/world.py`の`view_of`と`decisions_of`も、fixtureを持たない部品です。段階が作る`WorldView`と提案を、Runと同じkernel（`native/src/rules/world_view.rs`など）で作ります。PythonでWorldViewを作る規則（`WorldView.from_world`）はないので、Pythonの方策に渡すviewもこれで作ります。
 
-tickの規則はRustのkernelだけで、Pythonの本体はありません（`kernel_only`、`KERNEL_ONLY_SEGMENTS`）。Pythonの関数をpatchしても、kernelはそれを呼ばないので、patchは何にも届きません。振る舞いを変えたいテストは、状態やイベントでその場面を作ります。コントローラーの手順そのもの（`OfflineSimulationController._psychology_update`など）をpatchすると、driverはそのtickを断り、段階のPythonの手順（`phase_handler`）で進みます。手順はそれでもkernelです（`support/world.py`の`on_the_phases`）。Pythonに残した検証（`validate_*`、決定D3）を数えたりpatchしたりするテストには`@pytest.mark.python_rules`を付けます。印は検証のRustの双子（`register_rust_validator`と実体の規則のkernel）を切ります。
+tickの規則はRustのkernelだけで、Pythonの本体はありません（`kernel_only`、`KERNEL_ONLY_SEGMENTS`）。Pythonの関数をpatchしても、kernelはそれを呼ばないので、patchは何にも届きません。振る舞いを変えたいテストは、状態やイベントでその場面を作ります。コントローラーの手順そのもの（`OfflineSimulationController._psychology_update`など）や、手順が呼ぶ管理者の規則（`ToiletServiceManager.arbitrate`など、`experiments/phases/driver.py`の`DRIVEN_STEPS`と`DRIVEN_RULES`）をpatchすると、driverはそのtickを`KernelRefusal`で断り、tickは進みません。代わりに動くPythonの経路はありません（#221）。tickの途中の値を確かめるテストは、`TickEngine.phase_observer`で段階の前後を見ます（`support/world.py`の`watching_phases`。段階の前の状態から手順のkernelを直接呼べば、その段階の値と比べられます）。tickの一部の段階だけを動かすテストは、`support/world.py`の`tick_phases`で、driverに段階を選んで渡します。Pythonに残した検証（`validate_*`、決定D3）を数えたりpatchしたりするテストには`@pytest.mark.python_rules`を付けます。印は検証のRustの双子（`register_rust_validator`と実体の規則のkernel）を切ります。
 
 `tests/unit/repo/test_tracked_write_lint.py`は、tick側のコードで、入れ物に入れた値を元の名前のまま書き換える書き方（`record = relationships[key] = {...}`のあとの`record["trust"] = x`）を見つけると失敗します。入れたあとは`record = relationships[key]`で読み直します。
 

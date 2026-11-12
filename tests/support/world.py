@@ -256,24 +256,39 @@ def world_digest(world: Any) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
-@contextmanager
-def on_the_phases() -> Iterator[None]:
-    """Every tick through `phase_handler`, the phases' Python steps, instead of the driver.
-
-    The controller's metrics step is patched with one that calls it unchanged: the driver
-    (native/src/rules/tick.rs) then refuses each tick before anything changes, as it does for any
-    patch of a step. The steps are the same kernels either way.
+def tick_phases(controller: Any, minute: int, *phases: Any, rng: Any = None) -> None:
+    """Only `phases` (TickPhase members) of the tick at `minute`, in the tick's order, on the
+    driver (`run_tick` with `phases`). The world's minute must be `minute`. `rng` is the tick's,
+    a CounterRNG of the world's seed by default.
     """
-    from sheltersim.experiments.runner import OfflineSimulationController
+    from sheltersim.core.rng import CounterRNG
 
-    step = OfflineSimulationController._run_metrics_phase
+    world = controller.world
+    rng = CounterRNG(world.seed) if rng is None else rng
+    controller.run_tick(world, minute, rng, None, phases)
 
-    def same_step(self: Any, *arguments: Any, **options: Any) -> Any:
-        return step(self, *arguments, **options)
 
-    with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(OfflineSimulationController, "_run_metrics_phase", same_step)
-        yield
+def update_movement(controller: Any, minute: int) -> None:
+    """The movement of the update phase alone, as native/core/src/rules/tick/update.rs runs it:
+    with `movement_v1`, `advance_movement`, then `_replan_journeys` of the people it returns."""
+    from sheltersim.domain.movement import MOVEMENT_STATE_KEY, advance_movement
+
+    state = controller.world.model_state.get(MOVEMENT_STATE_KEY)
+    if state is not None:
+        controller._replan_journeys(state, advance_movement(controller.world, minute), minute)
+
+
+def apply_proposal(controller: Any, proposal: Any, *, observed_state: Any = None) -> None:
+    """One proposal of the propose phase, as native/core/src/rules/tick/propose.rs applies it:
+    `_apply_effect`, then `_record_outcome` of what it did."""
+    target_id, next_decision_at, committed = controller._apply_effect(proposal)
+    controller._record_outcome(
+        proposal,
+        target_id=target_id,
+        next_decision_at=next_decision_at,
+        committed=committed,
+        observed_state=observed_state,
+    )
 
 
 @contextmanager

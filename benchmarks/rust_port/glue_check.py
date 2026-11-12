@@ -95,7 +95,7 @@ CLASSES: Mapping[str, str] = {
     CONVERSION: "the Python object a Python caller gets (a class made from the core's values)",
     ARGUMENT: "reads a Python argument or a Python mapping it was given (the entry's input)",
     HOOK: "a Python hook a test or a caller set (H4/H5): its own `after_complete`, `request`, sink",
-    E10: "the checks before anything changes, which send a tick to the phase path",
+    E10: "the checks before anything changes, which refuse a tick a hook would change",
 }
 
 # The files whose E10 detection may stay (design-p9.md section 6).
