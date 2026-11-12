@@ -23,7 +23,7 @@
 //! compared it with another copy that the deleted Python rule's writes were made on by hand. Here a
 //! copy is the world put in that order (`World::canonicalize`) and given back after
 //! (`World::snapshot`, `World::restore`), and two worlds are the same when their bytes
-//! (`support/world_bytes.rs`) and the key order of the overlay and the spaces (Python's
+//! (`support/answers.rs`) and the key order of the overlay and the spaces (Python's
 //! `json.dumps`) are. The pytest's digests of what the deleted rule answered and left (`RECORDED`)
 //! are recorded again here from the core (decision 1 of #225).
 
@@ -61,7 +61,7 @@ use sheltersim_core::world::{Fit, Snapshot, World, WorldCell, MODEL_CONFIGS};
 use support::dumps::dumps;
 use support::load::{self, Loaded};
 use support::sections;
-use support::world_bytes::{world_bytes, Answers};
+use support::answers::{world_bytes, Answers};
 use support::{Call, TestHost};
 
 const FILE: &str = "overlay_rules";
@@ -817,8 +817,8 @@ fn a_bed_is_reserved_in_the_person_s_zone() {
     let mut again = Answers::default();
     let held = bed(&mut case, &agent, Some(&mut again)).unwrap();
     assert_eq!((held.bed_index, held.reserved_minute), (result.bed_index, 0));
-    assert_eq!(first.hex(), "bf3059996bd042be360517cfc5ca3de04d14eb112038ed6622c995503a73963b");
-    assert_eq!(again.hex(), "ff56a33c6492c42ba27af0ab80237138cf837138cf2ccf9e2df6095f49653c68");
+    assert_eq!(first.hex(), "eee53c212c0250903f5b987eb2853239eccb777283ee4360682defde5d229686");
+    assert_eq!(again.hex(), "c6d451d2e822ce871cfe2163035882cc0abaaa088ca232f69fef656f0ca109cb");
 }
 
 /// The rule's `state.setdefault("bed_reservations", {})` comes before the floor plan's check: a
@@ -858,7 +858,7 @@ fn no_bed_is_none() {
 /// `bed beside 0.7500001` (`991c0f10289e`) and `bed beside 1.2` (`1c3bde66032b`) passed.
 #[test]
 fn someone_at_a_bed_is_using_it_within_its_radius() {
-    for (offset, taken, recorded) in [(0.0, true, ""), (0.7499, true, ""), (0.7500001, false, "61f1a101aa58fda9ae45035317132396d731a902ce6ed91f851d647a5a227847"), (1.2, false, "8cdea670012f398730823bc68feb20dd0e31ac15be0a00b615debc7a107dec36")] {
+    for (offset, taken, recorded) in [(0.0, true, ""), (0.7499, true, ""), (0.7500001, false, "fc2b4b4bff006598b18271fdd00d7177c63ef0882a695a0f5581854e3977f923"), (1.2, false, "4b3981eb89a38a4c7cada5b883b31bc7cc9bc32dc7f58af88a6257e4bbc91145")] {
         let mut case = Case::new();
         let record = room_record(&case, "room", 2, 1);
         room_world(&case, 2, 1, "room");
@@ -887,7 +887,7 @@ fn a_reservation_taken_by_another_is_passed_by() {
     let mut answers = Answers::default();
     let result = bed(&mut case, &people[1], Some(&mut answers)).unwrap();
     assert_ne!(result.bed_index, held);
-    assert_eq!(answers.hex(), "5b88f2c77dad7c560f77a6c376cd2df22e896ed598ddcfa24e1201df37065f53");
+    assert_eq!(answers.hex(), "e99a38f127360f9d28b6da957ca271aa6d96135cfe8fb9d42f2e0fc84eded478");
 }
 
 #[test]
@@ -1530,7 +1530,7 @@ fn a_bed_s_routes_end_where_the_python_rule_s_do() {
         let result = bed(&mut case, &agent, found.then_some(&mut answers));
         if found {
             assert_eq!(result.unwrap().bed_index, blocked as i64);
-            assert_eq!(answers.hex(), "27a8ea689f7bd565bd3f1dbe9df4b2d198e9976cd729e061b61ae46798c0f3bd");
+            assert_eq!(answers.hex(), "e4c6c4e80fc7e7663771204b00f48e99555096596443015460a982fe7b2b91f6");
         } else {
             assert!(result.is_none());
         }

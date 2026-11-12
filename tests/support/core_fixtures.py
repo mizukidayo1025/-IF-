@@ -44,6 +44,12 @@ FIXTURES: dict[str, str] = {
     "queue_rules": "support.core_fixtures_queues:queue_rules_fixture",
     "overlay_rules": "support.core_fixtures_overlay:overlay_rules_fixture",
     "overlay_queues": "support.core_fixtures_overlay_queues:overlay_queues_fixture",
+    "event_texts": "support.core_texts:event_texts_fixture",
+    "rumor_texts": "support.core_texts:rumor_texts_fixture",
+    "travel_texts": "support.core_texts:travel_texts_fixture",
+    "resource_service_texts": "support.core_fixtures_texts:resource_service_texts_fixture",
+    "generated_texts": "support.core_fixtures_texts:generated_texts_fixture",
+    "handoff_texts": "support.core_fixtures_texts:handoff_texts_fixture",
 }
 
 # The attributes of `InformationSpreadConfig` the PyO3 crate reads (`InformationSpread::FIELDS` of
@@ -116,15 +122,20 @@ def run_world(scenario: Any, ticks: int = 0) -> tuple[Any, Any, Any]:
     return world, controller, engine
 
 
-def export_world(world: Any, controller: Any | None = None) -> dict[str, Any]:
+def export_world(
+    world: Any, controller: Any | None = None, *, validate: bool = True
+) -> dict[str, Any]:
     """What a core test reads of one world as it is now: its canonical document, the slots its
     core owns (`[name, is_field]`), what the Run read of the controller (without a controller,
-    nothing), and the Python-parsed sections of its configs (`sections`)."""
+    nothing), and the Python-parsed sections of its configs (`sections`). Without `validate`, a
+    world the test edited into a state `WorldState.validate` turns down is written as it is (the
+    same text as `canonical_json`, which validates first)."""
     from sheltersim.core.state_mirror import OWNED_FIELDS
 
     core = world.__dict__["_core"]
+    text = world.canonical_json() if validate else world._canonical_text(world._canonical_data())
     entry: dict[str, Any] = {
-        "world": json.loads(world.canonical_json()),
+        "world": json.loads(text),
         "slots": [[name, name in OWNED_FIELDS] for name in core.owned_names()],
         "sections": sections(world),
     }
@@ -246,7 +257,7 @@ def _tick_plan(world: Any) -> dict[str, Any]:
 
 def _facility_geometry(configs: Any) -> dict[str, Any]:
     """`FacilityGeometry.model_validate(model_configs["facility_geometry"])`, as JSON, with each
-    approach route's `travel_minutes` (a property, which may raise)."""
+    approach route's `distance_m` and `travel_minutes` (properties; the second may raise)."""
     from sheltersim.contracts.extensions import FacilityGeometry
 
     raw = configs.get("facility_geometry")
@@ -258,6 +269,7 @@ def _facility_geometry(configs: Any) -> dict[str, Any]:
         return _fault(error)
     value = model.model_dump(mode="json")
     for route, dumped in zip(model.arrival_approach_routes, value["arrival_approach_routes"]):
+        dumped["distance_m"] = route.distance_m
         try:
             dumped["travel_minutes"] = {"value": _exact_int(route.travel_minutes)}
         except Exception as error:

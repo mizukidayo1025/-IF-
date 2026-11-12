@@ -273,9 +273,15 @@ split PR by PR; its last section sums up what is where.
   (lane P10-1b; not part of the crate), which puts each typed namespace of `model_state` in its
   slot as the row `typed.rs` names for it; `sections.rs`, which gives a `TestHost` the
   Python-parsed sections and the floor plan of an exported world (#225, #214); `dumps.rs`,
-  the text of Python's `json.dumps` for the digests the pytest files took of it; and
-  `world_bytes.rs`, the whole world as bytes and a chain of a test's answers over it, for the
-  digests a moved test records again from the core (#225). The JSON under
+  the text of Python's `json.dumps` for the digests the pytest files took of it; `canonical.rs`,
+  a World's `canonical_json()` bytes, part by part; and `cases.rs`, the files of events given to
+  one handler of an exported world (worlds stored as the changes from another world of the file)
+  with the outcome or the world the Python rule left, checked through `dispatch::apply_alone`,
+  the kernel a handler's PyO3 entry calls (#225); and `texts.rs`, for the tests that call a rule
+  directly: the canonical text of a world in a cell, the outcome a rule raised, and events
+  changed as the pytest files changed them. `answers.rs`
+  chains a test's answers and the world's canonical parts after each, for the digests a moved
+  test records again from the core. The JSON under
   `tests/data/` (worlds the Python side built) is written by the builders that
   `tests/support/core_fixtures.py` registers (`benchmarks/core_fixtures.py`), and
   `tests/integration/test_core_fixtures.py` checks that each file is what its builder makes
@@ -289,7 +295,13 @@ split PR by PR; its last section sums up what is where.
   `tests/typed_rows.rs` reads every typed namespace of `tests/data/typed_rows.json` and writes
   it back to the same bytes, and refuses what `from_py` refuses; `tests/fixtures.rs` checks the
   sections and the floor plan of an exported world against what the native path read of it, and
-  the `json.dumps` writer against Python's bytes.
+  the `json.dumps` writer against Python's bytes; `tests/event_texts.rs`,
+  `tests/social_interaction_texts.rs` and `tests/travel_completion_texts.rs` check the handlers'
+  saved texts (`tests/data/event_texts.json`, `rumor_texts.json`, `travel_texts.json`);
+  `tests/resource_service_texts.rs`, `tests/effect_program_texts.rs` and `tests/population_texts.rs`
+  check the texts the service's, the EffectProgram handlers' and the population's rules save, on
+  the worlds of the pytest files of the same names, with the world unchanged where a check comes
+  before any write.
   The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,

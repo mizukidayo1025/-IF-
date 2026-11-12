@@ -1,13 +1,15 @@
-"""The texts of the water and meal service's outcomes, and of a request its queue turns down.
+"""The texts of the water and meal service's outcomes, and of a request its queue turns down:
+one test of each Python entry of their rules.
 
-`ResourceServiceManager.complete`, `cancel` and `interrupt_for_staff` raise `EventSuppressed`
-and `EventApplicationError`, whose texts the dispatcher saves as an event's `detail`. A request
-the queue turns down raises a `ValueError` whose text the propose step saves as the request's
-`detail`. Each case builds a state that reaches one check. The kernel must raise the class and
-text the Python rule raised there itself (not a refusal) and leave the world as it was, or, for a
-request, write what the Python rule wrote (docs/rust-port/lanes/l8-texts-events.md). These rules
-have no Python rule left (lane L10, `kernel_only`): the texts below were the Python rules'. The
-toilet completion's and the ledger handler's wraps of their rules' `ValueError` are here too.
+The rules' texts, case by case, are tested in the core without Python
+(native/core/tests/resource_service_texts.rs, Issue #225). These tests keep each entry of the PyO3
+crate reaching the kernel and saying the Python rule's text: `ResourceServiceManager.complete`,
+`ResourceServiceCancellationHandler.apply`, `interrupt_for_staff`, `request`, the toilet
+completion's and the ledger handler's wraps, and the propose step's request at once (whose inputs
+the core reads inside its tick). The kernel must raise the class and text the Python rule raised
+there itself (not a refusal) and leave the world as it was, or, for a request, write what the
+Python rule wrote (docs/rust-port/lanes/l8-texts-events.md). These rules have no Python rule left
+(lane L10, `kernel_only`): the texts below were the Python rules'.
 """
 
 from __future__ import annotations
@@ -23,7 +25,7 @@ from support.world import NATIVE_OUTCOME, world_digest
 from sheltersim import native
 from sheltersim.core.engine import TickEngine
 from sheltersim.core.world import WorldState
-from sheltersim.domain.models import ActiveTask, Activity
+from sheltersim.domain.models import Activity
 from sheltersim.domain.resource_service import ResourceServiceManager
 from sheltersim.events.handlers import (
     ResourceLedgerHandler,
@@ -108,16 +110,8 @@ def _started(resource_service_scenario: Any, **overrides: Any) -> tuple[WorldSta
 
 def _completion(completion: ScheduledEvent, **changes: Any) -> ScheduledEvent:
     document = completion.to_dict()
-    payload = dict(document["payload"])
-    for key, value in changes.pop("payload", {}).items():
-        if value is _DROP:
-            payload.pop(key)
-        else:
-            payload[key] = value
+    payload = {**document["payload"], **changes.pop("payload", {})}
     return ScheduledEvent(**{**document, **changes, "payload": payload})
-
-
-_DROP = object()
 
 
 # ---- complete -----------------------------------------------------------------------------------
@@ -125,63 +119,6 @@ _DROP = object()
 
 def _complete_says(world: WorldState, event: ScheduledEvent, expected: type, text: str) -> None:
     _says(world, lambda state: ResourceServiceManager(state).complete(event), None, expected, text)
-
-
-@pytest.mark.parametrize(
-    ("changes", "text"),
-    [
-        ({"payload": {"task_id": 7}}, "resource completion requires a task_id"),
-        ({"payload": {"task_id": _DROP}}, "resource completion requires a task_id"),
-        (
-            {"payload": {"task_id": "no-such-task"}},
-            "resource completion does not match an active task",
-        ),
-        ({"kind": EventKind.EXOGENOUS}, "resource completion payload or event kind is invalid"),
-        (
-            {"event_type": "resource_service_completed"},
-            "resource completion payload or event kind is invalid",
-        ),
-        ({"payload": {"extra": 1}}, "resource completion payload or event kind is invalid"),
-        ({"payload": {"staff_id": _DROP}}, "resource completion payload or event kind is invalid"),
-        ({"due_minute": 3}, "resource completion does not match its active task"),
-        ({"payload": {"agent_id": "A002"}}, "resource completion does not match its active task"),
-        ({"payload": {"agent_id": None}}, "resource completion does not match its active task"),
-        ({"payload": {"staff_id": "S-MEAL"}}, "resource completion does not match its active task"),
-        (
-            {"payload": {"facility_id": "meal_distribution_1"}},
-            "resource completion does not match its active task",
-        ),
-        (
-            {"payload": {"reservation_id": "other-reservation"}},
-            "resource completion does not match its active task",
-        ),
-        (
-            {"payload": {"resource_id": "food_meal_units"}},
-            "resource completion does not match its active task",
-        ),
-        (
-            {"payload": {"quantity": 1}},
-            "resource service completion does not match its full reservation, slot, or staff",
-        ),
-        (
-            {"payload": {"quantity": 250.0}},
-            "resource service completion does not match its full reservation, slot, or staff",
-        ),
-        (
-            {"payload": {"quantity": True}},
-            "resource service completion does not match its full reservation, slot, or staff",
-        ),
-        (
-            {"payload": {"quantity": "250"}},
-            "resource service completion does not match its full reservation, slot, or staff",
-        ),
-    ],
-)
-def test_a_completion_s_texts_are_python_s(
-    resource_service_scenario: Any, changes: dict[str, Any], text: str
-) -> None:
-    world, completion = _started(resource_service_scenario)
-    _complete_says(world, _completion(completion, **changes), EventApplicationError, text)
 
 
 def test_a_completion_of_a_cancelled_task_is_suppressed_with_python_s_text(
@@ -195,66 +132,6 @@ def test_a_completion_of_a_cancelled_task_is_suppressed_with_python_s_text(
         event,
         EventSuppressed,
         "resource service task 'resource-service-task-gone' was cancelled",
-    )
-
-
-@pytest.mark.parametrize(
-    "spoil",
-    [
-        "slot",
-        "staff",
-        "staff_busy",
-        "reservation",
-        "owned",
-    ],
-)
-def test_a_completion_whose_service_state_differs_is_python_s_to_fail(
-    resource_service_scenario: Any, spoil: str
-) -> None:
-    world, completion = _started(resource_service_scenario)
-    task_id = completion.payload["task_id"]
-    staff = world.staff[completion.payload["staff_id"]]
-    if spoil == "slot":
-        world.facilities["water_station_1"].resource_active_agent_ids.remove("A001")
-    elif spoil == "staff":
-        staff.active_task_id = None
-    elif spoil == "staff_busy":
-        staff.busy_until += 1
-    elif spoil == "reservation":
-        world.model_state[LEDGER]["accounts"]["water_ml"]["reservations"][task_id]["agent_id"] = (
-            "A002"
-        )
-    else:
-        world.model_state[SERVICE]["active_reservation_ids"].remove(task_id)
-    _complete_says(
-        world,
-        completion,
-        EventApplicationError,
-        "resource service completion does not match its full reservation, slot, or staff",
-    )
-
-
-def test_a_completion_in_a_world_not_v6_fails_with_the_handler_s_text(
-    resource_service_scenario: Any,
-) -> None:
-    """`ResourceServiceCompletionHandler`'s own check: the dispatch loop saves the handler's text.
-
-    A world with the water service is v6 (`validate()` says so); one whose version was set back
-    reaches the handler's check before its manager's. The Rust loop saves the failed record the
-    Python step saved.
-    """
-    from sheltersim.events.models import EventStatus
-
-    world, completion = _started(resource_service_scenario)
-    controller = OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
-    world.event_queue.remove(completion.event_id)
-    world.schedule_event(_completion(completion, due_minute=0))
-    world.schema_version = 5
-    controller._run_dispatch_phase(world, 0)
-    record = world.event_log.find(completion.event_id)
-    assert (record.status, record.detail) == (
-        EventStatus.FAILED,
-        "resource service completion requires WorldState v6",
     )
 
 
@@ -274,48 +151,6 @@ def _cancel(payload: dict[str, Any]) -> ScheduledEvent:
     return _event("resource_service_cancel", payload, kind=EventKind.INTERVENTION)
 
 
-@pytest.mark.parametrize(
-    ("payload", "text"),
-    [
-        ({"reason": "operator_cancelled"}, "resource cancellation requires a task_id"),
-        (
-            {"task_id": "", "reason": "operator_cancelled"},
-            "resource cancellation requires a task_id",
-        ),
-        (
-            {"task_id": 3, "reason": "operator_cancelled"},
-            "resource cancellation requires a task_id",
-        ),
-        ({"task_id": "T"}, "resource cancellation payload is not a typed cancellation"),
-        (
-            {"task_id": "T", "reason": "operator_cancelled", "note": "x"},
-            "resource cancellation payload is not a typed cancellation",
-        ),
-        (
-            {"task_id": "T", "reason": "someone_said_so"},
-            "resource cancellation payload is not a typed cancellation",
-        ),
-        (
-            {"task_id": "T", "reason": None},
-            "resource cancellation payload is not a typed cancellation",
-        ),
-        (
-            {"task_id": "T", "reason": 4},
-            "resource cancellation payload is not a typed cancellation",
-        ),
-        (
-            {"task_id": "T", "reason": "operator_cancelled"},
-            "resource cancellation does not match an active task",
-        ),
-    ],
-)
-def test_a_cancellation_s_texts_are_python_s(
-    resource_service_scenario: Any, payload: dict[str, Any], text: str
-) -> None:
-    world, _ = _started(resource_service_scenario)
-    _cancel_says(world, _cancel(payload), EventApplicationError, text)
-
-
 def test_a_cancellation_of_a_cancelled_task_is_suppressed_with_python_s_text(
     resource_service_scenario: Any,
 ) -> None:
@@ -330,116 +165,7 @@ def test_a_cancellation_of_a_cancelled_task_is_suppressed_with_python_s_text(
     )
 
 
-@pytest.mark.parametrize(
-    ("spoil", "text"),
-    [
-        ("kind", "resource cancellation does not match an active task"),
-        ("queue_entry", "queued resource Agent has no matching queue entry"),
-        ("facility", "resource service task references a non-resource facility"),
-        ("slot", "active resource Agent has no matching facility slot"),
-        ("staff", "active resource cancellation does not match reservation, slot, and staff"),
-        ("work_queue", "active resource cancellation does not match reservation, slot, and staff"),
-        ("reservation", "active resource cancellation does not match reservation, slot, and staff"),
-        ("owned", "active resource cancellation does not match reservation, slot, and staff"),
-    ],
-)
-def test_a_cancellation_whose_task_differs_is_python_s_to_fail(
-    resource_service_scenario: Any, spoil: str, text: str
-) -> None:
-    world, completion = _started(resource_service_scenario)
-    task_id = completion.payload["task_id"]
-    task = world.active_tasks[task_id]
-    staff = world.staff[completion.payload["staff_id"]]
-    if spoil == "kind":
-        task.kind = "toilet_service"
-    elif spoil == "queue_entry":
-        # A2 queues and then leaves the facility's list behind its task's back.
-        world.agents["A002"].zone_id = world.facilities["water_station_1"].zone_id
-        receipt = ResourceServiceManager(world).request("A002", "water_station_1", minute=0)
-        task_id = receipt.queue_task_id
-        world.facilities["water_station_1"].resource_queue_agent_ids.remove("A002")
-    elif spoil == "facility":
-        toilet = next(key for key, item in world.facilities.items() if item.kind == "toilet")
-        task.resource_id = toilet
-    elif spoil == "slot":
-        world.facilities["water_station_1"].resource_active_agent_ids.remove("A001")
-    elif spoil == "staff":
-        staff.active_task_id = None
-    elif spoil == "work_queue":
-        staff.work_queue.append("another")
-    elif spoil == "reservation":
-        world.model_state[LEDGER]["accounts"]["water_ml"]["reservations"][task_id]["agent_id"] = (
-            "A002"
-        )
-    else:
-        world.model_state[SERVICE]["active_reservation_ids"].remove(task_id)
-    _cancel_says(
-        world,
-        _cancel({"task_id": task_id, "reason": "operator_cancelled"}),
-        EventApplicationError,
-        text,
-    )
-
-
 # ---- interrupt_for_staff ------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("spoil", "text"),
-    [
-        ("several", "unavailable staff owns multiple resource services"),
-        ("ownership", "interrupted resource service has incomplete ownership"),
-        ("activity", "interrupted resource task has inconsistent state"),
-        ("busy", "interrupted resource task has inconsistent state"),
-        ("facility", "interrupted resource service has an invalid facility"),
-        ("reservation", "interrupted service reservation is inconsistent"),
-        ("owned", "interrupted service reservation is inconsistent"),
-    ],
-)
-def test_an_interruption_s_texts_are_python_s(
-    resource_service_scenario: Any, spoil: str, text: str
-) -> None:
-    world, completion = _started(resource_service_scenario)
-    task_id = completion.payload["task_id"]
-    staff_id = completion.payload["staff_id"]
-    task = world.active_tasks[task_id]
-    if spoil == "several":
-        world.active_tasks["second-service"] = ActiveTask(
-            id="second-service",
-            kind="resource_service_food",
-            agent_id="A002",
-            resource_id="meal_distribution_1",
-            start_minute=0,
-            due_minute=2,
-            staff_id=staff_id,
-        )
-    elif spoil == "ownership":
-        task.agent_id = None
-    elif spoil == "activity":
-        world.agents["A001"].activity = Activity.IDLE
-    elif spoil == "busy":
-        world.staff[staff_id].busy_until += 1
-    elif spoil == "facility":
-        toilet = next(key for key, item in world.facilities.items() if item.kind == "toilet")
-        assert world.facilities[toilet].zone_id == world.agents["A001"].zone_id
-        world.facilities[toilet].resource_active_agent_ids.append("A001")
-        task.resource_id = toilet
-    elif spoil == "reservation":
-        world.model_state[LEDGER]["accounts"]["water_ml"]["reservations"][task_id]["agent_id"] = (
-            "A002"
-        )
-    else:
-        world.model_state[SERVICE]["active_reservation_ids"].remove(task_id)
-    cause = _event("staff_unavailable", {"staff_id": staff_id, "until_minute": 5})
-    _says(
-        world,
-        lambda state: ResourceServiceManager(state).interrupt_for_staff(
-            staff_id, causation_event=cause
-        ),
-        None,
-        EventApplicationError,
-        text,
-    )
 
 
 def test_an_interruption_of_a_cancelled_task_is_the_cancellation_s_text(
@@ -487,70 +213,6 @@ def _request_says(
 def _took_a_task_id(state: WorldState) -> None:
     """The Python rule's write before it found no queue: the counter after the task's ID."""
     state.id_counters["resource_task"] = state.id_counters.get("resource_task", 0) + 1
-
-
-@pytest.mark.parametrize(
-    ("agent_id", "facility_id", "options", "text"),
-    [
-        ("A001", "water_station_1", {"minute": 1}, "resource request minute must match WorldState"),
-        ("A001", "water_station_1", {"minute": True}, "resource request minute must be an integer"),
-        ("A001", "water_station_1", {"minute": "0"}, "resource request minute must be an integer"),
-        ("nobody", "water_station_1", {}, "unknown Agent 'nobody'"),
-        ("A002", "nowhere", {}, "'nowhere' is not a resource service facility"),
-        ("A002", "toilet_1", {}, "'toilet_1' is not a resource service facility"),
-        (
-            "A003",
-            "water_station_1",
-            {},
-            "Agent must arrive at the resource service facility before queueing",
-        ),
-        (
-            "A002",
-            "water_station_1",
-            {},
-            "Agent 'A002' cannot request resource service while active",
-        ),
-        (
-            "A001",
-            "meal_distribution_1",
-            {},
-            "Agent 'A001' cannot request resource service while active",
-        ),
-        (
-            "A003",
-            "meal_distribution_1",
-            {"walking": True},
-            "Agent 'A003' already has an exclusive task",
-        ),
-        ("A004", "meal_distribution_1", {}, "Agent 'A004' already has an exclusive task"),
-    ],
-)
-def test_a_request_s_refusal_texts_are_python_s(
-    resource_service_scenario: Any,
-    agent_id: str,
-    facility_id: str,
-    options: dict[str, Any],
-    text: str,
-) -> None:
-    world, _ = _started(resource_service_scenario)
-    zone = world.facilities["water_station_1"].zone_id
-    toilet = next(key for key, item in world.facilities.items() if item.kind == "toilet")
-    world.agents["A002"].zone_id = zone
-    world.agents["A002"].activity = Activity.MOVING
-    world.agents["A004"].zone_id = zone
-    world.facilities[toilet].queue_agent_ids.append("A004")
-    assert world.agents["A003"].zone_id != zone
-    if options.pop("walking", False):
-        world.agents["A003"].zone_id = zone
-        world.active_tasks["walk-home"] = ActiveTask(
-            id="walk-home",
-            kind="travel_return",
-            agent_id="A003",
-            resource_id=None,
-            start_minute=0,
-            due_minute=3,
-        )
-    _request_says(world, agent_id, facility_id, text, validate_state=False, **options)
 
 
 def _restricted(scenario: Any) -> WorldState:
@@ -666,41 +328,11 @@ def visiting() -> tuple[WorldState, str]:
     pytest.fail("nobody was served at a toilet")
 
 
-@pytest.mark.parametrize(
-    ("spoil", "text"),
-    [
-        ("facility", "'{water}' is not a toilet Facility"),
-        ("unknown_facility", "'nowhere' is not a toilet Facility"),
-        ("agent", "Agent 'nobody' does not exist"),
-        ("kind", "toilet service task '{task}' is not active"),
-        ("other_agent", "toilet completion payload does not match its active task"),
-        ("activity", "Agent '{agent}' is not using Facility '{toilet}'"),
-        ("slot", "Agent '{agent}' must occupy exactly one toilet service slot"),
-    ],
-)
-def test_a_toilet_completion_wraps_python_s_text(
-    visiting: tuple[WorldState, str], spoil: str, text: str
-) -> None:
-    world = visiting[0]
-    world = copy.deepcopy(world)
+def test_a_toilet_completion_wraps_python_s_text(visiting: tuple[WorldState, str]) -> None:
+    world = copy.deepcopy(visiting[0])
     task = world.active_tasks[visiting[1]]
-    agent_id, toilet = task.agent_id, task.resource_id
     water = next(key for key, item in world.facilities.items() if item.kind == "water_station")
-    payload = {"facility_id": toilet, "agent_id": agent_id, "task_id": task.id}
-    if spoil == "facility":
-        payload["facility_id"] = water
-    elif spoil == "unknown_facility":
-        payload["facility_id"] = "nowhere"
-    elif spoil == "agent":
-        payload["agent_id"] = "nobody"
-    elif spoil == "kind":
-        task.kind = "toilet_queue"
-    elif spoil == "other_agent":
-        payload["agent_id"] = next(key for key in world.agents if key != agent_id)
-    elif spoil == "activity":
-        world.agents[agent_id].activity = Activity.IDLE
-    else:
-        world.facilities[toilet].active_agent_ids.append(agent_id)
+    payload = {"facility_id": water, "agent_id": task.agent_id, "task_id": task.id}
     event = _event(
         "toilet_service_complete",
         payload,
@@ -714,61 +346,19 @@ def test_a_toilet_completion_wraps_python_s_text(
         lambda state: handler.apply(state, event),
         None,
         EventApplicationError,
-        text.format(water=water, task=task.id, agent=agent_id, toilet=toilet),
+        f"{water!r} is not a toilet Facility",
     )
 
 
-@pytest.mark.parametrize(
-    ("operation", "payload", "text"),
-    [
-        (
-            "loss",
-            {"warehouse_id": "warehouse-h02", "resource_id": "water_ml", "quantity": 900},
-            "resource loss exceeds unreserved remaining inventory",
-        ),
-        (
-            "reserve",
-            {
-                "warehouse_id": "warehouse-h02",
-                "resource_id": "water_ml",
-                "reservation_id": "R-1",
-                "agent_id": "A002",
-                "quantity": 900,
-            },
-            "resource reservation exceeds available inventory",
-        ),
-        (
-            "release",
-            {
-                "warehouse_id": "warehouse-h02",
-                "resource_id": "water_ml",
-                "reservation_id": "R-unknown",
-                "agent_id": "A002",
-            },
-            "unknown resource reservation 'R-unknown'",
-        ),
-        (
-            "delivery",
-            {"warehouse_id": "elsewhere", "resource_id": "water_ml", "quantity": 5},
-            "unknown resource warehouse ID 'elsewhere'",
-        ),
-        (
-            "delivery",
-            {"warehouse_id": "warehouse-h02", "resource_id": "water_ml", "quantity": 0},
-            "resource quantity must be a positive integer",
-        ),
-    ],
-)
-def test_the_ledger_handler_wraps_python_s_text(
-    resource_service_scenario: Any, operation: str, payload: dict[str, Any], text: str
-) -> None:
+def test_the_ledger_handler_wraps_python_s_text(resource_service_scenario: Any) -> None:
     world, _ = _started(resource_service_scenario)
-    event = _event(f"resource_{operation}", payload, sequence=world.id_counters["event"] + 50)
-    handler = ResourceLedgerHandler(operation)
+    payload = {"warehouse_id": "warehouse-h02", "resource_id": "water_ml", "quantity": 900}
+    event = _event("resource_loss", payload, sequence=world.id_counters["event"] + 50)
+    handler = ResourceLedgerHandler("loss")
     _says(
         world,
         lambda state: handler.apply(state, event),
         None,
         EventApplicationError,
-        text,
+        "resource loss exceeds unreserved remaining inventory",
     )

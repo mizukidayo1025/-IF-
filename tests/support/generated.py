@@ -71,6 +71,14 @@ def _ui_preview(root: Path, request: dict[str, Any]) -> dict[str, Any]:
         return api.workspace.preview("project", {"text": "", "request": request})
 
 
+def preview_scenario(root: Path, **fields: Any) -> Any:
+    """A ScenarioSpec of the preview of GENERATED_SCENARIO_REQUEST with some fields changed, made
+    in `root` outside a test: what `generated_scenario` is, for a fixture file's builder."""
+    from sheltersim.experiments.scenario import ScenarioSpec
+
+    return ScenarioSpec.model_validate(_ui_preview(root, _generated_request(**fields))["scenario"])
+
+
 @pytest.fixture(scope="session")
 def generated_previews(tmp_path_factory: pytest.TempPathFactory) -> Callable[..., dict[str, Any]]:
     """Previews of GENERATED_SCENARIO_REQUEST with some form fields changed.
