@@ -105,6 +105,16 @@ impl HostFailure for HostError {
     fn outcome(&self) -> Option<sheltersim_core::error::Outcome> {
         Python::with_gil(|py| errors::outcome_of(py, &self.0))
     }
+
+    /// `{type}: {str(exc)}`, as `PyErr`'s `Display` writes it.
+    fn shown(&self) -> String {
+        self.0.to_string()
+    }
+
+    /// `errors::made_here`: an outcome or a `ValueError` the rules raised with their text.
+    fn made_here(&self) -> bool {
+        Python::with_gil(|py| errors::made_here(py, &self.0))
+    }
 }
 
 /// A contract's input as the Python rule gave it to `model_validate`. A guard and an effect's
@@ -120,7 +130,8 @@ fn contract_input<'py>(py: Python<'py>, which: &Contract, input: &V) -> PyResult
             }
             Ok(built.into_any())
         }
-        (Contract::Guard | Contract::EffectParameters(_), _) => frozen(py, input),
+        // A presence command is the event's value too (lane P9-3a).
+        (Contract::Guard | Contract::EffectParameters(_) | Contract::PresenceCommand, _) => frozen(py, input),
         _ => input.to_py(py),
     }
 }
@@ -957,6 +968,16 @@ impl<'py> Host for PyHost<'py> {
             Again::Section(SectionId::Proximity) => {
                 crate::rules::handlers::proximity_config(&self.world)?;
             }
+            // The population rules' sections (lane P9-3a).
+            Again::Section(SectionId::FacilityGeometry) => {
+                crate::rules::movement_geometry::reparse_facility(&self.world)?;
+            }
+            Again::Section(SectionId::TransitCapacities) => {
+                crate::rules::population_lifecycle::transit_capacities(&self.world)?;
+            }
+            Again::Section(SectionId::OverlayRooms) => {
+                crate::rules::population::reraise_rooms(&self.world)?;
+            }
             Again::Section(_) => {}
             Again::Policy(path) => {
                 let mut found = self.controller()?.clone();
@@ -999,20 +1020,6 @@ impl<'py> Host for PyHost<'py> {
         let options = PyDict::new(py);
         options.set_item(intern!(py, "minute"), minute)?;
         artifacts.call_method(intern!(py, "capture_metric"), (&self.world,), Some(&options))?;
-        Ok(())
-    }
-
-    /// `admit_pending_returns(world, minute)` or `admit_pending_arrivals(world, minute)` of the
-    /// population rules' kernels, whose inputs this crate reads (lane P9-1c).
-    fn admit_pending(&mut self, returns: bool, minute: i64) -> Result<(), HostError> {
-        let py = self.py();
-        self.ran_python();
-        let Ok(minute) = minute.into_pyobject(py).map(|minute| minute.into_any());
-        if returns {
-            crate::rules::population_lifecycle::admit_pending_returns(&self.world, &minute)?;
-        } else {
-            crate::rules::population::admit_pending_arrivals(&self.world, &minute)?;
-        }
         Ok(())
     }
 

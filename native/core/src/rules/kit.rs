@@ -336,6 +336,45 @@ pub fn kept_section_value<C: WorldCell, H: Host, T>(
     Ok(kept_of(section_value(cell, host, holding, which, get, parse)?))
 }
 
+/// `world.model_configs` as a plain dict, read by `read`: the row of the slot while the world holds
+/// the field, else the configs Python holds (`Host::configs_given`); None where they are not a plain
+/// dict (lane P9-3a: `"facility_geometry" in model_configs`, `model_configs.get("population")`).
+pub fn read_configs<C: WorldCell, H: Host, T>(
+    cell: &C,
+    host: &mut H,
+    holding: &Holding,
+    read: impl Fn(&IndexMap<Arc<str>, V>) -> T,
+) -> std::result::Result<Option<T>, H::Error> {
+    if holding.field(MODEL_CONFIGS) {
+        let found = cell.with(|world| -> Result<Option<T>> {
+            Ok(match world.slots.try_value(MODEL_CONFIGS)?.as_deref() {
+                Some(V::Map(configs)) => Some(read(configs)),
+                _ => None,
+            })
+        })??;
+        if found.is_some() {
+            return Ok(found);
+        }
+    }
+    Ok(match host.configs_given()? {
+        Some(V::Map(configs)) => Some(read(&configs)),
+        _ => None,
+    })
+}
+
+/// The error a read site raises for a fault of a section Python parses: a refusal its own
+/// `Unsupported`, any other what the parse raises again (policy E14; `configs::raise` of the PyO3
+/// crate, lane P9-3a).
+pub fn raise_section<H: Host>(host: &mut H, which: SectionId, fault: &crate::config::Fault) -> H::Error {
+    if fault.is_refusal() {
+        return Error::unsupported(fault.text.to_string()).into();
+    }
+    match host.read_again(crate::host::Again::Section(which)) {
+        Err(error) => error,
+        Ok(()) => Error::corrupt(MODEL_CONFIGS, "a config fault did not reproduce").into(),
+    }
+}
+
 /// `name in world.model_state`, of the holding (lane P9-1b). Refused for a `model_state` the
 /// kernels do not read, as each namespace of it is.
 #[track_caller]

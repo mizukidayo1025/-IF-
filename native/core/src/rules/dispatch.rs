@@ -8,8 +8,7 @@
 //!    event.to_dict()`: numbers by value, `1 == 1.0`, `-0.0 == 0.0`, maps in any order);
 //! 2. its handler (`Policies.dispatch`, read by the PyO3 crate and checked by identity at each
 //!    phase): none is `FAILED` with Python's text; a known class runs here (`HandlerKind`), and any
-//!    other is the host's (`Host::apply_foreign`, H4), as is a known class whose inputs the PyO3
-//!    crate still reads (the population's handler, a relocation's walk, an intake's completion);
+//!    other is the host's (`Host::apply_foreign`, H4);
 //! 3. the EffectProgram's guard first, for an event with its marker;
 //! 4. the record of a contact or an interaction (`record_social_event`, `observe_event`);
 //! 5. the settle: the event leaves the queue and its record is appended, or, where the handler
@@ -449,17 +448,14 @@ where
 }
 
 /// Whether a known handler runs here: its managers are the controller's, its `_after_arrival` and
-/// `after_complete` are as defined, its walk's manager has no `request` of its own (a test's), and
-/// its inputs are the core's (not the population's handler, a relocation's walk).
+/// `after_complete` are as defined, and its walk's manager has no `request` of its own (a test's).
 fn runs_here(native: &Native, row: &EventRow) -> bool {
     if !native.own_managers || !native.after_arrival_as_defined {
         return false;
     }
     match native.kind {
-        HandlerKind::EffectProgramPopulation => false,
         HandlerKind::ToiletServiceCompletion => !matches!(native.after_complete(), Ok(AfterComplete::Other) | Err(_)),
         HandlerKind::AgentTravelCompletion => match kit::payload(row, "purpose") {
-            Some(V::Str(purpose)) if &**purpose == "presence_relocation" => false,
             Some(V::Str(purpose)) if &**purpose == "toilet_request" => native.own_request("toilet_service") == Ok(false),
             Some(V::Str(purpose)) if &**purpose == "resource_request" => native.own_request("resource_service") == Ok(false),
             _ => true,
@@ -672,7 +668,6 @@ where
     H::Error: From<WriteError>,
 {
     let cell = tick.cell;
-    let label = label_of(native.kind);
     match native.kind {
         HandlerKind::SocialInteraction => Ok(match social_interaction::apply(cell, tick.host, row)? {
             None => Handled::applied(),
@@ -844,7 +839,7 @@ where
             let made = counted(&effects::COUNTS, name, result)?;
             Ok(Handled::records(made.into_iter().map(Record::from).collect()))
         }
-        HandlerKind::EffectProgramPopulation => Err(Error::Runtime(format!("{label} is the host's")).into()),
+        HandlerKind::EffectProgramPopulation => handlers::population_event(cell, tick.host, row).map(|()| Handled::applied()),
     }
 }
 
@@ -910,9 +905,9 @@ fn information<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>, 
     }
 }
 
-/// The events of an autonomous staff operation. A completion whose work is an intake admits through
-/// the population rules, whose inputs the PyO3 crate still reads: the whole event is the host's
-/// (`apply`, H4), with nothing written here.
+/// The events of an autonomous staff operation. A completion whose work is an intake asks what the
+/// admission will ask of the waiting, while it can still refuse, then admits them (lane P9-3a), then
+/// completes.
 fn staff_operation<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>, kind: HandlerKind, row: &EventRow) -> std::result::Result<Handled, H::Error>
 where
     H::Error: From<WriteError>,
@@ -953,20 +948,26 @@ where
             enum Step {
                 Done(Vec<Made>),
                 Unavailable(Arc<str>),
-                Intake,
+                Intake(Box<operations::CompletePlan>),
             }
             let step = tick.world(|world| -> crate::error::Result<Step> {
                 let inputs = gathered.inputs();
                 match operations::plan_complete(world, &inputs, row)? {
                     operations::Planned::Unavailable(id) => Ok(Step::Unavailable(id)),
-                    operations::Planned::Go(plan) if matches!(plan.work, operations::Work::Intake) => Ok(Step::Intake),
+                    operations::Planned::Go(plan) if matches!(plan.work, operations::Work::Intake) => Ok(Step::Intake(Box::new(plan))),
                     operations::Planned::Go(plan) => operations::write_complete(world, &inputs, plan).map(Step::Done),
                 }
             });
             match counted(&handlers::COUNTS, "complete", step)? {
                 Step::Done(made) => Ok(Handled::records(made.into_iter().map(Record::from).collect())),
                 Step::Unavailable(id) => stop_and_suppress(tick, &id, row, "staff became unavailable before completing the assigned task"),
-                Step::Intake => foreign(tick, row),
+                Step::Intake(plan) => {
+                    counted(&handlers::COUNTS, "complete", population::check_waiting(tick.cell, tick.host))?;
+                    let minute = tick.world(|world| world.minute_index())?;
+                    population::admit_arrivals(tick.cell, tick.host, minute)?;
+                    let made = tick.world(|world| operations::write_complete(world, &gathered.inputs(), *plan))?;
+                    Ok(Handled::records(made.into_iter().map(Record::from).collect()))
+                }
             }
         }
     }
@@ -1046,23 +1047,34 @@ where
     H::Error: From<WriteError>,
 {
     let read_walk = travel_completion::Gathered::read(tick.cell, tick.host, row)?;
+    // A relocation's completion reads the lifecycle's inputs (lane P9-3a).
+    let relocation = match kit::payload(row, "purpose") {
+        Some(V::Str(purpose)) if &**purpose == "presence_relocation" => Some(population_lifecycle::Read::read(tick.cell, tick.host, false)?),
+        _ => None,
+    };
     let resource_service = native.handler.object("resource_service").map(|manager| manager.is_some()).unwrap_or(false);
     // The pending events are read as rows (`population::with_rows` of the PyO3 crate).
     tick.host.read_queue_rows()?;
-    let inputs = read_walk.inputs(resource_service, None);
+    let lifecycle = relocation.as_ref().map(population_lifecycle::Read::inputs);
+    let inputs = read_walk.inputs(resource_service, lifecycle.as_ref());
     let applied = tick.cell.with(|world| travel_completion::apply(world, &inputs, row)).map_err(core_err::<H::Error>)?;
     let walk = match applied {
         Ok(Some(walk)) => walk,
         Ok(None) => return Ok(Handled::applied()),
-        Err(travel_completion::Applied::Checks(error) | travel_completion::Applied::After(error)) => return Err(error.into()),
+        Err(travel_completion::Applied::Checks(error) | travel_completion::Applied::After(error)) => {
+            let error: H::Error = error.into();
+            return Err(match &relocation {
+                Some(read) => read.finish::<(), H::Error>(Err(error)).err().unwrap_or_else(|| Error::Runtime("a finished error".to_owned()).into()),
+                None => error,
+            });
+        }
     };
     if !matches!(&*walk.purpose, "toilet_request" | "resource_request") {
         return Ok(Handled::applied());
     }
     let facility = walk.facility_id.as_deref().unwrap_or_default();
     let origin = walk.origin.zone().map(|zone| &**zone);
-    let holding = tick.holding()?;
-    let has_geometry = has_geometry(tick, &holding)?;
+    let has_geometry = travel_completion::has_geometry(tick.cell, tick.host)?;
     let validates = walk.purpose.as_ref() == "toilet_request" && read(native.validate_request_state())?;
     let arrival = travel_completion::Arrival {
         agent_id: &walk.agent_id,
@@ -1078,26 +1090,6 @@ where
     let arrived = travel_completion::arrive(tick.cell, tick.host, &arrival, &mut managers)?;
     tick.written(arrived)?;
     Ok(Handled::applied())
-}
-
-/// `"facility_geometry" in world.model_configs`: of the slot's row while the world holds the field,
-/// else of the configs Python holds, which must be a plain dict.
-fn has_geometry<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>, holding: &crate::host::Holding) -> std::result::Result<bool, H::Error> {
-    if holding.field(crate::world::MODEL_CONFIGS) {
-        let found = tick.world(|world| {
-            Ok(match world.slots.try_value(crate::world::MODEL_CONFIGS)?.as_deref() {
-                Some(V::Map(configs)) => Some(configs.contains_key("facility_geometry")),
-                _ => None,
-            })
-        })?;
-        if let Some(found) = found {
-            return Ok(found);
-        }
-    }
-    match tick.host.configs_given()? {
-        Some(V::Map(configs)) => Ok(configs.contains_key("facility_geometry")),
-        _ => Err(Error::unsupported("a value is not a plain dict").into()),
-    }
 }
 
 /// The controller's managers' queues, as `_after_arrival` asks them: `toilet::queue_up` and
@@ -1229,7 +1221,7 @@ fn interrupt_trips<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, 
 }
 
 /// `admit_pending_returns` (`returns`) or `admit_pending_arrivals`: nothing past the namespace while
-/// no one waits; else the population rules, through the host (P9-3).
+/// no one waits; else the population rules (lane P9-3a).
 fn admit<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>, returns: bool) -> std::result::Result<(), H::Error> {
     let holding = tick.holding()?;
     let nothing = if returns {
@@ -1243,7 +1235,12 @@ fn admit<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>, return
         return Ok(());
     }
     count(if returns { &COUNTS.returns_asked } else { &COUNTS.arrivals_asked });
-    tick.host.admit_pending(returns, tick.minute)
+    let minute = tick.minute;
+    if returns {
+        population_lifecycle::admit_returns_through(tick.cell, tick.host, minute).map(drop)
+    } else {
+        population::admit_arrivals(tick.cell, tick.host, minute).map(drop)
+    }
 }
 
 /// A plan's read error, as the population rules' `planning` says it: a refusal stays itself, any

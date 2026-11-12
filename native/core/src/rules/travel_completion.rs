@@ -737,6 +737,13 @@ impl Gathered {
 
 const QUEUES: &str = crate::state::facility_queues::NAME;
 
+/// `"facility_geometry" in world.model_configs`, of the slot's row while the world holds the field,
+/// else of the configs Python holds, which must be a plain dict (lanes P9-1c, P9-3a).
+pub fn has_geometry<C: WorldCell, H: Host>(cell: &C, host: &mut H) -> std::result::Result<bool, H::Error> {
+    let holding = kit::holding(cell, host)?;
+    kit::read_configs(cell, host, &holding, |configs| configs.contains_key("facility_geometry"))?.ok_or_else(|| Error::unsupported(crate::host::TABLE_NOT_PLAIN).into())
+}
+
 /// A walk that reached a toilet or a resource, as `_after_arrival` takes it.
 pub struct Arrival<'a> {
     pub agent_id: &'a str,

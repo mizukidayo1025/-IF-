@@ -15,13 +15,14 @@
 //! `EventApplicationError`, the validation's `ValueError`s) are saved data and are the Python
 //! rules', in their order of checks.
 //!
-//! What only Python has comes as an input, read by the PyO3 crate before the world is borrowed:
-//! whether `model_state` holds each namespace (`kit::Held`), the sections of the configs, the floor
-//! plan, the movement model of a relocation, and the records of the EventLog a command's program
-//! scheduled (the log's records are Python's to read). The command's contract
-//! (`PopulationPresenceCommand`) is parsed by the PyO3 crate, which runs the command in the core's
-//! rule transaction (`txn::rule`, lane P9-1b) with its body still glue, and the validation of the
-//! whole world goes through the host (`Host::validate_world`, `Host::validate_extensions`).
+//! What only Python has comes as an input, read through the host before the world is borrowed
+//! (`Read`, lane P9-3a): whether `model_state` holds each namespace (`kit::Held`), the sections of
+//! the configs, the floor plan, the movement model of a relocation, and the records of the EventLog
+//! a command's program scheduled (`Host::find_record`). A command's contract
+//! (`PopulationPresenceCommand`) goes through `Host::contract` (policy E15) and its `selected_ids`
+//! are read here from the contract's dump; the command runs in the core's rule transaction
+//! (`txn::rule`), and the validation of the whole world goes through the host
+//! (`Host::validate_world`, `Host::validate_extensions`).
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -52,7 +53,10 @@ use crate::state::social_network::{Relationship as SocialTie, SocialNetworkRow, 
 use crate::state::social_propagation::{ContactRecord, SocialRow, NAME as SOCIAL_RUNTIME};
 use crate::text::py_repr;
 use crate::value::V;
-use crate::world::World;
+use crate::config::SectionId;
+use crate::host::{Contract, ErrorClass, Holding, Host, HostFailure};
+use crate::txn::TxnEnd;
+use crate::world::{World, WorldCell};
 
 pub const KEY: &str = "population_lifecycle_v1";
 pub const POLICY_VERSION: &str = "same-id-population-lifecycle-v1";
@@ -2358,4 +2362,280 @@ pub fn validate_facts(facts: &Facts<'_>, leaving: Option<&str>) -> Result<()> {
         }
     }
     Ok(())
+}
+
+// ---- What the rules read through the host (lane P9-3a) ---------------------------------------------
+
+/// The refusal of a lifecycle state the world holds another value of.
+pub const OTHER_LIFECYCLE: &str = "the world holds another lifecycle state";
+
+/// What a relocation reads of the configs, each read's error the refusal the plan gives.
+fn relocation_of<C: WorldCell, H: Host>(cell: &C, host: &mut H, holding: &Holding) -> std::result::Result<Relocation, H::Error> {
+    let transit_capacities = match kit::kept_section(cell, host, holding, SectionId::TransitCapacities, |configs| &configs.transit_capacities) {
+        Ok(Ok(found)) => Ok(*found),
+        Ok(Err(fault)) => Err(population::plan_read_of(&kit::raise_section(host, SectionId::TransitCapacities, &fault))),
+        Err(error) => Err(population::plan_read_of(&error)),
+    };
+    let timing = match kit::kept_section_value(cell, host, holding, SectionId::Movement, |configs| &configs.movement, crate::config::movement::Movement::parse) {
+        Err(error) => Err(population::plan_read_of(&error)),
+        Ok(section) => (|| -> Result<Option<MovementModel>> {
+            let movement = kit::kept(&section)?;
+            if !movement.times_routes() {
+                return Ok(None);
+            }
+            match &movement.model {
+                Ok(model) => Ok(Some(*model)),
+                Err(fault) if fault.is_refusal() => Err(Error::unsupported(fault.text.to_string())),
+                Err(_) => Err(Error::corrupt(crate::world::MODEL_CONFIGS, "a value of a section holds an error")),
+            }
+        })()
+        .map_err(plan_read),
+    };
+    Ok(Relocation { transit_capacities, timing })
+}
+
+/// What the rules read beside the world's rows, through the host: the population rules' inputs,
+/// whether the world holds the lifecycle, and what a relocation reads.
+pub struct Read {
+    pub population: population::Read,
+    pub lifecycle: Held,
+    pub relocation: Option<Relocation>,
+}
+
+impl Read {
+    /// `relocation`: whether the rule plans a relocation, which reads the floor plan and the
+    /// movement model.
+    pub fn read<C: WorldCell, H: Host>(cell: &C, host: &mut H, relocation: bool) -> std::result::Result<Self, H::Error> {
+        let population = population::Read::read(cell, host, false, relocation)?;
+        let holding = kit::holding(cell, host)?;
+        let lifecycle = holding.held(KEY, OTHER_LIFECYCLE);
+        let relocation = if relocation { Some(relocation_of(cell, host, &holding)?) } else { None };
+        Ok(Self { population, lifecycle, relocation })
+    }
+
+    pub fn inputs(&self) -> Inputs<'_> {
+        Inputs { population: &self.population.inputs, lifecycle: self.lifecycle.clone(), relocation: self.relocation.as_ref() }
+    }
+
+    /// The rule's result, with what reading the floor plan raised where the rule read the plan.
+    pub fn finish<T, E: HostFailure + From<Error>>(&self, result: std::result::Result<T, E>) -> std::result::Result<T, E> {
+        self.population.finish(result)
+    }
+
+    /// A kernel on the world with these inputs, its result finished.
+    pub fn run<C: WorldCell, E: HostFailure + From<Error>, T>(&self, cell: &C, kernel: impl FnOnce(&World, &Inputs<'_>) -> Result<T>) -> std::result::Result<T, E> {
+        let inputs = self.inputs();
+        self.finish(cell.with(|world| kernel(world, &inputs)).and_then(|done| done).map_err(E::from))
+    }
+}
+
+/// The EventLog's records of the program of the event's provenance, as the plan of an exit or a
+/// return reads them (`Host::find_record`): the row of each `effect_program_population` event
+/// found; what reading one raised is raised where the plan reads it.
+pub fn logged_through<C: WorldCell, H: Host>(cell: &C, host: &mut H, effects: &Held, row: &EventRow) -> std::result::Result<Logged, H::Error> {
+    let mut found = Logged::new();
+    let ids = cell.with(|world| program_event_ids(world, effects, row)).and_then(|done| done).map_err(H::Error::from)?;
+    for event_id in ids {
+        match host.find_record(&event_id) {
+            Ok(None) => {}
+            Ok(Some(record)) => {
+                if &*record.event.event_type == "effect_program_population" {
+                    found.insert(event_id, Ok(record.event));
+                }
+            }
+            Err(error) => {
+                found.insert(event_id, Err(population::plan_read_of(&error)));
+            }
+        }
+    }
+    Ok(found)
+}
+
+/// The command on the world of its transaction: the plan reads the pending events as rows (an
+/// archive cancels the person's), and an exit or a return the EventLog's records of its program.
+pub fn act<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &EventRow, command: &Command) -> std::result::Result<Acted, H::Error> {
+    let read = Read::read(cell, host, &*command.action == "relocate")?;
+    let effects = kit::holding(cell, host)?.held(EFFECT_PROGRAM, population::OTHER_PROGRAM);
+    host.read_queue_rows()?;
+    let logged = if matches!(&*command.action, "temporary_exit" | "return") { logged_through(cell, host, &effects, row)? } else { Logged::new() };
+    read.run(cell, |world, inputs| {
+        let reads = world_reads(world, &effects, &logged, row, command);
+        presence_action(world, inputs, row, command, &reads)
+    })
+}
+
+/// `PopulationPresenceCommand.selected_ids()` of the contract's dump: Err(text) is its
+/// `ValueError`.
+pub fn selected_ids(dumped: &V) -> Result<std::result::Result<Vec<Arc<str>>, String>> {
+    let fields = map_of(dumped)?;
+    let mut ids = Vec::new();
+    if let Some(V::List(agent_ids)) = fields.get("agent_ids") {
+        for id in agent_ids {
+            ids.push(text(id)?);
+        }
+    }
+    if let Some(V::Str(agent_id)) = fields.get("agent_id") {
+        if !agent_id.is_empty() {
+            ids.push(agent_id.clone());
+        }
+    }
+    // `sorted(set(...))`: bytes of UTF-8 sort as code points do.
+    ids.sort_unstable();
+    ids.dedup();
+    let action = match fields.get("action") {
+        Some(V::Str(action)) => action.clone(),
+        _ => return refuse("a value is not a str"),
+    };
+    if ids.is_empty() {
+        return Ok(Err("population command requires at least one agent id".to_owned()));
+    }
+    if matches!(&*action, "temporary_exit" | "return" | "transfer" | "relocate") && ids.len() != 1 {
+        return Ok(Err(format!("{action} requires exactly one agent id")));
+    }
+    if &*action == "reunite" && ids.len() < 2 {
+        return Ok(Err("reunite requires at least two agent ids".to_owned()));
+    }
+    Ok(Ok(ids))
+}
+
+impl Command {
+    /// What `PopulationPresenceCommand` validated (`model_dump(mode="json")`), with its
+    /// `selected_ids`.
+    pub fn of_dumped(dumped: &V, ids: Vec<Arc<str>>) -> Result<Self> {
+        let fields = map_of(dumped)?;
+        let field = |key: &str| fields.get(key).unwrap_or(&V::Null);
+        let optional_str = |key: &str| -> Result<Option<Arc<str>>> {
+            match field(key) {
+                V::Null => Ok(None),
+                V::Str(found) => Ok(Some(found.clone())),
+                _ => refuse("a value is not a str"),
+            }
+        };
+        let mut source_ids = Vec::new();
+        match field("source_ids") {
+            V::List(sources) => {
+                for source in sources {
+                    match source {
+                        V::Str(source) => source_ids.push(source.clone()),
+                        _ => return refuse("a value is not a str"),
+                    }
+                }
+            }
+            _ => return refuse("an input is not iterable"),
+        }
+        let action = match field("action") {
+            V::Str(action) => action.clone(),
+            _ => return refuse("a value is not a str"),
+        };
+        let expected_return = match field("expected_return_minute") {
+            V::Null => None,
+            V::Int(minute) => Some(*minute),
+            _ => return refuse("a value is not an int"),
+        };
+        Ok(Command { action, zone_id: optional_str("zone_id")?, household_id: optional_str("household_id")?, expected_return, source_ids, ids })
+    }
+}
+
+/// How a presence command's transaction ended.
+enum Step<E> {
+    Done(V),
+    /// The exit was dropped: the person was not free before the expected return.
+    Dropped,
+    /// The command waits: its retry is scheduled on the world as it was.
+    Deferred(String),
+    /// The world it left failed its checks.
+    Invalid(E),
+}
+
+/// `apply_population_presence_command` of a command as a payload gives it: the contract
+/// (`Host::contract`, policy E15) and its `selected_ids`, whose `TypeError` or `ValueError` is the
+/// rule's text, then `presence_command_typed`.
+pub fn presence_command<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &EventRow, command: &V) -> std::result::Result<V, H::Error> {
+    let dumped = match host.contract(&Contract::PresenceCommand, command) {
+        Ok(dumped) => dumped,
+        Err(error) if matches!(error.class(), ErrorClass::Type | ErrorClass::Value) => {
+            return Err(Error::failed(format!("population command is invalid: {}", error.text())).into());
+        }
+        Err(error) => return Err(population::planning(error)),
+    };
+    presence_command_typed(cell, host, row, &dumped)
+}
+
+/// `apply_population_presence_command` of a command the contract validated (its dump): the
+/// `selected_ids`, the installed lifecycle, then the command's rule in a transaction that stands
+/// for the Python rule's copy (`from_dict(deepcopy(to_dict()))`, the EventLog included). A dropped
+/// exit, a deferral and a world that fails its checks roll it back, and their outcome is raised
+/// after: a deferral schedules its retry on the world as it was. The receipt.
+pub fn presence_command_typed<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &EventRow, dumped: &V) -> std::result::Result<V, H::Error> {
+    let command = (|| -> std::result::Result<Command, H::Error> {
+        let ids = match selected_ids(dumped)? {
+            Ok(ids) => ids,
+            Err(text) => return Err(Error::failed(format!("population command is invalid: {text}")).into()),
+        };
+        let holding = kit::holding(cell, host)?;
+        if !holding.table {
+            return Err(Error::unsupported(crate::host::TABLE_NOT_PLAIN).into());
+        }
+        if !holding.keys.contains_key(KEY) {
+            return Err(Error::failed("population lifecycle contract is not installed").into());
+        }
+        Ok(Command::of_dumped(dumped, ids)?)
+    })()
+    .map_err(population::planning)?;
+    let ended = crate::txn::rule(cell, host, crate::txn::TxnKind::Full, |cell, host| {
+        let checked = cell.with(|world| check_command(world, row, command.expected_return)).and_then(|done| done).map_err(H::Error::from).map_err(population::planning)?;
+        if checked {
+            return Ok(TxnEnd::Rollback(Step::Dropped));
+        }
+        let done = match act(cell, host, row, &command)? {
+            Acted::Done(done) => done,
+            Acted::Deferred(reason) => return Ok(TxnEnd::Rollback(Step::Deferred(reason))),
+        };
+        host.slots_changed(&done.taken)?;
+        let checked = (|| -> std::result::Result<(), H::Error> {
+            let holding = kit::holding(cell, host)?;
+            let (lifecycle, presence) = (holding.held(KEY, OTHER_LIFECYCLE), holding.held(PRESENCE, "the world holds another presence state"));
+            cell.with(|world| validate(world, &lifecycle, &presence, None)).and_then(|done| done).map_err(H::Error::from).map_err(population::planning)?;
+            host.validate_world()?;
+            host.validate_extensions()
+        })();
+        Ok(match checked {
+            Ok(()) => TxnEnd::Commit(Step::Done(done.receipt)),
+            Err(error) => TxnEnd::Rollback(Step::Invalid(error)),
+        })
+    })?;
+    match ended {
+        Step::Done(receipt) => Ok(receipt),
+        Step::Dropped => Err(Error::suppressed(DROPPED).into()),
+        Step::Deferred(reason) => {
+            population::schedule_retry_through(cell, host, row, "presence-retry", "population exit")?;
+            Err(Error::suppressed(deferred_text(&reason)).into())
+        }
+        Step::Invalid(error) => {
+            if matches!(error.class(), ErrorClass::Type | ErrorClass::Key | ErrorClass::Value) {
+                return Err(Error::failed(format!("population command failed validation: {}", error.text())).into());
+            }
+            Err(error)
+        }
+    }
+}
+
+/// `admit_pending_returns`: nothing is read past the namespace while no one waits.
+pub fn admit_returns_through<C: WorldCell, H: Host>(cell: &C, host: &mut H, minute: i64) -> std::result::Result<Vec<Arc<str>>, H::Error> {
+    let lifecycle = kit::holding(cell, host)?.held(KEY, OTHER_LIFECYCLE);
+    let nothing = cell.with(|world| nothing_to_admit(world, &lifecycle)).and_then(|done| done).map_err(H::Error::from).map_err(population::planning)?;
+    if nothing {
+        return Ok(Vec::new());
+    }
+    let read = Read::read(cell, host, false)?;
+    // The admission reads the pending events as rows.
+    host.read_queue_rows()?;
+    read.run(cell, |world, inputs| admit_returns(world, inputs, minute))
+}
+
+/// `complete_presence_relocation`.
+pub fn complete_relocation_through<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &EventRow) -> std::result::Result<Vec<Arc<str>>, H::Error> {
+    let read = Read::read(cell, host, false)?;
+    host.read_queue_rows()?;
+    read.run(cell, |world, inputs| complete_relocation(world, inputs, row))
 }

@@ -15,13 +15,15 @@
 //! makes the same writes first. The texts (`EventSuppressed`, `EventApplicationError`, the
 //! validation's `ValueError`s) are saved data and are the Python rules', in their order of checks.
 //!
-//! What only Python has comes as an input, read by the PyO3 crate before the world is borrowed:
-//! whether `model_state` holds each namespace (`kit::Held`), the sections of the configs
-//! (`kit::Kept`), the floor plan (`Geo`, or none: `PLAN_UNREAD` where a rule reads it), the approach
-//! routes of the facility geometry. The pydantic contracts of the inputs (`PersonTraits`,
-//! `DynamicArrivalPersonContext`, `PopulationSpec`; policy E15) go through `Host::contract`. A new
-//! `population_dynamics_v1` is made here and put into `model_state` by the PyO3 crate before the
-//! first write (a namespace a Run doesn't have yet has no slot).
+//! What only Python has comes as an input, read through the host before the world is borrowed
+//! (`Read`, lane P9-3a): whether `model_state` holds each namespace (`kit::Held`), the sections of
+//! the configs (`kit::Kept`), the floor plan (`Geo`, or none: `PLAN_UNREAD` where a rule reads it),
+//! the approach routes of the facility geometry. The pydantic contracts of the inputs
+//! (`PersonTraits`, `DynamicArrivalPersonContext`, `PopulationSpec`; policy E15) go through
+//! `Host::contract`. A new `population_dynamics_v1` is made here and put into `model_state` by the
+//! host before the first write (`Host::start_namespace`: a namespace a Run doesn't have yet has no
+//! slot). The arguments of a population primitive are read from its payload as the Python
+//! handler's call read them (`Given::of_payload`).
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -37,7 +39,8 @@ use crate::error::{Error, Result};
 use crate::events::writer::WriteError;
 use crate::events::{is_stable_id, EventKind, EventRow, EventStatus};
 use crate::geometry::{Geo, Pt};
-use crate::host::{Contract, ErrorClass, Host, HostFailure};
+use crate::config::{Section, SectionId};
+use crate::host::{Again, Contract, ErrorClass, Host, HostFailure};
 use crate::json::Encoder;
 use crate::mathx::py_min;
 use crate::row::{Row, StrEnum, ValueRow};
@@ -3202,4 +3205,447 @@ fn check_pending_items(facts: &Facts<'_>, pending: &[V], contexts: &Doc) -> Resu
         traits_are_plain(fields.get("traits").ok_or_else(|| Error::unsupported("no traits"))?)?;
     }
     Ok(())
+}
+
+// ---- What the rules read through the host (lane P9-3a) ---------------------------------------------
+//
+// The PyO3 crate read these before the world was borrowed (`PopulationIn`); the core now reads them
+// through the host: what the world holds (H1), the configs' sections (H2), the floor plan, the
+// approach routes of `facility_geometry`, the configs' `population`. A rule's entry is then one
+// core call for the dispatch phase and the PyO3 crate's Python entries alike.
+
+/// The refusal of a population dynamics state the world holds another value of.
+pub const OTHER_DYNAMICS: &str = "the world holds another population dynamics state";
+/// The refusal of an EffectProgram state the world holds another value of.
+pub const OTHER_PROGRAM: &str = "the world holds another effect program state";
+
+impl Namespaces {
+    /// Whether the world holds each namespace (H1), with each one's refusal.
+    pub fn of(holding: &crate::host::Holding) -> Self {
+        Self {
+            dynamics: holding.held(DYNAMICS, OTHER_DYNAMICS),
+            presence: holding.held(PRESENCE, "the world holds another presence state"),
+            information: holding.held(INFORMATION, "the world holds another information state"),
+            body: holding.held(BODY, "the world holds another body state"),
+            agent_dynamics: holding.held(AGENT_DYNAMICS, "the world holds another agent dynamics state"),
+            movement: holding.held(MOVEMENT, "the world holds another movement state"),
+            overlay: holding.held(OVERLAY, "the world holds another overlay state"),
+            spaces: holding.held(SPACES, "the world holds another temporary spaces state"),
+            social_network: holding.held(SOCIAL_NETWORK, "the world holds another social network state"),
+            social_runtime: holding.held(SOCIAL_RUNTIME, "the world holds another social propagation state"),
+            resource_service: holding.held(RESOURCE_SERVICE, "the world holds another resource service state"),
+            effect_program: holding.held(EFFECT_PROGRAM, OTHER_PROGRAM),
+        }
+    }
+}
+
+/// What a read raised, as the plan says it where it reads the value (the PyO3 crate's
+/// `plan_read`): a refusal stays itself, any other error is `the plan read: {type}: {text}`.
+pub fn plan_read_of<E: HostFailure>(error: &E) -> Error {
+    if error.class() == ErrorClass::Refused {
+        Error::Unsupported(error.text().into())
+    } else {
+        Error::Unsupported(format!("the plan read: {}", error.shown()).into())
+    }
+}
+
+/// A plan's error as the rules' `planning` says it: a refusal, or an outcome or a `ValueError` the
+/// rules made with their text, goes on; any other is `the plan read: {type}: {text}`.
+pub fn planning<E: HostFailure + From<Error>>(error: E) -> E {
+    if error.class() == ErrorClass::Refused || error.made_here() {
+        error
+    } else {
+        Error::unsupported(format!("the plan read: {}", error.shown())).into()
+    }
+}
+
+/// A write stage's error past the host (`kit::writing`): a refusal after a write is a bug to see.
+pub fn writing<E: HostFailure + From<Error>>(error: E) -> E {
+    if error.class() == ErrorClass::Refused {
+        Error::Runtime(format!("{}: Unsupported: {}", kit::WRITING_REFUSED, error.text())).into()
+    } else {
+        error
+    }
+}
+
+/// A core result past the host.
+fn flat<T, E: From<Error>>(result: Result<Result<T>>) -> std::result::Result<T, E> {
+    result.and_then(|done| done).map_err(E::from)
+}
+
+/// What the rules read beside the world's rows, read through the host, with what reading the
+/// floor plan raised (said where a rule reads the plan).
+pub struct Read {
+    pub inputs: Inputs,
+    geo_error: Option<Error>,
+}
+
+impl Read {
+    /// `routes`: whether the rule reads the approach routes; `plan`: whether the floor plan is read
+    /// even without movement or the overlay (a relocation's route).
+    pub fn read<C: WorldCell, H: Host>(cell: &C, host: &mut H, routes: bool, plan: bool) -> std::result::Result<Self, H::Error> {
+        let holding = kit::holding(cell, host)?;
+        let namespaces = Namespaces::of(&holding);
+        let schema = kit::kept_section_value(cell, host, &holding, SectionId::OverlaySchema, |configs| &configs.overlay_schema, crate::config::overlay::overlay_schema)?;
+        let policy =
+            kit::kept_section_value(cell, host, &holding, SectionId::AgentDynamicsPolicy, |configs| &configs.agent_dynamics_policy, crate::config::agent_dynamics::policy)?;
+        let awareness =
+            kit::kept_section_value(cell, host, &holding, SectionId::FacilityAwareness, |configs| &configs.facility_awareness, crate::config::agent_dynamics::awareness)?;
+        // The floor plan is read only where a rule can reach it: with movement or the overlay.
+        let (geo, geo_error) = if !plan && matches!(namespaces.movement, Held::Absent) && matches!(namespaces.overlay, Held::Absent) {
+            (None, None)
+        } else {
+            match host.floor_plan() {
+                Ok(geo) => (Some(geo), None),
+                Err(error) => (None, Some(plan_read_of(&error))),
+            }
+        };
+        let routes = if routes { Some(approach_routes(cell, host, &holding)?) } else { None };
+        Ok(Self { inputs: Inputs { namespaces, schema, policy, awareness, geo, routes }, geo_error })
+    }
+
+    /// The rule's result, with what reading the floor plan raised where the rule read the plan.
+    pub fn finish<T, E: HostFailure + From<Error>>(&self, result: std::result::Result<T, E>) -> std::result::Result<T, E> {
+        match (result, &self.geo_error) {
+            (Err(error), Some(read)) if error.class() == ErrorClass::Refused && error.text() == PLAN_UNREAD => Err(read.clone().into()),
+            (result, _) => result,
+        }
+    }
+
+    /// A kernel on the world with these inputs, its result finished.
+    pub fn run<C: WorldCell, E: HostFailure + From<Error>, T>(&self, cell: &C, kernel: impl FnOnce(&World, &Inputs) -> Result<T>) -> std::result::Result<T, E> {
+        self.finish(flat(cell.with(|world| kernel(world, &self.inputs))))
+    }
+}
+
+/// `parsed_facility_geometry(model_configs.get("facility_geometry", {})).arrival_approach_routes`.
+/// A route the reader refused is the refusal; a missing config or a fault is what the parse raises
+/// again (policy E14): `caught` for its `TypeError` or `ValueError`.
+pub fn approach_routes<C: WorldCell, H: Host>(cell: &C, host: &mut H, holding: &crate::host::Holding) -> std::result::Result<Routes, H::Error> {
+    let section = kit::section(cell, host, holding, SectionId::FacilityGeometry, |configs| &configs.facility_geometry)?;
+    if let Section::Ok(geometry) = &section {
+        return Ok(geometry.approach_routes.clone().map_err(|fault| {
+            let reason = if fault.is_refusal() { fault.text.to_string() } else { "the Python rule's parse raises".to_owned() };
+            RoutesFault { caught: false, refusal: Error::unsupported(reason) }
+        }));
+    }
+    let raised = match host.read_again(Again::Section(SectionId::FacilityGeometry)) {
+        Err(error) => error,
+        Ok(()) => Error::corrupt(crate::world::MODEL_CONFIGS, "a config fault did not reproduce").into(),
+    };
+    Ok(Err(RoutesFault { caught: matches!(raised.class(), ErrorClass::Type | ErrorClass::Value), refusal: plan_read_of(&raised) }))
+}
+
+/// `model_configs.get("population")`, for a plan that may make the state: None for none, or where
+/// the world holds its state.
+fn population_config<C: WorldCell, H: Host>(cell: &C, host: &mut H, dynamics: &Held) -> std::result::Result<Option<V>, H::Error> {
+    if !matches!(dynamics, Held::Absent) {
+        return Ok(None);
+    }
+    let holding = kit::holding(cell, host)?;
+    match kit::read_configs(cell, host, &holding, |configs| configs.get("population").filter(|value| !matches!(value, V::Null)).cloned())? {
+        Some(found) => Ok(found),
+        None => Err(Error::unsupported(crate::host::TABLE_NOT_PLAIN).into()),
+    }
+}
+
+/// `model_state[DYNAMICS] = state`, the first write of a rule whose plan made the state, and what
+/// the world holds of it read again.
+fn install_dynamics<C: WorldCell, H: Host>(cell: &C, host: &mut H, state: &V, inputs: &mut Inputs) -> std::result::Result<(), H::Error> {
+    host.start_namespace(DYNAMICS, state)?;
+    inputs.namespaces.dynamics = kit::holding(cell, host)?.held(DYNAMICS, OTHER_DYNAMICS);
+    Ok(())
+}
+
+/// `model_configs.get("geometry_overlay", {})` as the arrivals read it (the section
+/// `overlay_rooms`): whether it is a dict, and for a dict whether its schema is 3 or 4, or the
+/// refusal of reading it (raised where the rule reads it).
+fn rooms_of<C: WorldCell, H: Host>(cell: &C, host: &mut H) -> std::result::Result<(bool, Result<bool>), H::Error> {
+    let holding = kit::holding(cell, host)?;
+    let rooms = match kit::kept_section(cell, host, &holding, SectionId::OverlayRooms, |configs| &configs.overlay_rooms)? {
+        Ok(rooms) => rooms,
+        Err(fault) => return Err(kit::raise_section(host, SectionId::OverlayRooms, &fault)),
+    };
+    if !rooms.is_dict {
+        return Ok((false, Ok(false)));
+    }
+    let schema = match &rooms.room_schema {
+        Ok(schema) => Ok(*schema),
+        Err(fault) => Err(plan_read_of(&kit::raise_section(host, SectionId::OverlayRooms, fault))),
+    };
+    Ok((true, schema))
+}
+
+/// The arguments given to `queue_arrivals`, as its caller read them: each Err is a refusal raised
+/// where the rule reads that argument.
+pub struct Given {
+    pub zone: Result<Option<Arc<str>>>,
+    pub alternates: Result<Alternates>,
+    /// None for no route; Some(None) for a value that is no route's ID.
+    pub route_id: Option<Option<Arc<str>>>,
+    pub count: Result<Option<i64>>,
+    pub household_size: Option<Result<Option<i64>>>,
+    pub mobility: Option<Result<Option<&'static str>>>,
+    pub language: Option<Result<Language>>,
+    pub overrides: Option<Result<Overrides>>,
+}
+
+/// `'{type}' object is not iterable`, the `TypeError` of `tuple(value)`.
+fn not_iterable(value: &V) -> String {
+    let name = match value {
+        V::Null => "NoneType",
+        V::Bool(_) => "bool",
+        V::Int(_) | V::Big(_) => "int",
+        V::Float(_) => "float",
+        V::Str(_) => "str",
+        V::List(_) => "tuple",
+        V::Map(_) => "mappingproxy",
+    };
+    format!("'{name}' object is not iterable")
+}
+
+/// `tuple(payload.get(key, ()))` of a frozen payload: a tuple's items, a str's characters, a
+/// mapping's keys; the `TypeError` of anything else is the rule's `EventApplicationError` with its
+/// text.
+fn payload_tuple(payload: &V, key: &str) -> Result<Vec<V>> {
+    match payload_get(payload, key) {
+        None => Ok(Vec::new()),
+        Some(V::List(items)) => Ok(items.clone()),
+        Some(V::Str(text)) => Ok(text.chars().map(|character| V::Str(Arc::from(character.to_string()))).collect()),
+        Some(V::Map(fields)) => Ok(fields.keys().map(|key| V::Str(key.clone())).collect()),
+        Some(other) => Err(Error::failed(not_iterable(other))),
+    }
+}
+
+/// `payload.get(key)` of a payload that is a mapping.
+fn payload_get<'a>(payload: &'a V, key: &str) -> Option<&'a V> {
+    match payload {
+        V::Map(fields) => fields.get(key),
+        _ => None,
+    }
+}
+
+/// Whether a frozen value holds a mapping proxy, which `hash` refuses.
+fn unhashable(value: &V) -> bool {
+    match value {
+        V::Map(_) => true,
+        V::List(items) => items.iter().any(unhashable),
+        _ => false,
+    }
+}
+
+/// A zone given in a payload: its text, or None for a value no zone has; `value in world.zones`
+/// hashes it first.
+fn payload_zone(value: &V) -> Result<Option<Arc<str>>> {
+    match value {
+        V::Str(zone) => Ok(Some(zone.clone())),
+        value if unhashable(value) => Err(Error::Unsupported("the plan read: TypeError: unhashable type: 'mappingproxy'".into())),
+        _ => Ok(None),
+    }
+}
+
+/// An int and not a bool, as `int_not_bool` reads it: None for another value.
+fn payload_int(value: &V) -> Result<Option<i64>> {
+    match value {
+        V::Int(number) => Ok(Some(*number)),
+        V::Big(_) => Err(Error::unsupported("an int is too large")),
+        _ => Ok(None),
+    }
+}
+
+const MOBILITIES: [&str; 3] = ["independent", "assisted", "wheelchair"];
+
+/// `Mobility(value)` of a frozen value: Some(the value) for a member's value, None where the enum
+/// raises ValueError; a mapping proxy is outside the contract.
+fn payload_mobility(value: &V) -> Result<Option<&'static str>> {
+    match value {
+        V::Str(text) => Ok(MOBILITIES.iter().copied().find(|member| *member == &**text)),
+        V::Map(_) => Err(Error::unsupported("a mobility of another type")),
+        _ => Ok(None),
+    }
+}
+
+/// `language` given: a valid one, or a value whose validity the contract decides.
+fn payload_language(value: &V) -> Language {
+    match value {
+        V::Str(text) if is_stable_id(text) => Language::Valid(text.clone()),
+        value => Language::Ask(value.clone()),
+    }
+}
+
+impl Given {
+    /// The arguments an `add_evacuees` primitive gives `queue_arrivals`, in the order the handler's
+    /// call reads them (its checks made sure the fields are there): Err is what `tuple()` raised,
+    /// the handler's `EventApplicationError`.
+    pub fn of_payload(payload: &V) -> Result<Self> {
+        let item = |key: &str| payload_get(payload, key).cloned().unwrap_or(V::Null);
+        let (zone, count) = (item("zone_id"), item("count"));
+        let (household_size, mobility, language) = (item("household_size"), item("mobility"), item("language"));
+        let alternates = payload_tuple(payload, "admission_zone_ids")?;
+        let route = payload_get(payload, "approach_route_id").cloned().unwrap_or(V::Null);
+        let overrides = payload_tuple(payload, "person_context_overrides")?;
+        Ok(Self {
+            zone: payload_zone(&zone),
+            alternates: Ok(if alternates.iter().all(|item| matches!(item, V::Str(_))) {
+                Alternates::Zones(alternates.into_iter().map(|item| if let V::Str(zone) = item { zone } else { Arc::from("") }).collect())
+            } else {
+                Alternates::Invalid
+            }),
+            route_id: match route {
+                V::Null => None,
+                V::Str(route) => Some(Some(route)),
+                _ => Some(None),
+            },
+            count: payload_int(&count),
+            household_size: Some(payload_int(&household_size)),
+            mobility: Some(payload_mobility(&mobility)),
+            language: Some(Ok(payload_language(&language))),
+            overrides: Some(Ok(Overrides::Items(overrides))),
+        })
+    }
+}
+
+/// `queue_arrivals`: the plan through the host (the contracts, the configs' sections), a new state
+/// put into `model_state`, the rule's text after it, and the writes. Its admitted count.
+pub fn queue_arrivals<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &EventRow, given: Given) -> std::result::Result<i64, H::Error> {
+    let planned = (|| -> std::result::Result<(Read, ArrivalsPlan), H::Error> {
+        let read = Read::read(cell, host, given.route_id.is_some(), false)?;
+        let rooms = rooms_of(cell, host)?;
+        let population = population_config(cell, host, &read.inputs.namespaces.dynamics)?;
+        let args = ArrivalArgs {
+            zone: given.zone,
+            alternates: given.alternates,
+            route_id: given.route_id,
+            count: given.count,
+            household_size: given.household_size,
+            mobility: given.mobility,
+            language: given.language,
+            overrides: given.overrides,
+            rooms,
+            population,
+        };
+        let plan = plan_arrivals(cell, host, &read.inputs, row, args);
+        let plan = read.finish(plan)?;
+        Ok((read, plan))
+    })();
+    let (mut read, plan) = planned.map_err(planning)?;
+    if let Some(state) = &plan.new_state {
+        install_dynamics(cell, host, state, &mut read.inputs)?;
+    }
+    if let Some(text) = &plan.fails {
+        return Err(Error::failed(text.clone()).into());
+    }
+    read.run(cell, |world, inputs| write_arrivals(world, inputs, &plan)).map_err(writing)
+}
+
+/// `admit_pending_arrivals`: nothing is read past the namespace while no one waits.
+pub fn admit_arrivals<C: WorldCell, H: Host>(cell: &C, host: &mut H, minute: i64) -> std::result::Result<Vec<Arc<str>>, H::Error> {
+    let dynamics = kit::holding(cell, host)?.held(DYNAMICS, OTHER_DYNAMICS);
+    if flat::<_, H::Error>(cell.with(|world| nothing_waiting(world, &dynamics)))? {
+        return Ok(Vec::new());
+    }
+    let read = Read::read(cell, host, false, false)?;
+    read.run(cell, |world, inputs| admit_pending(world, inputs, minute))
+}
+
+/// What `admit_pending_arrivals` asks of the waiting, whoever gets a place: a rule that writes and
+/// then admits asks this first, while it can still refuse.
+pub fn check_waiting<C: WorldCell, H: Host>(cell: &C, host: &mut H) -> std::result::Result<(), H::Error> {
+    let dynamics = kit::holding(cell, host)?.held(DYNAMICS, OTHER_DYNAMICS);
+    if flat::<_, H::Error>(cell.with(|world| nothing_waiting(world, &dynamics)))? {
+        return Ok(());
+    }
+    let read = Read::read(cell, host, false, false)?;
+    read.run(cell, check_waiting_for_admission)
+}
+
+/// `apply_arrival_approach_completion`.
+pub fn approach_completion<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &EventRow) -> std::result::Result<(), H::Error> {
+    let read = Read::read(cell, host, true, false)?;
+    read.run(cell, |world, inputs| apply_approach_completion(world, inputs, row))
+}
+
+/// `schedule_population_retry(world, event, id_prefix=, subject=)`.
+pub fn schedule_retry_through<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &EventRow, id_prefix: &str, subject: &str) -> std::result::Result<(), H::Error> {
+    let program = kit::holding(cell, host)?.held(EFFECT_PROGRAM, OTHER_PROGRAM);
+    flat(cell.with(|world| schedule_retry(world, &program, row, id_prefix, subject)))
+}
+
+/// The arguments given to `queue_departures`.
+pub struct DepartureGiven {
+    pub zone: Result<Option<Arc<str>>>,
+    pub count: Result<Option<i64>>,
+    /// None where not given; Some(None) for a value that is not a bool.
+    pub include_initial: Option<Option<bool>>,
+}
+
+impl DepartureGiven {
+    /// The arguments a `depart_evacuees` primitive gives: `include_initial` is
+    /// `payload.get("include_initial", False)`.
+    pub fn of_payload(payload: &V) -> Self {
+        let item = |key: &str| payload_get(payload, key).cloned().unwrap_or(V::Null);
+        Self {
+            zone: payload_zone(&item("zone_id")),
+            count: payload_int(&item("count")),
+            include_initial: Some(match payload_get(payload, "include_initial") {
+                None => Some(false),
+                Some(V::Bool(flag)) => Some(*flag),
+                Some(_) => None,
+            }),
+        }
+    }
+}
+
+/// `queue_departures`: the plan through the host, then a new state, the waits and the retry, or the
+/// writes, the queue's slots the departures settled, and the admission of who waits. How many left.
+pub fn queue_departures<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &EventRow, given: DepartureGiven) -> std::result::Result<usize, H::Error> {
+    let planned = (|| -> std::result::Result<(Read, Departures), H::Error> {
+        let read = Read::read(cell, host, false, false)?;
+        // The plan reads the pending events as rows.
+        host.read_queue_rows()?;
+        let args = DepartureArgs {
+            zone: given.zone,
+            count: given.count,
+            include_initial: given.include_initial,
+            population: population_config(cell, host, &read.inputs.namespaces.dynamics)?,
+        };
+        let planned = plan_departures(cell, host, &read.inputs, row, args);
+        let planned = read.finish(planned)?;
+        Ok((read, planned))
+    })();
+    let (mut read, planned) = planned.map_err(planning)?;
+    let selected = match planned {
+        Departures::Fails { new_state, text } => {
+            if let Some(state) = &new_state {
+                install_dynamics(cell, host, state, &mut read.inputs)?;
+            }
+            return Err(Error::failed(text).into());
+        }
+        Departures::Busy { new_state } => {
+            // Waits for their active tasks: the retry and the suppression of the rule.
+            let program = read.inputs.namespaces.effect_program.clone();
+            let plan = flat::<_, H::Error>(cell.with(|world| plan_retry(world, &program, row, "departure-retry", "departure").map(|plan| plan.map(drop))))?;
+            if let Some(state) = &new_state {
+                install_dynamics(cell, host, state, &mut read.inputs)?;
+            }
+            match plan {
+                Ok(()) => schedule_retry_through(cell, host, row, "departure-retry", "departure")?,
+                Err(text) => return Err(Error::suppressed(text).into()),
+            }
+            return Err(Error::suppressed("departure waits for the selected residents' active tasks").into());
+        }
+        Departures::Leave { new_state, selected } => {
+            if let Some(state) = &new_state {
+                install_dynamics(cell, host, state, &mut read.inputs).map_err(writing)?;
+            }
+            selected
+        }
+    };
+    let taken = read.run(cell, |world, inputs| write_departures(world, inputs, row, &selected)).map_err(writing)?;
+    // The objects of the events the departures settled on the world's queue.
+    host.slots_changed(&taken).map_err(writing)?;
+    let minute = flat::<_, H::Error>(cell.with(|world| world.minute_index()))?;
+    // Written, so nothing can fall back from here: the plan checked the waiting.
+    admit_arrivals(cell, host, minute).map_err(writing)?;
+    Ok(selected.len())
 }

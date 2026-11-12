@@ -1,29 +1,25 @@
 //! `domain/population.py`: the glue of the core's kernels (`sheltersim_core::rules::population`,
-//! lane c5 of Issue #152). Each entry reads its arguments and what Python holds (whether
-//! `model_state` holds each namespace, the sections of the configs, the floor plan, the approach
-//! routes), runs the core on the world borrowed whole, and makes the Python values of what it
-//! returns. The core writes the rows; an admitted person is a new row of `agents`, whose object
-//! the entity store makes from it, and the attached trees follow their rows when the world is
-//! given back. The contracts of the inputs go through the native host (`Host::contract`, policy
-//! E15). What stays here: putting a new `population_dynamics_v1` into `model_state` (a new slot),
-//! and letting go the Python objects of the events a departure settled (`QueueStore::forget`).
+//! lanes c5 and P9-3a of Issue #152). Each entry reads its Python arguments (each one's refusal
+//! kept for where the rule reads it), makes one core call with the native host, and makes the
+//! Python values of what it returns. The core reads what the world's outside holds through the
+//! host (what `model_state` holds, the configs' sections, the floor plan, the approach routes, the
+//! contracts of policy E15), puts a new `population_dynamics_v1` into `model_state`
+//! (`Host::start_namespace`) and lets go the queue's objects of the events a departure settled
+//! (`Host::slots_changed`).
 //!
-//! `rules/population_lifecycle.rs` reads the same inputs (`PopulationIn`).
+//! What stays here besides the entries: the validation of a world the core does not hold (policy
+//! E6, `validate_values`) and the readers of the configs' sections the host fills.
 
 use std::sync::Arc;
 
-use pyo3::exceptions::PyRuntimeError;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
 
-use sheltersim_core::config::agent_dynamics::{awareness, policy as config_policy};
-use sheltersim_core::config::overlay::{overlay_schema as parse_overlay_schema, OverlayRooms};
+use sheltersim_core::config::overlay::OverlayRooms;
 use sheltersim_core::error::Error as CoreError;
-use sheltersim_core::rules::kit::{self, Held};
-use sheltersim_core::rules::population::{
-    self as core, Alternates, ArrivalArgs, Built, DepartureArgs, Departures, Inputs, Language, Namespaces, Overrides, RoutesFault, PLAN_UNREAD,
-};
+use sheltersim_core::rules::kit::Held;
+use sheltersim_core::rules::population::{self as core, Alternates, Built, DepartureGiven, Given, Language, Overrides, Read, RoutesFault};
 use sheltersim_core::value::V as CoreV;
 
 use crate::core::configs;
@@ -31,21 +27,14 @@ use crate::core::errors::{self, to_py_err, OrPy};
 use crate::core::row::{attribute, exact_int, exact_str, unsupported};
 use crate::core::value::VPy;
 use crate::core::world_core::{namespace_held, state_value, with_world, PyWorldCell};
-use crate::host::PyHost;
-use crate::rules::movement_geometry::{approach_routes, Geo, GeoPy};
-use crate::state::events::{read_frozen, EventRow, EventRowPy, EventWriter, MAX_ROW_DEPTH};
+use crate::host::{HostError, PyHost};
+use crate::rules::movement_geometry::approach_routes;
+use crate::state::events::{read_frozen, EventRow, EventRowPy, MAX_ROW_DEPTH};
 use crate::Unsupported;
 
-pub(crate) use sheltersim_core::rules::kit::{DYNAMICS, PRESENCE};
-pub(crate) const MOVEMENT: &str = "movement_v1";
-pub(crate) const INFORMATION: &str = "information_spread_v1";
-pub(crate) const BODY: &str = "body_state_v1";
-pub(crate) const AGENT_DYNAMICS: &str = "agent_dynamics_v1";
-pub(crate) const SOCIAL_NETWORK: &str = "social_network_v1";
-pub(crate) const SOCIAL_RUNTIME: &str = "social_propagation_v1";
-pub(crate) const OVERLAY: &str = "geometry_overlay_v1";
+use sheltersim_core::rules::kit::{DYNAMICS, PRESENCE};
 
-// ---- The two stages ------------------------------------------------------------------------------
+// ---- The plan's errors ---------------------------------------------------------------------------
 
 /// A plan's result: any error of what it read means the Python rule has something to say. An
 /// outcome the plan raised with the rule's text (`core/errors.rs`) goes on as it is.
@@ -53,13 +42,6 @@ pub(crate) fn planning<T>(result: PyResult<T>) -> PyResult<T> {
     result.map_err(|error| {
         Python::with_gil(|py| if error.is_instance_of::<Unsupported>(py) || errors::made_here(py, &error) { error } else { Unsupported::new_err(format!("the plan read: {error}")) })
     })
-}
-
-/// A write stage's result: the Python rule must not run after a write, so a refusal here is a bug
-/// to see. Every other error is what the same operation raises in the Python rule.
-/// The core's kernels use `sheltersim_core::rules::kit::writing`, which writes the same text.
-pub(crate) fn writing<T>(result: PyResult<T>) -> PyResult<T> {
-    result.map_err(|error| Python::with_gil(|py| if error.is_instance_of::<Unsupported>(py) { PyRuntimeError::new_err(format!("{}: {error}", kit::WRITING_REFUSED)) } else { error }))
 }
 
 // ---- The glue of the core's kernels ----------------------------------------------------------------
@@ -79,110 +61,21 @@ pub(crate) fn held(world: &Bound<'_, PyAny>, name: &str, other: &'static str) ->
     namespace_held(world, &PyString::intern(world.py(), name), other)
 }
 
-fn namespaces_of(world: &Bound<'_, PyAny>) -> PyResult<Namespaces> {
-    Ok(Namespaces {
-        dynamics: held(world, DYNAMICS, "the world holds another population dynamics state")?,
-        presence: held(world, PRESENCE, "the world holds another presence state")?,
-        information: held(world, INFORMATION, "the world holds another information state")?,
-        body: held(world, BODY, "the world holds another body state")?,
-        agent_dynamics: held(world, AGENT_DYNAMICS, "the world holds another agent dynamics state")?,
-        movement: held(world, MOVEMENT, "the world holds another movement state")?,
-        overlay: held(world, OVERLAY, "the world holds another overlay state")?,
-        spaces: held(world, core::SPACES, "the world holds another temporary spaces state")?,
-        social_network: held(world, SOCIAL_NETWORK, "the world holds another social network state")?,
-        social_runtime: held(world, SOCIAL_RUNTIME, "the world holds another social propagation state")?,
-        resource_service: held(world, "resource_service_v1", "the world holds another resource service state")?,
-        effect_program: held(world, "effect_program_v1", "the world holds another effect program state")?,
-    })
+/// The native host of an entry.
+pub(crate) fn host_of<'py>(world: &Bound<'py, PyAny>) -> PyHost<'py> {
+    PyHost::of_world(world, PyDict::new(world.py()))
 }
 
-/// What the core's rules read of the Python world, and what reading the floor plan raised.
-pub(crate) struct PopulationIn {
-    pub(crate) inputs: Inputs,
-    geo_error: Option<PyErr>,
+/// What the population rules read beside the rows, through the native host, and the host.
+fn read_of<'py>(world: &Bound<'py, PyAny>, routes: bool) -> PyResult<(PyHost<'py>, Read)> {
+    let mut host = host_of(world);
+    let read = Read::read(&PyWorldCell(world), &mut host, routes, false).map_err(|error| error.0)?;
+    Ok((host, read))
 }
 
-impl PopulationIn {
-    /// `routes`: whether the rule reads the approach routes.
-    pub(crate) fn of(world: &Bound<'_, PyAny>, routes: bool) -> PyResult<Self> {
-        Self::reading(world, routes, false)
-    }
-
-    /// `of`, with the floor plan read even without movement or the overlay (a relocation's route).
-    pub(crate) fn reading(world: &Bound<'_, PyAny>, routes: bool, plan: bool) -> PyResult<Self> {
-        let py = world.py();
-        let namespaces = namespaces_of(world)?;
-        let schema = configs::kept_section(world, |configs| &configs.overlay_schema, parse_overlay_schema)?;
-        let policy = configs::kept_section(world, |configs| &configs.agent_dynamics_policy, config_policy)?;
-        let awareness = configs::kept_section(world, |configs| &configs.facility_awareness, awareness)?;
-        // The floor plan is read only where a rule can reach it: with movement or the overlay.
-        let (geo, geo_error) = if !plan && matches!(namespaces.movement, Held::Absent) && matches!(namespaces.overlay, Held::Absent) {
-            (None, None)
-        } else {
-            match Geo::of(world) {
-                Ok(geo) => (Some(geo), None),
-                Err(error) => (None, Some(error)),
-            }
-        };
-        let routes = routes.then(|| {
-            approach_routes(world).map_err(|error| RoutesFault {
-                caught: !error.is_instance_of::<Unsupported>(py)
-                    && (error.is_instance_of::<pyo3::exceptions::PyTypeError>(py) || error.is_instance_of::<pyo3::exceptions::PyValueError>(py)),
-                refusal: plan_read(py, &error),
-            })
-        });
-        Ok(Self { inputs: Inputs { namespaces, schema, policy, awareness, geo, routes }, geo_error })
-    }
-
-    /// The core's result, with what reading the floor plan raised where the core read the plan, as
-    /// the plan says it.
-    pub(crate) fn finish<T>(&self, py: Python<'_>, result: PyResult<T>) -> PyResult<T> {
-        match (result, &self.geo_error) {
-            (Err(error), Some(read)) if error.is_instance_of::<Unsupported>(py) && error.value(py).to_string() == PLAN_UNREAD => {
-                Err(to_py_err(plan_read(py, read)))
-            }
-            (result, _) => result,
-        }
-    }
-
-    fn run<T>(&self, world: &Bound<'_, PyAny>, kernel: impl FnOnce(&sheltersim_core::world::World, &Inputs) -> sheltersim_core::error::Result<T>) -> PyResult<T> {
-        let result = with_world(world, |cell| kernel(cell, &self.inputs))?.or_py();
-        self.finish(world.py(), result)
-    }
-}
-
-/// Makes a row of each pending event the queue holds as a Python object, for a rule that reads
-/// the pending events as rows: an object that is no row stays as it is, and the rule refuses.
-fn fill_rows(world: &Bound<'_, PyAny>) -> PyResult<()> {
-    crate::rules::travel::read_queue_rows(world)
-}
-
-/// A kernel that reads the pending events as rows: the rows are made before it runs, as the
-/// rules of travel make them, so that the core refuses (`NO_ROW`) only for an object that is no
-/// row. Running the kernel first and again after its refusal counted that refusal in the census.
-pub(crate) fn with_rows<T>(world: &Bound<'_, PyAny>, kernel: impl FnOnce() -> PyResult<T>) -> PyResult<T> {
-    fill_rows(world)?;
-    kernel()
-}
-
-/// `model_state[DYNAMICS] = state`, the first write of a rule whose plan made the state.
-fn install_dynamics(world: &Bound<'_, PyAny>, state: &CoreV, inputs: &mut Inputs) -> PyResult<()> {
-    let py = world.py();
-    attribute(world, intern!(py, "model_state"))?.set_item(DYNAMICS, state.to_py(py)?)?;
-    inputs.namespaces.dynamics = held(world, DYNAMICS, "the world holds another population dynamics state")?;
-    Ok(())
-}
-
-/// `model_configs.get("population")` as a value, for a plan that may make the state: None for none.
-fn population_config(world: &Bound<'_, PyAny>, dynamics: &Held) -> PyResult<Option<CoreV>> {
-    if !matches!(dynamics, Held::Absent) {
-        return Ok(None);
-    }
-    let raw = get(&attribute(world, intern!(world.py(), "model_configs"))?, "population")?;
-    if raw.is_none() {
-        return Ok(None);
-    }
-    Ok(Some(<CoreV as VPy>::from_py(&raw)?))
+/// A kernel on the world with the inputs read through the host, its result finished.
+fn run<T>(world: &Bound<'_, PyAny>, read: &Read, kernel: impl FnOnce(&sheltersim_core::world::World, &core::Inputs) -> sheltersim_core::error::Result<T>) -> PyResult<T> {
+    read.run::<_, HostError, T>(&PyWorldCell(world), kernel).map_err(|error| error.0)
 }
 
 /// A Python value read as an argument: its refusal is raised where the rule reads it.
@@ -286,13 +179,13 @@ fn overrides_arg(value: &Bound<'_, PyAny>) -> PyResult<Overrides> {
 /// The optional arguments of `queue_arrivals` as a call gives them: None for one not given (the
 /// rule's default), Some for one given, None included.
 #[derive(Default)]
-pub(crate) struct ArrivalOptions<'py> {
-    pub(crate) household_size: Option<Bound<'py, PyAny>>,
-    pub(crate) mobility: Option<Bound<'py, PyAny>>,
-    pub(crate) language: Option<Bound<'py, PyAny>>,
-    pub(crate) admission_zone_ids: Option<Bound<'py, PyAny>>,
-    pub(crate) approach_route_id: Option<Bound<'py, PyAny>>,
-    pub(crate) person_context_overrides: Option<Bound<'py, PyAny>>,
+struct ArrivalOptions<'py> {
+    household_size: Option<Bound<'py, PyAny>>,
+    mobility: Option<Bound<'py, PyAny>>,
+    language: Option<Bound<'py, PyAny>>,
+    admission_zone_ids: Option<Bound<'py, PyAny>>,
+    approach_route_id: Option<Bound<'py, PyAny>>,
+    person_context_overrides: Option<Bound<'py, PyAny>>,
 }
 
 impl<'py> ArrivalOptions<'py> {
@@ -330,20 +223,17 @@ pub(crate) fn queue_arrivals<'py>(
     arrivals(world, event, zone_id, count, &options)
 }
 
-/// `queue_arrivals`.
-pub(crate) fn arrivals<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>, zone_id: &Bound<'py, PyAny>, count: &Bound<'py, PyAny>, options: &ArrivalOptions<'py>) -> PyResult<i64> {
+/// `queue_arrivals`: the arguments read here, the rule the core's.
+fn arrivals<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>, zone_id: &Bound<'py, PyAny>, count: &Bound<'py, PyAny>, options: &ArrivalOptions<'py>) -> PyResult<i64> {
     let py = world.py();
-    let (mut read, plan) = planning((|| {
+    let (row, given) = planning((|| {
         let row = event_row(event)?;
         let route_id = match options.approach_route_id.as_ref().filter(|route| !route.is_none()) {
             None => None,
             Some(route) if route.is_instance_of::<PyString>() => Some(Some(Arc::<str>::from(route.extract::<String>()?))),
             Some(_) => Some(None),
         };
-        let read = PopulationIn::of(world, route_id.is_some())?;
-        let rooms = configs::kept_python(world, |configs| &configs.overlay_rooms, overlay_rooms)?;
-        let schema = if rooms.is_dict { deferred(py, rooms_schema(world, &rooms)) } else { Ok(false) };
-        let args = ArrivalArgs {
+        let given = Given {
             zone: deferred(py, zone_arg(zone_id)),
             alternates: deferred(py, alternates_arg(options.admission_zone_ids.as_ref())),
             route_id,
@@ -352,54 +242,30 @@ pub(crate) fn arrivals<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>
             mobility: options.mobility.as_ref().map(|mobility| deferred(py, mobility_of(mobility))),
             language: options.language.as_ref().map(|language| deferred(py, language_arg(language))),
             overrides: options.person_context_overrides.as_ref().map(|overrides| deferred(py, overrides_arg(overrides))),
-            rooms: (rooms.is_dict, schema),
-            population: population_config(world, &read.inputs.namespaces.dynamics)?,
         };
-        let mut host = PyHost::of_world(world, PyDict::new(py));
-        let plan = core::plan_arrivals(&PyWorldCell(world), &mut host, &read.inputs, &row, args).map_err(|error| error.0);
-        let plan = read.finish(py, plan)?;
-        Ok((read, plan))
+        Ok((row, given))
     })())?;
-    if let Some(state) = &plan.new_state {
-        install_dynamics(world, state, &mut read.inputs)?;
-    }
-    if let Some(text) = &plan.fails {
-        return errors::failed(py, text.clone());
-    }
-    writing(read.run(world, |cell, inputs| core::write_arrivals(cell, inputs, &plan)))
+    core::queue_arrivals(&PyWorldCell(world), &mut host_of(world), &row, given).map_err(|error| error.0)
 }
 
 #[pyfunction]
 pub(crate) fn admit_pending_arrivals<'py>(world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyTuple>> {
     let minute = exact_int(minute)?;
-    admit_inner(world, minute)
-}
-
-/// `admit_pending_arrivals`: nothing is read past the namespace while no one waits.
-fn admit_inner<'py>(world: &Bound<'py, PyAny>, minute: i64) -> PyResult<Bound<'py, PyTuple>> {
-    let py = world.py();
-    let dynamics = held(world, DYNAMICS, "the world holds another population dynamics state")?;
-    if with_world(world, |cell| core::nothing_waiting(cell, &dynamics))?.or_py()? {
-        return Ok(PyTuple::empty(py));
-    }
-    let read = PopulationIn::of(world, false)?;
-    let admitted = read.run(world, |cell, inputs| core::admit_pending(cell, inputs, minute))?;
-    PyTuple::new(py, admitted.iter().map(|id| &**id))
+    let admitted = core::admit_arrivals(&PyWorldCell(world), &mut host_of(world), minute).map_err(|error| error.0)?;
+    PyTuple::new(world.py(), admitted.iter().map(|id| &**id))
 }
 
 #[pyfunction]
 pub(crate) fn apply_arrival_approach_completion(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
     let row = event_row(event)?;
-    let read = PopulationIn::of(world, true)?;
-    read.run(world, |cell, inputs| core::apply_approach_completion(cell, inputs, &row))
+    core::approach_completion(&PyWorldCell(world), &mut host_of(world), &row).map_err(|error| error.0)
 }
 
 #[pyfunction]
 #[pyo3(signature = (world, event, *, id_prefix="departure-retry", subject="departure"))]
 pub(crate) fn schedule_population_retry(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, id_prefix: &str, subject: &str) -> PyResult<()> {
     let row = event_row(event)?;
-    let program = held(world, "effect_program_v1", "the world holds another effect program state")?;
-    with_world(world, |cell| core::schedule_retry(cell, &program, &row, id_prefix, subject))?.or_py()
+    core::schedule_retry_through(&PyWorldCell(world), &mut host_of(world), &row, id_prefix, subject).map_err(|error| error.0)
 }
 
 #[pyfunction]
@@ -411,6 +277,7 @@ pub(crate) fn queue_departures<'py>(
     count: &Bound<'py, PyAny>,
     options: Option<&Bound<'py, PyDict>>,
 ) -> PyResult<usize> {
+    let py = world.py();
     let mut include_initial = None;
     if let Some(options) = options {
         for (key, value) in options.iter() {
@@ -420,81 +287,13 @@ pub(crate) fn queue_departures<'py>(
             include_initial = Some(value);
         }
     }
-    departures(world, event, zone_id, count, include_initial.as_ref())
-}
-
-/// `queue_departures`. `include_initial` is None when the call doesn't give it.
-pub(crate) fn departures<'py>(
-    world: &Bound<'py, PyAny>,
-    event: &Bound<'py, PyAny>,
-    zone_id: &Bound<'py, PyAny>,
-    count: &Bound<'py, PyAny>,
-    include_initial: Option<&Bound<'py, PyAny>>,
-) -> PyResult<usize> {
-    let py = world.py();
     let row = planning(event_row(event))?;
-    let (mut read, planned) = planning((|| {
-        let read = PopulationIn::of(world, false)?;
-        let planned = with_rows(world, || {
-            let args = DepartureArgs {
-                zone: deferred(py, zone_arg(zone_id)),
-                count: deferred(py, errors::int_not_bool(count)),
-                include_initial: include_initial.map(|flag| flag.downcast_exact::<pyo3::types::PyBool>().ok().map(|flag| flag.is_true())),
-                population: population_config(world, &read.inputs.namespaces.dynamics)?,
-            };
-            let mut host = PyHost::of_world(world, PyDict::new(py));
-            let planned = core::plan_departures(&PyWorldCell(world), &mut host, &read.inputs, &row, args).map_err(|error| error.0);
-            read.finish(py, planned)
-        })?;
-        Ok((read, planned))
-    })())?;
-    let selected = match planned {
-        Departures::Fails { new_state, text } => {
-            if let Some(state) = &new_state {
-                install_dynamics(world, state, &mut read.inputs)?;
-            }
-            return errors::failed(py, text);
-        }
-        Departures::Busy { new_state } => {
-            // Waits for their active tasks: the retry and the suppression of the rule. `_state` has run.
-            let program = read.inputs.namespaces.effect_program.clone();
-            let plan = with_world(world, |cell| core::plan_retry(cell, &program, &row, "departure-retry", "departure").map(|plan| plan.map(drop)))?.or_py()?;
-            if let Some(state) = &new_state {
-                install_dynamics(world, state, &mut read.inputs)?;
-            }
-            match plan {
-                Ok(()) => schedule_population_retry(world, event, "departure-retry", "departure")?,
-                Err(text) => return errors::suppressed(py, text),
-            }
-            return errors::suppressed(py, "departure waits for the selected residents' active tasks".to_owned());
-        }
-        Departures::Leave { new_state, selected } => {
-            if let Some(state) = &new_state {
-                writing(install_dynamics(world, state, &mut read.inputs))?;
-            }
-            selected
-        }
+    let given = DepartureGiven {
+        zone: deferred(py, zone_arg(zone_id)),
+        count: deferred(py, errors::int_not_bool(count)),
+        include_initial: include_initial.map(|flag| flag.downcast_exact::<pyo3::types::PyBool>().ok().map(|flag| flag.is_true())),
     };
-    let queue = EventWriter::of(world)?.queue().clone();
-    let taken = writing(read.run(world, |cell, inputs| core::write_departures(cell, inputs, &row, &selected)))?;
-    // The objects of the events the departures settled on the world's queue.
-    writing(queue.get().forget(&taken))?;
-    let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
-    // Written, so nothing can fall back from here: the plan checked the waiting.
-    writing(admit_inner(world, minute))?;
-    Ok(selected.len())
-}
-
-/// What `admit_pending_arrivals` asks of the waiting, whoever gets a place. A rule that writes and
-/// then admits asks this first: which of them get a place depends on the writes, and it can't
-/// refuse then.
-pub(crate) fn check_waiting_for_admission(world: &Bound<'_, PyAny>) -> PyResult<()> {
-    let dynamics = held(world, DYNAMICS, "the world holds another population dynamics state")?;
-    if with_world(world, |cell| core::nothing_waiting(cell, &dynamics))?.or_py()? {
-        return Ok(());
-    }
-    let read = PopulationIn::of(world, false)?;
-    read.run(world, core::check_waiting_for_admission)
+    core::queue_departures(&PyWorldCell(world), &mut host_of(world), &row, given).map_err(|error| error.0)
 }
 
 // ---- Read-only rules -----------------------------------------------------------------------------
@@ -502,8 +301,8 @@ pub(crate) fn check_waiting_for_admission(world: &Bound<'_, PyAny>) -> PyResult<
 #[pyfunction]
 fn zone_has_room(world: &Bound<'_, PyAny>, zone_id: &Bound<'_, PyAny>) -> PyResult<bool> {
     let zone_id = exact_str(zone_id)?;
-    let read = PopulationIn::of(world, false)?;
-    read.run(world, |cell, inputs| core::zone_has_room(cell, inputs, zone_id))
+    let (_, read) = read_of(world, false)?;
+    run(world, &read, |cell, inputs| core::zone_has_room(cell, inputs, zone_id))
 }
 
 /// `_choose_admission_target`, for the comparison.
@@ -511,8 +310,8 @@ fn zone_has_room(world: &Bound<'_, PyAny>, zone_id: &Bound<'_, PyAny>) -> PyResu
 fn choose_admission_target<'py>(world: &Bound<'py, PyAny>, item: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     let py = world.py();
     let item = <CoreV as VPy>::from_py(item)?;
-    let read = PopulationIn::of(world, false)?;
-    match read.run(world, |cell, inputs| core::choose_admission_target(cell, inputs, &item))? {
+    let (_, read) = read_of(world, false)?;
+    match run(world, &read, |cell, inputs| core::choose_admission_target(cell, inputs, &item))? {
         None => Ok(py.None().into_bound(py)),
         Some((zone, room)) => Ok(PyTuple::new(py, [zone.into_pyobject(py)?.into_any(), room.as_deref().into_pyobject(py)?.into_any()])?.into_any()),
     }
@@ -542,8 +341,10 @@ pub(crate) fn validate_population_dynamics_state(world: &Bound<'_, PyAny>) -> Py
         return validate_values(world);
     }
     let routes = with_world(world, |cell| core::validation_reads_routes(cell, &dynamics))?.or_py()?;
-    let read = PopulationIn::of(world, routes)?;
-    with_rows(world, || read.run(world, core::validate))
+    let (_, read) = read_of(world, routes)?;
+    // The validation reads the pending events as rows.
+    crate::rules::travel::read_queue_rows(world)?;
+    run(world, &read, core::validate)
 }
 
 /// `validate_population_dynamics_state` of the Python values of a world.
@@ -695,6 +496,16 @@ fn rooms_schema(world: &Bound<'_, PyAny>, rooms: &OverlayRooms) -> PyResult<bool
             room_schema(&get_map(&attribute(world, intern!(world.py(), "model_configs"))?, "geometry_overlay")?)
         })),
     }
+}
+
+/// What reading the section `overlay_rooms` raised, read again for its error (policy E14): the
+/// read of the config, then for a dict the room schema's.
+pub(crate) fn reraise_rooms(world: &Bound<'_, PyAny>) -> PyResult<()> {
+    let rooms = overlay_rooms(world)?;
+    if rooms.is_dict && rooms.room_schema.is_err() {
+        room_schema(&get_map(&attribute(world, intern!(world.py(), "model_configs"))?, "geometry_overlay")?)?;
+    }
+    Ok(())
 }
 
 /// The section `overlay_rooms` as the arrivals read it, for the tests: whether the config is a

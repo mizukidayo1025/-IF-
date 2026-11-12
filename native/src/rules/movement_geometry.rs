@@ -307,6 +307,15 @@ pub(crate) fn approach_routes(world: &Bound<'_, PyAny>) -> PyResult<Arc<[Approac
     }
 }
 
+/// `parsed_facility_geometry(model_configs.get("facility_geometry", {}))` read again for what it
+/// raises (policy E14): the approach routes' read of a missing config or a fault (lane P9-3a).
+pub(crate) fn reparse_facility(world: &Bound<'_, PyAny>) -> PyResult<()> {
+    let py = world.py();
+    let raw_configs = attribute(world, intern!(py, "model_configs"))?;
+    let raw = raw_configs.call_method1(intern!(py, "get"), ("facility_geometry", pyo3::types::PyDict::new(py)))?;
+    parse_facility(&raw).map(drop)
+}
+
 /// `travel_minutes` of a route, Unsupported as reading it was where it raised.
 pub(crate) fn travel_minutes(route: &ApproachRoute) -> PyResult<i64> {
     route.travel_minutes.clone().map_err(|fault| Unsupported::new_err(fault.text.to_string()))

@@ -2141,3 +2141,95 @@ pub fn infrastructure_after<C: WorldCell, H: Host>(cell: &C, host: &mut H, previ
     let shared_absent = !kit::in_model_state(&*kit::holding(cell, host)?, SHARED_OPERATIONS)?;
     Ok(cell.with(|world| infrastructure_receipts(world, shared_absent, previous, event))??)
 }
+
+// ---- EffectProgramPopulationHandler (lane P9-3a) -----------------------------------------------------
+//
+// The checks of a primitive against its approved program, then the population rules, which read
+// their inputs through the host: an arrival or a departure in a rule transaction that stands for the
+// Python rule's copy, a presence command in its own.
+
+/// Count a result under its label, a refusal by its reason.
+fn counted_by<T, E: HostFailure>(label: &'static str, result: std::result::Result<T, E>) -> std::result::Result<T, E> {
+    match &result {
+        Ok(_) => COUNTS.ran(label),
+        Err(error) if error.class() == crate::host::ErrorClass::Refused => COUNTS.refused(label, &error.text()),
+        Err(_) => {}
+    }
+    result
+}
+
+/// A population rule's refusal as the `KernelRefusal` of its `kernel_only` entry (`label`), as the
+/// handler's Python rule called that rule of `domain/`.
+fn rule_refusal<E: HostFailure + From<Error>>(label: &'static str, error: E) -> E {
+    if error.class() == crate::host::ErrorClass::Refused {
+        return Error::Refused { label: label.to_owned(), reason: error.text().into() }.into();
+    }
+    error
+}
+
+/// `except (TypeError, ValueError) as exc: raise EventApplicationError(str(exc))` of the rule, for
+/// an exception the rules did not make with their text. Any other error goes on as it is.
+fn wrapped<E: HostFailure + From<Error>>(error: E) -> E {
+    if error.made_here() || !matches!(error.class(), crate::host::ErrorClass::Type | crate::host::ErrorClass::Value) {
+        return error;
+    }
+    Error::failed(error.text()).into()
+}
+
+/// `EffectProgramPopulationHandler.apply`: an approach's completion, or the checks and then the
+/// primitive. A deferral of an arrival or a departure keeps what was written and is the event's
+/// outcome; a presence command's exceptions go on as they are.
+pub fn population_event<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &EventRow) -> std::result::Result<(), H::Error> {
+    use crate::rules::{population, population_lifecycle};
+    if &*row.event_type == "population_approach_complete" {
+        let done = population::approach_completion(cell, host, row).map_err(|error| rule_refusal("population.apply_arrival_approach_completion", error));
+        return counted_by("population.approach", done);
+    }
+    let checked = kit::holding(cell, host).and_then(|holding| {
+        let program = holding.held(PROGRAM, "the world holds another effect_program_v1");
+        cell.with(|world| population_checks(world, &program, row)).and_then(|done| done).map_err(H::Error::from)
+    });
+    let op = counted_by("population.checks", checked)?;
+    if op == PopulationOp::Presence {
+        // Past its checks the Python rule lets this rule's exceptions go, as this does.
+        let command = kit::payload(row, "command").cloned().unwrap_or(V::Null);
+        return population_lifecycle::presence_command(cell, host, row, &command)
+            .map(drop)
+            .map_err(|error| rule_refusal("population_lifecycle.apply_presence_command", error));
+    }
+    let changed = crate::txn::rule_kept(cell, host, TxnKind::Full, |cell, host| population_writes(cell, host, row, op));
+    // Past the checks a call's exception is the Python rule's own: it made the same calls.
+    match counted_by("population.copy", changed)? {
+        Some(deferred) => Err(deferred),
+        None => Ok(()),
+    }
+}
+
+/// The arrivals or departures of `population`, and the checks of the world they leave through the
+/// host: a deferral (`EventSuppressed`) is kept and returned, to be raised after the commit.
+fn population_writes<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &EventRow, op: PopulationOp) -> std::result::Result<Option<H::Error>, H::Error> {
+    use crate::rules::{population, population_lifecycle};
+    let done = if op == PopulationOp::Add {
+        // The call's arguments, in the order the rule's call evaluates them, in its `try`: what
+        // `tuple()` raises there is the rule's `EventApplicationError(str(exc))`.
+        let given = population::Given::of_payload(&row.payload)?;
+        population::queue_arrivals(cell, host, row, given).map(drop).map_err(|error| rule_refusal("population.queue_arrivals", error))
+    } else {
+        let given = population::DepartureGiven::of_payload(&row.payload);
+        population::queue_departures(cell, host, row, given).map_err(|error| rule_refusal("population.queue_departures", error)).and_then(|_| {
+            population_lifecycle::admit_returns_through(cell, host, row.due_minute)
+                .map(drop)
+                .map_err(|error| rule_refusal("population_lifecycle.admit_pending_returns", error))
+        })
+    };
+    // The rule's `try`: a deferral keeps what was written and is the outcome; its own failures go
+    // on; `except (TypeError, ValueError) as exc: raise EventApplicationError(str(exc))`.
+    let deferred = match done {
+        Ok(()) => None,
+        Err(error) if error.outcome() == Some(crate::error::Outcome::Suppressed) => Some(error),
+        Err(error) => return Err(wrapped(error)),
+    };
+    host.validate_world()?;
+    host.validate_extensions()?;
+    Ok(deferred)
+}
