@@ -8,8 +8,9 @@
 //! The checks and their texts are the Python rules', in their order. A suppressed or failed event is
 //! the rule's `Error::suppressed` or `Error::failed`, with the world as it was: a handler that writes
 //! before it may fail runs in the transaction that stands for the Python rule's copy of the world
-//! (lane 6-3's `RuleTxn`, which stays in the PyO3 crate with its copy for a world the transaction
-//! refuses), and its error rolls the transaction back.
+//! (the core's `txn::rule` since lane P9-1b: the `*_event` entries at the end read their inputs
+//! through the host and open it; the population primitives' bodies are still the PyO3 crate's), and
+//! its error rolls the transaction back.
 //!
 //! The end of an operational transaction (`settle`) is the core's: the event leaves the queue, its
 //! APPLIED record and the follow-up records go to the log, a continuity receipt goes into
@@ -38,7 +39,7 @@ use crate::entities::{Activity, RequestStatus, Table};
 use crate::error::{Error, Result};
 use crate::events::writer::{WriteError, WriteResult};
 use crate::events::{EventKind, EventRow, EventStatus};
-use crate::host::{Contract, Host, Stage, TxnKind};
+use crate::host::{Contract, Host, HostFailure, Stage, TxnKind};
 use crate::json::python_float_repr;
 use crate::mathx::{hypot, py_is_close};
 use crate::row::ValueRow;
@@ -1878,4 +1879,265 @@ pub fn infrastructure_receipts(world: &World, shared_absent: bool, previous: &[(
         records.push(care_receipts::facility_recovery_record(world, &id, &component, status, was, units, &event.event_id, sources.clone())?);
     }
     Ok(records)
+}
+
+// ---- The operational handlers with their inputs, in a rule transaction (lane P9-1b) --------------
+//
+// Each reads what the world's outside holds through the host (`Host::holding`, the sections of the
+// configs, the floor plan: H1 and H2 of design-p9.md), and runs in the core's rule transaction
+// (`txn::rule`, policy E16), whose start makes the host read the holding again: the rule reads the
+// world in canonical order, as the copy was. A read the Python rule made and the core could not (the
+// support cooldown, the staff operations formula) is refused with its `*_UNREAD` reason where the
+// rule reads it, for the PyO3 crate to raise what the read raised. The PyO3 crate reads the rows of
+// the pending events Python scheduled before it calls these.
+
+const OPERATIONAL_OTHER: &str = "the world holds another operational state";
+/// `SHARED_OPERATIONS_KEY` of `domain/shared_operations.py`.
+const SHARED_OPERATIONS: &str = "shared_operations_v1";
+
+/// `_apply_operational_transaction`: the rule (`body`, with the slots it took out) and the core's
+/// end of it (`settle`), in a rule transaction that stands for the Python rule's copy through
+/// canonical JSON, the EventLog included: the APPLIED record and the follow-ups go to the world's
+/// log, and a rollback takes them out again. The host lets go its views of the slots the rule and
+/// the end took out (`Host::slots_changed`).
+pub fn operational<C: WorldCell, H: Host, T>(
+    cell: &C,
+    host: &mut H,
+    event: &EventRow,
+    body: impl FnOnce(&C, &mut H, &mut Vec<u64>) -> std::result::Result<(Vec<Made>, T), H::Error>,
+) -> std::result::Result<(Vec<Made>, T), H::Error>
+where
+    H::Error: From<WriteError>,
+{
+    crate::txn::rule_kept(cell, host, TxnKind::Full, |cell, host| {
+        let mut taken = Vec::new();
+        let done = body(cell, host, &mut taken);
+        host.slots_changed(&taken)?;
+        let (records, value) = done?;
+        let shared = kit::holding(cell, host)?.held(SHARED_OPERATIONS, "the world holds another document than the row's");
+        let mut taken = Vec::new();
+        let settled = settle(cell, host, &shared, event, &records, &mut taken);
+        host.slots_changed(&taken)?;
+        settled?;
+        Ok((records, value))
+    })
+}
+
+/// An operational event whose rule reads only `operational_events_v1`, in its transaction.
+fn simple_operational<C: WorldCell, H: Host>(
+    cell: &C,
+    host: &mut H,
+    event: &EventRow,
+    rule: impl FnOnce(&World, &Held, &EventRow, &mut Vec<u64>) -> Result<()>,
+) -> std::result::Result<(), H::Error>
+where
+    H::Error: From<WriteError>,
+{
+    operational(cell, host, event, |cell, host, taken| {
+        let held = kit::holding(cell, host)?.held(OPERATIONAL, OPERATIONAL_OTHER);
+        cell.with(|world| rule(world, &held, event, taken))??;
+        Ok((Vec::new(), ()))
+    })
+    .map(drop)
+}
+
+/// `DeliveryDelayHandler.apply`.
+pub fn delivery_delay_event<C: WorldCell, H: Host>(cell: &C, host: &mut H, event: &EventRow) -> std::result::Result<(), H::Error>
+where
+    H::Error: From<WriteError>,
+{
+    simple_operational(cell, host, event, delivery_delay)
+}
+
+/// `WaterOutageHandler.apply`.
+pub fn water_outage_event<C: WorldCell, H: Host>(cell: &C, host: &mut H, event: &EventRow) -> std::result::Result<(), H::Error>
+where
+    H::Error: From<WriteError>,
+{
+    simple_operational(cell, host, event, |world, held, row, _| water_outage(world, held, row))
+}
+
+/// `WaterRestorationHandler.apply`.
+pub fn water_restoration_event<C: WorldCell, H: Host>(cell: &C, host: &mut H, event: &EventRow) -> std::result::Result<(), H::Error>
+where
+    H::Error: From<WriteError>,
+{
+    simple_operational(cell, host, event, |world, held, row, _| water_restoration(world, held, row))
+}
+
+/// `StaffRestorationHandler.apply`.
+pub fn staff_restoration_event<C: WorldCell, H: Host>(cell: &C, host: &mut H, event: &EventRow) -> std::result::Result<(), H::Error>
+where
+    H::Error: From<WriteError>,
+{
+    simple_operational(cell, host, event, |world, held, row, _| staff_restoration(world, held, row))
+}
+
+/// The manager of the resource service as `ResourceServiceManager(world)` makes it (the PyO3 crate's
+/// `service::Inputs::of_world`), owned.
+struct ServiceRead {
+    config: Arc<IndexMap<Arc<str>, V>>,
+    service: Held,
+    ledger: Held,
+    queues: Held,
+    geo: Arc<crate::geometry::Geo>,
+    metric_state_held: bool,
+}
+
+impl ServiceRead {
+    /// What the manager reads, in its order, or what its first read that failed said.
+    fn of<C: WorldCell, H: Host>(cell: &C, host: &mut H, holding: &crate::host::Holding) -> std::result::Result<Self, H::Error> {
+        let service = kit::kept_section_value(cell, host, holding, crate::config::SectionId::ResourceService, |configs| &configs.resource_service, crate::config::service::ResourceService::parse)?;
+        let service = kit::kept(&service).map(|service| (service.present, service.config.clone()))?;
+        if !service.0 {
+            return Err(Error::unsupported("no resource service").into());
+        }
+        if !holding.table {
+            return Err(Error::unsupported(crate::host::TABLE_MAPPING).into());
+        }
+        let schema = cell.with(|world| world.schema_version())??;
+        if schema != 6 || !holding.keys.contains_key(SERVICE) || !holding.keys.contains_key("resource_ledger_v1") {
+            return Err(Error::unsupported("not an opted-in world").into());
+        }
+        // A config that is not a dict was copied with `dict(raw)` of its Python value.
+        let config = service.1.ok_or_else(|| Error::unsupported("the resource service's config is not a dict"))?;
+        Ok(Self {
+            config,
+            service: holding.held(SERVICE, "the world holds another service state"),
+            ledger: holding.held("resource_ledger_v1", "the world holds another ledger"),
+            queues: holding.held("facility_queues_v1", "the world holds another queue state"),
+            geo: host.floor_plan()?,
+            metric_state_held: holding.field(crate::world::METRIC_STATE),
+        })
+    }
+
+    fn manager(&self) -> Manager<'_> {
+        Manager {
+            config: &self.config,
+            service: self.service.clone(),
+            ledger: self.ledger.clone(),
+            queues: self.queues.clone(),
+            geo: &self.geo,
+            metric_state_held: self.metric_state_held,
+        }
+    }
+}
+
+/// A failure of a service's operation as the PyO3 crate raises it (`service::failed`): the ledger's
+/// text inside the rule's wrap. A value the text writes with `repr` that the core cannot write is
+/// refused.
+fn service_failed<E: From<Error> + From<WriteError>>(failure: Failure) -> E {
+    match failure {
+        Failure::Write(error) => E::from(error),
+        Failure::Ledger(fault, wrap) => {
+            let mut written = true;
+            let text = fault.text(|value| match value {
+                V::Str(text) => py_repr(text),
+                V::Int(value) => value.to_string(),
+                V::Bool(true) => "True".to_owned(),
+                V::Bool(false) => "False".to_owned(),
+                V::Null => "None".to_owned(),
+                _ => {
+                    written = false;
+                    String::new()
+                }
+            });
+            if !written {
+                return E::from(Error::unsupported("a ledger's value the core does not write with repr"));
+            }
+            E::from(wrap.error(&text))
+        }
+    }
+}
+
+/// `world.resources = {**world.resources, resource: remaining}`, as a write of the field's row
+/// (its tree follows when the world is given back). Refused while the field holds another dict.
+fn replace_resources(world: &World, holding: &crate::host::Holding, applied: Applied) -> Result<()> {
+    if !holding.field(crate::world::RESOURCES) {
+        return Err(Error::unsupported("the resources are not the row's"));
+    }
+    let id = crate::state::resource_ledger::RESOURCE_IDS[applied.index];
+    let mut resources = world.row_mut::<crate::world::ResourcesRow>(crate::world::RESOURCES)?;
+    match resources.get_mut(id) {
+        Some(value) => *value = applied.remaining,
+        None => {
+            resources.insert(Arc::from(id), applied.remaining);
+        }
+    }
+    Ok(())
+}
+
+/// `StaffUnavailabilityHandler.apply`: the records of a support task it interrupted. A manager of
+/// the resource service whose read raised is that error where the rule makes the manager; a cooldown
+/// whose read raised stays `COOLDOWN_UNREAD`, and a formula `FORMULA_UNREAD`, for the PyO3 crate.
+pub fn staff_unavailable_event<C: WorldCell, H: Host>(cell: &C, host: &mut H, event: &EventRow) -> std::result::Result<Vec<Made>, H::Error>
+where
+    H::Error: From<WriteError>,
+{
+    operational(cell, host, event, |cell, host, taken| {
+        let holding = kit::holding(cell, host)?;
+        let operational = holding.held(OPERATIONAL, OPERATIONAL_OTHER);
+        let mut gathered = kit::StaffRead::of(cell, host, true, false)?;
+        let read = ServiceRead::of(cell, host, &holding);
+        let manager = read.as_ref().ok().map(ServiceRead::manager);
+        let service = match (&manager, &read) {
+            (Some(manager), _) => Ok(manager),
+            (None, Err(error)) if error.class() == crate::host::ErrorClass::Refused => Err(Unread::Refused(error.text().into())),
+            (None, _) => Err(Unread::Raised),
+        };
+        let cooldown = kit::kept_section(cell, host, &holding, crate::config::SectionId::SupportCooldownMinutes, |configs| &configs.support_cooldown_minutes)?;
+        let ops = gathered.inputs();
+        let inputs = StaffIn {
+            operational: &operational,
+            ops: &ops,
+            service,
+            cooldown: cooldown.as_ref().ok().map(|minutes| **minutes),
+            metric_state_held: holding.field(crate::world::METRIC_STATE),
+        };
+        let done = match cell.with(|world| staff_unavailable(world, &inputs, event, taken))? {
+            Ok(done) => done,
+            Err(failure) => {
+                let error: H::Error = service_failed(failure);
+                drop(manager);
+                return match read {
+                    Err(read) if error.class() == crate::host::ErrorClass::Refused && error.text() == SERVICE_UNREAD => Err(read),
+                    _ => gathered.finish(Err(error)),
+                };
+            }
+        };
+        if let Some(applied) = done.applied {
+            cell.with(|world| replace_resources(world, &holding, applied))??;
+        }
+        Ok((done.records, ()))
+    })
+    .map(|(records, ())| records)
+}
+
+/// `InfrastructureEventHandler.apply` up to its records: the facilities' working units before it,
+/// and the APPLIED records of the deliveries a route's interruption delayed.
+pub fn infrastructure_event<C: WorldCell, H: Host>(
+    cell: &C,
+    host: &mut H,
+    event: &EventRow,
+    kind: Infra,
+) -> std::result::Result<(Vec<(Arc<str>, i64)>, Vec<Followed>), H::Error>
+where
+    H::Error: From<WriteError>,
+{
+    let previous = cell.with(|world| working_units(world))??;
+    let (_, followed) = operational(cell, host, event, |cell, host, taken| {
+        let holding = kit::holding(cell, host)?;
+        let infrastructure_state = holding.held(INFRASTRUCTURE, "the world holds another infrastructure state");
+        let operational = holding.held(OPERATIONAL, OPERATIONAL_OTHER);
+        let program = holding.held("effect_program_v1", "the world holds another effect_program_v1");
+        let inputs = InfraIn { infrastructure: &infrastructure_state, operational: &operational, program: &program };
+        Ok((Vec::new(), infrastructure(cell, host, &inputs, event, kind, taken)?))
+    })?;
+    Ok((previous, followed))
+}
+
+/// The receipts of the facilities an infrastructure event changed, once the world has changed.
+pub fn infrastructure_after<C: WorldCell, H: Host>(cell: &C, host: &mut H, previous: &[(Arc<str>, i64)], event: &EventRow) -> std::result::Result<Vec<Made>, H::Error> {
+    let shared_absent = !kit::in_model_state(&*kit::holding(cell, host)?, SHARED_OPERATIONS)?;
+    Ok(cell.with(|world| infrastructure_receipts(world, shared_absent, previous, event))??)
 }

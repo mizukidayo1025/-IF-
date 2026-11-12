@@ -19,9 +19,9 @@
 //! whether `model_state` holds each namespace (`kit::Held`), the sections of the configs, the floor
 //! plan, the movement model of a relocation, and the records of the EventLog a command's program
 //! scheduled (the log's records are Python's to read). The command's contract
-//! (`PopulationPresenceCommand`) is parsed by the PyO3 crate, and the transaction that stands for
-//! the Python rule's copy is the PyO3 crate's (`RuleTxn`, lane 6-3), whose validation of the whole
-//! world goes through the host (`Host::validate_world`, `Host::validate_extensions`).
+//! (`PopulationPresenceCommand`) is parsed by the PyO3 crate, which runs the command in the core's
+//! rule transaction (`txn::rule`, lane P9-1b) with its body still glue, and the validation of the
+//! whole world goes through the host (`Host::validate_world`, `Host::validate_extensions`).
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;

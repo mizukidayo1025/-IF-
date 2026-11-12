@@ -5,47 +5,40 @@
 //! parameters and of a guard, policy E15, and the whole world's validation, policy E6), and makes the
 //! Python values of what it returns.
 //!
-//! A handler whose Python rule copied the world runs the core's checks on the world, then the core's
-//! writes in the transaction that stands for the copy (`RuleTxn`, lane 6-3, with its copy for a world
-//! the transaction refuses). A suppressed or failed effect raises the Python rule's text, in its order
-//! of checks, with the world as it was (docs/rust-port/lanes/l8-texts-events.md).
+//! A handler is the core's (`core::*_event`, lane P9-1b): it reads what the world's outside holds
+//! through the host, runs its checks on the world, then its writes in the core's rule transaction
+//! that stands for the Python rule's copy (`txn::rule`, policy E16; a world whose Python views a
+//! transaction does not give back is the handler's `KernelRefusal`). A suppressed or failed effect
+//! raises the Python rule's text, in its order of checks, with the world as it was
+//! (docs/rust-port/lanes/l8-texts-events.md).
 //!
 //! What a read raised before the core reached it (the zone environment's config, the floor plan, the
 //! staff's operations) is raised where the core says it needed it (`CONFIG_UNREAD` and the other
 //! `*_UNREAD` refusals), as the Python rule raised it there.
 
-use pyo3::exceptions::{PyKeyError, PyTypeError, PyValueError};
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString, PyTuple};
 
 use sheltersim_core::config::environment::ZoneEnvironmentSpec;
 use sheltersim_core::rules::care_receipts::Made;
-use sheltersim_core::rules::effects::{
-    self as core, AddIn, Catch, EnvironmentIn, GeometryIn, GuardIn, HandoffIn, SpaceIn, Structure, StructureIn, CONFIG_UNREAD, COUNTS,
-    GEOMETRY_PLAN_UNREAD, OPERATORS, PENDING_UNREAD, SNAPSHOT_UNREAD,
-};
+use sheltersim_core::rules::effects::{self as core, GuardIn, Structure, CONFIG_UNREAD, COUNTS, OPERATORS, PENDING_UNREAD};
+use sheltersim_core::rules::staff_operation_events::FORMULA_UNREAD;
 use sheltersim_core::rules::kit::Held;
-use sheltersim_core::txn::TxnKind;
 use std::sync::Arc;
 
 use crate::core::configs;
-use crate::core::errors::{self, OrPy};
+use crate::core::errors::OrPy;
 use crate::core::row::{attribute, exact_str};
 use crate::core::value::{VPy, V};
 use crate::core::world_core::{namespace_held, with_world, PyWorldCell};
 use crate::host::PyHost;
 use crate::rules::care_receipts::made_record;
 use crate::rules::information_events::event_row;
-use crate::rules::movement_geometry::{Geo, GeoPy};
-use crate::rules::staff_operation_events::{staff_held, Gathered};
-use crate::rules::transaction::RuleTxn;
 use crate::rules::travel::read_queue_rows;
-use crate::rules::{agent_dynamics, movement, overlay};
 use crate::state::events::{EventRef, EventRow};
 use crate::Unsupported;
 
-const SHARED_OPERATIONS: &str = "shared_operations_v1";
 
 // ---- What ran and what was refused --------------------------------------------------------------
 
@@ -83,15 +76,6 @@ fn program_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
     held(world, core::MARKER, "the world holds another effect_program_v1")
 }
 
-fn infrastructure_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    held(world, core::INFRASTRUCTURE, "the world holds another infrastructure state")
-}
-
-/// `name in world.model_state`.
-fn in_model_state(world: &Bound<'_, PyAny>, name: &str) -> PyResult<bool> {
-    attribute(world, intern!(world.py(), "model_state"))?.contains(name)
-}
-
 /// What a guard reads of the Python world.
 struct Guarded {
     program: Held,
@@ -116,31 +100,6 @@ fn host_of<'py>(world: &Bound<'py, PyAny>) -> PyHost<'py> {
 /// The core's result, with the host's Python error.
 fn raised<T>(result: Result<T, crate::host::HostError>) -> PyResult<T> {
     result.map_err(|error| error.0)
-}
-
-/// A refusal the core said where it needed what a read raised: that read's error instead.
-fn unread<T>(py: Python<'_>, result: PyResult<T>, reason: &str, read: Option<PyErr>) -> PyResult<T> {
-    match (result, read) {
-        (Err(error), Some(read)) if error.is_instance_of::<Unsupported>(py) && error.value(py).to_string() == reason => Err(read),
-        (result, _) => result,
-    }
-}
-
-/// What a Python rule did with an error that a rule of another file raised, called through
-/// `kernel_only`: its refusal is that rule's `KernelRefusal`, and `except <catch> as exc: raise
-/// EventApplicationError(str(exc))`.
-fn by_name_wrapped(py: Python<'_>, label: &str, error: PyErr, catch: Catch) -> PyErr {
-    let error = errors::kernel_refusal(py, label, error);
-    let taken = error.is_instance_of::<PyValueError>(py)
-        || (catch != Catch::Value && error.is_instance_of::<PyTypeError>(py))
-        || (catch == Catch::ValueKeyOrType && error.is_instance_of::<PyKeyError>(py));
-    if !taken {
-        return error;
-    }
-    match error.value(py).str() {
-        Ok(text) => errors::error(py, errors::Outcome::Failed, text.to_string_lossy().into_owned()),
-        Err(failure) => failure,
-    }
 }
 
 fn expire_of(handler: &Bound<'_, PyAny>) -> PyResult<bool> {
@@ -213,26 +172,40 @@ fn has_pending_modifier(world: &Bound<'_, PyAny>, facility_id: &Bound<'_, PyAny>
     counted(py, "has_pending_modifier", result)
 }
 
-// ---- EffectProgramFacilityHandler ----------------------------------------------------------------
+// ---- The handlers ---------------------------------------------------------------------------------
+//
+// Each is the core's handler (`core::*_event`), which reads what the world's outside holds through
+// the host, runs the checks, and writes in the core's rule transaction (lane P9-1b, policy E16).
+// The rows of the pending events Python scheduled are read first, for the rules that read them.
 
-fn facility_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: bool) -> PyResult<()> {
-    let row = event_row(event)?;
-    let (program, infrastructure) = (program_held(world)?, infrastructure_held(world)?);
-    let plan = with_world(world, |world| core::plan_facility(world, &program, &infrastructure, &row, expire))?.or_py()?;
-    let txn = RuleTxn::begin(world, TxnKind::Effect)?;
-    let candidate = txn.world().clone();
-    let written = raised(core::write_facility(&PyWorldCell(&candidate), &mut host_of(&candidate), &plan));
-    txn.finish(written)
+/// The core's handler of an effect's event, with the native host.
+fn handled<T>(world: &Bound<'_, PyAny>, run: impl FnOnce(&PyWorldCell<'_, '_>, &mut PyHost<'_>) -> Result<T, crate::host::HostError>) -> PyResult<T> {
+    raised(run(&PyWorldCell(world), &mut host_of(world)))
+}
+
+/// A refusal the core said where the rule reads what only a Python read gives (`reason`): what that
+/// read raises, read again now (the configs are the same; a read that does not raise leaves the
+/// refusal).
+fn read_again<T>(py: Python<'_>, result: PyResult<T>, reason: &str, read: impl FnOnce() -> PyResult<()>) -> PyResult<T> {
+    match result {
+        Err(error) if error.is_instance_of::<Unsupported>(py) && error.value(py).to_string() == reason => match read() {
+            Err(read) => Err(read),
+            Ok(()) => Err(error),
+        },
+        result => result,
+    }
 }
 
 /// `EffectProgramFacilityHandler.apply`.
 #[pyfunction]
 fn facility(handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
-    let result = expire_of(handler).and_then(|expire| facility_rule(world, event, expire));
+    let result = (|| {
+        let expire = expire_of(handler)?;
+        let row = event_row(event)?;
+        handled(world, |cell, host| core::facility_event(cell, host, &row, expire))
+    })();
     counted(world.py(), "facility", result)
 }
-
-// ---- EffectProgramEnvironmentHandler -------------------------------------------------------------
 
 /// `ScenarioZoneEnvironmentConfig.model_validate(model_configs["zone_environment"])`, kept for the
 /// configs' stamp (`core/configs.rs`); what it raises is relayed as it is.
@@ -261,106 +234,41 @@ fn parse_zone_environment(world: &Bound<'_, PyAny>) -> PyResult<ZoneEnvironmentS
     configs::read(ZoneEnvironmentSpec::from_v(&<V as VPy>::from_py(&dumped)?))
 }
 
-fn environment_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: bool) -> PyResult<()> {
-    let py = world.py();
-    let row = event_row(event)?;
-    // The expiry events are read as rows of the queue.
-    read_queue_rows(world)?;
-    let program = program_held(world)?;
-    let environment = held(world, core::ENVIRONMENT, "the world holds another zone environment state")?;
-    let config = zone_environment_spec(world);
-    let ins = EnvironmentIn {
-        program: &program,
-        environment: &environment,
-        service_present: in_model_state(world, "resource_service_v1")?,
-        config: config.as_ref().ok().map(|config| &**config),
-    };
-    let planned = raised(core::plan_environment(&PyWorldCell(world), &mut host_of(world), &ins, &row, expire));
-    let plan = unread(py, planned, CONFIG_UNREAD, config.as_ref().err().map(|read| read.clone_ref(py)))?;
-    let txn = RuleTxn::begin(world, TxnKind::Effect)?;
-    let candidate = txn.world().clone();
-    let written = raised(core::write_environment(&PyWorldCell(&candidate), &mut host_of(&candidate), &plan));
-    txn.finish(written)
-}
-
-/// `EffectProgramEnvironmentHandler.apply`.
+/// `EffectProgramEnvironmentHandler.apply`. A config whose read raised raises where the rule reads it.
 #[pyfunction]
 fn environment(handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
-    let result = expire_of(handler).and_then(|expire| environment_rule(world, event, expire));
-    counted(world.py(), "environment", result)
-}
-
-// ---- EffectProgramTemporarySpaceHandler ----------------------------------------------------------
-
-fn temporary_space_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: bool) -> PyResult<()> {
-    let row = event_row(event)?;
-    let guarded = Guarded::of(world)?;
-    let spaces = overlay::spaces_held(world)?;
-    let guard = guarded.ins();
-    let ins = SpaceIn { guard: &guard, spaces: &spaces };
-    let plan = raised(core::plan_temporary_space(&PyWorldCell(world), &mut host_of(world), &ins, &row, expire))?;
-    let txn = RuleTxn::begin(world, TxnKind::Effect)?;
-    let candidate = txn.world().clone();
-    let written = (|| {
-        let spaces = overlay::spaces_held(&candidate)?;
-        raised(core::write_temporary_space(&PyWorldCell(&candidate), &mut host_of(&candidate), &spaces, &row, &plan))
+    let py = world.py();
+    let result = (|| {
+        let expire = expire_of(handler)?;
+        let row = event_row(event)?;
+        // The expiry events are read as rows of the queue.
+        read_queue_rows(world)?;
+        let result = handled(world, |cell, host| core::environment_event(cell, host, &row, expire));
+        read_again(py, result, CONFIG_UNREAD, || zone_environment_spec(world).map(drop))
     })();
-    txn.finish(written)
+    counted(py, "environment", result)
 }
 
 /// `EffectProgramTemporarySpaceHandler.apply`.
 #[pyfunction]
 fn temporary_space(handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
-    let result = expire_of(handler).and_then(|expire| temporary_space_rule(world, event, expire));
-    counted(world.py(), "temporary_space", result)
-}
-
-// ---- EffectProgramGeometryHandler ----------------------------------------------------------------
-
-/// The label of `apply_geometry_change` as `kernel_only` named it.
-const APPLY_GEOMETRY: &str = "overlay.apply_geometry_change";
-
-fn geometry_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: bool) -> PyResult<()> {
-    let py = world.py();
-    let row = event_row(event)?;
-    let guarded = Guarded::of(world)?;
-    let overlay_state = overlay::overlay_held(world)?;
-    let guard = guarded.ins();
-    let ins = GeometryIn { guard: &guard, overlay: &overlay_state };
-    raised(core::check_geometry(&PyWorldCell(world), &mut host_of(world), &ins, &row, expire))?;
-    let txn = RuleTxn::begin(world, TxnKind::Effect)?;
-    let candidate = txn.world().clone();
-    let written = (|| {
-        // What `apply_geometry_change` read first, in its own call: its error is the event's failure.
-        let inputs = overlay::ChangeIn::of(&candidate).map_err(|error| by_name_wrapped(py, APPLY_GEOMETRY, error, Catch::ValueKeyOrType))?;
-        let applied = raised(core::write_geometry(&PyWorldCell(&candidate), &mut host_of(&candidate), &inputs.change(), &row, expire));
-        // A floor plan `apply_geometry_change` could not read: what that raised, in its call.
-        let plan_read = inputs.plan_error(py).map(|read| by_name_wrapped(py, APPLY_GEOMETRY, read, Catch::ValueKeyOrType));
-        unread(py, applied, GEOMETRY_PLAN_UNREAD, plan_read)
+    let result = (|| {
+        let expire = expire_of(handler)?;
+        let row = event_row(event)?;
+        handled(world, |cell, host| core::temporary_space_event(cell, host, &row, expire))
     })();
-    txn.finish(written)
+    counted(world.py(), "temporary_space", result)
 }
 
 /// `EffectProgramGeometryHandler.apply`.
 #[pyfunction]
 fn geometry(handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
-    let result = expire_of(handler).and_then(|expire| geometry_rule(world, event, expire));
+    let result = (|| {
+        let expire = expire_of(handler)?;
+        let row = event_row(event)?;
+        handled(world, |cell, host| core::geometry_event(cell, host, &row, expire))
+    })();
     counted(world.py(), "geometry", result)
-}
-
-// ---- EffectProgramStructureHandler ---------------------------------------------------------------
-
-/// What the structure's rules read of the Python world.
-struct Structured {
-    guarded: Guarded,
-    shared: bool,
-    infrastructure: Held,
-}
-
-impl Structured {
-    fn of(world: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self { guarded: Guarded::of(world)?, shared: in_model_state(world, SHARED_OPERATIONS)?, infrastructure: infrastructure_held(world)? })
-    }
 }
 
 /// `(record,)` of a receipt, or None.
@@ -371,108 +279,12 @@ fn receipt_tuple(py: Python<'_>, made: Option<Made>) -> PyResult<Bound<'_, PyAny
     })
 }
 
+/// `staff_task_order`: a formula whose read raised raises where the rule reads it.
 fn staff_task_order(world: &Bound<'_, PyAny>, row: &EventRow) -> PyResult<()> {
     let py = world.py();
-    let read = Structured::of(world)?;
-    let guard = read.guarded.ins();
-    let ins = StructureIn { guard: &guard, shared: read.shared, infrastructure: &read.infrastructure };
-    let order = raised(core::plan_task_order(&PyWorldCell(world), &mut host_of(world), &ins, row))?;
-    let txn = RuleTxn::begin(world, TxnKind::Effect)?;
-    let candidate = txn.world().clone();
-    // Its checks raise the rule's text before any change; the transaction rolls back.
-    let written = (|| {
-        read_queue_rows(&candidate)?;
-        let gathered = Gathered::of(&candidate, true, true)?;
-        let result = raised(core::write_task_order(&PyWorldCell(&candidate), &mut host_of(&candidate), &gathered.inputs(), &order));
-        gathered.finish(py, result)
-    })();
-    txn.finish(written)
-}
-
-fn staff_handoff<'py>(world: &Bound<'py, PyAny>, row: &EventRow) -> PyResult<Bound<'py, PyAny>> {
-    let py = world.py();
-    let read = Structured::of(world)?;
-    let guard = read.guarded.ins();
-    let ins = StructureIn { guard: &guard, shared: read.shared, infrastructure: &read.infrastructure };
-    let plan = raised(core::plan_handoff(&PyWorldCell(world), &mut host_of(world), &ins, row))?;
-    let txn = RuleTxn::begin(world, TxnKind::Effect)?;
-    let candidate = txn.world().clone();
-    let written = (|| {
-        read_queue_rows(&candidate)?;
-        let operations = staff_held(&candidate)?;
-        let mut taken = Vec::new();
-        raised(core::write_handoff(&PyWorldCell(&candidate), &mut host_of(&candidate), &HandoffIn { operations: &operations }, &plan, row, &mut taken))
-    })();
-    let sources = txn.finish(written)?;
-    // Past here the world has changed, and what is raised goes on as the Python rule's does.
-    let shared = in_model_state(world, SHARED_OPERATIONS)?;
-    let made = with_world(world, |world| core::handoff_receipt(world, shared, &plan, sources))?.or_py()?;
-    receipt_tuple(py, made)
-}
-
-fn facility_repair<'py>(world: &Bound<'py, PyAny>, row: &EventRow) -> PyResult<Bound<'py, PyAny>> {
-    let py = world.py();
-    let read = Structured::of(world)?;
-    let guard = read.guarded.ins();
-    let ins = StructureIn { guard: &guard, shared: read.shared, infrastructure: &read.infrastructure };
-    let made = raised(core::facility_repair(&PyWorldCell(world), &mut host_of(world), &ins, row))?;
-    receipt_tuple(py, made)
-}
-
-fn set_staff_role(world: &Bound<'_, PyAny>, row: &EventRow) -> PyResult<()> {
-    let read = Structured::of(world)?;
-    let guard = read.guarded.ins();
-    let ins = StructureIn { guard: &guard, shared: read.shared, infrastructure: &read.infrastructure };
-    let plan = raised(core::plan_role(&PyWorldCell(world), &mut host_of(world), &ins, row))?;
-    let txn = RuleTxn::begin(world, TxnKind::Effect)?;
-    let candidate = txn.world().clone();
-    let written = (|| {
-        let operations = staff_held(&candidate)?;
-        raised(core::write_role(&PyWorldCell(&candidate), &mut host_of(&candidate), &operations, &plan))
-    })();
-    txn.finish(written)
-}
-
-/// The label of the staff positions, as `kernel_only` named them.
-const SNAPSHOTS: &str = "movement.staff_position_snapshots";
-
-fn add_structure(world: &Bound<'_, PyAny>, row: &EventRow) -> PyResult<&'static str> {
-    let py = world.py();
-    let program = program_held(world)?;
-    let plan = with_world(world, |world| core::plan_add(world, &program, row))?.or_py()?;
-    let txn = RuleTxn::begin(world, TxnKind::Effect)?;
-    let candidate = txn.world().clone();
-    let written = (|| {
-        let operational = held(&candidate, core::OPERATIONAL, "the world holds another operational state")?;
-        let dynamics = held(&candidate, "staff_dynamics_v1", "the world holds another staff dynamics state")?;
-        let operations = staff_held(&candidate)?;
-        let movement_state = held(&candidate, "movement_v1", "the world holds another movement state")?;
-        let overlay_state = overlay::overlay_held(&candidate)?;
-        let overlay_schema = overlay::schema_of(&candidate)?;
-        let policy = agent_dynamics::policy_kept(&candidate)?;
-        // What the staff positions read (a toilet's place reads the plan through the host).
-        let plan_read: PyResult<Arc<Geo>> = Geo::of(&candidate);
-        let staff_ops = movement::staff_ops(&candidate);
-        let ins = AddIn {
-            operational: &operational,
-            dynamics: &dynamics,
-            operations: &operations,
-            movement: &movement_state,
-            overlay: &overlay_state,
-            overlay_schema: &overlay_schema,
-            policy: &policy,
-            geo: plan_read.as_ref().ok().map(|geo| &**geo),
-            staff_ops: staff_ops.as_ref().ok(),
-        };
-        let added = raised(core::write_add(&PyWorldCell(&candidate), &mut host_of(&candidate), &ins, &plan));
-        // The staff positions read the plan, then the staff's operations, in their own call.
-        let snapshot_read = match (&plan_read, &staff_ops) {
-            (Err(read), _) | (_, Err(read)) => Some(errors::kernel_refusal(py, SNAPSHOTS, read.clone_ref(py))),
-            _ => None,
-        };
-        unread(py, added, SNAPSHOT_UNREAD, snapshot_read)
-    })();
-    txn.finish(written)
+    read_queue_rows(world)?;
+    let result = handled(world, |cell, host| core::task_order_event(cell, host, row));
+    read_again(py, result, FORMULA_UNREAD, || crate::rules::staff::staff_operations(world).map(drop))
 }
 
 /// `EffectProgramStructureHandler.apply`. Its branches are told apart by the payload's fields, in
@@ -484,10 +296,16 @@ fn structure<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event
     let row = event_row(event)?;
     match core::structure_of(&row).or_py()? {
         Structure::TaskOrder => counted(py, "structure.staff_task_order", staff_task_order(world, &row).map(|()| none())),
-        Structure::Handoff => counted(py, "structure.staff_handoff", staff_handoff(world, &row)),
-        Structure::Repair => counted(py, "structure.facility_repair", facility_repair(world, &row)),
-        Structure::Role => counted(py, "structure.set_staff_role", set_staff_role(world, &row).map(|()| none())),
-        Structure::Add => counted(py, "structure.add", add_structure(world, &row).map(|_| none())),
+        Structure::Handoff => {
+            let result = read_queue_rows(world).and_then(|()| handled(world, |cell, host| core::handoff_event(cell, host, &row)));
+            counted(py, "structure.staff_handoff", result.and_then(|made| receipt_tuple(py, made)))
+        }
+        Structure::Repair => {
+            let result = handled(world, |cell, host| core::repair_event(cell, host, &row));
+            counted(py, "structure.facility_repair", result.and_then(|made| receipt_tuple(py, made)))
+        }
+        Structure::Role => counted(py, "structure.set_staff_role", handled(world, |cell, host| core::role_event(cell, host, &row)).map(|()| none())),
+        Structure::Add => counted(py, "structure.add", handled(world, |cell, host| core::add_event(cell, host, &row)).map(|_| none())),
     }
 }
 
