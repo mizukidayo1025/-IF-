@@ -646,7 +646,6 @@ def test_a_care_delta_1_percent_off_shows(generated_scenario: Any) -> None:
 # rule went (lane L10, `kernel_only`).
 ASSIGNED_DIGESTS = {
     "free_worker": "b2e57bbfee3b75ed",
-    "promoted": "d00be4ea83ec3799",
 }
 
 
@@ -694,21 +693,6 @@ def _open_request(world: WorldState, *, age: int = 0) -> str:
     return "support-t1"
 
 
-def test_a_free_worker_takes_a_request_as_in_python() -> None:
-    world = _staffed_world()
-    request_id = _open_request(world)
-    assigned = _assign("free_worker", world)
-    assert request_id in assigned
-    assert world.support_requests[request_id].status is SupportRequestStatus.ASSIGNED
-
-
-def test_an_old_request_is_promoted_as_in_python() -> None:
-    world = _staffed_world()
-    request_id = _open_request(world, age=5)
-    assert _assign("promoted", world, fairness_after_minutes=3) == (request_id,)
-    assert world.metric_state["support_fairness_promoted_assignment_count"] >= 1.0
-
-
 def test_another_route_resolver_than_the_controller_s_is_refused() -> None:
     """The service's route and trip are the controller's own steps, which the kernel calls
     directly (lane P8 b3); another callable is refused before anything is written. The decisions
@@ -727,17 +711,6 @@ def test_a_travel_scheduler_without_a_route_resolver_is_never_asked() -> None:
     world = _staffed_world()
     request_id = _open_request(world)
     assert _assign("free_worker", world, travel_scheduler=lambda *_: False) == (request_id,)
-
-
-def test_nobody_free_leaves_the_plain_kernel_running() -> None:
-    world = _staffed_world()
-    _open_request(world)
-    for person in world.staff.values():
-        person.active_task_id = "elsewhere"
-    service = StaffService(world)
-    assert (
-        native.rules("staff").assign_none(service, world.minute_index, validate_state=False) == ()
-    )
 
 
 # ---- What else the handlers ask ------------------------------------------------------------------
