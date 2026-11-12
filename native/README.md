@@ -269,8 +269,10 @@ split PR by PR; its last section sums up what is where.
   outside the crate; `load.rs`, a test-only loader of a World and a Run's `Policies` from JSON
   (lane P10-1b; not part of the crate), which puts each typed namespace of `model_state` in its
   slot as the row `typed.rs` names for it; `sections.rs`, which gives a `TestHost` the
-  Python-parsed sections and the floor plan of an exported world (#225, #214); and `dumps.rs`,
-  the text of Python's `json.dumps` for the digests the pytest files took of it. The JSON under
+  Python-parsed sections and the floor plan of an exported world (#225, #214); `dumps.rs`,
+  the text of Python's `json.dumps` for the digests the pytest files took of it; and
+  `world_bytes.rs`, the whole world as bytes and a chain of a test's answers over it, for the
+  digests a moved test records again from the core (#225). The JSON under
   `tests/data/` (worlds the Python side built) is written by the builders that
   `tests/support/core_fixtures.py` registers (`benchmarks/core_fixtures.py`), and
   `tests/integration/test_core_fixtures.py` checks that each file is what its builder makes
