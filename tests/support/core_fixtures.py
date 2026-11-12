@@ -44,6 +44,9 @@ FIXTURES: dict[str, str] = {
     "event_texts": "support.core_texts:event_texts_fixture",
     "rumor_texts": "support.core_texts:rumor_texts_fixture",
     "travel_texts": "support.core_texts:travel_texts_fixture",
+    "resource_service_texts": "support.core_fixtures_texts:resource_service_texts_fixture",
+    "generated_texts": "support.core_fixtures_texts:generated_texts_fixture",
+    "handoff_texts": "support.core_fixtures_texts:handoff_texts_fixture",
 }
 
 # The attributes of `InformationSpreadConfig` the PyO3 crate reads (`InformationSpread::FIELDS` of
@@ -251,7 +254,7 @@ def _tick_plan(world: Any) -> dict[str, Any]:
 
 def _facility_geometry(configs: Any) -> dict[str, Any]:
     """`FacilityGeometry.model_validate(model_configs["facility_geometry"])`, as JSON, with each
-    approach route's `travel_minutes` (a property, which may raise)."""
+    approach route's `distance_m` and `travel_minutes` (properties; the second may raise)."""
     from sheltersim.contracts.extensions import FacilityGeometry
 
     raw = configs.get("facility_geometry")
@@ -263,6 +266,7 @@ def _facility_geometry(configs: Any) -> dict[str, Any]:
         return _fault(error)
     value = model.model_dump(mode="json")
     for route, dumped in zip(model.arrival_approach_routes, value["arrival_approach_routes"]):
+        dumped["distance_m"] = route.distance_m
         try:
             dumped["travel_minutes"] = {"value": _exact_int(route.travel_minutes)}
         except Exception as error:
