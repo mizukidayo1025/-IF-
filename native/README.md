@@ -301,7 +301,10 @@ split PR by PR; its last section sums up what is where.
   `tests/resource_service_texts.rs`, `tests/effect_program_texts.rs` and `tests/population_texts.rs`
   check the texts the service's, the EffectProgram handlers' and the population's rules save, on
   the worlds of the pytest files of the same names, with the world unchanged where a check comes
-  before any write.
+  before any write; `tests/social_steps.rs`, `tests/information_steps.rs` and
+  `tests/psychology_steps.rs` run the people models' steps (the social model, the information
+  model's contacts, each person's minute and its trace's document) on the worlds and the policies
+  of their pytest files (`tests/data/model_steps.json`) and reach the digests those files pinned.
   The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,
