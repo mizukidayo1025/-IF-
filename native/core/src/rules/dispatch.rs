@@ -1353,7 +1353,7 @@ pub fn consider_contact<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C
         if sender_id == recipient_id {
             return Ok(None);
         }
-        let stress = sender.stress.max(recipient.stress);
+        let stress = crate::mathx::py_max(sender.stress, recipient.stress);
         drop(rows);
         let household = |id: &str| population_lifecycle::household_of(world, &presence, id).map_err(|error| planning::<Error>(error));
         let first = household(&sender_id)?;

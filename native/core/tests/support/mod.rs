@@ -95,6 +95,8 @@ pub struct TestHost {
     pub plan: Option<Arc<Geo>>,
     /// Sections `fill_section` fills with these instead (a section's fault, a selection).
     pub sections: Vec<(SectionId, Box<dyn Fn(&Configs)>)>,
+    /// What `apply_foreign` does (lane P9-1c): a test's handler; none refuses.
+    pub foreign: Option<Box<dyn FnMut(&EventRow) -> Result<Foreign, Error>>>,
 }
 
 impl std::fmt::Debug for TestHost {
@@ -117,6 +119,7 @@ impl Default for TestHost {
             records: IndexMap::new(),
             plan: None,
             sections: Vec::new(),
+            foreign: None,
         }
     }
 }
@@ -342,7 +345,10 @@ impl Host for TestHost {
 
     fn apply_foreign(&mut self, event: &EventRow) -> Result<Foreign, Error> {
         self.calls.push(Call::Foreign(event.event_type.clone()));
-        Err(Error::unsupported(NO_FOREIGN))
+        match &mut self.foreign {
+            Some(handler) => handler(event),
+            None => Err(Error::unsupported(NO_FOREIGN)),
+        }
     }
 
     fn record_decision_python(
