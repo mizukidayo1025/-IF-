@@ -1,23 +1,21 @@
 """social_network_v1 owned by Rust, with its rules (docs/rust-port/lanes/m3-social-network.md).
 
 Here: what taints the row, each way into it that the per-tick check must see now that it reads
-only the written records, what the kernels refuse, and random inputs, whose results are the bits
-the Python rules gave (PYTHON_GAVE). The social action of `SocialInteractionHandler` has no Python
-rule left (lane L10, `kernel_only`): it is compared with the rule's formula, written down from it
-(`_apply_formula`), and its texts with the rule's.
+only the written records, what the entries refuse themselves, and an entry test for each PyO3
+entry. The rules have no Python body left (lane L10, `kernel_only`): the core's tests
+(native/core/tests/social_network_rows.rs, on the worlds and the random inputs of this file, #225)
+check `observe_event`, the social dialogue's context and the social action of
+`SocialInteractionHandler` against the bits and the texts the Python rules gave, and the action
+against the rule's formula, written down from it (`_apply_formula` here).
 """
 
 from __future__ import annotations
 
 import copy
-import hashlib
-import json
 import random
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from support.world import kernel_says_python_s_text
 
 from sheltersim import native
 from sheltersim.core.engine import TraceLevel
@@ -29,9 +27,7 @@ from sheltersim.domain.simulator_state import validate_simulator_extensions
 from sheltersim.domain.social_network import SOCIAL_NETWORK_STATE_KEY as KEY
 from sheltersim.events.handlers import SocialInteractionHandler
 from sheltersim.events.models import (
-    EventApplicationError,
     EventKind,
-    EventSuppressed,
     ScheduledEvent,
 )
 from sheltersim.experiments.runner import run_scenario
@@ -43,56 +39,6 @@ ACTIONS = {
     "family_care": ("provide_family_support", "family_care"),
     "voluntary_support": ("offer_practical_help", "mutual_aid"),
 }
-
-
-# ---- What the Python rules gave ---------------------------------------------------------------
-# observe_event and the two of the social dialogue have no Python rule left (lane L10,
-# `kernel_only`). Each case was run with them once (2d8fb46): what they returned and wrote is pinned
-# here, per test and in call order, as a digest compared on every OS, as the gate's hashes are.
-
-PYTHON_GAVE: dict[str, list[str]] = {
-    "test_capture_gives_what_the_python_rule_gives": [
-        "c266c955239cf005",
-        "c266c955239cf005",
-        "5a9c239b8a353685",
-        "5a9c239b8a353685",
-    ],
-    "test_observe_event_computes_trust_when_the_body_has_no_record": [
-        "5223d144e68eb137",
-        "6e056b1a622fdf84",
-        "4848febde7b9557d",
-        "6e4490f4644eeb43",
-        "38953c71605d34fa",
-    ],
-    "test_observe_event_gives_the_bits_of_the_python_rule": ["4b665bcf9f3db776"],
-    "test_observe_event_skips_odd_payloads_as_the_python_rule_did[0]": ["cac447cad753925e"],
-    "test_observe_event_skips_odd_payloads_as_the_python_rule_did[1]": ["cac447cad753925e"],
-    "test_observe_event_skips_odd_payloads_as_the_python_rule_did[2]": ["cac447cad753925e"],
-    "test_observe_event_skips_odd_payloads_as_the_python_rule_did[3]": ["be917f018c347bb8"],
-}
-_SCOPE: list[Any] = ["", 0]
-
-
-@pytest.fixture(autouse=True)
-def _pinned_scope(request: Any) -> None:
-    """The test's name, with the index of each parameter: its key in PYTHON_GAVE."""
-    name = request.node.originalname
-    callspec = getattr(request.node, "callspec", None)
-    if callspec is not None:
-        name += "[" + "-".join(str(index) for index in callspec.indices.values()) + "]"
-    _SCOPE[:] = [name, 0]
-
-
-def _digest(*values: Any) -> str:
-    text = "\n".join(json.dumps(value, sort_keys=True, default=repr) for value in values)
-    return hashlib.sha256(text.encode()).hexdigest()[:16]
-
-
-def _python_gave(*values: Any) -> None:
-    """These values are what the Python rule gave at this call of the test."""
-    name, index = _SCOPE
-    _SCOPE[1] += 1
-    assert _digest(*values) == PYTHON_GAVE[name][index]
 
 
 @pytest.fixture(scope="module")
@@ -358,116 +304,12 @@ def test_python_writes_into_the_row(world: Any) -> None:
     assert _mirror(world).row_json() == native.canonical_json(state)
 
 
-# ---- The rules against Python ------------------------------------------------------------------
-
-
-def _random_body(rng: random.Random, worlds: tuple[Any, Any], ids: list[str]) -> None:
-    affect = {name: rng.random() for name in ("positive_affect", "negative_affect")}
-    for id_ in ids:
-        for name, value in affect.items():
-            for each in worlds:
-                each.model_state["body_state_v1"]["agents"][id_][name] = value
-
-
-def _random_event(rng: random.Random, world: Any, ids: list[str], number: int) -> ScheduledEvent:
-    first, second = rng.sample(ids, 2)
-    kind = rng.randrange(7)
-    minute = world.minute_index
-    if kind == 0:
-        message = rng.choice([None, f"m{rng.randrange(80)}", f"m{number}"])
-        payload = {"recipient_agent_id": first, "sender_agent_id": second}
-        if message is not None:
-            payload["message_id"] = message
-        return _event("information_contact_update", payload, minute, number)
-    if kind == 1:
-        return _event(
-            "proximity_contact_update",
-            {"first_agent_id": first, "second_agent_id": second, "observed_minute": minute},
-            minute,
-            number,
-        )
-    if kind == 2:
-        return _event("information_correction", {"message_id": "m1"}, minute, number)
-    interaction = (
-        "reassurance_exchange",
-        "family_care",
-        "voluntary_support",
-        "cooperation",
-    )[kind - 3]
-    return _event(
-        "social_interaction",
-        {"interaction_type": interaction, "agent_id": first, "participant_agent_id": second},
-        minute,
-        number,
-    )
-
-
-def test_observe_event_gives_the_bits_of_the_python_rule(world: Any) -> None:
-    rng = random.Random(11)
-    ids = _people(world, 6)
-    ran = 0
-    for number in range(1500):
-        _random_body(rng, (world,), ids)
-        event = _random_event(rng, world, ids, number + 1)
-        minute = world.minute_index
-        before = _rules().observe_event(world, event, minute)
-        assert before is None
-        ran += 1
-    assert ran == 1500
-    ours = world.model_state[KEY]
-    _python_gave(ours, list(ours["relationships"]))
-    assert _mirror(world).verify()
-    assert _accepted(world)
-    # The cap of the message IDs was reached, or the test proves little.
-    assert any(len(record["shared_message_ids"]) >= 10 for record in ours["relationships"].values())
-
-
-def test_observe_event_computes_trust_when_the_body_has_no_record(world: Any) -> None:
-    first, second = _people(world)
-    for key in (ordered_pair_key(first, second), ordered_pair_key(second, first)):
-        world.model_state["body_state_v1"]["relationships"].pop(key, None)
-        world.model_state[KEY]["relationships"].pop(key, None)
-    for number, kind in enumerate(
-        [
-            "cooperation",
-            "voluntary_support",
-            "family_care",
-            "reassurance_exchange",
-            "information_reaction",
-        ]
-    ):
-        event = _event(
-            "social_interaction",
-            {"interaction_type": kind, "agent_id": first, "participant_agent_id": second},
-            world.minute_index,
-            number + 1,
-        )
-        _rules().observe_event(world, event, world.minute_index)
-        _python_gave(world.model_state[KEY])
-    record = world.model_state[KEY]["relationships"][ordered_pair_key(first, second)]
-    assert record["cooperation_count"] == 1 and record["last_interaction"] == "information_reaction"
-    assert record["trust"] is not None
-    # A 1% change of the transfer shows.
-    other = copy.deepcopy(world)
-    third = copy.deepcopy(world)
-    config = third.model_state["body_state_v1"]["config"]
-    config["social_action_affect_transfer"] *= 1.01
-    event = _event(
-        "social_interaction",
-        {"interaction_type": "family_care", "agent_id": first, "participant_agent_id": second},
-        third.minute_index,
-    )
-    for each in (third, other):
-        for key in list(each.model_state["body_state_v1"]["relationships"]):
-            del each.model_state["body_state_v1"]["relationships"][key]
-    _rules().observe_event(other, event, other.minute_index)
-    _rules().observe_event(third, event, third.minute_index)
-    assert json.dumps(third.model_state[KEY], sort_keys=True) != json.dumps(
-        other.model_state[KEY], sort_keys=True
-    )
+# ---- The entry of the rules --------------------------------------------------------------------
 
 
 def test_the_message_list_keeps_its_last_64_in_row_and_tree(world: Any) -> None:
+    """The entry of `observe_event` (the core's tests check the rule against the Python rule's
+    bits)."""
     first, second = _people(world)
     key = ordered_pair_key(first, second)
     for number in range(70):
@@ -483,62 +325,6 @@ def test_the_message_list_keeps_its_last_64_in_row_and_tree(world: Any) -> None:
     assert _mirror(world).verify()
 
 
-@pytest.mark.parametrize(
-    "payload",
-    [
-        # One person with themselves, a missing ID and an ID of another type: nothing recorded.
-        {"recipient_agent_id": "a", "sender_agent_id": "a"},
-        {"recipient_agent_id": "a"},
-        {"recipient_agent_id": 3, "sender_agent_id": "a"},
-        # A message ID of another type: the contact, without a message.
-        {"recipient_agent_id": "a", "sender_agent_id": "b", "message_id": 4},
-    ],
-)
-def test_observe_event_skips_odd_payloads_as_the_python_rule_did(world: Any, payload: dict) -> None:
-    event = SimpleNamespace(event_type="information_contact_update", payload=payload)
-    before = _mirror(world).row_json()
-    _rules().observe_event(world, event, world.minute_index)
-    _python_gave(world.model_state[KEY])
-    if "message_id" in payload:
-        record = world.model_state[KEY]["relationships"]['["a","b"]']
-        assert (record["contact_count"], record["shared_message_ids"]) == (1, [])
-    else:
-        assert _mirror(world).row_json() == before
-    assert _mirror(world).verify()
-
-
-def test_observe_event_refuses_an_id_json_escapes_with_nothing_written(world: Any) -> None:
-    """No Agent ID holds one (Scenario IDs are ASCII), and a pair key of it is not this kernel's."""
-    payload = {"recipient_agent_id": "あ", "sender_agent_id": "b"}
-    event = SimpleNamespace(event_type="information_contact_update", payload=payload)
-    before = _mirror(world).row_json()
-    with pytest.raises(KernelRefusal):
-        social_network.observe_event(world, event, world.minute_index)
-    assert _mirror(world).row_json() == before
-
-
-def test_at_the_bound_the_python_rule_says_so(world: Any, monkeypatch: pytest.MonkeyPatch) -> None:
-    first, second = _people(world)
-    event = _event(
-        "information_contact_update",
-        {"recipient_agent_id": first, "sender_agent_id": second},
-        world.minute_index,
-    )
-    relationships = world.model_state[KEY]["relationships"]
-    relationships.clear()
-    relationships.update({f'["p{index}","q"]': _record() for index in range(100_000)})
-    before = _mirror(world).row_json()
-    with pytest.raises(
-        ValueError, match="^social_network_v1 reached the configured relationship bound$"
-    ):
-        _rules().observe_event(world, event, world.minute_index)
-    with pytest.raises(
-        ValueError, match="^social_network_v1 reached the configured relationship bound$"
-    ):
-        social_network.observe_event(world, event, world.minute_index)
-    assert _mirror(world).row_json() == before
-
-
 def test_record_observed_contacts_comes_through_the_social_step_without_python(
     finished: Any,
 ) -> None:
@@ -547,13 +333,6 @@ def test_record_observed_contacts_comes_through_the_social_step_without_python(
 
 
 # ---- The state context of a social event -------------------------------------------------------
-
-
-def test_capture_gives_what_the_python_rule_gives(world: Any) -> None:
-    first, second = _people(world)
-    kernel = native.rules("social_dialogue").capture_context
-    for ids in ((first, second), [second, first], (first,), (first, first)):
-        _python_gave(json.dumps(kernel(world, ids)))
 
 
 @pytest.mark.parametrize(
@@ -574,20 +353,8 @@ def test_capture_refuses_a_body_state_without_its_row(world: Any, edit: Any) -> 
         social_dialogue.capture_social_state_context(world, (first, second))
 
 
-@pytest.mark.parametrize(
-    ("ids", "text"),
-    [
-        ((), "one or two"),
-        (("a", "b", "c"), "one or two"),
-        (("nobody",), "one or two"),
-    ],
-)
-def test_capture_says_the_rule_s_text(world: Any, ids: tuple, text: str) -> None:
-    with pytest.raises(ValueError, match=text):
-        social_dialogue.capture_social_state_context(world, ids)
-
-
 def test_a_body_value_out_of_bounds_says_the_rule_s_text(world: Any) -> None:
+    """The entry of `capture_context` (the core's tests check the captures and the other texts)."""
     first, second = _people(world)
     world.model_state["body_state_v1"]["agents"][first]["discontent"] = 1.5
     with pytest.raises(ValueError, match="^social dialogue state values must be finite and within"):
@@ -606,34 +373,12 @@ _NOT_UNIT = "social dialogue state values must be finite and within 0..1"
     ("spoil", "text"),
     [
         (lambda c, i: c.__setitem__("schema_version", 2), _NOT_ITS_EVENT),
-        (lambda c, i: c.__setitem__("captured_minute", -1), _NOT_ITS_EVENT),
-        (lambda c, i: c.__setitem__("captured_minute", 10**6), _NOT_ITS_EVENT),
-        (lambda c, i: c.__setitem__("captured_minute", True), _NOT_ITS_EVENT),
-        (lambda c, i: c.__setitem__("more", 1), _NOT_ITS_EVENT),
-        (lambda c, i: c["participants"].pop(i), _NOT_ITS_EVENT),
-        (
-            lambda c, i: c["participants"].__setitem__("other", c["participants"].pop(i)),
-            _NOT_ITS_EVENT,
-        ),
         (lambda c, i: c["participants"][i].__setitem__("stress", 1.5), _NOT_UNIT),
-        (lambda c, i: c["participants"][i].__setitem__("trust", float("nan")), _NOT_UNIT),
-        (lambda c, i: c["participants"][i].__setitem__("stress", True), _NOT_UNIT),
-        (lambda c, i: c["participants"][i]["needs"].__setitem__("hunger", -0.5), _NOT_UNIT),
-        (
-            lambda c, i: c["participants"][i]["needs"].pop("hunger"),
-            "social dialogue needs context is invalid",
-        ),
-        (
-            lambda c, i: c["participants"][i].__setitem__("affect", {"positive_affect": 0.5}),
-            "social dialogue affect context is invalid",
-        ),
-        (
-            lambda c, i: c["participants"][i].pop("affect"),
-            "social dialogue participant state has unsupported fields",
-        ),
     ],
 )
 def test_validation_of_a_context_says_the_rule_s_text(world: Any, spoil: Any, text: str) -> None:
+    """The entry of `validate_context`, of a mapping and of an event's frozen payload (the core's
+    tests check each text in the rule's order of checks)."""
     ids = tuple(_people(world))
     context = _context(world, ids)
     kernel = native.rules("social_dialogue").validate_context
@@ -688,45 +433,9 @@ def _apply_formula(world: Any, event: Any) -> None:
         actor.trust = min(1.0, actor.trust + max(0.0, relief * 0.25))
 
 
-@pytest.mark.parametrize("kind", ["reassurance_exchange", "voluntary_support", "family_care"])
-def test_a_social_action_gives_the_bits_of_the_rule_s_formula(world: Any, kind: str) -> None:
-    ids = _people(world)
-    _colocate(world, ids)
-    actor, participant = ids
-    presence = world.model_state.get("population_presence_v1")
-    if presence is not None:
-        for id_ in ids:
-            presence["people"].setdefault(id_, {})["household_id"] = "h1"
-    else:
-        for id_ in ids:
-            world.agents[id_].profile.group_id = "h1"
-    other = copy.deepcopy(world)
-    rng = random.Random(3)
-    ran = 0
-    for number in range(400):
-        stress, trust, fatigue = rng.random(), rng.random(), rng.random() * 0.2
-        positive, negative = rng.random(), rng.random()
-        for each in (world, other):
-            each.agents[actor].stress = fatigue
-            each.agents[actor].trust = trust
-            each.agents[actor].needs.fatigue = fatigue
-            each.agents[actor].needs.hunger = 0.0
-            each.agents[actor].needs.toilet_urgency = 0.0
-            each.agents[actor].needs.hydration_need = 0.0
-            each.agents[participant].stress = max(stress, 0.6)
-            each.agents[participant].trust = trust
-            record = each.model_state["body_state_v1"]["agents"][actor]
-            record["positive_affect"], record["negative_affect"] = positive, negative
-        event = _action(world, kind, actor, participant, number + 1)
-        _apply_kernel(world, event)
-        _apply_formula(other, event)
-        ran += 1
-        assert _values(world, ids) == _values(other, ids)
-    assert ran == 400
-    assert world._core.entities().verify(world) is None
-
-
 def test_a_1_percent_change_of_the_transfer_shows_in_the_action(world: Any) -> None:
+    """The entry of the social action (the core's tests check it against the formula on random
+    states, and the texts of the actions it turns down)."""
     ids = _people(world)
     _colocate(world, ids)
     other = copy.deepcopy(world)
@@ -745,77 +454,3 @@ def test_a_1_percent_change_of_the_transfer_shows_in_the_action(world: Any) -> N
         _apply_formula(expected, event)
         assert _values(each, ids) == _values(expected, ids)
     assert _values(world, ids) != _values(other, ids)
-
-
-def _suppresses(world: Any, event: Any, text: str) -> None:
-    """The kernel suppresses the action with the Python rule's text, written down from it."""
-    with pytest.raises(EventSuppressed) as by_kernel:
-        _apply_kernel(world, event)
-    assert str(by_kernel.value) == text
-
-
-def test_a_suppressed_action_says_python_s_text_with_nothing_written(world: Any) -> None:
-    ids = _people(world)
-    zone = _colocate(world, ids)
-    event = _action(world, "reassurance_exchange", *ids)
-    others = [name for name in world.zones if name != zone]
-    world.agents[ids[1]].zone_id = others[0]
-    before = _values(world, ids)
-    _suppresses(world, event, "social action participants are no longer co-located")
-    assert _values(world, ids) == before
-
-
-def test_a_helper_who_needs_more_than_the_target_is_suppressed(world: Any) -> None:
-    ids = _people(world)
-    _colocate(world, ids)
-    world.agents[ids[0]].stress = 0.9
-    world.agents[ids[1]].stress = 0.1
-    for name in ("toilet_urgency", "hunger", "fatigue", "hydration_need"):
-        setattr(world.agents[ids[1]].needs, name, 0.1)
-    event = _action(world, "voluntary_support", *ids)
-    before = _values(world, ids)
-    _suppresses(world, event, "the selected person no longer has a higher immediate need")
-    assert _values(world, ids) == before
-
-
-def test_a_different_household_is_suppressed(world: Any) -> None:
-    ids = _people(world)
-    _colocate(world, ids)
-    presence = world.model_state.get("population_presence_v1")
-    if presence is not None:
-        presence["people"].setdefault(ids[0], {})["household_id"] = "h1"
-        presence["people"].setdefault(ids[1], {})["household_id"] = "h2"
-    else:
-        world.agents[ids[0]].profile.group_id = "h1"
-        world.agents[ids[1]].profile.group_id = "h2"
-    event = _action(world, "family_care", *ids)
-    _suppresses(world, event, "family support target is no longer in the same household")
-
-
-DURATION = "social action duration must be within 1..1440 minutes"
-
-
-@pytest.mark.parametrize(
-    ("more", "text"),
-    [
-        ({"interaction_duration_minutes": 0}, DURATION),
-        ({"interaction_duration_minutes": True}, DURATION),
-        ({"reason_short": "other"}, "social action reason code is not allowed"),
-        ({"action": "other"}, "social action does not match its typed topic"),
-        ({"extra": 1}, "autonomous social action payload fields do not match"),
-        (
-            {"conversation_state_context": {"schema_version": 2}},
-            "social dialogue state context is invalid",
-        ),
-    ],
-)
-def test_a_bad_payload_is_failed_by_the_kernel_in_python_s_text(
-    world: Any, more: dict, text: str
-) -> None:
-    ids = _people(world)
-    _colocate(world, ids)
-    event = _action(world, "reassurance_exchange", *ids, **more)
-    before = _values(world, ids)
-    expected = (EventApplicationError, text)
-    kernel_says_python_s_text(SocialInteractionHandler(), world, event, expected)
-    assert _values(world, ids) == before
