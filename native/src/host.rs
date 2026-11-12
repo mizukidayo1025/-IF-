@@ -1166,10 +1166,18 @@ impl<'py> PyHost<'py> {
         }
     }
 
+    /// What the world holds of these namespaces and owned fields now (H1): `holding_now` read for
+    /// them alone, with the same answers for each (`holding_of_names`); another name reads as absent
+    /// and another field as held, so a reader asks for every name it reads, and for `model_configs`
+    /// where it reads a section. For the readers outside the tick that run at each frame or minute.
+    pub(crate) fn holding_of(&mut self, names: &[&str], fields: &[&str]) -> PyResult<Arc<Holding>> {
+        Ok(Arc::new(crate::core::world_core::holding_of_names(&self.world, names, fields)?))
+    }
+
     /// `namespace_is_absent` of the holding read now: the key is missing or None; the refusal of a
     /// `model_state` that is not a plain dict.
     pub(crate) fn absent_now(&mut self, name: &str) -> PyResult<bool> {
-        absent(&*self.holding_now()?, name)
+        absent(&*self.holding_of(&[name], &[])?, name)
     }
 
     /// The error a read site raises for a fault of a section Python parses (`kit::raise_section`).

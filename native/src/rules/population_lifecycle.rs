@@ -36,7 +36,7 @@ use crate::Unsupported;
 const EFFECT_PROGRAM: &str = "effect_program_v1";
 
 fn presence_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    Ok(host_of(world).holding_now()?.held(PRESENCE, "the world holds another presence state"))
+    Ok(host_of(world).holding_of(&[PRESENCE], &[])?.held(PRESENCE, "the world holds another presence state"))
 }
 
 /// `current_household_id`.

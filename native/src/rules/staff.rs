@@ -23,6 +23,7 @@ use sheltersim_core::rules::overlay::PLAN_UNREAD;
 use sheltersim_core::rules::staff::{self as core, Assigned, Full, Inputs, Operations, Routed, Service, Step, Travel, WaitRoutes};
 use sheltersim_core::rules::tick::arbitrate::Staff;
 use sheltersim_core::config::SectionId;
+use sheltersim_core::world::{METRIC_STATE, MODEL_CONFIGS};
 use sheltersim_core::rules::staff_operation_events::SNAPSHOT_PLAN_UNREAD;
 use sheltersim_core::run::services::{staff_service, STAFF_SPEC};
 
@@ -46,7 +47,15 @@ use crate::Unsupported;
 /// What the staff rules read of the Python world, read once per entry before the core borrows it:
 /// the core's reader of the holding (`tick::arbitrate::Staff`), read now through the native host.
 fn staff_of(world: &Bound<'_, PyAny>) -> PyResult<Staff> {
-    Staff::of(&*PyHost::of_entry(world).holding_now()?).or_py()
+    Staff::of(&*holding_of_staff(&mut PyHost::of_entry(world))?).or_py()
+}
+
+/// The namespaces and fields the staff rules read, of the holding read now: what `Staff::of`
+/// reads, `metric_state` and the configs.
+const STAFF_NAMES: [&str; 4] = ["staff_operations_v1", "staff_dynamics_v1", "body_state_v1", "shared_operations_v1"];
+
+fn holding_of_staff(host: &mut PyHost<'_>) -> PyResult<std::sync::Arc<sheltersim_core::host::Holding>> {
+    host.holding_of(&STAFF_NAMES, &[METRIC_STATE, MODEL_CONFIGS])
 }
 
 /// The core's result as Python's: a step's refusal where the floor plan could not be read is what
@@ -278,7 +287,7 @@ pub(crate) fn with_wait_inputs<R>(
     }
     read_queue_rows(world)?;
     let mut host = PyHost::of_entry(world);
-    let holding = host.holding_now()?;
+    let holding = holding_of_staff(&mut host)?;
     let loads_staff = travel::staff_held(&holding);
     let geo = Geo::of(world);
     let movement = travel::movement_section(&mut host, &holding)?;
@@ -322,7 +331,7 @@ fn wait_snapshot<'py>(world: &Bound<'py, PyAny>, active_support: &Bound<'py, PyA
 /// `update_staff_operations`: each zone's sanitation falls with who is in it.
 #[pyfunction]
 pub(crate) fn update_operations(world: &Bound<'_, PyAny>, minute: &Bound<'_, PyAny>) -> PyResult<()> {
-    let holding = PyHost::of_entry(world).holding_now()?;
+    let holding = holding_of_staff(&mut PyHost::of_entry(world))?;
     if absent(&holding, "staff_operations_v1")? {
         return Ok(());
     }
@@ -349,7 +358,7 @@ pub(crate) fn assign_operations<'py>(world: &Bound<'py, PyAny>, minute: &Bound<'
 pub(crate) fn assign_operations_with<'py>(world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>, router: StaffRouter<'_, 'py>) -> PyResult<Bound<'py, PyTuple>> {
     let py = world.py();
     let mut host = PyHost::of_entry(world);
-    let holding = host.holding_now()?;
+    let holding = holding_of_staff(&mut host)?;
     if absent(&holding, "staff_operations_v1")? {
         return Ok(PyTuple::empty(py));
     }
@@ -363,7 +372,7 @@ pub(crate) fn assign_operations_with<'py>(world: &Bound<'py, PyAny>, minute: &Bo
             read_queue_rows(world)?;
             let tasks = Gathered::of(world, true, true)?;
             let graph = staff_router_rows(router)?;
-            let holding = host.holding_now()?;
+            let holding = host.holding_of(&["movement_v1", "staff_operations_v1"], &[])?;
             let (movement, loads_staff) = (travel::movement_held(&holding), travel::staff_held(&holding));
             let routed = Routed { router: &graph, movement: &movement, loads_staff: &loads_staff };
             let task_inputs = tasks.inputs();
@@ -383,7 +392,7 @@ pub(crate) fn assign_operations_with<'py>(world: &Bound<'py, PyAny>, minute: &Bo
 #[pyfunction]
 pub(crate) fn relief<'py>(world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyTuple>> {
     let py = world.py();
-    let holding = PyHost::of_entry(world).holding_now()?;
+    let holding = holding_of_staff(&mut PyHost::of_entry(world))?;
     if absent(&holding, "staff_operations_v1")? {
         return Ok(PyTuple::empty(py));
     }

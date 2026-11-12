@@ -103,7 +103,7 @@ fn kpi_values<'py>(world: &Bound<'py, PyAny>, snapshot: &Bound<'py, PyAny>) -> P
     if exact_int(&attribute(world, intern!(py, "schema_version"))?)? != 6 {
         return Err(errors::value_error("operational KPIs require resource-service WorldState v6"));
     }
-    let holding = PyHost::of_entry(world).holding_now()?;
+    let holding = PyHost::of_entry(world).holding_of(&["resource_service_v1", sheltersim_core::state::resource_ledger::NAME], &[METRIC_STATE])?;
     if absent(&holding, "resource_service_v1")? {
         return Err(errors::value_error("operational KPIs require resource-service WorldState v6"));
     }

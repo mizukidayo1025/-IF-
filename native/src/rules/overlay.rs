@@ -22,6 +22,7 @@ use sheltersim_core::config::overlay::overlay_schema as parse_overlay_schema;
 use sheltersim_core::config::service::ResourceService;
 use sheltersim_core::config::SectionId;
 use sheltersim_core::host::Holding;
+use sheltersim_core::world::MODEL_CONFIGS;
 use sheltersim_core::rules::kit::{Held, Kept};
 use sheltersim_core::rules::overlay::{self as core, Beds, Change, Intake, Places, OVERLAY_KEY, PLAN_UNREAD, SPACES_KEY};
 
@@ -107,7 +108,7 @@ pub(crate) fn schema_of(host: &mut PyHost<'_>, holding: &Holding) -> PyResult<Ke
 /// `schema_of` through the native host of an entry, with the holding read now.
 pub(crate) fn schema_now(world: &Bound<'_, PyAny>) -> PyResult<Kept<Option<i64>>> {
     let mut host = PyHost::of_entry(world);
-    let holding = host.holding_now()?;
+    let holding = host.holding_of(&[], &[MODEL_CONFIGS])?;
     schema_of(&mut host, &holding)
 }
 
@@ -208,7 +209,7 @@ struct PlacesIn {
 impl PlacesIn {
     fn of(world: &Bound<'_, PyAny>) -> PyResult<Self> {
         let mut host = PyHost::of_entry(world);
-        let holding = host.holding_now()?;
+        let holding = host.holding_of(&[SPACES_KEY, OVERLAY_KEY], &[MODEL_CONFIGS])?;
         Ok(Self { spaces: spaces_held(&holding), overlay: overlay_held(&holding), schema: schema_of(&mut host, &holding)? })
     }
 

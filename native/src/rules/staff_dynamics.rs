@@ -40,8 +40,14 @@ const CONFIG_FIELDS: [&str; 8] = [
 /// but plain documents, is refused.
 pub(crate) fn fatigue_formula(world: &Bound<'_, PyAny>) -> PyResult<Arc<StaffFatigue>> {
     let mut host = PyHost::of_entry(world);
-    let holding = host.holding_now()?;
+    let holding = holding_of(&mut host)?;
     formula_of(&mut host, &holding)
+}
+
+/// What the staff dynamics read of the holding: their namespace, the staff operations' and the
+/// configs (`PyHost::holding_of`).
+fn holding_of(host: &mut PyHost<'_>) -> PyResult<Arc<Holding>> {
+    host.holding_of(&[NAME, "staff_operations_v1"], &[sheltersim_core::world::MODEL_CONFIGS])
 }
 
 fn formula_of(host: &mut PyHost<'_>, holding: &Holding) -> PyResult<Arc<StaffFatigue>> {
@@ -54,7 +60,7 @@ fn formula_of(host: &mut PyHost<'_>, holding: &Holding) -> PyResult<Arc<StaffFat
 #[pyfunction]
 pub(crate) fn update(world: &Bound<'_, PyAny>, minute: &Bound<'_, PyAny>) -> PyResult<()> {
     let mut host = PyHost::of_entry(world);
-    let holding = host.holding_now()?;
+    let holding = holding_of(&mut host)?;
     if absent(&holding, NAME)? {
         return Ok(());
     }
@@ -66,7 +72,7 @@ pub(crate) fn update(world: &Bound<'_, PyAny>, minute: &Bound<'_, PyAny>) -> PyR
 /// `staff_dynamics_on_shift`.
 #[pyfunction(name = "on_shift")]
 fn on_shift_now(world: &Bound<'_, PyAny>, staff_id: &Bound<'_, PyAny>, minute: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let holding = PyHost::of_entry(world).holding_now()?;
+    let holding = holding_of(&mut PyHost::of_entry(world))?;
     if absent(&holding, NAME)? {
         return Ok(true);
     }
@@ -78,7 +84,7 @@ fn on_shift_now(world: &Bound<'_, PyAny>, staff_id: &Bound<'_, PyAny>, minute: &
 /// `staff_dynamics_is_available`.
 #[pyfunction(name = "is_available")]
 pub(crate) fn is_available_now(world: &Bound<'_, PyAny>, staff_id: &Bound<'_, PyAny>, minute: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let holding = PyHost::of_entry(world).holding_now()?;
+    let holding = holding_of(&mut PyHost::of_entry(world))?;
     if absent(&holding, NAME)? {
         return Ok(true);
     }
@@ -94,7 +100,7 @@ pub(crate) fn is_available_now(world: &Bound<'_, PyAny>, staff_id: &Bound<'_, Py
 /// `add_staff`: one record.
 #[pyfunction]
 fn add_staff(world: &Bound<'_, PyAny>, staff_id: &Bound<'_, PyAny>) -> PyResult<()> {
-    let holding = PyHost::of_entry(world).holding_now()?;
+    let holding = holding_of(&mut PyHost::of_entry(world))?;
     if absent(&holding, NAME)? {
         return Ok(());
     }

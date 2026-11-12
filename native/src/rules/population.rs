@@ -318,7 +318,7 @@ fn choose_admission_target<'py>(world: &Bound<'py, PyAny>, item: &Bound<'py, PyA
 /// table): those are read from their Python values, for the same core rule.
 #[pyfunction]
 pub(crate) fn validate_population_dynamics_state(world: &Bound<'_, PyAny>) -> PyResult<()> {
-    let holding = host_of(world).holding_now()?;
+    let holding = host_of(world).holding_of(&[DYNAMICS, PRESENCE], &[])?;
     let dynamics = holding.held(DYNAMICS, "the world holds another population dynamics state");
     let presence = holding.held(PRESENCE, "the world holds another presence state");
     let other = |held: &Held| matches!(held, Held::Other(_));
