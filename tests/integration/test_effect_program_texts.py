@@ -1,25 +1,26 @@
-"""An EffectProgram event's suppressed and failed texts are the Python rule's, said by the kernel.
+"""An EffectProgram event's failed texts that are a Python check's own, said by the kernel: the
+text of a contract's error, as each handler wraps it, and of the world's check.
 
-The environment, temporary-space, geometry and structure handlers of events/effects.py
-(native/src/rules/effects.rs). These texts are saved: the dispatcher writes them to the event's
+The handlers' texts, case by case, are tested in the core without Python
+(native/core/tests/effect_program_texts.rs, Issue #225). Its host's contracts give their input
+back, so the texts of pydantic's errors stay here: each is also the test of a handler's Python
+entry (the environment, temporary-space, geometry and structure handlers of events/effects.py,
+native/src/rules/effects.rs). These texts are saved: the dispatcher writes them to the event's
 record as `detail`. Each case checks that the kernel raises the outcome itself, that nothing
-changed, and the class and text the deleted Python rule gave, written down from it
-(support/world.py `kernel_says_python_s_text`); a contract's text is the contract's own, as the
-rule wrapped it. A handoff needs a staff operation under way, so its world is run with TickEngine
-to that point (docs/rust-port/lanes/l8-texts-events.md).
+changed, and the class and text the deleted Python rule gave (support/world.py
+`kernel_says_python_s_text`); a contract's text is the contract's own, as the rule wrapped it. A
+handoff needs a staff operation under way, so its world is run with TickEngine to that point
+(docs/rust-port/lanes/l8-texts-events.md).
 """
 
 from __future__ import annotations
 
 import copy
-import hashlib
-import json
 from typing import Any
 
 import pytest
 from support.world import kernel_says_python_s_text
 
-from sheltersim import native
 from sheltersim.core.engine import TickEngine
 from sheltersim.core.world import WorldState
 from sheltersim.domain.geometry_overlay import RouteAccessParameters
@@ -40,7 +41,6 @@ from sheltersim.events.effects import (
 )
 from sheltersim.events.models import (
     EventApplicationError,
-    EventKind,
     EventSuppressed,
     ScheduledEvent,
 )
@@ -49,7 +49,6 @@ from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _MetricSink
 
-KEY = "effect_program_v1"
 START, END = 5, 30
 FAILED, SUPPRESSED = "EventApplicationError", "EventSuppressed"
 
@@ -125,12 +124,6 @@ def _changed(event: ScheduledEvent, payload: dict[str, Any] | None = None, **fie
     return ScheduledEvent(**document)
 
 
-def _marker(event: ScheduledEvent, **fields: Any) -> dict[str, Any]:
-    provenance = event.to_dict()["provenance"]
-    provenance[KEY] = {**provenance[KEY], **fields}
-    return provenance
-
-
 def _says(handler: Any, world: WorldState, event: Any, outcome: str, text: str) -> None:
     """The handler's outcome is `outcome` with `text`, the kernel's."""
     classes = {FAILED: EventApplicationError, SUPPRESSED: EventSuppressed}
@@ -159,101 +152,26 @@ def _a_toilet(world: WorldState) -> str:
 # ---- EffectProgramEnvironmentHandler -------------------------------------------------------------
 
 
-def test_a_zone_environment_event_s_texts_are_python_s(world: WorldState) -> None:
+def test_a_zone_environment_parameter_the_contract_refuses_is_its_text(world: WorldState) -> None:
     schedule_effect_program(
         world, _program(_action("set_ambient_noise", "zone", _a_zone(world), {"level": 0.5}))
     )
     start = _event(world, "effect_program_environment")
-    expiry = _event(world, "effect_program_environment_expire")
-    apply = EffectProgramEnvironmentHandler()
-    expire = EffectProgramEnvironmentHandler(expire=True)
-    fields = "zone environment event payload fields do not match"
-    strings = "zone environment event IDs must be strings"
-    policy = "zone environment event has no installed program policy"
-    unsupported = "zone environment operator is unsupported"
-    minute = "zone environment modifier expiry minute is invalid"
-    for handler, event, outcome, text in (
-        (apply, _changed(start, {"other": 1}), FAILED, fields),
-        (apply, _changed(start, {"end_minute": ...}), FAILED, fields),
-        (expire, start, FAILED, fields),
-        (apply, _changed(start, {"zone_id": 1}), FAILED, strings),
-        (expire, _changed(expiry, {"program_id": None}), FAILED, strings),
-        (apply, _changed(start, {"program_id": "no-such-program"}), FAILED, policy),
-        (apply, _changed(start, {"effect_id": "no-such-effect"}), FAILED, policy),
-        (apply, _changed(start, provenance={}), FAILED, policy),
-        (apply, _changed(start, provenance=_marker(start, policy_dependencies=[])), FAILED, policy),
-        (
-            apply,
-            _changed(start, {"modifier_id": "modifier-other"}),
-            FAILED,
-            "zone environment modifier ID does not match its effect",
-        ),
-        (expire, expiry, SUPPRESSED, "zone environment modifier is not active"),
-        (apply, _changed(start, {"op": "set_noise"}), FAILED, unsupported),
-        # A list is frozen to a tuple, which a set can hash.
-        (apply, _changed(start, {"op": ["set_lighting"]}), FAILED, unsupported),
-        (apply, _changed(start, {"op": None}), FAILED, unsupported),
-        (
-            apply,
-            _changed(start, {"op": "set_lighting"}),
-            FAILED,
-            "zone environment operator does not match its program",
-        ),
-        (
-            apply,
-            _changed(start, {"zone_id": "no-such-zone"}),
-            FAILED,
-            "zone environment target does not exist",
-        ),
-        (apply, _changed(start, {"end_minute": 10**30}), FAILED, minute),
-        (apply, _changed(start, {"end_minute": True}), FAILED, minute),
-        (apply, _changed(start, {"end_minute": float(END)}), FAILED, minute),
-        (apply, _changed(start, {"end_minute": START}), FAILED, minute),
-        (apply, _changed(start, {"end_minute": world.duration_minutes}), FAILED, minute),
-        (
-            apply,
-            _changed(start, {"end_minute": END - 1}),
-            FAILED,
-            "zone environment modifier has no unique expiry event",
-        ),
-        (
-            apply,
-            _changed(start, provenance=_marker(start, assumption_ids=["a", 1])),
-            FAILED,
-            "zone environment assumption provenance is invalid",
-        ),
-        (
-            apply,
-            _changed(start, provenance=_marker(start, assumption_ids="a")),
-            FAILED,
-            "zone environment assumption provenance is invalid",
-        ),
-    ):
-        _says(handler, world, event, outcome, text)
     with pytest.raises(ValueError) as contract:
         _PARAMETER_MODELS["set_ambient_noise"].model_validate({"level": 9.0})
     _says(
-        apply,
+        EffectProgramEnvironmentHandler(),
         world,
         _changed(start, {"parameters": {"level": 9.0}}),
         FAILED,
         f"zone environment parameters are invalid: {contract.value}",
     )
 
-    apply.apply(world, start)
-    _says(apply, world, start, SUPPRESSED, "zone environment modifier is already active")
-    _says(
-        expire,
-        world,
-        _changed(expiry, causation_id="another-start"),
-        FAILED,
-        "zone environment expiry does not match its start",
-    )
-
 
 def test_a_start_the_check_of_the_world_turns_down_is_python_s_text(world: WorldState) -> None:
     """The handler wraps a ValueError of the copy's check: here the record of a start whose
-    parameters differ from its event's in the queue."""
+    parameters differ from its event's in the queue. The check is a Python validator's
+    (domain/environment.py), which the core's test host does not run."""
     schedule_effect_program(
         world, _program(_action("set_lighting", "zone", _a_zone(world), {"level": 0.5}))
     )
@@ -271,7 +189,7 @@ def test_a_start_the_check_of_the_world_turns_down_is_python_s_text(world: World
 # ---- EffectProgramTemporarySpaceHandler ----------------------------------------------------------
 
 
-def test_a_temporary_space_event_s_texts_are_python_s(world: WorldState) -> None:
+def test_a_temporary_space_parameter_the_contract_refuses_is_its_text(world: WorldState) -> None:
     zone = _a_zone(world)
     schedule_effect_program(
         world,
@@ -282,55 +200,9 @@ def test_a_temporary_space_event_s_texts_are_python_s(world: WorldState) -> None
         ),
     )
     start = _event(world, "effect_program_temporary_space")
-    expiry = _event(world, "effect_program_temporary_space_expire")
-    apply = EffectProgramTemporarySpaceHandler()
-    expire = EffectProgramTemporarySpaceHandler(expire=True)
-    approved = "temporary-space event does not reference an approved installed effect"
-    not_started = "temporary-space effect did not start or does not match its expiry"
-    interval = "temporary-space end minute is outside its approved interval"
-    for handler, event, outcome, text in (
-        (apply, _changed(start, {"program_id": "no-such-program"}), FAILED, approved),
-        (apply, _changed(start, {"program_id": 1}), FAILED, approved),
-        (apply, _changed(start, {"effect_id": "no-such-effect"}), FAILED, approved),
-        (apply, _changed(start, {"modifier_id": "modifier-other"}), FAILED, approved),
-        (apply, _changed(start, {"zone_id": "no-such-zone"}), FAILED, approved),
-        (apply, _changed(start, {"zone_id": ["a", "b"]}), FAILED, approved),
-        (apply, _changed(start, {"zone_id": ...}), FAILED, approved),
-        (apply, _changed(start, provenance={}), FAILED, approved),
-        (
-            apply,
-            _changed(start, provenance=_marker(start, policy_dependencies=[])),
-            FAILED,
-            approved,
-        ),
-        (
-            expire,
-            _changed(expiry, {"op": "add_temporary_space"}),
-            FAILED,
-            "temporary-space expiry payload fields do not match",
-        ),
-        (expire, expiry, SUPPRESSED, not_started),
-        (
-            apply,
-            _changed(start, {"op": "set_lighting"}),
-            FAILED,
-            "temporary-space event payload fields do not match",
-        ),
-        (
-            apply,
-            _changed(start, {"parameters": ...}),
-            FAILED,
-            "temporary-space event payload fields do not match",
-        ),
-        (apply, _changed(start, {"end_minute": 10**30}), FAILED, interval),
-        (apply, _changed(start, {"end_minute": START}), FAILED, interval),
-        (apply, _changed(start, {"end_minute": True}), FAILED, interval),
-        (apply, _changed(start, {"end_minute": None}), FAILED, interval),
-    ):
-        _says(handler, world, event, outcome, text)
     invalid = _changed(start, {"parameters": {"people_capacity": 0}})
     _says_the_contract_s(
-        apply,
+        EffectProgramTemporarySpaceHandler(),
         world,
         invalid,
         "temporary-space parameters are invalid: ",
@@ -338,152 +210,41 @@ def test_a_temporary_space_event_s_texts_are_python_s(world: WorldState) -> None
         invalid.payload["parameters"],
     )
 
-    apply.apply(world, start)
-    _says(apply, world, start, FAILED, "temporary space ID already exists")
-    _says(expire, world, _changed(expiry, causation_id="another-start"), SUPPRESSED, not_started)
-    late = _changed(expiry, causation_id=start.event_id, due_minute=END - 1)
-    _says(expire, world, late, SUPPRESSED, not_started)
-
-
-def test_a_temporary_space_whose_guard_is_false_is_suppressed(world: WorldState) -> None:
-    schedule_effect_program(
-        world,
-        _program(
-            _action(
-                "add_temporary_space",
-                "zone",
-                _a_zone(world),
-                {"people_capacity": 5},
-                guard=GuardExpression(operator="gt", field="simulation.minute", value=100_000),
-            )
-        ),
-    )
-    start = _event(world, "effect_program_temporary_space")
-    _says(
-        EffectProgramTemporarySpaceHandler(),
-        world,
-        start,
-        SUPPRESSED,
-        "EffectProgram guard evaluated false",
-    )
-
 
 # ---- EffectProgramGeometryHandler ----------------------------------------------------------------
 
 
-def test_a_geometry_event_s_texts_are_python_s(world: WorldState) -> None:
+def test_a_route_access_the_contract_refuses_is_its_text(world: WorldState) -> None:
+    """What `apply_geometry_change` raises is the contract's text, as the Python rule words it."""
     edge = sorted(world.zone_edges)[0]
     schedule_effect_program(
         world, _program(_action("set_route_access", "route", edge, {"accessible": True}))
     )
     start = _event(world, "effect_program_geometry")
-    expiry = _event(world, "effect_program_geometry_expire")
-    apply = EffectProgramGeometryHandler()
-    expire = EffectProgramGeometryHandler(expire=True)
-    fields = "geometry effect has invalid fields or operator"
-    approved = "geometry effect does not reference its approved program"
-    for handler, event, outcome, text in (
-        (apply, _changed(start, {"other": 1}), FAILED, fields),
-        (apply, _changed(start, {"op": "set_lighting"}), FAILED, fields),
-        (apply, _changed(start, {"op": ["set_route_access"]}), FAILED, fields),
-        (apply, _changed(start, {"program_id": "no-such-program"}), FAILED, approved),
-        (apply, _changed(start, {"program_id": 1}), FAILED, approved),
-        (apply, _changed(start, {"effect_id": None}), FAILED, approved),
-        (apply, _changed(start, {"op": "set_partition"}), FAILED, approved),
-        (apply, _changed(start, {"modifier_id": "modifier-other"}), FAILED, approved),
-        (expire, expiry, SUPPRESSED, "geometry modifier was not applied or already expired"),
-    ):
-        _says(handler, world, event, outcome, text)
-    # What apply_geometry_change raises is the text, as the Python rule words it.
     with pytest.raises(ValueError) as contract:
         RouteAccessParameters.model_validate({"accessible": "yes"})
-    for change, text in (
-        ({"target_id": "no-such-route"}, "target_missing: route does not exist"),
-        ({"parameters": {"accessible": "yes"}}, str(contract.value)),
-    ):
-        _says(apply, world, _changed(start, change), FAILED, text)
+    _says(
+        EffectProgramGeometryHandler(),
+        world,
+        _changed(start, {"parameters": {"accessible": "yes"}}),
+        FAILED,
+        str(contract.value),
+    )
 
 
 # ---- EffectProgramStructureHandler: additions, roles, repairs ------------------------------------
 
 
-@pytest.mark.parametrize(
-    ("op", "field", "bound"), [("add_staff", "staff", 100), ("add_toilet", "facilities", 200)]
-)
-def test_an_addition_s_texts_are_python_s(
-    world: WorldState, op: str, field: str, bound: int
-) -> None:
-    schedule_effect_program(
-        world, _program(_action(op, "zone", _a_zone(world), {"count": 1}, end=None))
-    )
-    # The floor plan has no place for so many toilets; this is about the bound.
-    world.model_configs["geometry_overlay"]["schema_version"] = 3
-    event = _event(world, "effect_program_structure", op)
-    handler = EffectProgramStructureHandler()
-    invalid = "structural primitive target or operation is invalid"
-    exceed = (
-        "adding staff would exceed the 100-staff runtime bound"
-        if op == "add_staff"
-        else "adding toilets would exceed the 200-facility bound"
-    )
-    room = bound - len(getattr(world, field))
-    for change, text in (
-        ({"other": 1}, "structural primitive payload fields do not match"),
-        ({"count": ...}, "structural primitive payload fields do not match"),
-        ({"program_id": "no-such-program"}, invalid),
-        ({"program_id": None}, invalid),
-        ({"effect_id": "no-such-effect"}, invalid),
-        ({"op": "add_bed"}, invalid),
-        ({"op": ["add_staff"]}, invalid),
-        ({"count": 0}, invalid),
-        ({"count": -(10**30)}, invalid),
-        ({"count": True}, invalid),
-        ({"count": 1.0}, invalid),
-        ({"zone_id": "no-such-zone"}, invalid),
-        ({"zone_id": 1}, invalid),
-        ({"count": room + 1}, exceed),
-        ({"count": 10**30}, exceed),
-    ):
-        _says(handler, world, _changed(event, change), FAILED, text)
-    handler.apply(world, event)
-    exists = "generated staff ID" if op == "add_staff" else "generated toilet ID"
-    _says(handler, world, event, FAILED, f"{exists} already exists")
-
-
-def test_a_toilet_without_a_free_point_is_python_s_text(world: WorldState) -> None:
-    schedule_effect_program(
-        world, _program(_action("add_toilet", "zone", _a_zone(world), {"count": 1}, end=None))
-    )
-    event = _event(world, "effect_program_structure", "add_toilet")
-    many = _changed(event, {"count": 200 - len(world.facilities)})
-    # The first toilet the floor plan has no free point for, as the Python rule named it.
-    suffix = event.payload["modifier_id"].removeprefix("modifier-")
-    assert suffix == "1a1febf9fee93453e26e19f2ed94ab22"
-    text = f"no free floor-plan point for installed facility 'effect-toilet-{suffix}-16'"
-    _says(EffectProgramStructureHandler(), world, many, FAILED, text)
-
-
-def test_a_role_change_s_texts_are_python_s(world: WorldState) -> None:
+def test_a_role_change_the_contract_refuses_is_its_text(world: WorldState) -> None:
     staff_id = sorted(world.staff)[0]
     schedule_effect_program(
         world,
         _program(_action("set_staff_role", "staff", staff_id, {"skills": ["support"]}, end=None)),
     )
     event = _event(world, "effect_program_structure", "set_staff_role")
-    handler = EffectProgramStructureHandler()
-    target = "staff-role event does not reference an approved staff target"
-    for change in (
-        {"program_id": "no-such-program"},
-        {"program_id": 1},
-        {"effect_id": "no-such-effect"},
-        {"op": "add_staff"},
-        {"staff_id": "no-such-staff"},
-        {"staff_id": 1},
-    ):
-        _says(handler, world, _changed(event, change), FAILED, target)
     twice = _changed(event, {"skills": ["same", "same"]})
     _says_the_contract_s(
-        handler,
+        EffectProgramStructureHandler(),
         world,
         twice,
         "staff-role event skills are invalid: ",
@@ -492,7 +253,7 @@ def test_a_role_change_s_texts_are_python_s(world: WorldState) -> None:
     )
 
 
-def test_a_repair_s_texts_are_python_s(world: WorldState) -> None:
+def test_a_repair_the_contract_refuses_is_its_text(world: WorldState) -> None:
     facility = _a_toilet(world)
     world.facilities[facility].working_units = 0
     if "infrastructure_v1" in world.model_state:
@@ -508,53 +269,15 @@ def test_a_repair_s_texts_are_python_s(world: WorldState) -> None:
         world, _program(_action("facility_repair", "facility", facility, parameters, end=None))
     )
     event = _event(world, "effect_program_structure", "facility_repair")
-    handler = EffectProgramStructureHandler()
-    approved = "facility repair does not reference an approved program"
-    for change in (
-        {"program_id": "no-such-program"},
-        {"effect_id": "no-such-effect"},
-        {"op": "facility_outage"},
-        {"modifier_id": "modifier-other"},
-        {"facility_id": 1},
-    ):
-        _says(handler, world, _changed(event, change), FAILED, approved)
-    for marker in (
-        {"op": "add_staff"},
-        {"phase": "end"},
-        {"program_id": "other"},
-        {"effect_id": None},
-    ):
-        provenance = _marker(event, **marker)
-        _says(handler, world, _changed(event, provenance=provenance), FAILED, approved)
-    _says(handler, world, _changed(event, event_id="another-event"), FAILED, approved)
     partial = _changed(event, {"parameters": {"facility_id": facility}})
     _says_the_contract_s(
-        handler,
+        EffectProgramStructureHandler(),
         world,
         partial,
         "facility repair parameters are invalid: ",
         "facility_repair",
         partial.payload["parameters"],
     )
-    other = sorted(set(world.facilities) - {facility})[0]
-    _says(
-        handler,
-        world,
-        _changed(event, {"facility_id": other}),
-        FAILED,
-        "facility repair target does not match a known facility",
-    )
-    world.facilities[facility].working_units = capacity
-    _says(
-        handler,
-        world,
-        event,
-        FAILED,
-        "facility repair preconditions no longer match the live facility state",
-    )
-    world.facilities[facility].working_units = 0
-    del world.model_state["shared_operations_v1"]
-    _says(handler, world, event, FAILED, "facility repair requires shared receipt state")
 
 
 # ---- EffectProgramStructureHandler: a handoff ----------------------------------------------------
@@ -672,129 +395,17 @@ def handing_off(
     )
 
 
-def test_a_handoff_s_texts_are_python_s(
+def test_a_handoff_the_contract_refuses_is_its_text(
     handing_off: tuple[WorldState, ScheduledEvent, ScheduledEvent],
 ) -> None:
     base, event, _ = handing_off
     worker = event.payload["staff_id"]
-    parameters = event.to_dict()["payload"]["parameters"]
-    replacement = parameters["replacement_staff_id"]
-    # Someone not idle at the patrol: the generated workers are all elsewhere or busy.
-    other = next(
-        id
-        for id, staff in sorted(base.staff.items())
-        if id not in {worker, replacement} and staff.zone_id != base.staff[replacement].zone_id
-    )
-    handler = EffectProgramStructureHandler()
-
-    def fresh() -> WorldState:
-        return WorldState.from_dict(base.to_dict())
-
-    # The handoff itself is the Python rule's, receipt and all.
-    kernel_world = fresh()
-    task_id = parameters["task_id"]
-    made = native.rules("effects").structure(handler, kernel_world, event)
-    receipt = made[0].to_dict()
-    assert len(made) == 1
-    assert (receipt["status"], receipt["detail"]) == (
-        "applied",
-        "staff task assignment updated before handoff receipt",
-    )
-    assert {
-        name: receipt["event"]["payload"][name]
-        for name in ("task_id", "previous_staff_id", "replacement_staff_id", "status")
-    } == {
-        "task_id": task_id,
-        "previous_staff_id": worker,
-        "replacement_staff_id": replacement,
-        "status": "reassigned",
-    }
-    assert kernel_world.staff[replacement].active_task_id == task_id
-    assert kernel_world.staff[worker].active_task_id is None
-    assert kernel_world.active_tasks[task_id].staff_id == replacement
-    operations = kernel_world.model_state["staff_operations_v1"]["staff"]
-    assert (operations[worker]["phase"], operations[replacement]["phase"]) == ("idle", "working")
-    # The whole world and the receipt as the Python rule left them, recorded once from it
-    # (2d8fb46) on Linux; the same bits on every OS.
-    documents = (
-        json.dumps(kernel_world.to_dict(), ensure_ascii=False)
-        + "\n"
-        + json.dumps([item.to_dict() for item in made], ensure_ascii=False)
-    )
-    assert (
-        hashlib.sha256(documents.encode()).hexdigest()
-        == "b2c8d110332d533d9bdfed71f81b3b614ddcf4427b52e91e989a5f7b10a14d41"
-    )
-
-    approved = "staff handoff does not reference an approved program"
-    for change in (
-        {"program_id": "no-such-program"},
-        {"op": "staff_task_order_x"},
-        {"staff_id": 1},
-        {"modifier_id": "modifier-other"},
-    ):
-        _says(handler, fresh(), _changed(event, change), FAILED, approved)
-    _says(handler, fresh(), _changed(event, provenance={}), FAILED, approved)
     partial = _changed(event, {"parameters": {"staff_id": worker}})
     _says_the_contract_s(
-        handler,
-        fresh(),
+        EffectProgramStructureHandler(),
+        WorldState.from_dict(base.to_dict()),
         partial,
         "staff handoff parameters are invalid: ",
         "staff_handoff",
         partial.payload["parameters"],
-    )
-    participants = "staff handoff participants or task are invalid"
-    for change in (
-        {"replacement_staff_id": "no-such-staff"},
-        {"replacement_staff_id": None},
-        {"task_id": "no-such-task"},
-    ):
-        changed = _changed(event, {"parameters": {**parameters, **change}})
-        _says(handler, fresh(), changed, FAILED, participants)
-    _says(
-        handler,
-        fresh(),
-        _changed(event, {"parameters": {**parameters, "replacement_staff_id": other}}),
-        FAILED,
-        "staff handoff requires a qualified idle replacement already at active work",
-    )
-    # The replacement called away, through the dispatcher, at this minute (the handoff kept back).
-    unavailable = fresh()
-    later = _changed(event, due_minute=event.due_minute + 5)
-    unavailable.event_queue.replace(event.event_id, later)
-    unavailable.event_queue.schedule(
-        ScheduledEvent(
-            event_id="test-absence",
-            kind=EventKind.EXOGENOUS,
-            due_minute=unavailable.minute_index,
-            priority=0,
-            sequence=unavailable.allocate_event_sequence(),
-            event_type="staff_unavailable",
-            payload={"staff_id": replacement, "until_minute": unavailable.minute_index + 30},
-            source_id="SRC-TEST",
-            causation_id=None,
-            provenance={"source_type": "assumption", "source_id": "SRC-TEST"},
-        )
-    )
-    controller = OfflineSimulationController(unavailable, _MetricSink(MetricsRecorder()))
-    TickEngine(unavailable, phase_handler=controller).step()
-    status = unavailable.model_state["operational_events_v1"]["staff_status"][replacement]
-    assert status["available"] is False
-    _says(handler, unavailable, event, FAILED, "staff handoff replacement is unavailable")
-    world = fresh()
-    del world.model_state["shared_operations_v1"]
-    _says(handler, world, event, FAILED, participants)
-
-
-def test_a_role_change_during_work_is_python_s_text(
-    handing_off: tuple[WorldState, ScheduledEvent, ScheduledEvent],
-) -> None:
-    base, _, role = handing_off
-    _says(
-        EffectProgramStructureHandler(),
-        WorldState.from_dict(base.to_dict()),
-        role,
-        FAILED,
-        "staff role cannot change while work is active",
     )
