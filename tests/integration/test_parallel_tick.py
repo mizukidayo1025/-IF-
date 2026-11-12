@@ -109,14 +109,3 @@ def test_helpers_give_the_bytes_of_the_calling_thread_alone(
         alone["files"],
     )
 
-
-def test_few_people_stay_on_the_calling_thread() -> None:
-    import sheltersim_native
-
-    before = sheltersim_native.set_people_per_helper(256)
-    try:
-        threads, _ = sheltersim_native.parallel_state(0)
-        assert sheltersim_native.parallel_state(255)[1] == 0
-        assert sheltersim_native.parallel_state(1000)[1] == min(threads, 3)
-    finally:
-        sheltersim_native.set_people_per_helper(before)

@@ -115,6 +115,14 @@ fn the_split_work_gives_the_bytes_of_a_plain_loop() {
         assert_eq!((threads, helpers), (0, 0));
     }
 
+    // With the default of one helper for 256 people, 255 stay on the calling thread and 1,000 take
+    // at most the pool's three helpers (`test_few_people_stay_on_the_calling_thread` of
+    // `tests/integration/test_parallel_tick.py` before #225).
+    set_people_per_helper(256);
+    let (threads, _) = parallel_state(0);
+    assert_eq!(parallel_state(255).1, 0);
+    assert_eq!(parallel_state(1000).1, threads.min(3));
+
     set_people_per_helper(before);
     assert_eq!(hex(&digest.finalize()), FROZEN);
 }

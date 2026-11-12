@@ -9,7 +9,8 @@
 //! applied. `check` runs the core's handler (`dispatch::apply_alone`, the kernel the handler's
 //! PyO3 entry calls) on a fresh load of the world with its host (`load::loaded`, and `host`:
 //! `load::host` whose `find_record` finds the world's records) and checks that it raised that
-//! outcome itself, with the same text, and changed nothing; or that it applied and left the world
+//! outcome itself, with the same text, and changed nothing (or, where the case has `after` too, left
+//! that world, as a rule that writes before its outcome does); or that it applied and left the world
 //! `after` is, byte for byte (`canonical::parts`).
 
 use std::sync::Arc;
@@ -159,7 +160,15 @@ pub fn check(data: &Value, case: &Value) {
         };
         let wanted = Ok(Some((status, outcome[1].as_str().unwrap().to_owned())));
         assert_eq!(result, wanted, "{event}");
-        assert!(now == before, "the handler changed {:?}: {event}", differing(&before, &now));
+        match case.get("after") {
+            // A rule that wrote before its outcome (a stop, then the event suppressed).
+            Some(after) => {
+                let wanted = load::loaded(&resolve(&data["worlds"], after.as_str().unwrap())).cell.with(|world| parts(world)).unwrap();
+                assert!(now != before, "the handler changed nothing: {event}");
+                assert!(now == wanted, "the handler left {:?} otherwise: {event}", differing(&wanted, &now));
+            }
+            None => assert!(now == before, "the handler changed {:?}: {event}", differing(&before, &now)),
+        }
     } else {
         assert_eq!(result, Ok(None), "{event}");
         let after = resolve(&data["worlds"], case["after"].as_str().unwrap());
