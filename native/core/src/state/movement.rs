@@ -10,10 +10,11 @@
 
 use std::sync::Arc;
 
-use crate::error::Result;
+use crate::error::{Misfit, Result};
 use crate::json::{write_json_string, Encoder};
 use crate::row::{Field, IdMap};
 use crate::state_row;
+use crate::value::V;
 
 state_row! {
     #[derive(Copy)]
@@ -65,9 +66,52 @@ impl Journey {
     }
 }
 
+/// The fields every journey has.
+const JOURNEY_REQUIRED_FIELDS: usize = 10;
+
 impl Field for Journey {
     /// No map inside: the route lists keep their order.
     fn canonicalize(&mut self) {}
+
+    /// The ten fields every journey has, and the last three where present. `Arc<str>` is what
+    /// refuses a null there.
+    fn from_value(value: &V) -> std::result::Result<Self, Misfit> {
+        let V::Map(record) = value else {
+            return Err(Misfit::new("not a dict"));
+        };
+        fn required<T: Field>(record: &indexmap::IndexMap<Arc<str>, V>, key: &str) -> std::result::Result<T, Misfit> {
+            T::from_value(record.get(key).ok_or_else(|| Misfit::new("a journey field is missing"))?)
+        }
+        let mut found = JOURNEY_REQUIRED_FIELDS;
+        let mut optional = |key: &str| -> std::result::Result<Option<Arc<str>>, Misfit> {
+            match record.get(key) {
+                Some(value) => {
+                    found += 1;
+                    Ok(Some(Field::from_value(value)?))
+                }
+                None => Ok(None),
+            }
+        };
+        let journey = Self {
+            event_id: required(record, "event_id")?,
+            task_id: required(record, "task_id")?,
+            purpose: required(record, "purpose")?,
+            facility_id: required(record, "facility_id")?,
+            destination_zone_id: required(record, "destination_zone_id")?,
+            route_zone_ids: required(record, "route_zone_ids")?,
+            route_edge_ids: required(record, "route_edge_ids")?,
+            route_points: required(record, "route_points")?,
+            started_minute: required(record, "started_minute")?,
+            due_minute: required(record, "due_minute")?,
+            queue_id: optional("queue_id")?,
+            support_request_id: optional("support_request_id")?,
+            support_staff_id: optional("support_staff_id")?,
+        };
+        if record.len() != found {
+            return Err(Misfit::new("other fields than the row's"));
+        }
+        Ok(journey)
+    }
 
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         fn field<T: Field>(encoder: &mut Encoder, name: &str, value: &T) -> Result<()> {

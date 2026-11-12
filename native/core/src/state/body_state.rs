@@ -11,9 +11,9 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use crate::error::Result;
+use crate::error::{Misfit, Result};
 use crate::json::Encoder;
-use crate::row::{Field, IdMap, Items};
+use crate::row::{value_bytes, Field, IdMap, Items};
 use crate::state_row;
 use crate::value::V;
 
@@ -73,6 +73,10 @@ impl Field for Relationships {
         self.map.write_json(encoder)
     }
 
+    fn from_value(value: &V) -> std::result::Result<Self, Misfit> {
+        Ok(Self::from_map(Field::from_value(value)?))
+    }
+
     /// The keys sorted. What was checked stays checked: `people` is in the order of the body
     /// records, and a check that finds another order reads every relationship again.
     fn canonicalize(&mut self) {
@@ -107,6 +111,13 @@ impl Field for History {
 
     /// Each item is its canonical JSON already, and a list keeps its order.
     fn canonicalize(&mut self) {}
+
+    fn from_value(value: &V) -> std::result::Result<Self, Misfit> {
+        let V::List(items) = value else {
+            return Err(Misfit::new("not a list"));
+        };
+        Ok(Self { items: items.iter().map(value_bytes).collect::<std::result::Result<_, _>>()? })
+    }
 
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         encoder.out.push(b'[');

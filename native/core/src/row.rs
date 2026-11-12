@@ -15,6 +15,8 @@
 //! writes, for the struct:
 //! - `NAMES`: the fields in the order they are listed, which is the tree's order.
 //! - `write_json`: the bytes of `canonical_json` of the tree, keys sorted by bytes.
+//! - `from_value`: the record read from the `V` of that JSON, with the checks of the PyO3 crate's
+//!   reader (`Field::from_value`). `str_enum!` writes it for its set too, so no row lacks one.
 //! - `set_level(&mut self, tree, value)`: the mirrored setter a rule uses: the row and the tree, or
 //!   neither when the value has the same bits. Only a `Scalar` field can have one, because storing
 //!   a scalar over a scalar leaves the tree's table of nodes as it is. The tree is a `TreeSink`,
@@ -40,7 +42,7 @@ use std::sync::Arc;
 use indexmap::IndexMap;
 use rustc_hash::FxBuildHasher;
 
-use crate::error::{Error, Result};
+use crate::error::{Error, Misfit, Result};
 use crate::json::{write_json_string, Encoder};
 use crate::value::V;
 
@@ -58,6 +60,15 @@ pub enum Part<'a> {
 pub trait Field: Sized + Clone + Send + Sync + 'static {
     /// The bytes of `canonical_json`.
     fn write_json(&self, encoder: &mut Encoder) -> Result<()>;
+    /// The value read from JSON, as a `V`: what `write_json` wrote, or a namespace of a world's
+    /// canonical document, read with a float where the JSON has a point or an exponent (`1.0`) and
+    /// an int where it has neither (`1`), as Python's `json` reads them. It takes what the PyO3
+    /// crate's `PyField::from_py` takes of the same value in Python, and refuses with a `Misfit`
+    /// what that refuses: an int for a float and the other way round, a missing key of a record
+    /// unless `when_missing` allows it, a key the record does not have, a text outside a
+    /// `str_enum!` set, and the ranges and the checks a hand-written reader there has. Nothing
+    /// in a tick reads a row this way; it is for a world read from a file without Python.
+    fn from_value(value: &V) -> std::result::Result<Self, Misfit>;
     /// Sort the keys of every map inside by their bytes, as a copy through canonical JSON does;
     /// lists keep their order. A value with no map inside does nothing.
     fn canonicalize(&mut self);
@@ -213,6 +224,13 @@ impl Field for f64 {
         encoder.try_float(*self)
     }
 
+    fn from_value(value: &V) -> std::result::Result<Self, Misfit> {
+        match value {
+            V::Float(number) => Ok(*number),
+            _ => Err(Misfit::new("not a float")),
+        }
+    }
+
     fn canonicalize(&mut self) {}
 }
 
@@ -230,6 +248,14 @@ impl Field for i64 {
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         encoder.int(*self);
         Ok(())
+    }
+
+    fn from_value(value: &V) -> std::result::Result<Self, Misfit> {
+        match value {
+            V::Int(number) => Ok(*number),
+            V::Big(_) => Err(Misfit::new(BIG_INT)),
+            _ => Err(Misfit::new("not an int")),
+        }
     }
 
     fn canonicalize(&mut self) {}
@@ -251,6 +277,13 @@ impl Field for bool {
         Ok(())
     }
 
+    fn from_value(value: &V) -> std::result::Result<Self, Misfit> {
+        match value {
+            V::Bool(flag) => Ok(*flag),
+            _ => Err(Misfit::new("not a bool")),
+        }
+    }
+
     fn canonicalize(&mut self) {}
 }
 
@@ -268,6 +301,13 @@ impl Field for Arc<str> {
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         write_json_string(&mut encoder.out, self);
         Ok(())
+    }
+
+    fn from_value(value: &V) -> std::result::Result<Self, Misfit> {
+        match value {
+            V::Str(text) => Ok(text.clone()),
+            _ => Err(Misfit::new("not a str")),
+        }
     }
 
     fn canonicalize(&mut self) {}
@@ -291,6 +331,13 @@ impl<T: Field> Field for Option<T> {
                 encoder.null();
                 Ok(())
             }
+        }
+    }
+
+    fn from_value(value: &V) -> std::result::Result<Self, Misfit> {
+        match value {
+            V::Null => Ok(None),
+            _ => Ok(Some(T::from_value(value)?)),
         }
     }
 
@@ -328,6 +375,13 @@ impl Field for V {
         V::write_json(self, encoder)
     }
 
+    fn from_value(value: &V) -> std::result::Result<Self, Misfit> {
+        if !value.depth_fits() {
+            return Err(Misfit::new(TOO_DEEP));
+        }
+        Ok(value.clone())
+    }
+
     fn canonicalize(&mut self) {
         V::canonicalize(self);
     }
@@ -350,6 +404,22 @@ impl Field for V {
 /// The text of `Maybe`'s error for a key it does not have; a `ValueError` in Python.
 pub const ABSENT_KEY: &str = "an absent key has no value";
 
+/// Why `from_value` refuses an int outside i64 where a row holds an i64.
+const BIG_INT: &str = "an int too large";
+/// Why `from_value` refuses a value deeper than `MAX_DEPTH`.
+const TOO_DEEP: &str = "value nests too deeply";
+
+/// The canonical JSON of a value read whole: an item of a list a row keeps as its bytes (a
+/// history), as the PyO3 crate's `canonical_json` writes the Python value.
+pub fn value_bytes(value: &V) -> std::result::Result<Box<[u8]>, Misfit> {
+    if !value.depth_fits() {
+        return Err(Misfit::new(TOO_DEEP));
+    }
+    let mut encoder = Encoder { out: Vec::with_capacity(256) };
+    value.write_json(&mut encoder).map_err(|error| Misfit::new(error.to_string()))?;
+    Ok(encoder.out.into_boxed_slice())
+}
+
 /// A key the record may not have: `{"a": 1}` and `{}`, where `Option` is `{"a": 1}` and
 /// `{"a": None}`. A record's key that holds None is a misfit here unless T takes None.
 #[derive(Clone)]
@@ -361,6 +431,11 @@ impl<T: Field> Field for Maybe<T> {
             Some(value) => value.write_json(encoder),
             None => Err(Error::Value(ABSENT_KEY.to_owned())),
         }
+    }
+
+    /// A key the record has: one it lacks is `when_missing`.
+    fn from_value(value: &V) -> std::result::Result<Self, Misfit> {
+        Ok(Self(Some(T::from_value(value)?)))
     }
 
     fn items(&self) -> Option<&dyn Items> {
@@ -398,6 +473,17 @@ impl<T: Field> Field for IdMap<T> {
         }
         encoder.out.push(b'}');
         Ok(())
+    }
+
+    fn from_value(value: &V) -> std::result::Result<Self, Misfit> {
+        let V::Map(entries) = value else {
+            return Err(Misfit::new("not a dict"));
+        };
+        let mut map = IdMap::with_capacity_and_hasher(entries.len(), FxBuildHasher);
+        for (key, item) in entries {
+            map.insert(key.clone(), T::from_value(item)?);
+        }
+        Ok(map)
     }
 
     fn canonicalize(&mut self) {
@@ -439,6 +525,13 @@ impl<T: Field> Field for Vec<T> {
         }
         encoder.out.push(b']');
         Ok(())
+    }
+
+    fn from_value(value: &V) -> std::result::Result<Self, Misfit> {
+        match value {
+            V::List(items) => items.iter().map(T::from_value).collect(),
+            _ => Err(Misfit::new("not a list")),
+        }
     }
 
     fn items(&self) -> Option<&dyn Items> {
@@ -615,6 +708,37 @@ macro_rules! state_row {
                 Ok(())
             }
 
+            fn from_value(
+                value: &$crate::value::V,
+            ) -> ::core::result::Result<Self, $crate::error::Misfit> {
+                let $crate::value::V::Map(record) = value else {
+                    return Err($crate::error::Misfit::new("not a dict"));
+                };
+                if record.len() > $name::NAMES.len() {
+                    return Err($crate::error::Misfit::new("other fields than the row's"));
+                }
+                let mut present = 0;
+                let row = Self {
+                    $(
+                        $field: match record.get(stringify!($field)) {
+                            Some(item) => {
+                                present += 1;
+                                $crate::row::Field::from_value(item)?
+                            }
+                            None => $crate::row::Field::when_missing().ok_or_else(|| {
+                                $crate::error::Misfit::new(
+                                    concat!("other fields than the row's: no ", stringify!($field)),
+                                )
+                            })?,
+                        },
+                    )*
+                };
+                if present != record.len() {
+                    return Err($crate::error::Misfit::new("other fields than the row's"));
+                }
+                Ok(row)
+            }
+
             fn part_items(&self, key: &str) -> Option<&dyn $crate::row::Items> {
                 $(
                     if key == stringify!($field) {
@@ -673,6 +797,16 @@ macro_rules! str_enum {
             fn write_json(&self, encoder: &mut $crate::json::Encoder) -> $crate::error::Result<()> {
                 $crate::json::write_json_string(&mut encoder.out, self.text());
                 Ok(())
+            }
+
+            fn from_value(
+                value: &$crate::value::V,
+            ) -> ::core::result::Result<Self, $crate::error::Misfit> {
+                match value {
+                    $crate::value::V::Str(text) => <Self as $crate::row::StrEnum>::from_text(text)
+                        .ok_or_else(|| $crate::error::Misfit::new(<Self as $crate::row::StrEnum>::MISFIT)),
+                    _ => Err($crate::error::Misfit::new("not a str")),
+                }
             }
 
             fn canonicalize(&mut self) {}

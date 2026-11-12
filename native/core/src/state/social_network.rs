@@ -14,9 +14,10 @@
 
 use std::sync::Arc;
 
-use crate::error::Result;
+use crate::error::{Misfit, Result};
 use crate::json::Encoder;
 use crate::row::{Field, IdMap};
+use crate::value::V;
 use crate::state_row;
 
 pub const NAME: &str = "social_network_v1";
@@ -134,6 +135,10 @@ impl Relationships {
 impl Field for Relationships {
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         Field::write_json(&self.map, encoder)
+    }
+
+    fn from_value(value: &V) -> std::result::Result<Self, Misfit> {
+        Ok(Self::from_map(Field::from_value(value)?))
     }
 
     /// The keys sorted. The unchecked keys are a set, whose order no check reads.
