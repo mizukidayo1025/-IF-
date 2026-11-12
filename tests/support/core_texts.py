@@ -112,7 +112,11 @@ class Fixture:
     def world(self, name: str, world: Any, controller: Any, *, full: bool = False) -> str:
         """Add a world: whole if `full`, else as the variant of the world added before whose changes
         are the shortest. A world equal to one added is that one."""
-        entry = json.loads(json.dumps(export_world(world, controller, validate=False)))
+        return self.add(name, export_world(world, controller, validate=False), full=full)
+
+    def add(self, name: str, entry: dict[str, Any], *, full: bool = False) -> str:
+        """Add an entry of `export_world` (which a builder may have changed), as `world` does."""
+        entry = json.loads(json.dumps(entry))
         for known, other in self.entries.items():
             if other == entry:
                 return known
