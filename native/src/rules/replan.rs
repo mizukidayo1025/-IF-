@@ -94,7 +94,7 @@ pub(crate) fn replan_journeys<'py>(
     read_queue_rows(&world)?;
     let inputs = Inputs::of(&world)?;
     let overlay = holding.held(OVERLAY_KEY, core::OTHER_OVERLAY);
-    let schema = kit::section_value_kept(&cell, &mut host, &holding, SectionId::OverlaySchema, |configs| &configs.overlay_schema, parse_overlay_schema)
+    let schema = kit::kept_section_value(&cell, &mut host, &holding, SectionId::OverlaySchema, |configs| &configs.overlay_schema, parse_overlay_schema)
         .map_err(|error| error.0)?;
     let policies = policies_of(controller)?;
     let replanning = Replanning {

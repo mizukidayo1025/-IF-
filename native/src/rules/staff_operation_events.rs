@@ -19,7 +19,6 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use sheltersim_core::error::Result as CoreResult;
 use sheltersim_core::rules::care_receipts::Made;
-use sheltersim_core::rules::kit::{self, Held};
 use sheltersim_core::rules::overlay::PLAN_UNREAD;
 use sheltersim_core::rules::staff_operation_events::{self as core, CompletePlan, Inputs, Planned, Stopping, Work, FORMULA_UNREAD, SNAPSHOTS, SNAPSHOT_PLAN_UNREAD};
 
@@ -32,7 +31,6 @@ use crate::rules::handlers::counted;
 use crate::rules::information_events::event_row;
 use crate::rules::travel::read_queue_rows;
 use crate::state::events::{write_result, EventRow, EventWriter};
-use crate::state::staff_operations::NAME;
 use crate::Unsupported;
 
 /// What the rules read of the Python world, read once per entry by the core through the native host
@@ -40,13 +38,6 @@ use crate::Unsupported;
 pub(crate) struct Gathered<'py> {
     world: Bound<'py, PyAny>,
     read: core::Gathered<HostError>,
-}
-
-/// Whether `model_state` holds `staff_operations_v1`, as the rules take it: a value that is not a
-/// dict is no state (`Absent`); another dict than the row's is refused where a rule reads it.
-pub(crate) fn staff_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    let holding = kit::holding(&PyWorldCell(world), &mut PyHost::of_world(world, PyDict::new(world.py()))).map_err(|error| error.0)?;
-    Ok(holding.held_dict(NAME, core::OTHER_STAFF))
 }
 
 impl<'py> Gathered<'py> {

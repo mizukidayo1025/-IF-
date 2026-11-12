@@ -309,7 +309,7 @@ pub fn kept_of<T>(section: Section<T>) -> Kept<T> {
     match section {
         Section::Ok(value) => Ok(value),
         Section::Fault(fault) => Err(fault),
-        Section::Absent => Err(crate::config::Fault::refused("the configs have no such section")),
+        Section::Absent => Err(crate::config::Fault::refused(NO_SUCH_SECTION)),
     }
 }
 
@@ -513,39 +513,6 @@ pub fn section_of_selection<C: WorldCell, H: Host, T>(
 
 /// The refusal of a section the configs do not have, as the PyO3 crate's `configs::kept` says it.
 pub const NO_SUCH_SECTION: &str = "the configs have no such section";
-
-/// A section as a rule keeps it (`Kept`): its value, or its fault; an absent section is refused
-/// with `NO_SUCH_SECTION`, as the PyO3 crate's `configs::kept` refuses it (lane P9-1a).
-pub fn kept_of<T>(section: Section<T>) -> Kept<T> {
-    match section {
-        Section::Ok(value) => Ok(value),
-        Section::Fault(fault) => Err(fault),
-        Section::Absent => Err(crate::config::Fault::refused(NO_SUCH_SECTION)),
-    }
-}
-
-/// `section`, kept as a rule keeps it (`kept_of`).
-pub fn section_kept<C: WorldCell, H: Host, T>(
-    cell: &C,
-    host: &mut H,
-    holding: &Holding,
-    which: SectionId,
-    get: fn(&Configs) -> &Lazy<T>,
-) -> std::result::Result<Kept<T>, H::Error> {
-    Ok(kept_of(section(cell, host, holding, which, get)?))
-}
-
-/// `section_value`, kept as a rule keeps it (`kept_of`).
-pub fn section_value_kept<C: WorldCell, H: Host, T>(
-    cell: &C,
-    host: &mut H,
-    holding: &Holding,
-    which: SectionId,
-    get: fn(&Configs) -> &Lazy<T>,
-    parse: fn(&V) -> Read<T>,
-) -> std::result::Result<Kept<T>, H::Error> {
-    Ok(kept_of(section_value(cell, host, holding, which, get, parse)?))
-}
 
 /// The refusal of a value of the Run's `Policies` whose read raised (policy E14): the PyO3 crate
 /// reads the attribute again where it meets it, and raises what that raises.

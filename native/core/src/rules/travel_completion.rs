@@ -702,7 +702,7 @@ impl Gathered {
             let geo = host.floor_plan()?;
             let section = if geo.layout.is_some() {
                 // A refusal of the section is said here, as the PyO3 crate's `kept_value` said it.
-                let section = kit::section_value_kept(cell, host, &holding, SectionId::Movement, |configs| &configs.movement, Movement::parse)?;
+                let section = kit::kept_section_value(cell, host, &holding, SectionId::Movement, |configs| &configs.movement, Movement::parse)?;
                 kit::kept(&section)?;
                 section.ok()
             } else {
@@ -807,7 +807,7 @@ pub fn arrive<C: WorldCell, H: Host, M: Managers<H>>(
     if arrival.has_geometry {
         let holding = kit::holding(cell, host)?;
         let plan = host.floor_plan();
-        let section = kit::section_value_kept(cell, host, &holding, SectionId::Movement, |configs| &configs.movement, Movement::parse)?;
+        let section = kit::kept_section_value(cell, host, &holding, SectionId::Movement, |configs| &configs.movement, Movement::parse)?;
         let moving = holding.held(movement::KEY, OTHER_MOVEMENT);
         let queues = holding.held(QUEUES, OTHER_QUEUES);
         let (agent, facility, destination): (Arc<str>, Arc<str>, Arc<str>) = (Arc::from(arrival.agent_id), Arc::from(arrival.facility_id), Arc::from(arrival.destination));

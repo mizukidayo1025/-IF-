@@ -112,7 +112,7 @@ impl<E> Gathered<E> {
         let holding = kit::holding(cell, host)?;
         let plan = if geo { Some(host.floor_plan()) } else { None };
         let formula = if formula {
-            Some(kit::section_kept(cell, host, &holding, SectionId::StaffOperations, |configs| &configs.staff_operations)?)
+            Some(kit::kept_section(cell, host, &holding, SectionId::StaffOperations, |configs| &configs.staff_operations)?)
         } else {
             None
         };

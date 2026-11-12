@@ -244,19 +244,19 @@ impl Configs {
     /// `model_configs["facility_awareness"]`, or its fault.
     pub fn awareness<C: WorldCell, H: Host>(cell: &C, host: &mut H) -> std::result::Result<Kept<Option<Awareness>>, H::Error> {
         let holding = kit::holding(cell, host)?;
-        kit::section_value_kept(cell, host, &holding, SectionId::FacilityAwareness, |configs| &configs.facility_awareness, agent_dynamics::awareness)
+        kit::kept_section_value(cell, host, &holding, SectionId::FacilityAwareness, |configs| &configs.facility_awareness, agent_dynamics::awareness)
     }
 
     /// The policy `model_configs` selects, or its fault.
     pub fn policy<C: WorldCell, H: Host>(cell: &C, host: &mut H) -> std::result::Result<Kept<&'static str>, H::Error> {
         let holding = kit::holding(cell, host)?;
-        kit::section_value_kept(cell, host, &holding, SectionId::AgentDynamicsPolicy, |configs| &configs.agent_dynamics_policy, agent_dynamics::policy)
+        kit::kept_section_value(cell, host, &holding, SectionId::AgentDynamicsPolicy, |configs| &configs.agent_dynamics_policy, agent_dynamics::policy)
     }
 
     /// Whether what a person knows of the facilities is limited, or its fault.
     pub fn knowledge_is_limited<C: WorldCell, H: Host>(cell: &C, host: &mut H) -> std::result::Result<Kept<bool>, H::Error> {
         let holding = kit::holding(cell, host)?;
-        kit::section_value_kept(cell, host, &holding, SectionId::KnowledgeIsLimited, |configs| &configs.knowledge_is_limited, agent_dynamics::knowledge_is_limited)
+        kit::kept_section_value(cell, host, &holding, SectionId::KnowledgeIsLimited, |configs| &configs.knowledge_is_limited, agent_dynamics::knowledge_is_limited)
     }
 }
 

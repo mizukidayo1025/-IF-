@@ -70,7 +70,7 @@ impl Inputs {
         }
         if interaction_type(event) == Some("information_reaction") {
             let holding = kit::holding(cell, host)?;
-            let config = kit::section_kept(cell, host, &holding, SectionId::InformationSpread, |configs| &configs.information_spread)?;
+            let config = kit::kept_section(cell, host, &holding, SectionId::InformationSpread, |configs| &configs.information_spread)?;
             inputs.information = Some((config, holding.held_dict(INFORMATION, OTHER_DOCUMENT)));
         }
         Ok(inputs)

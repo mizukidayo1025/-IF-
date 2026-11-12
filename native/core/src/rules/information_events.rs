@@ -69,7 +69,7 @@ impl Gathered {
     /// none), and the selection, read in that order with nothing of the world borrowed.
     pub fn read<C: WorldCell, H: Host>(cell: &C, host: &mut H) -> std::result::Result<Self, H::Error> {
         let holding = kit::holding(cell, host)?;
-        let config = kit::section_kept(cell, host, &holding, SectionId::InformationSpread, |configs| &configs.information_spread)?;
+        let config = kit::kept_section(cell, host, &holding, SectionId::InformationSpread, |configs| &configs.information_spread)?;
         let held = holding.held_dict(NAME, OTHER_DOCUMENT);
         let (selection, _) = kit::selection(cell, host, &holding)?;
         Ok(Self { config, held, selection })
