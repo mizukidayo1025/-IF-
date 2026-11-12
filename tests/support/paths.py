@@ -26,3 +26,5 @@ DEMO_REPLAY = FIXTURES / "demo_replay"
 # A Run saved before Checkpoints recorded the whole-model version (engine version 1).
 SAVED_RUN_ENGINE_V1 = FIXTURES / "saved_runs" / "engine-v1-small"
 BENCHMARKS = FIXTURES.parent / "benchmarks"
+# The small world of the core's tick test without Python (native/core/tests/tick_core.rs, #152).
+CORE_TICK_FIXTURE = FIXTURES.parent / "native" / "core" / "tests" / "data" / "tick_core.json"
