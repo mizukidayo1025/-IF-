@@ -13,6 +13,8 @@
 
 #![allow(dead_code)]
 
+pub mod load;
+
 use std::sync::Arc;
 
 use indexmap::IndexMap;
