@@ -279,7 +279,9 @@ split PR by PR; its last section sums up what is where.
   with the outcome or the world the Python rule left, checked through `dispatch::apply_alone`,
   the kernel a handler's PyO3 entry calls (#225); and `texts.rs`, for the tests that call a rule
   directly: the canonical text of a world in a cell, the outcome a rule raised, and events
-  changed as the pytest files changed them. The JSON under
+  changed as the pytest files changed them. `answers.rs`
+  chains a test's answers and the world's canonical parts after each, for the digests a moved
+  test records again from the core. The JSON under
   `tests/data/` (worlds the Python side built) is written by the builders that
   `tests/support/core_fixtures.py` registers (`benchmarks/core_fixtures.py`), and
   `tests/integration/test_core_fixtures.py` checks that each file is what its builder makes
