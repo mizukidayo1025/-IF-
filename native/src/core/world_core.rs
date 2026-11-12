@@ -2533,41 +2533,51 @@ pub(crate) fn holding_of(world: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::
     use sheltersim_core::host::{Hold, Holding, Key};
     let py = world.py();
     let table = super::row::attribute(world, intern!(py, "model_state"))?;
-    let mut mirrors: IndexMap<Arc<str>, (Py<NamespaceMirror>, Place)> = IndexMap::new();
-    if let Ok(core) = core_of(world) {
-        let core = core.try_borrow()?;
-        for (name, mirror) in &core.mirrors {
-            let place = match core.world.slots.get(name) {
-                Some(slot) => slot.try_borrow().or_py()?.place,
-                None => continue,
-            };
-            mirrors.insert(name.clone(), (mirror.clone_ref(py), place));
-        }
-    }
     let mut holding = Holding::default();
-    match as_readable_dict(&table) {
-        None => holding.table = false,
-        Some(table) => {
-            for (key, held) in table.iter() {
-                let Ok(key) = key.downcast::<PyString>() else {
-                    continue;
-                };
-                let name = key.to_str()?;
-                let none = held.is_none();
-                let hold = match mirrors.get(name) {
-                    None => Hold::NotOwned,
-                    Some((mirror, _)) if mirror.get().holds_state(&held) => Hold::Held,
-                    Some(_) => Hold::Other,
-                };
-                holding.keys.insert(Arc::from(name), Key::with_dict(hold, none, held.is_instance_of::<pyo3::types::PyDict>()));
+    // The owned fields, read after the core is let go: reading a field may run Python.
+    let mut fields: Vec<(Arc<str>, Py<NamespaceMirror>)> = Vec::new();
+    let core = core_of(world).ok();
+    {
+        // Shared, and no Python runs while it is held (lane P9-1a: the keys are read against the
+        // mirrors in place, with the mirrors' own names, rather than through a copy of them).
+        let held = core.as_ref().map(|core| core.try_borrow()).transpose()?;
+        if let Some(core) = &held {
+            for (name, mirror) in &core.mirrors {
+                if let Some(slot) = core.world.slots.get(name) {
+                    if slot.try_borrow().or_py()?.place == Place::Field {
+                        fields.push((name.clone(), mirror.clone_ref(py)));
+                    }
+                }
+            }
+        }
+        match as_readable_dict(&table) {
+            None => holding.table = false,
+            Some(table) => {
+                for (key, value) in table.iter() {
+                    let Ok(key) = key.downcast::<PyString>() else {
+                        continue;
+                    };
+                    let name = key.to_str()?;
+                    let none = value.is_none();
+                    let dict = value.is_instance_of::<pyo3::types::PyDict>();
+                    let owned = held.as_ref().and_then(|core| {
+                        let (owned, mirror) = core.mirrors.get_key_value(name)?;
+                        let slot = core.world.slots.get(name)?;
+                        Some((owned, mirror, slot))
+                    });
+                    let (name, hold): (Arc<str>, Hold) = match owned {
+                        None => (Arc::from(name), Hold::NotOwned),
+                        Some((owned, mirror, _)) if mirror.get().holds_state(&value) => (owned.clone(), Hold::Held),
+                        Some((owned, _, _)) => (owned.clone(), Hold::Other),
+                    };
+                    holding.keys.insert(name, Key::with_dict(hold, none, dict));
+                }
             }
         }
     }
-    for (name, (mirror, place)) in &mirrors {
-        if *place == Place::Field {
-            let held = mirror.get().root_is(&world.getattr(&**name)?);
-            holding.fields.insert(name.clone(), held);
-        }
+    for (name, mirror) in &fields {
+        let held = mirror.get().root_is(&world.getattr(&**name)?);
+        holding.fields.insert(name.clone(), held);
     }
     Ok(holding)
 }
