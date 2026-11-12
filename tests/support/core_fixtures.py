@@ -40,6 +40,7 @@ from support.paths import CORE_TEST_DATA
 FIXTURES: dict[str, str] = {
     "tick_core": "support.core_tick:tick_core_fixture",
     "sections": "support.core_fixtures:sections_fixture",
+    "typed_rows": "support.core_typed_rows:typed_rows_document",
 }
 
 # The attributes of `InformationSpreadConfig` the PyO3 crate reads (`InformationSpread::FIELDS` of

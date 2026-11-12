@@ -20,7 +20,10 @@ use sheltersim_core::config::body::{AffectModel, TrustModel};
 use sheltersim_core::config::{Configs, FaultClass, Section, SectionId};
 use sheltersim_core::geometry::Pt;
 use sheltersim_core::host::Host;
+use sheltersim_core::json::Encoder;
+use sheltersim_core::row::ValueRow;
 use sheltersim_core::value::V;
+use sheltersim_core::world::WorldCell;
 
 use support::dumps::{dumps, Dumps};
 use support::{load, sections};
@@ -160,6 +163,41 @@ fn an_exported_world_s_floor_plan_is_the_native_path_s() {
         .collect();
     assert_eq!(Value::Array(routes), expected["approach_routes"]);
     assert_eq!(geometry.independent_queues.clone().unwrap(), expected["independent_queues"].as_bool().unwrap());
+}
+
+/// The whole exported world, typed namespaces too, loads as the World, the Run and its host: each
+/// namespace's slot holds its typed row (`support/typed.rs`), which writes the namespace's
+/// canonical bytes again, and the rows and the scalars are the document's.
+#[test]
+fn an_exported_world_with_typed_namespaces_loads_whole() {
+    let entry = entry();
+    let document = &entry["world"];
+    let loaded = load::loaded(&entry);
+    let _host = load::host(&entry);
+    loaded
+        .cell
+        .with(|world| {
+            assert_eq!(world.minute_index().unwrap(), document["minute_index"].as_i64().unwrap());
+            assert_eq!(world.rows().unwrap().agents.len(), document["agents"].as_array().unwrap().len());
+            let mut typed = 0;
+            for (name, value) in document["model_state"].as_object().unwrap() {
+                let slot = world.slots.get(name.as_str()).unwrap_or_else(|| panic!("{name} has no slot")).try_borrow().unwrap();
+                let row = slot.row.as_deref().unwrap_or_else(|| panic!("{name} has no row"));
+                let mut written = Encoder::with_capacity(1 << 16);
+                row.write_json(&mut written).unwrap();
+                let mut canonical = Encoder::with_capacity(1 << 16);
+                load::v(value).write_json(&mut canonical).unwrap();
+                assert!(written.out == canonical.out, "{name} wrote other bytes");
+                if support::typed::typed_row(name, &load::v(value)).is_some() {
+                    assert!(row.as_any().downcast_ref::<ValueRow>().is_none(), "{name} is not its typed row");
+                    typed += 1;
+                }
+            }
+            // The generated world has the extensions' namespaces: movement, the body, the staff...
+            assert!(typed >= 10, "{typed}");
+        })
+        .unwrap();
+    assert!(loaded.policies.dispatch.handlers.is_ok());
 }
 
 #[test]

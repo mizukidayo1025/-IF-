@@ -3,8 +3,8 @@
 `native/core/tests/typed_rows.rs` reads each namespace of `native/core/tests/data/typed_rows.json`
 into its row with the core's `Field::from_value` and writes it back: the bytes must be the
 namespace's canonical JSON. The fixture is this module's document
-(`benchmarks/core_typed_rows_fixture.py` writes it; `integration/test_core_typed_rows.py` checks
-that it still is):
+(`typed_rows_document`, registered in `core_fixtures.FIXTURES`: `benchmarks/core_fixtures.py`
+writes it, and `integration/test_core_fixtures.py` checks that it still is):
 
 - `typed`: the namespaces whose row is typed, in the order of `OWNED_NAMESPACES` (the others are
   the population module's `ValueRow`s). The core's test support has the same table.
@@ -204,8 +204,3 @@ def typed_rows_document() -> dict[str, Any]:
         digests = {key: _sha(value) for key, value in typed.items()}
         worlds.append({"name": name, "minute": minute, "model_state": typed, "digests": digests})
     return {"typed": names, "worlds": worlds}
-
-
-def typed_rows_text() -> str:
-    """The fixture's text: `typed_rows_document` with its keys sorted, one item a line."""
-    return json.dumps(typed_rows_document(), sort_keys=True, ensure_ascii=False, indent=1) + "\n"

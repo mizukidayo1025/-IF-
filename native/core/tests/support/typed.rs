@@ -5,7 +5,7 @@
 //! row that the slot then holds, in `Place::Namespace`. This is the same table for the namespaces
 //! whose row is typed; the others (the population's, the temporary spaces', the overlay's) and the
 //! keys no lane owns are `ValueRow`s. `tests/data/typed_rows.json` lists the typed names Python has
-//! (`benchmarks/core_typed_rows_fixture.py`), and `tests/typed_rows.rs` checks this table is that list.
+//! (`tests/support/core_typed_rows.py`), and `tests/typed_rows.rs` checks this table is that list.
 
 use sheltersim_core::error::Misfit;
 use sheltersim_core::row::{Field, Row};
