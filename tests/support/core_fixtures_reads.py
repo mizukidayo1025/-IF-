@@ -15,7 +15,7 @@ import json
 import random
 from typing import Any
 
-from support.core_fixtures import export_world
+from support.core_fixtures import export_world, run_world
 
 # ---- The resource ledger ------------------------------------------------------------------------
 
@@ -368,3 +368,450 @@ def dispatch_rows_fixture() -> dict[str, Any]:
     document = fixture.document()
     del document["canonical_sha256"]
     return document
+
+
+# ---- The proposals ------------------------------------------------------------------------------
+
+BEHAVIOR = "sheltersim.policies.behavior"
+# The seeds of the drawn worlds whose proposals are compared, and of those that show the branches
+# are reached.
+DRAWN_SEEDS = range(30)
+REACH_SEEDS = range(60)
+# The seed of the drawn world of the test of seeds past 64 bits.
+PAST_64_SEED = 5
+
+
+def behavior_controller(world: Any) -> Any:
+    from sheltersim.experiments.metrics import MetricsRecorder
+    from sheltersim.experiments.runner import OfflineSimulationController
+    from sheltersim.experiments.timeline import _MetricSink
+
+    return OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
+
+
+def behavior_world(scenario: Any) -> tuple[Any, Any]:
+    """The world a drawn world starts from, with its body state, and its controller."""
+    from sheltersim.core.world import WorldState
+    from sheltersim.domain.body_state import create_body_state
+
+    world = WorldState.from_scenario(scenario)
+    world.model_state.setdefault("body_state_v1", create_body_state(world))
+    return world, behavior_controller(world)
+
+
+def draw_world(draws: random.Random, scenario: Any) -> tuple[Any, Any, Any]:
+    """A world with values spread over each threshold of the rule, and most of it due, its
+    controller, and the person contexts drawn (None for none). The values are the rule's to read
+    and need not make a world the validators accept, so the controller is made before them."""
+    from sheltersim.domain.models import Activity
+
+    world, controller = behavior_world(scenario)
+    world.minute_index = draws.randrange(0, 2880)
+
+    def value() -> float:
+        return draws.choice((0.0, 0.25, 0.5, 0.65, 0.8, 0.9, 1.0, draws.random(), draws.random()))
+
+    people = sorted(world.agents)
+    records = world.model_state["body_state_v1"]["agents"]
+    groups = (None, "", "G1", "G2")
+    context: dict[str, Any] = {}
+    for agent_id in people:
+        agent = world.agents[agent_id]
+        agent.needs.toilet_urgency = value()
+        agent.needs.hunger = value()
+        agent.needs.fatigue = value()
+        agent.needs.hydration_need = value()
+        agent.stress = value()
+        agent.trust = value()
+        agent.next_decision_at = draws.choice((0, 0, 0, world.minute_index + 1))
+        agent.activity = draws.choice(
+            (Activity.IDLE, Activity.RESTING, Activity.SLEEPING, Activity.MOVING)
+        )
+        record = records[agent_id]
+        record["sleep_debt_minutes"] = draws.choice((0.0, 240.0, draws.random() * 900.0))
+        for name in ("uncertainty", "reassurance", "discontent", "negative_affect", "hygiene_need"):
+            record[name] = value()
+        if draws.random() < 0.5:
+            others = draws.sample(people, min(9, len(people)))
+            context[agent_id] = {
+                "care_for_ids": others[:3] if draws.random() < 0.5 else [],
+                "caregiver_ids": others[3:6] if draws.random() < 0.5 else [],
+                "parent_ids": others[6:] if draws.random() < 0.5 else [],
+                "usual_wake_minute": draws.randrange(0, 1440),
+                "usual_sleep_minute": draws.randrange(0, 1440),
+                "required_sleep_minutes": draws.choice((60, 480, 600)),
+            }
+    world.model_state["population_presence_v1"] = {
+        "people": {
+            agent_id: {"household_id": draws.choice(groups)}
+            for agent_id in people
+            if draws.random() < 0.7
+        }
+    }
+    if context:
+        configs = world.model_configs.setdefault("population_context", {"people": {}})
+        configs["people"] = context
+    zones = sorted(world.zones)
+    environment = world.model_state.get("zone_environment_v1")
+    if isinstance(environment, dict):
+        for number, action in enumerate(("sleep", "rest", "wait", "sleep")):
+            if draws.random() < 0.5:
+                environment["modifiers"][f"m{number}"] = {
+                    "zone_id": draws.choice(zones),
+                    "start_minute": 0,
+                    "op": "modify_demand_rate",
+                    "parameters": {
+                        "action": action,
+                        "probability_multiplier": draws.choice((0.5, 1.0, 1.5, 2.0)),
+                        "duration_multiplier": (
+                            draws.choice((0.5, 1.0, 1.25, 2.0))
+                            if action in ("rest", "sleep")
+                            else 1.0
+                        ),
+                    },
+                    "start_event_id": f"e{number}",
+                    "source_id": "s",
+                    "assumption_ids": ["ASM-A", "ASM-B"][: number % 3],
+                }
+    return world, controller, context or None
+
+
+def draw_policy(draws: random.Random, ids: list[str]) -> Any:
+    """A behavior policy with its values drawn: a utility policy, or a priority rule over one."""
+    from sheltersim.policies.behavior import PriorityRuleBehaviorPolicy, UtilityBehaviorPolicy
+
+    def weight() -> float:
+        return draws.choice((0.0, 0.25, 1, 1.0, draws.random()))
+
+    autonomy = draws.random() < 0.7
+    parameters: dict[str, Any] = {
+        "temperature": draws.choice((0.2, 0.05, 1, 3.0, draws.random() + 0.01)),
+        "decision_interval_minutes": draws.choice((1, 15, 30)),
+        "decision_interval_minutes_by_agent": {ids[0]: 7} if draws.random() < 0.5 else {},
+        "temperature_by_agent": {ids[1]: draws.choice((0.35, 2))} if draws.random() < 0.5 else {},
+        "sleep_debt_utility_weight": draws.choice((1.0, 0.5, draws.random())),
+        "resource_service_enabled": draws.random() < 0.7,
+        "hydration_action_threshold": draws.choice((0.25, 0.30000000000000004, 1e-07, 1)),
+        "hunger_action_threshold": draws.choice((0.7, 0.123456789, 1.0)),
+        "water_utility_base": weight(),
+        "water_utility_need_weight": weight(),
+        "meal_utility_base": weight(),
+        "meal_utility_need_weight": weight(),
+        "information_query_threshold": draws.choice((1.1, 0.5, 1, 0.123456789)),
+        "information_query_utility_weight": weight(),
+        "autonomy_enabled": autonomy,
+    }
+    version = draws.choice(
+        (
+            "utility-softmax-v1",
+            "sleep-aware-utility-softmax-v2",
+            "sleep-aware-utility-softmax-v2-autonomy-v2",
+            'quote"\\version-é',
+        )
+    )
+    scorer = UtilityBehaviorPolicy(**parameters, policy_version=version)
+    if draws.random() < 0.3:
+        return PriorityRuleBehaviorPolicy(
+            scorer, policy_version=draws.choice((version, "priority-rule-v1"))
+        )
+    return scorer
+
+
+def _compact(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+# The activities `draw_world` draws from, by their place in a record.
+ACTIVITIES = ("idle", "resting", "sleeping", "moving")
+# The households `draw_world` draws from, by their place in a record.
+HOUSEHOLDS = (None, "", "G1", "G2")
+# The body record's values `draw_world` draws, in a record's order.
+BODY_VALUES = (
+    "sleep_debt_minutes",
+    "uncertainty",
+    "reassurance",
+    "discontent",
+    "negative_affect",
+    "hygiene_need",
+)
+# The actions of the zone modifiers `draw_world` may add, `m0` to `m3`.
+MODIFIER_ACTIONS = ("sleep", "rest", "wait", "sleep")
+
+
+def drawn_record(world: Any, drawn_context: Any) -> str:
+    """What `draw_world` drew, as one JSON text of numbers only (a person is their place in ID
+    order): `[minute, people, presence, context, modifiers]`. Each person is `[toilet, hunger,
+    fatigue, hydration, stress, trust, next decision, activity, *body values]` (the activity's and
+    the household's places in `ACTIVITIES` and `HOUSEHOLDS`); the presence is each person's
+    household, -1 for no record; the context is None or `[person, care_for, caregivers, parents,
+    wake, sleep, required]` in the dict's order; the modifiers are None or `[number, zone, the
+    probability's, the duration's multiplier]` (the zone's place in ID order), in order."""
+    people = sorted(world.agents)
+    place = {agent_id: index for index, agent_id in enumerate(people)}
+    zones = sorted(world.zones)
+    records = world.model_state["body_state_v1"]["agents"]
+    agents = []
+    for agent_id in people:
+        agent = world.agents[agent_id]
+        needs = agent.needs
+        record = records[agent_id]
+        agents.append(
+            [
+                needs.toilet_urgency,
+                needs.hunger,
+                needs.fatigue,
+                needs.hydration_need,
+                agent.stress,
+                agent.trust,
+                agent.next_decision_at,
+                ACTIVITIES.index(agent.activity.value),
+                *(record[name] for name in BODY_VALUES),
+            ]
+        )
+    presence = world.model_state["population_presence_v1"]["people"]
+    assert list(presence) == [agent_id for agent_id in people if agent_id in presence]
+    households = [
+        HOUSEHOLDS.index(presence[agent_id]["household_id"]) if agent_id in presence else -1
+        for agent_id in people
+    ]
+    context = None
+    if drawn_context is not None:
+        assert world.model_configs["population_context"]["people"] == drawn_context
+        context = [
+            [
+                place[agent_id],
+                [place[other] for other in person["care_for_ids"]],
+                [place[other] for other in person["caregiver_ids"]],
+                [place[other] for other in person["parent_ids"]],
+                person["usual_wake_minute"],
+                person["usual_sleep_minute"],
+                person["required_sleep_minutes"],
+            ]
+            for agent_id, person in drawn_context.items()
+        ]
+    modifiers = None
+    environment = world.model_state.get("zone_environment_v1")
+    if isinstance(environment, dict):
+        modifiers = []
+        for name, modifier in environment["modifiers"].items():
+            number = int(name[1:])
+            parameters = modifier["parameters"]
+            assert modifier == {
+                "zone_id": modifier["zone_id"],
+                "start_minute": 0,
+                "op": "modify_demand_rate",
+                "parameters": {
+                    "action": MODIFIER_ACTIONS[number],
+                    "probability_multiplier": parameters["probability_multiplier"],
+                    "duration_multiplier": parameters["duration_multiplier"],
+                },
+                "start_event_id": f"e{number}",
+                "source_id": "s",
+                "assumption_ids": ["ASM-A", "ASM-B"][: number % 3],
+            }, name
+            modifiers.append(
+                [
+                    number,
+                    zones.index(modifier["zone_id"]),
+                    parameters["probability_multiplier"],
+                    parameters["duration_multiplier"],
+                ]
+            )
+    return _compact([world.minute_index, agents, households, context, modifiers])
+
+
+# The values the Run reads of a `UtilityBehaviorPolicy` (`Spec::with_fields` of the core's
+# `run::behavior`), in the order of a policy's record.
+UTILITY_FIELDS = (
+    "policy_version",
+    "temperature",
+    "decision_interval_minutes",
+    "decision_interval_minutes_by_agent",
+    "temperature_by_agent",
+    "sleep_debt_utility_weight",
+    "resource_service_enabled",
+    "hydration_action_threshold",
+    "hunger_action_threshold",
+    "water_utility_base",
+    "water_utility_need_weight",
+    "meal_utility_base",
+    "meal_utility_need_weight",
+    "information_query_threshold",
+    "information_query_utility_weight",
+    "autonomy_enabled",
+)
+# What reading `scorer` of a utility policy raised.
+NO_SCORER = ["builtins.AttributeError", "'UtilityBehaviorPolicy' object has no attribute 'scorer'"]
+
+
+def _behavior_object(qualname: str, attrs: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "object": {"class": [BEHAVIOR, qualname, True], "attrs": attrs, "class_own": {}, "own": {}}
+    }
+
+
+def _utility_object(values: list[Any], *, as_policy: bool) -> dict[str, Any]:
+    attrs = {name: {"value": value} for name, value in zip(UTILITY_FIELDS, values, strict=True)}
+    if as_policy:
+        attrs = {
+            "policy_version": attrs.pop("policy_version"),
+            "scorer": {"fault": NO_SCORER},
+            **attrs,
+        }
+    return _behavior_object("UtilityBehaviorPolicy", attrs)
+
+
+def decisions_of(record: Any) -> dict[str, Any]:
+    """The document of `controller.decisions` (`policies_document`) a policy's record stands for:
+    the values of a utility policy, or `[version, values]` of a priority rule over one."""
+    if len(record) == 2:
+        policy = _behavior_object(
+            "PriorityRuleBehaviorPolicy",
+            {
+                "policy_version": {"value": record[0]},
+                "scorer": _utility_object(record[1], as_policy=False),
+            },
+        )
+    else:
+        policy = _utility_object(record, as_policy=True)
+    return _behavior_object("BehaviorDecisionRunner", {"policy": policy})
+
+
+class PolicyRecords:
+    """The behavior policies as the Run reads them (`controller.decisions`), each as one JSON text:
+    the values of its utility policy (`UTILITY_FIELDS`), with the priority rule's version before
+    them for a priority rule. `decisions_of` makes the Run's document again from it, the same as
+    the Run's."""
+
+    def __init__(self, scenario: Any) -> None:
+        self.controller = behavior_world(scenario)[1]
+
+    def record(self, policy: Any) -> str:
+        from sheltersim.policies.behavior import BehaviorDecisionRunner, PriorityRuleBehaviorPolicy
+
+        self.controller.decisions = BehaviorDecisionRunner(policy)
+        self.controller._run_core.refresh_policies(self.controller)
+        document = self.controller._run_core.policies_document()["controller"]["attrs"]
+        scorer = policy.scorer if isinstance(policy, PriorityRuleBehaviorPolicy) else policy
+        values = [getattr(scorer, name) for name in UTILITY_FIELDS]
+        record = (
+            [policy.policy_version, values]
+            if isinstance(policy, PriorityRuleBehaviorPolicy)
+            else values
+        )
+        assert decisions_of(json.loads(_compact(record))) == document["decisions"], policy
+        return _compact(record)
+
+
+def _seeded(draws: random.Random, scenario: Any, policies: PolicyRecords, count: int) -> Any:
+    """A drawn world and `count` drawn policies, each with the seed of its draws."""
+    world, _, context = draw_world(draws, scenario)
+    record = drawn_record(world, context)
+    drawn = []
+    for _ in range(count):
+        policy = draw_policy(draws, sorted(world.agents))
+        drawn.append([policies.record(policy), draws.randrange(0, 2**40)])
+    return record, drawn
+
+
+def requests_world(scenario: Any) -> tuple[Any, Any]:
+    """The world of `test_requests_cooldowns_and_queued_tasks_are_read_as_python_reads_them`:
+    everyone due at minute 40, a request of each status, cooldowns, and queued tasks."""
+    from sheltersim.core.world import WorldState
+    from sheltersim.domain.models import (
+        ActiveTask,
+        Activity,
+        SupportRequestState,
+        SupportRequestStatus,
+    )
+
+    world = WorldState.from_scenario(scenario)
+    controller = behavior_controller(world)
+    for agent in world.agents.values():
+        agent.activity = Activity.IDLE
+        agent.next_decision_at = 0
+    people = sorted(world.agents)
+    world.minute_index = 40
+    for number, status in enumerate(SupportRequestStatus):
+        request = SupportRequestState(f"R{number}", people[number], 5, 10, status=status)
+        world.support_requests[request.id] = request
+        world.agents[people[number]].support_request_id = request.id
+        # Enough for the help candidate but for the request.
+        world.agents[people[number]].needs.fatigue = 0.9
+    world.agents[people[4]].support_request_id = "nothing"
+    world.agents[people[5]].support_cooldown_until = 55
+    world.agents[people[6]].support_cooldown_until = 25
+    world.active_tasks["T1"] = ActiveTask("T1", "toilet_queue", people[7], "F1", 10, 90)
+    world.active_tasks["T2"] = ActiveTask("T2", "resource_service_queue", people[8], None, 50, 90)
+    world.active_tasks["T3"] = ActiveTask("T3", "toilet_queue", people[9], "F1", 20, 90)
+    world.active_tasks["T4"] = ActiveTask("T4", "resource_service_queue", people[9], "F2", 30, 90)
+    return world, controller
+
+
+# The minutes of the Run whose proposals are compared.
+RUN_MINUTES = 90
+
+
+def run_scenario_of(scenario: Any) -> Any:
+    """The Scenario of `test_each_proposal_of_a_run_has_the_bits_of_python`: `RUN_MINUTES` long."""
+    import copy
+
+    from sheltersim.experiments.scenario import ScenarioSpec
+
+    document = copy.deepcopy(scenario.model_dump(mode="json"))
+    document["duration_minutes"] = RUN_MINUTES
+    return ScenarioSpec.model_validate(document)
+
+
+def behavior_rows_fixture() -> dict[str, Any]:
+    """The worlds the drawn worlds start from (`generated`, `small`), the requests' world, the
+    world of a Run of `RUN_MINUTES` set up as `run_scenario` sets it up (`run`), and what
+    each test drew: `drawn` (by seed: the scenario, the world, and four policies with their seeds),
+    `reach` (by seed: the world on the generated Scenario and one policy), `past_64` (a world and a
+    policy) and `requests` (the two policies). The people's order is Python's (`agents`)."""
+    from sheltersim.experiments.scenario import ScenarioSpec
+    from sheltersim.policies.behavior import UtilityBehaviorPolicy
+    from support.core_fixtures_queues import generated
+    from support.core_texts import Fixture
+    from support.paths import SMALL_REPLAY
+
+    scenarios = {"generated": generated(), "small": ScenarioSpec.load(SMALL_REPLAY)}
+    fixture = Fixture()
+    for name, scenario in scenarios.items():
+        fixture.world(name, behavior_world(scenario)[0], None, full=True)
+    fixture.world("requests", requests_world(scenarios["generated"])[0], None)
+    world, controller, _ = run_world(run_scenario_of(scenarios["generated"]))
+    fixture.world("run", world, controller)
+    worlds = fixture.worlds
+    for name, scenario in scenarios.items():
+        worlds[name]["agents"] = list(behavior_world(scenario)[0].agents)
+    policies = {name: PolicyRecords(scenario) for name, scenario in scenarios.items()}
+    drawn = {}
+    for seed in DRAWN_SEEDS:
+        name = "small" if seed % 3 == 0 else "generated"
+        record, made = _seeded(random.Random(seed), scenarios[name], policies[name], 4)
+        drawn[str(seed)] = {"scenario": name, "world": record, "policies": made}
+    reach = {}
+    for seed in REACH_SEEDS:
+        record, made = _seeded(
+            random.Random(seed), scenarios["generated"], policies["generated"], 1
+        )
+        known = drawn.get(str(seed))
+        if known is not None and known["world"] == record:
+            assert known["policies"][0][0] == made[0][0]
+            record = None
+        reach[str(seed)] = {"world": record, "policy": made[0][0]}
+    record, made = _seeded(
+        random.Random(PAST_64_SEED), scenarios["generated"], policies["generated"], 1
+    )
+    requests = [
+        policies["generated"].record(UtilityBehaviorPolicy(information_query_threshold=threshold))
+        for threshold in (1.1, 0.0)
+    ]
+    return {
+        "worlds": worlds,
+        "drawn": drawn,
+        "reach": reach,
+        "past_64": {"world": record, "policy": made[0][0]},
+        "requests": requests,
+    }
