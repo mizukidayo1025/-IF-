@@ -13,6 +13,7 @@ use sheltersim_core::rules::zone_environment::{ZoneInputs, STATE};
 use crate::core::errors::OrPy;
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::{VPy, V};
+use crate::core::world_core::state_value;
 use crate::Unsupported;
 
 fn texts<'py>(py: Python<'py>, items: &[Arc<str>]) -> PyResult<Bound<'py, PyTuple>> {
@@ -35,8 +36,8 @@ fn view_of<'py>(world: &Bound<'py, PyAny>, zone_id: &str) -> PyResult<Bound<'py,
             read.insert(Arc::from(name), <V as VPy>::from_py(&value)?);
         }
     }
-    let state = world.getattr(intern!(py, "model_state"))?.call_method1(intern!(py, "get"), (STATE,))?;
-    let state = <V as VPy>::from_py(&state)?;
+    // `model_state.get(STATE)` as a value (None for no such key), building no tree.
+    let state = state_value(world, STATE)?.unwrap_or(V::Null);
     let conditions = ZoneInputs::read(&read, Some(&state)).and_then(|inputs| inputs.conditions(zone_id)).or_py()?;
     let module = py.import("sheltersim.domain.environment")?;
     let demand_view = module.getattr("ZoneDemandView")?;
