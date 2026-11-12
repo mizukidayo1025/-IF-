@@ -43,6 +43,7 @@ FIXTURES: dict[str, str] = {
     "typed_rows": "support.core_typed_rows:typed_rows_document",
     "queue_rules": "support.core_fixtures_queues:queue_rules_fixture",
     "overlay_rules": "support.core_fixtures_overlay:overlay_rules_fixture",
+    "overlay_queues": "support.core_fixtures_overlay_queues:overlay_queues_fixture",
 }
 
 # The attributes of `InformationSpreadConfig` the PyO3 crate reads (`InformationSpread::FIELDS` of
