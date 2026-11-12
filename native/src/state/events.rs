@@ -216,11 +216,10 @@ pub(crate) fn frozen<'py>(py: Python<'py>, value: &V) -> PyResult<Bound<'py, PyA
     }
 }
 
-/// A due event as a rule reads it: its row, or its object when Python made it and no row was read.
-/// Either is what the event is, and reading the object costs less than making its row once.
+/// An event as a rule's Python entry reads it: its object, of which reading the fields a rule needs
+/// costs less than making its row once. (The dispatch phase reads rows, in the core: lane P9-1c.)
 #[derive(Clone, Copy)]
 pub(crate) enum EventRef<'a, 'py> {
-    Row(&'a EventRow),
     Object(&'a Bound<'py, PyAny>),
 }
 
@@ -229,13 +228,6 @@ impl EventRef<'_, '_> {
     /// a row cannot hold.
     pub(crate) fn text(&self, key: &str) -> PyResult<Option<Arc<str>>> {
         match self {
-            EventRef::Row(row) => Ok(match &row.payload {
-                V::Map(payload) => match payload.get(key) {
-                    Some(V::Str(value)) => Some(value.clone()),
-                    _ => None,
-                },
-                _ => None,
-            }),
             EventRef::Object(event) => {
                 let py = event.py();
                 let payload = event.getattr(intern!(py, "payload"))?;
@@ -251,20 +243,8 @@ impl EventRef<'_, '_> {
         }
     }
 
-    /// `key in event.provenance`.
-    pub(crate) fn has_provenance(&self, key: &str) -> PyResult<bool> {
-        match self {
-            EventRef::Row(row) => Ok(matches!(&row.provenance, V::Map(provenance) if provenance.contains_key(key))),
-            EventRef::Object(event) => {
-                let py = event.py();
-                event.getattr(intern!(py, "provenance"))?.contains(PyString::intern(py, key))
-            }
-        }
-    }
-
     pub(crate) fn event_id(&self) -> PyResult<Arc<str>> {
         match self {
-            EventRef::Row(row) => Ok(row.event_id.clone()),
             EventRef::Object(event) => {
                 let id = event.getattr(intern!(event.py(), "event_id"))?;
                 Ok(Arc::from(id.downcast_exact::<PyString>().map_err(|_| Unsupported::new_err("an ID is not a str"))?.to_str()?))
@@ -272,19 +252,8 @@ impl EventRef<'_, '_> {
         }
     }
 
-    pub(crate) fn event_type(&self) -> PyResult<Arc<str>> {
-        match self {
-            EventRef::Row(row) => Ok(row.event_type.clone()),
-            EventRef::Object(event) => {
-                let id = event.getattr(intern!(event.py(), "event_type"))?;
-                Ok(Arc::from(id.downcast_exact::<PyString>().map_err(|_| Unsupported::new_err("a type is not a str"))?.to_str()?))
-            }
-        }
-    }
-
     pub(crate) fn due_minute(&self) -> PyResult<i64> {
         match self {
-            EventRef::Row(row) => Ok(row.due_minute),
             EventRef::Object(event) => {
                 let due = event.getattr(intern!(event.py(), "due_minute"))?;
                 due.downcast_exact::<PyInt>().map_err(|_| Unsupported::new_err("a minute is not an int"))?.extract().map_err(|_| Unsupported::new_err("a minute is too large"))
@@ -402,24 +371,6 @@ pub(crate) fn share_part<T: EventPart>(home: &Shard<Home<T>>, py: Python<'_>) ->
 }
 
 // ---- The queue ----------------------------------------------------------------------------------
-
-/// One event of a due snapshot, as `EventQueue.due` gives the dispatcher: holds what it was then.
-pub(crate) struct DueEvent {
-    pub(crate) event_id: Arc<str>,
-    serial: u64,
-    pub(crate) row: Option<Arc<EventRow>>,
-    pub(crate) object: Option<Py<PyAny>>,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DueState {
-    /// It left the queue: `current is None`.
-    Gone,
-    /// Still the same event.
-    Same,
-    /// Another event of its ID, of the same values or not: `current is not event`.
-    Changed,
-}
 
 /// A pending event as `QueueStore::pending_events` found it.
 pub(crate) struct PendingEvent<'py> {
@@ -560,63 +511,12 @@ impl QueueStore {
         Ok(())
     }
 
-    /// `EventQueue.due`, for the dispatch loop: what each event due through `minute` is now.
-    pub(crate) fn due_events(&self, py: Python<'_>, minute: i64) -> PyResult<Vec<DueEvent>> {
-        let side = self.side.try_borrow().or_py()?;
-        self.with_queue(py, |queue| {
-            let end = queue.due_end(minute);
-            queue.ordered()[..end]
-                .iter()
-                .map(|(_, serial)| {
-                    let slot = queue.slot(*serial);
-                    DueEvent {
-                        event_id: slot.event_id.clone(),
-                        serial: *serial,
-                        row: slot.row.clone(),
-                        object: side.objects.get(serial).map(|object| object.clone_ref(py)),
-                    }
-                })
-                .collect()
-        })
-    }
-
-    /// Where an event of a due snapshot stands now. An event has a row and an object at different
-    /// times, and an event that was replaced has a new object and no row.
-    pub(crate) fn state_of_due(&self, py: Python<'_>, due: &DueEvent) -> PyResult<DueState> {
-        let side = self.side.try_borrow().or_py()?;
-        self.with_queue(py, |queue| {
-            let Some(serial) = queue.serial_of(&due.event_id) else {
-                return DueState::Gone;
-            };
-            if serial != due.serial {
-                return DueState::Changed;
-            }
-            let same = match (&due.object, side.objects.get(&serial)) {
-                (Some(then), Some(now)) => then.as_ptr() == now.as_ptr(),
-                _ => match (&due.row, &queue.slot(serial).row) {
-                    (Some(then), Some(now)) => Arc::ptr_eq(then, now),
-                    _ => false,
-                },
-            };
-            if same {
-                DueState::Same
-            } else {
-                DueState::Changed
-            }
-        })
-    }
-
     /// The object of the pending event of this ID, made if it has none; None when none is pending.
     pub(crate) fn object_of_id(&self, py: Python<'_>, event_id: &str) -> PyResult<Option<Py<PyAny>>> {
         let Some(serial) = self.with_queue(py, |queue| queue.serial_of(event_id))? else {
             return Ok(None);
         };
         self.object(py, serial).map(Some)
-    }
-
-    /// The object of a pending event of a due snapshot, made if it has none: Python then sees it.
-    pub(crate) fn object_of_due(&self, py: Python<'_>, due: &DueEvent) -> PyResult<Py<PyAny>> {
-        self.object(py, due.serial)
     }
 
     /// `EventQueue.remove` of an event that may have left already; any object goes with it.
@@ -1087,32 +987,6 @@ impl<'py> EventWriter<'py> {
         }
         self.record(event, realized_minute, status, detail)?;
         Ok(true)
-    }
-
-    /// `settle` of an event that has its object: no row is read for it. Ok(false) also for a value
-    /// the writer refuses, which is `EventDispatcher.settle`'s to record.
-    pub(crate) fn settle_object(
-        &self,
-        event_id: &str,
-        event: &Bound<'py, PyAny>,
-        realized_minute: i64,
-        status: EventStatus,
-        detail: Option<&str>,
-    ) -> PyResult<bool> {
-        let py = self.counters.py();
-        self.queue.get().remove_if_pending(py, event_id)?;
-        if self.log.get().has_event_id(py, event_id)? {
-            return Ok(false);
-        }
-        match self.log.get().append_outcome(event, realized_minute, status, detail)? {
-            0 => Ok(true),
-            1 => Err(duplicate_error(py, format!("event '{event_id}' already realized"))),
-            2 => Err(duplicate_error(
-                py,
-                format!("event sequence {} already realized", event.getattr(intern!(py, "sequence"))?),
-            )),
-            _ => Ok(false),
-        }
     }
 
     pub(crate) fn queue(&self) -> &Bound<'py, QueueStore> {

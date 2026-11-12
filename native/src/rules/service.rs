@@ -301,14 +301,9 @@ fn row_of(event: &Bound<'_, PyAny>) -> PyResult<EventRow> {
 pub(crate) fn complete_event<'py>(manager: &Bound<'py, PyAny>, event: EventRef<'_, 'py>) -> PyResult<()> {
     let py = manager.py();
     let inputs = Inputs::of(manager)?;
-    let owned;
-    let row = match event {
-        EventRef::Row(row) => row,
-        EventRef::Object(object) => {
-            owned = row_of(object)?;
-            &owned
-        }
-    };
+    let EventRef::Object(object) = event;
+    let owned = row_of(object)?;
+    let row = &owned;
     match with_world(&inputs.world, |world| core::complete(world, &inputs.manager(), row))? {
         Ok(balance) => applied(&inputs.world, Some(balance)),
         Err(failure) => Err(failed(py, failure)),

@@ -394,14 +394,9 @@ impl Home {
 
 /// `_schedule_return_to_initial_zone` of `experiments/phases/dispatch.py`.
 pub(crate) fn schedule_return<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: EventRef<'_, 'py>) -> PyResult<()> {
-    let owned;
-    let row = match event {
-        EventRef::Row(row) => row,
-        EventRef::Object(object) => {
-            owned = EventRow::from_event(object)?.ok_or_else(|| Unsupported::new_err("the event is not a row"))?;
-            &owned
-        }
-    };
+    let EventRef::Object(object) = event;
+    let owned = EventRow::from_event(object)?.ok_or_else(|| Unsupported::new_err("the event is not a row"))?;
+    let row = &owned;
     let home = Home::of(controller, world)?;
     let returned = with_world(world, |cell| home.schedule(cell, row))?;
     home.finish(world.py(), returned)
