@@ -1,4 +1,59 @@
 {
+ "inputs": {
+  "arrived_at_a_slot": {
+   "people": [
+    "A001",
+    "A002",
+    "A003"
+   ],
+   "point": {
+    "x": 14.374175621006712,
+    "y": 10.477882672817003
+   },
+   "world": "own_queues_asked"
+  },
+  "arrived_with_an_independent_queue": {
+   "point": "toilet_01-left",
+   "queue": "toilet_01-left-fifo",
+   "world": "split_asked"
+  },
+  "at_the_point_asks_at_once": {
+   "meal": {
+    "facility": "meal_distribution_main",
+    "world": "own_queues_at_meal"
+   },
+   "toilet": {
+    "facility": "accessible_toilet_01",
+    "world": "own_queues_at_toilet"
+   },
+   "water": {
+    "facility": "water_station_main",
+    "world": "own_queues_at_water"
+   }
+  },
+  "last_minute": {
+   "cooldown": "last_minute_cooldown",
+   "world": "last_minute"
+  },
+  "no_service": {
+   "world": "no_resource_service"
+  },
+  "queue_turns_down": {
+   "active": "split_at_water_seeking",
+   "exclusive": "split_at_water_queued",
+   "queue": "restricted_at_water"
+  },
+  "service_at_an_independent_queue": {
+   "facility": "water_station_main",
+   "world": "split_at_water_plain"
+  },
+  "service_turns_down": {
+   "world": "split_at_water_moving"
+  },
+  "toilet_at_an_independent_queue": {
+   "world": "split_at_toilet"
+  }
+ },
  "worlds": {
   "add_staff": {
    "base": "generated",
@@ -9294,6 +9349,34 @@
     ]
    ]
   },
+  "last_minute": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "minute_index"
+     ],
+     359
+    ]
+   ]
+  },
+  "last_minute_cooldown": {
+   "base": "last_minute",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "support_cooldown_until"
+     ],
+     365
+    ]
+   ]
+  },
   "lighting": {
    "base": "generated",
    "changes": [
@@ -9488,6 +9571,358 @@
     ]
    ]
   },
+  "no_resource_service": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "run",
+      "policies",
+      "controller",
+      "attrs",
+      "resource_service",
+      "object"
+     ]
+    ],
+    [
+     "set",
+     [
+      "run",
+      "policies",
+      "controller",
+      "attrs",
+      "resource_service",
+      "value"
+     ],
+     null
+    ]
+   ]
+  },
+  "own_queues_asked": {
+   "base": "own_queues_at_toilet",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "active_tasks"
+     ],
+     [
+      {
+       "agent_id": "A002",
+       "due_minute": 0,
+       "id": "toilet-queue-50d06755e15344ad320c445b",
+       "kind": "toilet_queue",
+       "resource_id": "toilet_01",
+       "staff_id": null,
+       "start_minute": 0
+      },
+      {
+       "agent_id": "A003",
+       "due_minute": 0,
+       "id": "toilet-queue-a2af0396b8a24a1c4da025b4",
+       "kind": "toilet_queue",
+       "resource_id": "toilet_01",
+       "staff_id": null,
+       "start_minute": 0
+      },
+      {
+       "agent_id": "A001",
+       "due_minute": 0,
+       "id": "toilet-queue-b43050ed9b0a68f614e50fa7",
+       "kind": "toilet_queue",
+       "resource_id": "toilet_01",
+       "staff_id": null,
+       "start_minute": 0
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "activity"
+     ],
+     "queued"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "target_id"
+     ],
+     "toilet_01"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      1,
+      "activity"
+     ],
+     "queued"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      1,
+      "target_id"
+     ],
+     "toilet_01"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      1,
+      "zone_id"
+     ],
+     "toilet"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      2,
+      "activity"
+     ],
+     "queued"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      2,
+      "target_id"
+     ],
+     "toilet_01"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      2,
+      "zone_id"
+     ],
+     "toilet"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "facilities",
+      5,
+      "queue_agent_ids"
+     ],
+     [
+      "A001",
+      "A002",
+      "A003"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A001",
+      "point",
+      "x"
+     ],
+     3.887087810503355
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A001",
+      "point",
+      "y"
+     ],
+     7.091391873668904
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A002",
+      "zone_id"
+     ],
+     "toilet"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A003",
+      "zone_id"
+     ],
+     "toilet"
+    ]
+   ]
+  },
+  "own_queues_at_meal": {
+   "base": "own_queues_at_water",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A001",
+      "point",
+      "x"
+     ],
+     11.97417562100671
+    ]
+   ]
+  },
+  "own_queues_at_toilet": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "zone_id"
+     ],
+     "toilet"
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "facility_queues"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points"
+     ],
+     []
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A001",
+      "point",
+      "x"
+     ],
+     13.77417562100671
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A001",
+      "point",
+      "y"
+     ],
+     10.477882672817003
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A001",
+      "zone_id"
+     ],
+     "toilet"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points"
+     ],
+     []
+    ]
+   ]
+  },
+  "own_queues_at_water": {
+   "base": "own_queues_at_toilet",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "zone_id"
+     ],
+     "food"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A001",
+      "point",
+      "x"
+     ],
+     12.574175621006711
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A001",
+      "zone_id"
+     ],
+     "food"
+    ]
+   ]
+  },
   "repair": {
    "base": "generated",
    "changes": [
@@ -9606,6 +10041,123 @@
       },
       "schema_version": 1
      }
+    ]
+   ]
+  },
+  "restricted_at_water": {
+   "base": "split_at_water_plain",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      7,
+      "access",
+      "accessibility"
+     ],
+     "restricted"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      7,
+      "access",
+      "required_access_tags"
+     ],
+     [
+      "staff_key"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      8,
+      "access",
+      "accessibility"
+     ],
+     "restricted"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      8,
+      "access",
+      "required_access_tags"
+     ],
+     [
+      "staff_key"
+     ]
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      7,
+      "access",
+      "accessibility"
+     ],
+     "restricted"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      7,
+      "access",
+      "required_access_tags"
+     ],
+     [
+      "staff_key"
+     ]
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      8,
+      "access",
+      "accessibility"
+     ],
+     "restricted"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      8,
+      "access",
+      "required_access_tags"
+     ],
+     [
+      "staff_key"
+     ]
     ]
    ]
   },
@@ -10096,6 +10648,1036 @@
        "walking_speed_m_per_min": 5.0
       }
      ]
+    ]
+   ]
+  },
+  "split_asked": {
+   "base": "split_at_toilet",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "active_tasks"
+     ],
+     [
+      {
+       "agent_id": "A001",
+       "due_minute": 0,
+       "id": "toilet-queue-b43050ed9b0a68f614e50fa7",
+       "kind": "toilet_queue",
+       "resource_id": "toilet_01",
+       "staff_id": null,
+       "start_minute": 0
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "activity"
+     ],
+     "queued"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "target_id"
+     ],
+     "toilet_01"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_log"
+     ],
+     [
+      {
+       "detail": null,
+       "event": {
+        "causation_id": null,
+        "due_minute": 0,
+        "event_id": "facility-queue-transition-0",
+        "event_type": "facility_queue_transition",
+        "kind": "endogenous",
+        "payload": {
+         "agent_id": "A001",
+         "causation_id": null,
+         "event_id": "facility-queue-transition-0",
+         "event_type": "facility_queue_transition",
+         "facility_id": "toilet_01",
+         "minute": 0,
+         "queue_id": "toilet_01-left-fifo",
+         "queue_position": 1,
+         "record_type": "operations",
+         "request_id": "toilet-queue-b43050ed9b0a68f614e50fa7",
+         "requested_minute": 0,
+         "schema_version": 1,
+         "service_capacity_concurrent": 1,
+         "service_kind": "toilet",
+         "service_point_id": "toilet_01-left",
+         "task_id": "toilet-queue-b43050ed9b0a68f614e50fa7",
+         "transition": "queued",
+         "wait_minutes": null
+        },
+        "priority": 0,
+        "provenance": {
+         "policy_version": "independent-facility-queues-v1",
+         "source_id": "ASM-FACILITY-QUEUES-V1",
+         "source_type": "assumption"
+        },
+        "sequence": 0,
+        "source_id": "independent-facility-queues-v1"
+       },
+       "realized_minute": 0,
+       "status": "applied"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "facilities",
+      5,
+      "queue_agent_ids"
+     ],
+     [
+      "A001"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     1
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "facility_queues_v1",
+      "queues",
+      "toilet_01-left-fifo",
+      "queued_request_ids"
+     ],
+     [
+      "toilet-queue-b43050ed9b0a68f614e50fa7"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "facility_queues_v1",
+      "requests",
+      "toilet-queue-b43050ed9b0a68f614e50fa7"
+     ],
+     {
+      "active_task_id": "toilet-queue-b43050ed9b0a68f614e50fa7",
+      "agent_id": "A001",
+      "facility_id": "toilet_01",
+      "queue_id": "toilet_01-left-fifo",
+      "queue_task_id": "toilet-queue-b43050ed9b0a68f614e50fa7",
+      "request_id": "toilet-queue-b43050ed9b0a68f614e50fa7",
+      "requested_minute": 0,
+      "service_kind": "toilet",
+      "service_point_id": "toilet_01-left",
+      "status": "queued"
+     }
+    ]
+   ]
+  },
+  "split_at_toilet": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "zone_id"
+     ],
+     "toilet"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "facilities",
+      5,
+      "capacity"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "facilities",
+      5,
+      "working_units"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "facilities",
+      6,
+      "capacity"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "facilities",
+      6,
+      "working_units"
+     ],
+     2
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      5,
+      "access",
+      "required_access_tags"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      5,
+      "access",
+      "accessibility"
+     ],
+     "accessible"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      5,
+      "access",
+      "required_staff_skills"
+     ],
+     [
+      "toilet_service"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      5,
+      "id"
+     ],
+     "toilet_01-left"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      5,
+      "point_m",
+      "y"
+     ],
+     9.477882672817003
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      5,
+      "queue_id"
+     ],
+     "toilet_01-left-fifo"
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      6,
+      "access",
+      "required_access_tags"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      6,
+      "access",
+      "accessibility"
+     ],
+     "accessible"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      6,
+      "access",
+      "required_staff_skills"
+     ],
+     [
+      "toilet_service"
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      6,
+      "facility_id"
+     ],
+     "toilet_01"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      6,
+      "id"
+     ],
+     "toilet_01-right"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      6,
+      "point_m",
+      "x"
+     ],
+     14.374175621006712
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      6,
+      "point_m",
+      "y"
+     ],
+     11.477882672817003
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      6,
+      "queue_id"
+     ],
+     "toilet_01-right-fifo"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      7
+     ],
+     {
+      "access": {
+       "accessibility": "accessible",
+       "required_staff_skills": [
+        "water_service"
+       ]
+      },
+      "facility_id": "water_station_main",
+      "id": "water_station_main-left",
+      "point_m": {
+       "x": 12.574175621006711,
+       "y": 9.477882672817003
+      },
+      "queue_id": "water_station_main-left-fifo",
+      "schema_version": 1,
+      "service_capacity": 1
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "service_points",
+      8
+     ],
+     {
+      "access": {
+       "accessibility": "accessible",
+       "required_staff_skills": [
+        "water_service"
+       ]
+      },
+      "facility_id": "water_station_main",
+      "id": "water_station_main-right",
+      "point_m": {
+       "x": 12.574175621006711,
+       "y": 11.477882672817003
+      },
+      "queue_id": "water_station_main-right-fifo",
+      "schema_version": 1,
+      "service_capacity": 1
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "facility_queues_v1"
+     ],
+     {
+      "policy_version": "independent-facility-queues-v1",
+      "queues": {
+       "accessible_toilet_01": {
+        "active_request_ids": [],
+        "facility_id": "accessible_toilet_01",
+        "last_stall": null,
+        "queued_request_ids": [],
+        "service_point_id": "legacy-service:d34bc5076754a08e28331f68"
+       },
+       "intake_desk": {
+        "active_request_ids": [],
+        "facility_id": "intake_desk",
+        "last_stall": null,
+        "queued_request_ids": [],
+        "service_point_id": "legacy-service:788cc82320ce4b6e07a59965"
+       },
+       "meal_distribution_main": {
+        "active_request_ids": [],
+        "facility_id": "meal_distribution_main",
+        "last_stall": null,
+        "queued_request_ids": [],
+        "service_point_id": "legacy-service:4483648d70d51dce47b29586"
+       },
+       "medical_desk": {
+        "active_request_ids": [],
+        "facility_id": "medical_desk",
+        "last_stall": null,
+        "queued_request_ids": [],
+        "service_point_id": "legacy-service:24a22dc837f7add348c91a46"
+       },
+       "quiet_support": {
+        "active_request_ids": [],
+        "facility_id": "quiet_support",
+        "last_stall": null,
+        "queued_request_ids": [],
+        "service_point_id": "legacy-service:1a50d56190f3f558ae2e7fd5"
+       },
+       "toilet_01-left-fifo": {
+        "active_request_ids": [],
+        "facility_id": "toilet_01",
+        "last_stall": null,
+        "queued_request_ids": [],
+        "service_point_id": "toilet_01-left"
+       },
+       "toilet_01-right-fifo": {
+        "active_request_ids": [],
+        "facility_id": "toilet_01",
+        "last_stall": null,
+        "queued_request_ids": [],
+        "service_point_id": "toilet_01-right"
+       },
+       "water_station_main-left-fifo": {
+        "active_request_ids": [],
+        "facility_id": "water_station_main",
+        "last_stall": null,
+        "queued_request_ids": [],
+        "service_point_id": "water_station_main-left"
+       },
+       "water_station_main-right-fifo": {
+        "active_request_ids": [],
+        "facility_id": "water_station_main",
+        "last_stall": null,
+        "queued_request_ids": [],
+        "service_point_id": "water_station_main-right"
+       }
+      },
+      "requests": {},
+      "schema_version": 1
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A001",
+      "zone_id"
+     ],
+     "toilet"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "staff_positions",
+      "toilet_staff_01"
+     ],
+     {
+      "edge_id": null,
+      "point": {
+       "x": 14.074175621006717,
+       "y": 7.091391873668907
+      },
+      "position_kind": "physical",
+      "progress": 0.0,
+      "zone_id": "toilet"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "operational_events_v1",
+      "staff_status",
+      "toilet_staff_01"
+     ],
+     {
+      "available": true,
+      "restore_event_id": null,
+      "unavailability_event_id": null,
+      "until_minute": null
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "staff_dynamics_v1",
+      "staff",
+      "toilet_staff_01"
+     ],
+     {
+      "consecutive_work_minutes": 0,
+      "fatigue": 0.0,
+      "last_activity": "off_duty",
+      "rest_until_minute": 0,
+      "total_rest_minutes": 0,
+      "total_work_minutes": 0
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "staff_operations_v1",
+      "staff",
+      "toilet_staff_01"
+     ],
+     {
+      "arrival_minute": null,
+      "causation_event_ids": [],
+      "due_minute": null,
+      "phase": "idle",
+      "reason": null,
+      "route_edge_ids": [],
+      "route_zone_ids": [],
+      "started_minute": null,
+      "target_id": null,
+      "target_zone_id": null,
+      "task_id": null,
+      "task_kind": null,
+      "travel_due_minute": null,
+      "travel_minutes": 0
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "staff",
+      3
+     ],
+     {
+      "active_task_id": null,
+      "busy_until": 0,
+      "id": "toilet_staff_01",
+      "skills": [
+       "toilet_service"
+      ],
+      "work_queue": [],
+      "zone_id": "toilet"
+     }
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "required",
+      2
+     ],
+     "facility_queues_v1"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "required",
+      3
+     ],
+     "geometry_overlay_v1"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "required",
+      4
+     ],
+     "movement_v1"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "required",
+      5
+     ],
+     "population_dynamics_v1"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "required",
+      6
+     ],
+     "population_lifecycle_v1"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "required",
+      7
+     ],
+     "shared_operations_v1"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "required",
+      8
+     ],
+     "social_network_v1"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "required",
+      9
+     ],
+     "staff_dynamics_v1"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "required",
+      10
+     ],
+     "staff_operations_v1"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "required",
+      11
+     ],
+     "temporary_spaces_v1"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "tick_plan",
+      "value",
+      "independent_queues"
+     ],
+     true
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      5,
+      "id"
+     ],
+     "toilet_01-left"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      5,
+      "point_m",
+      "y"
+     ],
+     9.477882672817003
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      5,
+      "access",
+      "accessibility"
+     ],
+     "accessible"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      5,
+      "access",
+      "required_staff_skills"
+     ],
+     [
+      "toilet_service"
+     ]
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      5,
+      "queue_id"
+     ],
+     "toilet_01-left-fifo"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      6,
+      "id"
+     ],
+     "toilet_01-right"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      6,
+      "facility_id"
+     ],
+     "toilet_01"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      6,
+      "point_m",
+      "x"
+     ],
+     14.374175621006712
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      6,
+      "point_m",
+      "y"
+     ],
+     11.477882672817003
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      6,
+      "access",
+      "accessibility"
+     ],
+     "accessible"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      6,
+      "access",
+      "required_staff_skills"
+     ],
+     [
+      "toilet_service"
+     ]
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      6,
+      "queue_id"
+     ],
+     "toilet_01-right-fifo"
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      7
+     ],
+     {
+      "access": {
+       "accessibility": "accessible",
+       "required_access_tags": [],
+       "required_staff_skills": [
+        "water_service"
+       ]
+      },
+      "facility_id": "water_station_main",
+      "id": "water_station_main-left",
+      "point_m": {
+       "x": 12.574175621006711,
+       "y": 9.477882672817003
+      },
+      "queue_id": "water_station_main-left-fifo",
+      "schema_version": 1,
+      "service_capacity": 1
+     }
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "service_points",
+      8
+     ],
+     {
+      "access": {
+       "accessibility": "accessible",
+       "required_access_tags": [],
+       "required_staff_skills": [
+        "water_service"
+       ]
+      },
+      "facility_id": "water_station_main",
+      "id": "water_station_main-right",
+      "point_m": {
+       "x": 12.574175621006711,
+       "y": 11.477882672817003
+      },
+      "queue_id": "water_station_main-right-fifo",
+      "schema_version": 1,
+      "service_capacity": 1
+     }
+    ]
+   ]
+  },
+  "split_at_water_moving": {
+   "base": "split_at_water_plain",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "activity"
+     ],
+     "moving"
+    ]
+   ]
+  },
+  "split_at_water_plain": {
+   "base": "split_at_toilet",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "zone_id"
+     ],
+     "food"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "movement_v1",
+      "positions",
+      "A001",
+      "zone_id"
+     ],
+     "food"
+    ]
+   ]
+  },
+  "split_at_water_queued": {
+   "base": "split_at_water_plain",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "facilities",
+      5,
+      "queue_agent_ids"
+     ],
+     [
+      "A001"
+     ]
+    ]
+   ]
+  },
+  "split_at_water_seeking": {
+   "base": "split_at_water_plain",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "activity"
+     ],
+     "seeking_help"
     ]
    ]
   },
