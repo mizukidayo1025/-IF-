@@ -136,3 +136,11 @@ jobs:
             exit 1
           fi
           cargo test --manifest-path native/Cargo.toml -p sheltersim_core
+      # Without the feature `parallel` (rayon) the core runs on the calling thread with the same
+      # bytes and builds for the browser (#152, P10-1a). tests/no_platform.rs, run in both, finds
+      # any std::time, fs, env or thread in its source.
+      - name: Rustの中核がwasm32向けに作れ、1つのthreadで同じ結果になることを確認
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo build --manifest-path native/Cargo.toml -p sheltersim_core --target wasm32-unknown-unknown --no-default-features
+          cargo test --manifest-path native/Cargo.toml -p sheltersim_core --no-default-features
