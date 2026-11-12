@@ -47,6 +47,47 @@ CI's lint job runs these, after `cargo test -p sheltersim_core` with the feature
 `thread` (they are missing on wasm32 and would tie results to the machine; `thread_local!`,
 `Mutex` and `OnceLock` work on one thread and are allowed).
 
+## The workspace: the core and the wrapper (Issue #152)
+
+`native/Cargo.toml` is a workspace of two crates. `docs/rust-port/step5-plan.md` records the
+split PR by PR; its last section sums up what is where.
+
+- **`core/` (`sheltersim_core`)**: the simulation without Python. Its `cargo tree` has no pyo3
+  (CI checks `cargo tree -p sheltersim_core -e normal,build`). It holds the World (`world.rs`:
+  the scalars, the entity rows, the slots of the owned fields and namespaces, the event queue and
+  the EventLog), the rows (`row.rs`, `entities.rs`, `state/`, `events/`), the typed configs
+  (`config/`), the floor plan and the routes (`geometry.rs`, `routes.rs`), the transactions
+  (`txn.rs`), the Run (`run/`: the `Policies` read once from the controller, `Scratch`, the
+  dispatch table), every rule of the tick (`rules/`) and the tick itself:
+  `rules::tick::run_tick` runs the dispatch, complete, update, propose, arbitrate, sample and
+  metrics phases in `TICK_PHASE_ORDER` on a `WorldCell`, a `RunCell` and one `Host`.
+- **`src/` (`sheltersim_native`)**: the thin PyO3 wrapper. It converts between Python and the
+  core (`src/state/`, `src/core/`), holds a Python world's core (`WorldCore`) and a controller's
+  `Run`, parses the config sections a Python contract interprets (`src/core/configs.rs`,
+  `src/core/geometry.rs`), implements `Host` for Python (`src/host.rs`, `PyHost`) and keeps the
+  `#[pyfunction]` entries of `src/rules/`. A rules file of the wrapper reads its inputs, calls one
+  core function, converts the result and does nothing else.
+  `benchmarks/rust_port/glue_check.py` (CI's lint job) fails on state shims, rule arithmetic,
+  Python calls or a `with_world` closure of more than one core call there, unless an exemption
+  of an allowed class (`CONVERSION`, `ARGUMENT`, `HOOK`) names it. `parity.rs` (tests) and the E6
+  validators `after_tick.rs` and `tick_validation.rs` are exempt files.
+- **`Host`** (`core/src/host.rs`) is the core's only way out: the core has no `extern`, no pyo3
+  and no other callback type. Its methods are the whole-world validation and the transaction's
+  views (policy E6), the pydantic input contracts (`contract`, E15), the LLM boundary (`llm`,
+  `prioritize_support_request`, `consider_*`), the sinks (metrics, decisions, traces, the phase
+  observer), what Python still owns (`holding`, `fill_section`, `floor_plan`, `find_record`, the
+  queue's Python events) and the test hooks (`apply_foreign`, `draw`). The section of PR P9-3b
+  (2/2) in `step5-plan.md` lists each method with why it stays. The native `run_tick`
+  (`src/rules/tick.rs`) is the E10 check (a patched or shadowed step goes back to the Python
+  phase path) and one call of the core's `run_tick` with a `PyHost`.
+- **A tick without Python**: `cargo test -p sheltersim_core --test tick_core` builds a small
+  World from `core/tests/data/tick_core.json` (`core/tests/support/load.rs`, test code only,
+  decision 4) and runs 1,440 ticks with a `TestHost` (no LLM; the whole-world validation answers
+  Ok, E6). Its digests are the native path's (`tests/integration/test_core_tick.py`).
+- **Out of the core** (decision 4): building a world from a Scenario and restoring a Checkpoint
+  stay in Python and the wrapper. The whole-world validation texts (E6) and the pydantic
+  contracts (E15) stay Python behind `Host` until stage 4.
+
 ## Layout for lanes
 
 - `core/` (`sheltersim_core`): the simulation core without Python (Issue #152,
