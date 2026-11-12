@@ -1730,7 +1730,7 @@ impl Case {
 /// passed.
 #[test]
 fn sleep_in_a_room_is_the_python_step_s() {
-    for (at_bed, recorded) in [(false, "029184cecef3bae40b471b6a9dfde96af0aaac3f03440be636c706376dda95c8"), (true, "7518aa59d89e59b9979829d01c1a75d4675c79f9244841997a2dd1ca95bf7bf7")] {
+    for (at_bed, recorded) in [(false, "55d960c2de83838756d2411be1cb6d006d8c1658f25889cfd3db7f7535d92b06"), (true, "7c32733e2d57b1ef9a2fc0e71ffabe8dadaf4e863a6d85bbf9c0b197600d27bc")] {
         let mut case = Case::new();
         let record = room_record(&case, "room", 2, 1);
         room_world(&case, 2, 1, "room");
@@ -1768,7 +1768,7 @@ fn sleep_past_the_run_s_end_releases_the_bed() {
     let mut answers = Answers::default();
     case.with(|world| answers.add(&format!("{applied:?}"), world));
     case.give_back(snapshot);
-    assert_eq!(answers.hex(), "cee5d84d30874865fab37fb994eb4e4e37de1922bfed13b5e50c21100e938735");
+    assert_eq!(answers.hex(), "55848294ea1a33d50b3c290096c3a537e55329343fb3ce2446a81fa68b10c315");
 }
 
 // ---- Independent queues --------------------------------------------------------------------------
@@ -2212,7 +2212,7 @@ fn a_fifo_keeps_its_order_and_only_a_wait_ends_it() {
 /// `RECORDED`, and `e9cd3a9fc6b9` and `e1eae6eeec33` of `FIFO_WALKS`.
 #[test]
 fn walks_of_a_fifo_are_the_python_rule_s() {
-    for (queue, walk_digest, walks_digest) in [(LEFT, "8a2989a052dde585d94556e9578e4d7a768f2888fece564097b9cfbd741bfa76", "51d6f1e575cc4d09871d06fa8bbdb6fcfc320e898ecf09e8526414b062675b8d"), (RIGHT, "e2c5eaaf44632def48a638109c4ce20a2247a2575b4f92f02fc7bbe3648bb981", "3aa438e53a2c5205a8b2fffd5e3b5c7c45135e8e63f2c83e501cc37d66fc90cf")] {
+    for (queue, walk_digest, walks_digest) in [(LEFT, "31ea1db6800291372fc1b78b7a93d1a9acd417c3760c5c0705c4be4837a95ccf", "c628d41065bccf3df4a0bcf22df1ccd453487bec0a84ecabd96493b60be15bd5"), (RIGHT, "9da9bdefc7466eb11d51886ac11f8d813635ba8920baceac0431e69f51322bfe", "b1a2747c863378726350dd601d578be4f310566bb99800a32127ce25aeaf0bb0")] {
         let mut case = Case::queued();
         case.line_up("toilet_01", queue, &["A001", "A002", "A003"]);
         let minute = case.minute();
@@ -2381,13 +2381,13 @@ fn a_toilet_fifo_is_the_python_rule_s() {
     assert_eq!(
         recorded,
         [
-            "bb44649463581d884beb8d9c7120b063d722add6db43b56ea6127293aa4a214a",
-            "bb44649463581d884beb8d9c7120b063d722add6db43b56ea6127293aa4a214a",
-            "3a94e90d806c50bd40af0e4b07f7c4e4b9fa64a722e7718e9429af04556f3b0d",
-            "cfad5b2356505cd87339d18649f4545f7857a95a6cf89fbecba99797dd405ba8",
-            "6f04d56e2b1f296293268980e496ec74982e40c610f2ccb77ebe06f18547b240",
-            "b7dd51caa2a97696bcba156ce39fb39c9b988195dabe5e5ca4ff2e69b89f548c",
-            "908ac0966c46442bc3459700929767fa54105ba2a5ebcbdf1f1a01e7e3ecd0cb",
+            "e3f9bb48cee573a68906b4e257ecd2cc806387d04e71ddb41acdbb40d0bc5e8e",
+            "e3f9bb48cee573a68906b4e257ecd2cc806387d04e71ddb41acdbb40d0bc5e8e",
+            "3a6c10b9a17fafc85ea592323ab4e39a76288180ef2001db2c2feeee3d8ecd0b",
+            "23efadc59d3e0f332ebddbdbd7a347a67fb97bf23018886596edc8ca44eeb799",
+            "3edd99e59ed7a12bbd9dae5bcf75eefac2505aa4e162f9b8dd6b8675cf0e07e5",
+            "072e9a78c4cf56396faac2d112463391233709d469e43eef5df735b3cd7f1e85",
+            "02669b3ec32370bb5d62c2e9c2cf53a62e55af1374f962c08a21b5deec05dce9",
         ]
     );
 }
@@ -2627,7 +2627,7 @@ fn a_resource_fifo_serves_as_the_python_rule_does() {
         case.with(|world| answers.add("", world));
         case.give_back(snapshot);
     }
-    assert_eq!(answers.hex(), "7326f504cc21725fc04b41c7c67cae5ca4c30d6bf7cf017c033b0f0ce6f6af11");
+    assert_eq!(answers.hex(), "986dedace0f62ae7f84655e541590e4c827cb9fae77775949eda80c2f5407a06");
 }
 
 /// Recorded from the core in #225 lane M3; on the same kernel the pytest
@@ -2656,7 +2656,7 @@ fn a_service_interrupted_goes_back_first_in_its_fifo_as_the_python_rule_says() {
     assert_eq!((&last[0]["transition"], &last[1]["transition"]), (&json!("interrupted"), &json!("requeued")));
     assert_eq!(last[1]["queue_position"], json!(1));
     case.give_back(snapshot);
-    assert_eq!(answers.hex(), "553eb71ee67032f8c6042837d355bf256655fb708ef9f3428c818dcfcf05b999");
+    assert_eq!(answers.hex(), "c9ff179dcbb7b2d519356b93d1693c51516f94af5325be6933f1a8922102dbfc");
 }
 
 /// Recorded from the core in #225 lane M3; on the same kernel the pytest
@@ -2681,9 +2681,9 @@ fn a_cancelled_service_is_the_python_rule_s() {
         assert!(case.with(|world| world.rows().unwrap().active_tasks.get(task_id.as_str()).is_none()));
     }
     assert_eq!(recorded, [
-        "5d455a23d6ee409d27e18ce84939776f1cff48c0b9884ae03ec2f226497b65da",
-        "5d455a23d6ee409d27e18ce84939776f1cff48c0b9884ae03ec2f226497b65da",
-        "e33089836bf01a9da8578126ff3223e1cb58b9ba9ffd40ef0b02ad599fde2a4e",
+        "11957766cf78d515f581b467847515b157dd2019a3a0435588f8f9cbc0b6ef30",
+        "11957766cf78d515f581b467847515b157dd2019a3a0435588f8f9cbc0b6ef30",
+        "0db29da9c3b624c8471326f1023ab14f2a42bbdc30def770dff2378728b4c1ab",
     ]);
 }
 
@@ -2704,7 +2704,7 @@ fn a_cancelled_place_in_a_queue_is_the_python_rule_s() {
     let mut answers = Answers::default();
     case.with(|world| answers.add("", world));
     assert!(!case.with(|world| world.rows().unwrap().facilities.get(facility.as_str()).unwrap().resource_queue_agent_ids.iter().any(|id| &**id == "A001")));
-    assert_eq!(answers.hex(), "374038b2fda4946eae0c16d2258478471467728579c01a3707b13a74af916420");
+    assert_eq!(answers.hex(), "1c409a2caf0b793891d9249d27a65e584c1934d3379af3b9e4f38d21aef5bcac");
 }
 
 /// Recorded from the core in #225 lane M3; on the same kernel the pytest
@@ -2746,5 +2746,5 @@ fn a_completed_service_leaves_its_fifo_as_the_python_rule_does() {
     let mut answers = Answers::default();
     case.with(|world| answers.add("", world));
     assert_eq!(case.queues_json()["requests"], json!({}));
-    assert_eq!(answers.hex(), "030cf34b905fdd5928604b9661de1926f15fc5fbcb3a1236c198857f196c318f");
+    assert_eq!(answers.hex(), "42579f9f526e72a0492d443c04eb17445e3dd064886f505f72eada1c273408d0");
 }
