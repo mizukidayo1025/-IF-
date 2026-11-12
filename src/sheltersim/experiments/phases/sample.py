@@ -7,11 +7,12 @@ from sheltersim.events.models import EventKind, ScheduledEvent
 
 
 class SamplePhase:
-    """Steps of TickPhase.SAMPLE_ENDOGENOUS_EVENTS, a mixin of OfflineSimulationController."""
+    """Steps of TickPhase.SAMPLE_ENDOGENOUS_EVENTS, a mixin of OfflineSimulationController.
 
-    def _run_sample_phase(self, minute: int, rng: KeyedRandom) -> None:
-        self._sample_information_contacts(minute, rng)
-        self._sample_proximity_contacts(minute)
+    The driver runs the phase in native/core/src/rules/tick/sample.rs, in this order:
+    `_sample_information_contacts`, then `_sample_proximity_contacts` when there is a
+    `proximity_contact_config`.
+    """
 
     def _sample_information_contacts(self, minute: int, rng: KeyedRandom) -> None:
         """Next minute's information contacts, which native/src/rules/information.rs samples.

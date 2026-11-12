@@ -3,7 +3,7 @@
 //! `_apply_state_deltas` (experiments/phases/segments.py, KERNEL_ONLY_SEGMENTS).
 //!
 //! Each step reads what only Python has (the minute and the view's flag as the Python objects they
-//! are, the Python deltas the social step and the Python phase path hand on), takes the model from
+//! are, the Python deltas a Python caller hands on), takes the model from
 //! the controller's `Policies` (`run::policies_of`: its Run's, or read now for a holder without a
 //! Run), calls the core with the world borrowed, and makes the Python values: the
 //! `AgentStateDelta`s, which are only made here at the edge, and `PsychologyUpdateResult`. The core's

@@ -1,8 +1,9 @@
 """Rust kernels that are steps of a phase, so a lane doesn't edit the phase's steps.
 
-A phase's `_run_*_phase` lists its steps, each a method. A step listed here has no Python body (lane
-L10, docs/rust-port/step4-plan.md): the phase's mixin keeps the method's signature and docstring,
-which state its contract, and the controller's step is the kernel. A kernel gets the controller and
+A phase's mixin gives its steps in their order, which the Rust driver runs (driver.py). A step
+listed here has no Python body (lane L10, docs/rust-port/step4-plan.md): the phase's mixin keeps
+the method's signature and docstring, which state its contract, and the controller's step is the
+kernel, which a test or a tool may call alone. A kernel gets the controller and
 the step's arguments, and returns what the step returns. Its Unsupported becomes KernelRefusal, as
 `kernel_only` of core/kernels.py does for a rule. See docs/rust-port/lanes/p4-world-core.md.
 """

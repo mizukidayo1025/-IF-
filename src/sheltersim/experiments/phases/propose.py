@@ -21,11 +21,12 @@ from sheltersim.policies.world_view import WorldView
 
 
 class ProposePhase:
-    """Steps of TickPhase.PROPOSE_ACTIONS, a mixin of OfflineSimulationController."""
+    """Steps of TickPhase.PROPOSE_ACTIONS, a mixin of OfflineSimulationController.
 
-    def _run_propose_phase(self, world: WorldState, minute: int, rng: KeyedRandom) -> None:
-        view = self._view_for_proposals(world, minute)
-        self._apply_due_proposals(view, rng)
+    The driver runs the phase in native/core/src/rules/tick/propose.rs, in this order:
+    `_view_for_proposals`, `_propose_due` of that view, then for each proposal in its order
+    `_observed_state` of its person, `_apply_effect` and `_record_outcome`.
+    """
 
     def _view_for_proposals(self, world: WorldState, minute: int) -> WorldView:
         """The view the decisions read, which native/src/rules/world_view.rs makes.
@@ -40,13 +41,6 @@ class ProposePhase:
         raises KernelRefusal: a prior view no kernel made, a person of the prior view who has left,
         and what `_view_after_movement` turns down.
         """
-
-    def _apply_due_proposals(self, view: WorldView, rng: KeyedRandom) -> None:
-        for proposal in self._propose_due(view, rng):
-            self._apply_proposal(
-                proposal,
-                observed_state=self._observed_state(view, proposal.agent_id),
-            )
 
     def _propose_due(self, view: WorldView, rng: KeyedRandom) -> tuple[Any, ...]:
         """The proposals of everyone due, made by native/core/src/rules/behavior.rs.
@@ -76,21 +70,6 @@ class ProposePhase:
         The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); a view no kernel made
         or a person not in it raises KernelRefusal.
         """
-
-    def _apply_proposal(
-        self,
-        proposal: Any,
-        *,
-        observed_state: dict[str, Any] | None = None,
-    ) -> None:
-        target_id, next_decision_at, committed = self._apply_effect(proposal)
-        self._record_outcome(
-            proposal,
-            target_id=target_id,
-            next_decision_at=next_decision_at,
-            committed=committed,
-            observed_state=observed_state,
-        )
 
     def _apply_effect(self, proposal: Any) -> tuple[str | None, int, bool]:
         """What the decision does to the world, which native/src/rules/proposals.rs does.

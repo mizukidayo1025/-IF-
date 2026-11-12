@@ -12,10 +12,10 @@ from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
+from support.world import tick_phases
 
 from sheltersim.contracts.presence import PresenceRecord
 from sheltersim.core.engine import TickPhase, TraceLevel
-from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.domain.action_lifecycle import record_action_proposal
 from sheltersim.events.effects import (
@@ -92,7 +92,7 @@ def test_typed_population_absence_interrupts_open_action(
     )
 
     world.minute_index = 1
-    controller(TickPhase.DISPATCH_DUE_EVENTS, world, 1, CounterRNG(world.seed))
+    tick_phases(controller, 1, TickPhase.DISPATCH_DUE_EVENTS)
 
     assert world.event_log.find(event.event_id).status.value == "applied"
     assert "A001" not in world.agents

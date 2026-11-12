@@ -7,6 +7,8 @@ where it ran on a hand-made floor plan without facility awareness (#88).
 
 from __future__ import annotations
 
+from support.world import tick_phases
+
 from sheltersim.core.checkpoint import Checkpoint
 from sheltersim.core.engine import TickEngine, TickPhase, TraceLevel
 from sheltersim.core.rng import CounterRNG
@@ -117,14 +119,12 @@ def test_queue_trip_replans_after_typed_partition_and_keeps_fifo_reservation(
     # Generated people carry minute-by-minute psychology, so each minute's agent
     # update runs in order, as in a tick.
     controller = OfflineSimulationController(world, ArtifactSink())
-    controller(TickPhase.UPDATE_AGENT_STATE, world, 0, CounterRNG(world.seed))
+    tick_phases(controller, 0, TickPhase.UPDATE_AGENT_STATE)
     world.minute_index = 1
-    controller(TickPhase.DISPATCH_DUE_EVENTS, world, 1, CounterRNG(world.seed))
-    controller(TickPhase.UPDATE_AGENT_STATE, world, 1, CounterRNG(world.seed))
+    tick_phases(controller, 1, TickPhase.DISPATCH_DUE_EVENTS, TickPhase.UPDATE_AGENT_STATE)
     live_position = dict(world.model_state["movement_v1"]["positions"]["A001"]["point"])
     world.minute_index = 2
-    controller(TickPhase.DISPATCH_DUE_EVENTS, world, 2, CounterRNG(world.seed))
-    controller(TickPhase.UPDATE_AGENT_STATE, world, 2, CounterRNG(world.seed))
+    tick_phases(controller, 2, TickPhase.DISPATCH_DUE_EVENTS, TickPhase.UPDATE_AGENT_STATE)
 
     replanned = world.model_state["movement_v1"]["journeys"]["A001"]
     assert replanned["purpose"] == "toilet_queue_position"

@@ -15,10 +15,10 @@ from pathlib import Path
 import pytest
 from support.paths import SCENARIO_100_AGENTS
 from support.receipts import care_source_ids
+from support.world import tick_phases, update_movement
 
 from sheltersim.core.checkpoint import Checkpoint
 from sheltersim.core.engine import TickPhase, TraceLevel
-from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.domain.care_receipts import (
     append_applied_care_transition,
@@ -145,7 +145,7 @@ def test_closed_route_requeues_assigned_support_with_applied_history(
     request_id = _request_and_assign(controller)
     world.zone_edges[FIRST_LEG].closed = True
     controller._refresh_space()
-    controller._update_movement(world.minute_index)
+    update_movement(controller, world.minute_index)
 
     request = world.support_requests[request_id]
     assert request.status is SupportRequestStatus.PENDING
@@ -180,7 +180,7 @@ def test_closed_route_reschedules_resident_trip_and_support_completion(
     world.zone_edges[FIRST_LEG].closed = True
     controller._refresh_space()
 
-    controller._update_movement(world.minute_index)
+    update_movement(controller, world.minute_index)
 
     journey = world.model_state["movement_v1"]["journeys"]["A001"]
     assert journey["route_edge_ids"] == ["route_sleeping_staff_alt"]
@@ -223,7 +223,7 @@ def test_staff_unavailability_cancels_resident_trip_and_requeues_request(
     )
     world.minute_index = 1
 
-    controller(TickPhase.DISPATCH_DUE_EVENTS, world, 1, CounterRNG(world.seed))
+    tick_phases(controller, 1, TickPhase.DISPATCH_DUE_EVENTS)
 
     request = world.support_requests[request_id]
     assert request.status is SupportRequestStatus.PENDING

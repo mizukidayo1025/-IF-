@@ -183,17 +183,20 @@ def test_a_tick_with_kept_inputs_gives_the_state_of_one_with_none(generated_scen
         world = WorldState.from_scenario(generated_scenario)
         controller = OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
 
-        def handler(phase, world_, minute, rng):
-            if drop:
+        def forget(phase, before):
+            if before:
                 controller._parsed_configs.clear()
                 controller._model_selections.clear()
                 controller._run_core.forget_views()
                 controller._view_before_proposals = None
-            controller(phase, world_, minute, rng)
 
-        engine = TickEngine(world, phase_handler=handler)
+        engine = TickEngine(world, phase_handler=controller)
+        if drop:
+            engine.phase_observer = forget
+        ticks = driven_ticks()
         for _ in range(120):
             engine.step()
+        assert driven_ticks() - ticks == 120
         return world.to_dict()
 
     assert run(False) == run(True)

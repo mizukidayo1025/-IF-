@@ -40,7 +40,7 @@ fn host_of<'py>(world: &Bound<'py, PyAny>) -> PyHost<'py> {
 }
 
 /// `record_proposal`, for a Rust caller after `action_lifecycle::commit_action`, as
-/// `_apply_proposal` does.
+/// `_record_outcome` does.
 pub(crate) fn remember_decision(world: &Bound<'_, PyAny>, decision: &Decision<'_>) -> PyResult<()> {
     with_world(world, |cell| rules::remember_decision(cell, decision))?.or_py()
 }

@@ -1,7 +1,6 @@
 //! `_replan_journeys` of `experiments/phases/update.py`: the glue of the core's step
 //! (`sheltersim_core::rules::tick::update::replan_journeys`, lanes c6 and P9-3b of Issue #152). The
-//! tick's update phase calls the core's step itself; this entry is the phase path's (policy E10) and
-//! the tests'. It reads its arguments, and runs the core with the controller's native host and Run:
+//! tick's update phase calls the core's step itself; this entry is the tests'. It reads its arguments, and runs the core with the controller's native host and Run:
 //! what the world holds, the configs' sections, the floor plan, the queue's rows and the EventLog's
 //! records come through the host, the graph and `staff_service` from the Run. A refusal before the
 //! first stop says Unsupported, with nothing changed; past it, a stop is written, and a refusal is a

@@ -16,11 +16,10 @@ from types import SimpleNamespace
 import pytest
 from support.paths import SMALL_REPLAY
 from support.receipts import care_source_ids
-from support.world import view_of
+from support.world import tick_phases, view_of
 
 from sheltersim.core.checkpoint import Checkpoint
 from sheltersim.core.engine import TickPhase, TraceLevel
-from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.domain.action_lifecycle import record_action_proposal
 from sheltersim.domain.care_receipts import support_kind_for_agent
@@ -176,7 +175,7 @@ def test_population_departure_interrupts_open_action_with_applied_cause(
     _population_change(world, op="add_evacuees", count=2, start_minute=1, zone_id="quiet")
     controller = OfflineSimulationController(world, _ArtifactSink())
     world.minute_index = 1
-    controller(TickPhase.DISPATCH_DUE_EVENTS, world, 1, CounterRNG(world.seed))
+    tick_phases(controller, 1, TickPhase.DISPATCH_DUE_EVENTS)
     arrival_ids = sorted(
         row["agent_id"]
         for row in world.model_state["population_dynamics_v1"]["arrivals"]
@@ -205,7 +204,7 @@ def test_population_departure_interrupts_open_action_with_applied_cause(
     )
 
     world.minute_index = 2
-    controller(TickPhase.DISPATCH_DUE_EVENTS, world, 2, CounterRNG(world.seed))
+    tick_phases(controller, 2, TickPhase.DISPATCH_DUE_EVENTS)
 
     assert world.event_log.find(departure_event.event_id).status.value == "applied"
     assert departed_id not in world.agents

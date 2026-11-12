@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Protocol
 
 from sheltersim.core.clock import ClockExhaustedError, SimulationClock
 from sheltersim.core.model_version import require_tickable
@@ -68,9 +69,19 @@ class TickTrace:
 
 
 PhaseHandler = Callable[[TickPhase, WorldState, int, KeyedRandom], None]
-# Told of each phase, before (True) and after (False) it, on either path of a tick.
+# Told of each phase, before (True) and after (False) it, by the handler or by the driver.
 PhaseObserver = Callable[[TickPhase, bool], None]
 TraceSink = Callable[[TickTrace], None]
+
+
+class TickDriver(Protocol):
+    """A handler that runs a whole tick itself: OfflineSimulationController (its `run_tick` is the
+    Rust driver, experiments/phases/driver.py). It calls the observer around each phase, and
+    raises with nothing changed when it can't run the tick."""
+
+    def run_tick(
+        self, world: WorldState, minute: int, rng: KeyedRandom, observer: PhaseObserver | None
+    ) -> None: ...
 
 
 class TickExecutionError(RuntimeError):
@@ -90,7 +101,7 @@ class TickEngine:
         self,
         world: WorldState,
         *,
-        phase_handler: PhaseHandler = no_op_phase_handler,
+        phase_handler: PhaseHandler | TickDriver = no_op_phase_handler,
         rng: KeyedRandom | None = None,
         trace_level: TraceLevel = TraceLevel.OFF,
         trace_sink: TraceSink | None = None,
@@ -121,11 +132,13 @@ class TickEngine:
         require_tickable(self.world, "ticked")
 
         minute = self.clock.minute_index
-        # A handler with `run_tick` may run the phases in Rust (experiments/phases/driver.py), and
-        # says false for a tick left to the phases below.
+        # A handler with `run_tick` (TickDriver) runs the whole tick, or raises with nothing
+        # changed: nothing runs the tick instead (#221). Any other is called for each phase.
         run_tick = getattr(self.phase_handler, "run_tick", None)
-        if run_tick is None or not run_tick(self.world, minute, self.rng, self._observer(minute)):
+        if run_tick is None:
             self._run_phases(minute)
+        else:
+            run_tick(self.world, minute, self.rng, self._observer(minute))
 
         self.clock.advance()
         self.world.minute_index = self.clock.minute_index
@@ -154,11 +167,12 @@ class TickEngine:
         return observe
 
     def _run_phases(self, minute: int) -> None:
+        handler: PhaseHandler = self.phase_handler  # type: ignore[assignment]
         observer = self._observer(minute)
         for phase in TICK_PHASE_ORDER:
             if observer is not None:
                 observer(phase, True)
-            self.phase_handler(phase, self.world, minute, self.rng)
+            handler(phase, self.world, minute, self.rng)
             if self.world.minute_index != minute:
                 raise TickExecutionError("tick phase attempted to change the engine-owned clock")
             if observer is not None:

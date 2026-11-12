@@ -21,7 +21,6 @@ from sheltersim.domain import movement
 from sheltersim.domain.movement import MOVEMENT_STATE_KEY as KEY
 from sheltersim.domain.movement import validate_movement_runtime_state
 from sheltersim.experiments.metrics import MetricsRecorder
-from sheltersim.experiments.phases.update import UpdatePhase
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
 
@@ -194,7 +193,7 @@ def test_the_row_follows_the_rules_with_only_single_records_written(
 
 
 def test_the_step_holds_the_tree_across_advance_movement_and_its_writes_reach_the_row(
-    generated_scenario: Any, monkeypatch: pytest.MonkeyPatch
+    generated_scenario: Any,
 ) -> None:
     world = _run(generated_scenario, 5)
     held = world.model_state[KEY]
@@ -209,10 +208,7 @@ def test_the_step_holds_the_tree_across_advance_movement_and_its_writes_reach_th
         ),
     )
     # A replan: the step reads and pops through the name it took before advance_movement ran.
-    monkeypatch.setattr(
-        "sheltersim.experiments.phases.update.advance_movement", lambda *_: (agent_id,)
-    )
-    UpdatePhase._update_movement(controller, world.minute_index)
+    controller._replan_journeys(held, (agent_id,), world.minute_index)
     assert world.model_state[KEY] is held
     assert _mirror(world).tainted is None
     assert _mirror(world).verify()

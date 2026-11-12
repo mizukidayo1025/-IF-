@@ -1109,7 +1109,7 @@ impl<'py> Host for PyHost<'py> {
 // ---- What a Python entry reads of the world's outside (lane P10-1c) ------------------------------
 
 impl<'py> PyHost<'py> {
-    /// The host of a Python entry on `world` (the phase path, a test, a Python caller): no
+    /// The host of a Python entry on `world` (a step's entry, a test, a Python caller): no
     /// controller, nothing a transaction keeps.
     pub(crate) fn of_entry(world: &Bound<'py, PyAny>) -> Self {
         Self::of_world(world, PyDict::new(world.py()))

@@ -2,34 +2,20 @@
 
 from __future__ import annotations
 
-from sheltersim.core.rng import KeyedRandom
 from sheltersim.core.world import WorldState
-from sheltersim.domain.staff_dynamics import update_staff_dynamics
-from sheltersim.domain.staff_operations import (
-    assign_staff_operations,
-    schedule_staff_operation_relief,
-    update_staff_operations,
-)
 
 
 class ArbitratePhase:
-    """Steps of TickPhase.ARBITRATE_ACTIONS, a mixin of OfflineSimulationController."""
+    """Steps of TickPhase.ARBITRATE_ACTIONS, a mixin of OfflineSimulationController.
 
-    def _run_arbitrate_phase(self, world: WorldState, minute: int, rng: KeyedRandom) -> None:
-        update_staff_dynamics(world, minute)
-        update_staff_operations(world, minute)
-        self._arbitrate_services(minute, rng)
-        self._assign_staff_support(world, minute)
-        # Reserve eligible staff for direct occupant support before background patrol,
-        # outreach, sanitation and maintenance work consumes the remaining staff.
-        assign_staff_operations(world, minute, self.staff_space)
-        self._consider_due_complaints(minute)
-        schedule_staff_operation_relief(world, minute)
-
-    def _arbitrate_services(self, minute: int, rng: KeyedRandom) -> None:
-        self.toilet_service.arbitrate(minute, rng, validate_state=False)
-        if self.resource_service is not None:
-            self.resource_service.arbitrate(minute, rng, validate_state=False)
+    The driver runs the phase in native/core/src/rules/tick/arbitrate.rs, in this order:
+    `update_staff_dynamics` of domain/staff_dynamics.py, `update_staff_operations` of
+    domain/staff_operations.py, the services (`toilet_service.arbitrate(minute, rng)`, then
+    `resource_service.arbitrate(minute, rng)` when there is one), `_assign_staff_support`,
+    `assign_staff_operations` with `staff_space` (direct support takes its staff before the
+    background patrol, outreach, sanitation and maintenance work), `_consider_due_complaints`, and
+    `schedule_staff_operation_relief`.
+    """
 
     def _assign_staff_support(self, world: WorldState, minute: int) -> None:
         """`staff_service.assign_pending(minute, validate_state=False)`, then the care receipts of
