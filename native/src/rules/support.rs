@@ -9,51 +9,33 @@ use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyString, PyTuple};
+use pyo3::types::{PyDict, PyTuple};
 use sheltersim_core::config::body::CareOutcome;
-use sheltersim_core::rules::kit::Held;
 use sheltersim_core::rules::support::{
-    self as core, Completion, Formula, Handler, Inputs, SupportEvent, NAMESPACE_IS_NONE, OTHER_DOCUMENT,
+    self as core, Completion, Formula, Handler, Inputs, SupportEvent,
 };
 
 use crate::core::configs;
 use crate::core::errors::{self, OrPy};
-use crate::core::row::{attribute, exact_dict, exact_int, exact_str, namespace_is_absent};
+use crate::core::row::{attribute, exact_int, exact_str};
 use crate::core::value::{VPy, V};
-use crate::core::world_core::{field_held, namespace_held, with_world};
+use crate::core::world_core::{with_world, PyWorldCell};
+use crate::host::PyHost;
 use crate::rules::care_receipts::{transition_record, PlannedTransition};
-use crate::state::body_state::NAME as BODY;
 use crate::state::events::{write_result, EventRef, EventWriter};
-use crate::state::shared_operations::NAME as SHARED;
 use crate::Unsupported;
 
 // ---- What the rules read of the Python world -----------------------------------------------------
 
-/// `shared_operations_v1` as the support rules take it: absent from `model_state`, None there
-/// (`NAMESPACE_IS_NONE`), the slot's tree, or another document.
-fn shared_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    let py = world.py();
-    let key = PyString::intern(py, SHARED);
-    if namespace_is_absent(world, &key)? {
-        let table = attribute(world, intern!(py, "model_state"))?;
-        return Ok(if exact_dict(&table)?.contains(&key)? { Held::Other(NAMESPACE_IS_NONE) } else { Held::Absent });
-    }
-    namespace_held(world, &key, OTHER_DOCUMENT)
+/// The native host of an entry, and the world as the core takes it.
+fn host_of<'py>(world: &Bound<'py, PyAny>) -> PyHost<'py> {
+    PyHost::of_world(world, PyDict::new(world.py()))
 }
 
-/// Whether `metric_state` is its slot's tree.
-fn metric_state_held(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    field_held(world, intern!(world.py(), "metric_state"))
-}
-
-/// What the rules of the receipts and of the end of support read.
+/// What the rules of the receipts and of the end of support read, read by the core through the
+/// native host (`Inputs::read`, lane P9-1a).
 fn inputs_of(world: &Bound<'_, PyAny>) -> PyResult<Inputs> {
-    let py = world.py();
-    Ok(Inputs {
-        shared: shared_held(world)?,
-        body_present: !namespace_is_absent(world, intern!(py, BODY))?,
-        metric_state_held: metric_state_held(world)?,
-    })
+    Inputs::read(&PyWorldCell(world), &mut host_of(world)).map_err(|error| error.0)
 }
 
 /// The event's ID and due minute, and the payload's values of these keys that are str.
@@ -75,7 +57,7 @@ fn event_of(event: EventRef<'_, '_>, keys: [bool; 4]) -> PyResult<SupportEvent> 
 /// the event. `cooldown_minutes` is the handler's.
 pub(crate) fn timeout_event<'py>(world: &Bound<'py, PyAny>, event: EventRef<'_, 'py>, cooldown_minutes: i64) -> PyResult<Option<&'static str>> {
     let event = event_of(event, [true, true, false, false])?;
-    let inputs = Inputs { shared: Held::Absent, body_present: false, metric_state_held: metric_state_held(world)? };
+    let inputs = Inputs::read_metrics(&PyWorldCell(world), &mut host_of(world)).map_err(|error| error.0)?;
     with_world(world, |cell| core::timeout(cell, &inputs, &event, cooldown_minutes))?.or_py()
 }
 
@@ -170,13 +152,15 @@ pub(crate) fn complete_support_event<'py>(
         cooldown_minutes: exact_int(&attribute(handler, intern!(py, "cooldown_minutes"))?)?,
         require_colocated: attribute(handler, intern!(py, "require_colocated"))?.is_truthy()?,
     };
-    let inputs = inputs_of(world)?;
+    let cell = PyWorldCell(world);
+    let mut host = host_of(world);
+    let inputs = Inputs::read(&cell, &mut host).map_err(|error| error.0)?;
     let reserved = writer.reserved();
     let complete = |formula: Formula<'_>| with_world(world, |cell| core::complete_support(cell, &inputs, &event, handler, formula, reserved))?.or_py();
     match complete(Formula::Unread)? {
         Completion::Done(planned) => Ok(planned),
         Completion::NeedsFormula => {
-            let formula = selected_care_formula(world)?;
+            let formula = care_formula(world, &cell, &mut host)?;
             match complete(Formula::Read(formula.as_deref()))? {
                 Completion::Done(planned) => Ok(planned),
                 Completion::NeedsFormula => Err(pyo3::exceptions::PyRuntimeError::new_err("the care asked for its formula again")),
@@ -198,21 +182,18 @@ fn complete_support<'py>(handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>,
 }
 
 /// `create_care_outcome_formula(configs)`, which the registry makes from a selected model, kept for
-/// the configs' stamp as their section `care_outcome` (`core/configs.rs`). The PyO3 crate fills it
-/// from the Python factory; a build without Python takes the built-in formulas
-/// (`CareOutcome::parse`).
+/// the configs' stamp as their section `care_outcome`: read by the core through the native host
+/// (`care_formula`, lane P9-1a), its fault raised here as a second parse raises it (policy E14). A
+/// build without Python takes the built-in formulas (`CareOutcome::parse`).
 pub(crate) fn selected_care_formula(world: &Bound<'_, PyAny>) -> PyResult<Option<Arc<CareOutcome>>> {
-    let selection = match configs::selection(world)? {
-        Ok(selection) => selection,
-        Err(fault) if fault.is_refusal() => return Err(Unsupported::new_err("not a selection")),
-        Err(_) => return Err(Unsupported::new_err("the model selection refuses")),
-    };
-    if selection.get("care_outcome").is_none() {
-        return Ok(None);
-    }
-    match care_outcome_section(world)? {
-        Ok(formula) => Ok(Some(formula)),
-        Err(fault) => Err(configs::raise(&fault, || parse_care_outcome(world))),
+    care_formula(world, &PyWorldCell(world), &mut host_of(world))
+}
+
+fn care_formula<'py>(world: &Bound<'py, PyAny>, cell: &PyWorldCell<'_, 'py>, host: &mut PyHost<'py>) -> PyResult<Option<Arc<CareOutcome>>> {
+    match core::care_formula(cell, host).map_err(|error| error.0)? {
+        None => Ok(None),
+        Some(Ok(formula)) => Ok(Some(formula)),
+        Some(Err(fault)) => Err(configs::raise(&fault, || parse_care_outcome(world))),
     }
 }
 

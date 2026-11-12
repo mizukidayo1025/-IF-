@@ -19,7 +19,7 @@ use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyDict, PyString, PyTuple, PyType};
 
 use sheltersim_core::config::movement::Movement;
-use sheltersim_core::rules::kit::Held;
+use sheltersim_core::rules::kit::{self, Held};
 use sheltersim_core::rules::movement::{self as core, Advanced, InOrder, StaffOps, Start, Tick, Validated, Where};
 
 pub(crate) use sheltersim_core::config::movement::EXACT_INT;
@@ -27,7 +27,9 @@ pub(crate) use sheltersim_core::config::movement::EXACT_INT;
 use crate::core::configs;
 use crate::core::errors::OrPy;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_list, exact_str, unsupported, PyField};
-use crate::core::world_core::{field_held, mirror_of, namespace_held, raw_dict_get, with_world, NamespaceMirror};
+use crate::core::value::{VPy, V};
+use crate::core::world_core::{field_held, mirror_of, namespace_held, raw_dict_get, with_world, NamespaceMirror, PyWorldCell};
+use crate::host::PyHost;
 use crate::rules::movement_geometry::{usable, Geo, GeoPy, Pt};
 use crate::state::events::{write_result, EventWriter};
 use crate::state::movement::{Journey, Point};
@@ -67,16 +69,6 @@ fn queues_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
 fn has_movement(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let table = attribute(world, intern!(world.py(), "model_state"))?;
     exact_dict(&table)?.contains(KEY)
-}
-
-/// Whether the world holds the namespace detached, so that a rule reading its tree reads the
-/// row instead (`journey_of`, `row_position`).
-pub(crate) fn held_detached(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let table = attribute(world, intern!(world.py(), "model_state"))?;
-    match crate::core::tracked::as_readable_dict(&table) {
-        Some(table) => Ok(table.get_item(KEY)?.is_some_and(|held| crate::core::tracked::is_detached(&held))),
-        None => Ok(false),
-    }
 }
 
 /// The staff's operations as `staff_position_snapshots` reads them: the row of
@@ -227,32 +219,23 @@ pub(crate) fn movement_of(world: &Bound<'_, PyAny>) -> PyResult<Arc<Movement>> {
     configs::kept_value(world, |configs| &configs.movement, Movement::parse)
 }
 
-// ---- Writes of the kernels not yet in the core (admission) -------------------------------------
+// ---- The end of a stopped journey (lane P9-1a) -------------------------------------------------
 
-/// `state["positions"][agent_id].update(zone_id=..., point=point, edge_id=None, progress=1.0,
-/// position_kind="physical")` on the row of a detached namespace, which has no tree to update:
-/// None, having written nothing, where the namespace is not held detached; Some(false) where the
-/// row has no record of the person, and Some(true) once written.
-pub(crate) fn place_at_point(world: &Bound<'_, PyAny>, agent_id: &str, zone_id: &Arc<str>, point: Pt) -> PyResult<Option<bool>> {
-    if !held_detached(world)? {
-        return Ok(None);
-    }
-    mirror_held(world)?;
-    let placed = with_world(world, |world| core::place_at_point(world, agent_id, zone_id, point))?.or_py()?;
-    Ok(Some(placed))
+/// The native host of an entry, and what the world holds as it reads it.
+fn host_of<'py>(world: &Bound<'py, PyAny>) -> PyHost<'py> {
+    PyHost::of_world(world, PyDict::new(world.py()))
 }
 
 /// `place_at_point` of a bed's point as Python holds it: false, having written nothing, unless
-/// the namespace is held detached, the row has the record and the point is two usable floats.
-/// The caller then writes through the tree as before.
+/// the namespace is held detached, the row has the record and the point is two usable floats
+/// (`core::place_at_bed`, which reads the holding through the native host). The caller then writes
+/// through the tree as before.
 pub(crate) fn place_at_bed(world: &Bound<'_, PyAny>, agent_id: &str, zone_id: &Arc<str>, point: &Bound<'_, PyAny>) -> PyResult<bool> {
-    if !held_detached(world)? {
-        return Ok(false);
-    }
-    let Ok(point) = plain_point(point) else {
+    let holding = kit::holding(&PyWorldCell(world), &mut host_of(world)).map_err(|error| error.0)?;
+    let Ok(bed) = <V as VPy>::from_py(point) else {
         return Ok(false);
     };
-    Ok(place_at_point(world, agent_id, zone_id, point)? == Some(true))
+    with_world(world, |world| core::place_at_bed(world, &holding, agent_id, zone_id, &bed))?.or_py()
 }
 
 // ---- Where a person is -------------------------------------------------------------------------
@@ -552,16 +535,18 @@ pub(crate) fn start_movement<'py>(
     with_world(world, |world| core::start(world, &geo, start))?.or_py()
 }
 
-/// `finish_movement`.
+/// `finish_movement`: whether there is a movement state, and the floor plan, are read by the core
+/// through the native host (lane P9-1a).
 #[pyfunction]
 pub(crate) fn finish_movement<'py>(world: &Bound<'py, PyAny>, agent_id: &Bound<'py, PyAny>) -> PyResult<()> {
-    if !has_movement(world)? {
+    let cell = PyWorldCell(world);
+    let mut host = host_of(world);
+    let holding = kit::holding(&cell, &mut host).map_err(|error| error.0)?;
+    if !core::finish_held(&holding).or_py()? {
         return Ok(());
     }
-    mirror_held(world)?;
     let agent_id = exact_str(agent_id)?;
-    let geo = Geo::of(world)?;
-    with_world(world, |world| core::finish(world, &geo, agent_id))?.or_py()
+    core::finish_through(&cell, &mut host, agent_id).map_err(|error| error.0)
 }
 
 // ---- route_with_movement_time ------------------------------------------------------------------

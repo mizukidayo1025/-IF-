@@ -30,7 +30,9 @@ use crate::state::shared_operations::{
 };
 use crate::state::staff_operations::{StaffOperationsRow, NAME as OPERATIONS};
 use crate::value::V;
-use crate::world::{World, RESOURCES};
+use crate::host::{Hold, Holding, Host, NOT_OWNED, TABLE_NOT_PLAIN};
+use crate::rules::kit;
+use crate::world::{World, WorldCell, RESOURCES};
 
 pub const MINUTE: &str = "shared operation receipt must use the current simulation boundary minute";
 pub const NO_EVENT: &str = "shared operation receipt requires a matching realized applied event";
@@ -1316,4 +1318,42 @@ pub fn write_record(world: &mut World, care: &CareReceipt, document: &V, plan: P
         row.history.items.pop_front();
     }
     Ok(())
+}
+
+// ---- The rule through the host (lane P9-1a) --------------------------------------------------------
+
+/// The Python rule's error of a world without the namespace.
+pub const NOT_SELECTED: &str = "shared_operations_v1 must be selected in the immutable Scenario";
+/// The refusal of a namespace the world holds another dict of than the row's.
+pub const OTHER_DOCUMENT: &str = "the world holds another document than the row's";
+
+/// The Python rule's first check, as the host's `Holding` answers it: `model_state` holds the
+/// namespace's tree (or its detached row). Another dict is refused; anything else is the rule's
+/// `ValueError`.
+pub fn check_held(holding: &Holding) -> Result<()> {
+    if !holding.table {
+        return Err(Error::unsupported(TABLE_NOT_PLAIN));
+    }
+    match holding.keys.get(NAME) {
+        Some(key) if key.hold == Hold::Held => Ok(()),
+        Some(key) if key.hold == Hold::NotOwned => Err(Error::unsupported(NOT_OWNED)),
+        Some(key) if key.dict => Err(Error::unsupported(OTHER_DOCUMENT)),
+        _ => Err(Error::value_error(NOT_SELECTED)),
+    }
+}
+
+/// `record_shared_operation(world, receipt)` of a receipt read as the core's: the namespace's check
+/// through the host's `Holding` (H1), the EventLog's records the receipt's rule reads looked up
+/// through the host (`Host::find_record`), then the rule. Nothing of the world is borrowed while the
+/// host runs.
+pub fn record_through<C: WorldCell, H: Host>(cell: &C, host: &mut H, receipt: &Receipt) -> std::result::Result<(), H::Error> {
+    let holding = kit::holding(cell, host)?;
+    check_held(&holding)?;
+    let ids = cell.with(|world| needed_records(world, receipt))?;
+    let mut found = Vec::with_capacity(ids.len());
+    for id in ids {
+        let logged = host.find_record(&id)?;
+        found.push((id, logged));
+    }
+    Ok(cell.with(|world| record_shared_operation(world, receipt, &Found(found)))??)
 }

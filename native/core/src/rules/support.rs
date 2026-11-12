@@ -23,6 +23,8 @@ use indexmap::IndexMap;
 use sha2::{Digest, Sha256};
 
 use crate::config::body::CareOutcome;
+use crate::config::SectionId;
+use crate::host::Host;
 use crate::entities::{Activity, RequestRow, RequestStatus};
 use crate::error::{Error, Outcome, Result};
 use crate::events::writer::{WriteError, WriteResult};
@@ -34,7 +36,7 @@ use crate::state::body_state::{BodyRecord, BodyRow, NAME as BODY};
 use crate::state::shared_operations::{SharedOperationsRow, NAME as SHARED};
 use crate::text::py_repr;
 use crate::value::V;
-use crate::world::{World, MODEL_CONFIGS};
+use crate::world::{World, WorldCell, MODEL_CONFIGS};
 
 const STAFF_SUPPORT_SOURCE: &str = "ASM-STAFF-SUPPORT-LIFECYCLE-V1";
 const UNRESOLVED_METRIC: &str = "support_unresolved_count";
@@ -68,6 +70,51 @@ pub struct Inputs {
     pub body_present: bool,
     /// Whether `world.metric_state` is its slot's tree.
     pub metric_state_held: bool,
+}
+
+impl Inputs {
+    /// What the receipts and the end of support read, through the host (H1, lane P9-1a), in the
+    /// order the PyO3 crate read them: `shared_operations_v1`, `body_state_v1`, `metric_state`. A
+    /// `model_state` that is not a plain dict is refused.
+    pub fn read<C: WorldCell, H: Host>(cell: &C, host: &mut H) -> std::result::Result<Self, H::Error> {
+        let holding = kit::holding(cell, host)?;
+        let absent = |name: &str| holding.is_absent(name).map_err(Error::unsupported);
+        let shared = if absent(SHARED)? {
+            if holding.contains(SHARED) { Held::Other(NAMESPACE_IS_NONE) } else { Held::Absent }
+        } else {
+            holding.held(SHARED, OTHER_DOCUMENT)
+        };
+        let body_present = !absent(BODY)?;
+        Ok(Self { shared, body_present, metric_state_held: holding.field(crate::world::METRIC_STATE) })
+    }
+
+    /// What a timeout reads: whether `metric_state` is its slot's tree.
+    pub fn read_metrics<C: WorldCell, H: Host>(cell: &C, host: &mut H) -> std::result::Result<Self, H::Error> {
+        let holding = kit::holding(cell, host)?;
+        Ok(Self { shared: Held::Absent, body_present: false, metric_state_held: holding.field(crate::world::METRIC_STATE) })
+    }
+}
+
+/// The refusal of a model selection that is not one, where the care reads it.
+pub const NOT_A_SELECTION: &str = "not a selection";
+/// The refusal of a model selection whose read raised, where the care reads it.
+pub const SELECTION_REFUSES: &str = "the model selection refuses";
+
+/// The selected care formula (`create_care_outcome_formula`), read through the host (H2, lane
+/// P9-1a): None where the selection names no care model, else the section `care_outcome` as kept,
+/// whose fault the caller raises (the PyO3 crate parses it again, policy E14).
+pub fn care_formula<C: WorldCell, H: Host>(cell: &C, host: &mut H) -> std::result::Result<Option<kit::Kept<CareOutcome>>, H::Error> {
+    let holding = kit::holding(cell, host)?;
+    let (selection, kept) = kit::selection(cell, host, &holding)?;
+        let selection = match selection {
+        Ok(selection) => selection,
+        Err(fault) if fault.is_refusal() => return Err(Error::unsupported(NOT_A_SELECTION).into()),
+        Err(_) => return Err(Error::unsupported(SELECTION_REFUSES).into()),
+    };
+    if selection.get("care_outcome").is_none() {
+        return Ok(None);
+    }
+    Ok(Some(kit::kept_of(kit::section_of_selection(cell, host, &holding, kept, SectionId::CareOutcome, |configs| &configs.care_outcome)?)))
 }
 
 /// What a support rule reads of its event: the payload's values that are str, or None.

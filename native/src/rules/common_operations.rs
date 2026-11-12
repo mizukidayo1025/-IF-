@@ -9,12 +9,12 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use sheltersim_core::rules::common_operations::{self as core, Found, Logged, Receipt};
 
-use crate::core::errors::{value_error, OrPy};
-use crate::core::row::{attribute, exact_dict, exact_int, exact_str, unsupported};
+use crate::core::errors::OrPy;
+use crate::core::row::{attribute, exact_int, exact_str, unsupported};
 use crate::core::value::{VPy, V};
-use crate::core::world_core::{mirror_of, with_world};
+use crate::core::world_core::PyWorldCell;
+use crate::host::PyHost;
 use crate::state::events::{EventRow, EventRowPy, EventStatus};
-use crate::state::shared_operations::NAME;
 
 /// The receipt classes of `contracts/operations.py` that `record_shared_operation` records.
 const RECEIPT_CLASSES: [&str; 5] = [
@@ -24,19 +24,6 @@ const RECEIPT_CLASSES: [&str; 5] = [
     "FacilityRecoveryReceipt",
     "StaffOperationReceipt",
 ];
-
-/// The Python rule's first check: `model_state` holds the namespace's tree (or its detached row).
-/// A dict that isn't the row's tree is Unsupported; anything else the rule's `ValueError`.
-pub(crate) fn held(world: &Bound<'_, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    let mirror = mirror_of(world, NAME)?;
-    let table = attribute(world, intern!(py, "model_state"))?;
-    match exact_dict(&table)?.get_item(NAME)? {
-        Some(state) if mirror.try_borrow()?.holds_state(&state) => Ok(()),
-        Some(state) if state.is_instance_of::<PyDict>() => unsupported("the world holds another document than the row's"),
-        _ => Err(value_error("shared_operations_v1 must be selected in the immutable Scenario")),
-    }
-}
 
 /// `event_log.find(event_id)` of each ID, as the core reads a record.
 pub(crate) fn found_records(world: &Bound<'_, PyAny>, ids: Vec<std::sync::Arc<str>>) -> PyResult<Found> {
@@ -65,12 +52,12 @@ pub(crate) fn logged_of(record: &Bound<'_, PyAny>) -> PyResult<Logged> {
     Ok(Logged { status, realized_minute, event })
 }
 
-/// `record_shared_operation(world, receipt)` of a receipt read as the core's.
+/// `record_shared_operation(world, receipt)` of a receipt read as the core's: the core checks the
+/// namespace and looks up the EventLog's records through the native host (`record_through`, lane
+/// P9-1a).
 pub(crate) fn record(world: &Bound<'_, PyAny>, receipt: &Receipt) -> PyResult<()> {
-    held(world)?;
-    let ids = with_world(world, |world| core::needed_records(world, receipt))?;
-    let found = found_records(world, ids)?;
-    with_world(world, |world| core::record_shared_operation(world, receipt, &found))?.or_py()
+    let mut host = PyHost::of_world(world, PyDict::new(world.py()));
+    core::record_through(&PyWorldCell(world), &mut host, receipt).map_err(|error| error.0)
 }
 
 /// `record_shared_operation(world, record)` of a receipt object of `contracts/operations.py`: its

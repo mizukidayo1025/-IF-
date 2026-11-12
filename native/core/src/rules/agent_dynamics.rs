@@ -9,13 +9,15 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use crate::config::agent_dynamics::Awareness;
+use crate::config::agent_dynamics::{self, Awareness};
+use crate::config::SectionId;
+use crate::host::Host;
 use crate::entities::{AgentRow, Entities};
 use crate::error::{Error, Result};
 use crate::row::IdMap;
 use crate::rules::kit::{self, Kept};
 use crate::state::agent_dynamics::{AgentDynamicsRow, AgentMemory, NAME, POLICY_V1, POLICY_V3};
-use crate::world::World;
+use crate::world::{World, WorldCell};
 
 /// `ORIENTATION_FACILITY_KINDS`.
 const ORIENTATION_KINDS: [&str; 6] =
@@ -230,4 +232,36 @@ pub fn announce_installed_facility(world: &World, facility_id: Option<&str>, pol
         }
     }
     Ok(())
+}
+
+// ---- The configs a rule reads, through the host (lane P9-1a) ---------------------------------------
+
+/// The sections the rules of this namespace read, each read through the host (H2) where a rule
+/// reads it: kept for the configs' stamp, or parsed from the configs' row, or filled by the host.
+pub struct Configs;
+
+impl Configs {
+    /// `model_configs["facility_awareness"]`, or its fault.
+    pub fn awareness<C: WorldCell, H: Host>(cell: &C, host: &mut H) -> std::result::Result<Kept<Option<Awareness>>, H::Error> {
+        let holding = kit::holding(cell, host)?;
+        kit::section_value_kept(cell, host, &holding, SectionId::FacilityAwareness, |configs| &configs.facility_awareness, agent_dynamics::awareness)
+    }
+
+    /// The policy `model_configs` selects, or its fault.
+    pub fn policy<C: WorldCell, H: Host>(cell: &C, host: &mut H) -> std::result::Result<Kept<&'static str>, H::Error> {
+        let holding = kit::holding(cell, host)?;
+        kit::section_value_kept(cell, host, &holding, SectionId::AgentDynamicsPolicy, |configs| &configs.agent_dynamics_policy, agent_dynamics::policy)
+    }
+
+    /// Whether what a person knows of the facilities is limited, or its fault.
+    pub fn knowledge_is_limited<C: WorldCell, H: Host>(cell: &C, host: &mut H) -> std::result::Result<Kept<bool>, H::Error> {
+        let holding = kit::holding(cell, host)?;
+        kit::section_value_kept(cell, host, &holding, SectionId::KnowledgeIsLimited, |configs| &configs.knowledge_is_limited, agent_dynamics::knowledge_is_limited)
+    }
+}
+
+/// `learn_facility` with its section read through the host (lane P9-1a).
+pub fn learn_facility_through<C: WorldCell, H: Host>(cell: &C, host: &mut H, agent_id: Option<&str>, facility_id: Option<&str>) -> std::result::Result<(), H::Error> {
+    let awareness = Configs::awareness(cell, host)?;
+    Ok(cell.with(|world| learn_facility(world, agent_id, facility_id, &awareness))??)
 }

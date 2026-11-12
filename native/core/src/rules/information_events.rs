@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use crate::config::information::InformationSpread;
 use crate::config::read::Read;
-use crate::config::Selection;
+use crate::config::{SectionId, Selection};
 use crate::entities::Entities;
 use crate::error::{Error, Result};
 use crate::events::{EventKind, EventRow};
@@ -49,6 +49,36 @@ pub struct Inputs<'a> {
     pub held: &'a Held,
     /// `selected_models(world.model_configs)`, kept for the configs' stamp.
     pub selection: &'a Kept<Selection>,
+}
+
+/// The refusal of a namespace the world holds another dict of than the row's.
+pub const OTHER_DOCUMENT: &str = "the world holds another document than the row's";
+
+/// What the events read outside the world and the event, read by the core through the host (lane
+/// P9-1a): the config and the model selection, kept for the configs' stamp (H2), and whether
+/// `model_state` holds the namespace (H1). The config's fault is raised before the event is read
+/// (the PyO3 crate's, which parses it again, policy E14), so it is kept here as the read gave it.
+pub struct Gathered {
+    pub config: Kept<InformationSpread>,
+    pub held: Held,
+    pub selection: Kept<Selection>,
+}
+
+impl Gathered {
+    /// The config, whether `model_state` holds the namespace (a value that is not a dict stands for
+    /// none), and the selection, read in that order with nothing of the world borrowed.
+    pub fn read<C: WorldCell, H: Host>(cell: &C, host: &mut H) -> std::result::Result<Self, H::Error> {
+        let holding = kit::holding(cell, host)?;
+        let config = kit::section_kept(cell, host, &holding, SectionId::InformationSpread, |configs| &configs.information_spread)?;
+        let held = holding.held_dict(NAME, OTHER_DOCUMENT);
+        let (selection, _) = kit::selection(cell, host, &holding)?;
+        Ok(Self { config, held, selection })
+    }
+
+    /// The inputs of an event, with the config the caller took of `config`.
+    pub fn inputs<'a>(&'a self, config: &'a InformationSpread) -> Inputs<'a> {
+        Inputs { config, held: &self.held, selection: &self.selection }
+    }
 }
 
 /// What an event that ran did: it applied, or it no longer applies (`EventSuppressed`, of this

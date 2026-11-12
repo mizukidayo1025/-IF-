@@ -17,7 +17,8 @@ use std::sync::Arc;
 use indexmap::IndexMap;
 
 use crate::config::body::{AffectModel, BodyModels, TrustModel, DISTANCE_TRUST, DURATION_TRUST};
-use crate::config::Selection;
+use crate::config::{SectionId, Selection};
+use crate::host::Host;
 use crate::error::{Error, Result};
 use crate::mathx::{hypot, py_max, py_min};
 use crate::row::IdMap;
@@ -28,7 +29,7 @@ use crate::state::body_state::{
 use crate::state::information::{InformationRow, NAME as INFORMATION};
 use crate::state::movement::{MovementRow, Position};
 use crate::value::V;
-use crate::world::World;
+use crate::world::{World, WorldCell};
 
 const DISTANCE_TRUST_SOURCE: &str = "ASM-DISTANCE-DURATION-REPEAT-TRUST-V1";
 const DURATION_TRUST_SOURCE: &str = "ASM-DURATION-CONTACT-TRUST-V1";
@@ -59,6 +60,40 @@ impl<'a> SocialEvent<'a> {
             V::Map(map) => map.get(key),
             _ => None,
         }
+    }
+}
+
+/// The refusal of a model selection that is not one.
+pub const NOT_A_SELECTION: &str = "not a selection";
+/// The refusal of a model selection whose read raised.
+pub const SELECTION_RAISES: &str = "the model selection raises";
+
+/// Whether the rule has nothing to record to: `model_state` has no namespace, or None there, read
+/// through the host (H1, lane P9-1a). A table that is not a plain dict is refused.
+pub fn namespace_absent<C: WorldCell, H: Host>(cell: &C, host: &mut H) -> std::result::Result<bool, H::Error> {
+    let holding = kit::holding(cell, host)?;
+    Ok(holding.is_absent(NAME).map_err(Error::unsupported)?)
+}
+
+/// What the rule reads of the configs, read through the host (H2, lane P9-1a): the model selection,
+/// whose refusal and error are this rule's own refusals, and the operators it selects, whose fault
+/// is raised where the rule reads them (by the PyO3 crate, which parses again, policy E14).
+pub struct Inputs {
+    pub selection: Arc<Selection>,
+    pub models: kit::Kept<BodyModels>,
+}
+
+impl Inputs {
+    pub fn read<C: WorldCell, H: Host>(cell: &C, host: &mut H) -> std::result::Result<Self, H::Error> {
+        let holding = kit::holding(cell, host)?;
+        let (selection, kept) = kit::selection(cell, host, &holding)?;
+        let selection = match selection {
+            Ok(selection) => selection,
+            Err(fault) if fault.is_refusal() => return Err(Error::unsupported(NOT_A_SELECTION).into()),
+            Err(_) => return Err(Error::unsupported(SELECTION_RAISES).into()),
+        };
+        let models = kit::kept_of(kit::section_of_selection(cell, host, &holding, kept, SectionId::BodyModels, |configs| &configs.body_models)?);
+        Ok(Self { selection, models })
     }
 }
 

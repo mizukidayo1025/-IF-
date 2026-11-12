@@ -7,22 +7,22 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString};
 
-use sheltersim_core::config::agent_dynamics::{awareness, knowledge_is_limited, Awareness};
+use sheltersim_core::config::agent_dynamics::{awareness, Awareness};
 use sheltersim_core::rules::agent_dynamics as rules;
 use sheltersim_core::rules::kit::Kept;
 
 use crate::core::configs;
 use crate::core::errors::OrPy;
 use crate::core::row::{attribute, exact_int, exact_str, str_value, PyField};
-use crate::core::world_core::with_world;
+use crate::core::world_core::{with_world, PyWorldCell};
+use crate::host::PyHost;
 use crate::state::agent_dynamics::{canonical_policy_or_text, policy_of, ORIENTATION_SOURCE, POLICY_V1};
-use sheltersim_core::config::agent_dynamics::policy as config_policy;
 
 pub(crate) use sheltersim_core::rules::agent_dynamics::Decision;
 
 /// The policy `world.model_configs` selects, or its fault, for the kernel to raise where it reads it.
 pub(crate) fn policy_kept(world: &Bound<'_, PyAny>) -> PyResult<Kept<&'static str>> {
-    configs::kept_section(world, |configs| &configs.agent_dynamics_policy, config_policy)
+    rules::Configs::policy(&PyWorldCell(world), &mut host_of(world)).map_err(|error| error.0)
 }
 
 /// `model_validate` of `model_configs["facility_awareness"]`, or None where it is absent or None,
@@ -31,9 +31,9 @@ pub(crate) fn awareness_of(world: &Bound<'_, PyAny>) -> PyResult<std::sync::Arc<
     configs::kept_value(world, |configs| &configs.facility_awareness, awareness)
 }
 
-/// `model_configs["facility_awareness"]`, or its fault.
-fn awareness_kept(world: &Bound<'_, PyAny>) -> PyResult<Kept<Option<Awareness>>> {
-    configs::kept_section(world, |configs| &configs.facility_awareness, awareness)
+/// The native host of an entry.
+fn host_of<'py>(world: &Bound<'py, PyAny>) -> PyHost<'py> {
+    PyHost::of_world(world, PyDict::new(world.py()))
 }
 
 /// `record_proposal`, for a Rust caller after `action_lifecycle::commit_action`, as
@@ -79,7 +79,7 @@ pub(crate) fn agent_knows_facility(
     agent_id: &Bound<'_, PyAny>,
     facility_id: &Bound<'_, PyAny>,
 ) -> PyResult<bool> {
-    let limited = configs::kept_section(world, |configs| &configs.knowledge_is_limited, knowledge_is_limited)?;
+    let limited = rules::Configs::knowledge_is_limited(&PyWorldCell(world), &mut host_of(world)).map_err(|error| error.0)?;
     let (agent_id, facility_id) = (str_value(agent_id), str_value(facility_id));
     with_world(world, |cell| rules::knows_facility(cell, &limited, agent_id, facility_id))?.or_py()
 }
@@ -98,7 +98,9 @@ pub(crate) fn create_state<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py
 /// `add_agent`: one record.
 #[pyfunction]
 pub(crate) fn add_agent(world: &Bound<'_, PyAny>, agent_id: &Bound<'_, PyAny>) -> PyResult<()> {
-    let (policy, awareness) = (policy_kept(world)?, awareness_kept(world)?);
+    let (cell, mut host) = (PyWorldCell(world), host_of(world));
+    let policy = rules::Configs::policy(&cell, &mut host).map_err(|error| error.0)?;
+    let awareness = rules::Configs::awareness(&cell, &mut host).map_err(|error| error.0)?;
     let agent_id = str_value(agent_id);
     with_world(world, |cell| rules::add_agent(cell, agent_id, &policy, &awareness))?.or_py()
 }
@@ -108,15 +110,13 @@ pub(crate) fn add_agent(world: &Bound<'_, PyAny>, agent_id: &Bound<'_, PyAny>) -
 /// `learn_facility`.
 #[pyfunction]
 fn learn_facility(world: &Bound<'_, PyAny>, agent_id: &Bound<'_, PyAny>, facility_id: &Bound<'_, PyAny>) -> PyResult<()> {
-    let awareness = awareness_kept(world)?;
     let (agent_id, facility_id) = (str_value(agent_id), str_value(facility_id));
-    with_world(world, |cell| rules::learn_facility(cell, agent_id, facility_id, &awareness))?.or_py()
+    rules::learn_facility_through(&PyWorldCell(world), &mut host_of(world), agent_id, facility_id).map_err(|error| error.0)
 }
 
 /// The rule, for IDs a row holds.
 pub(crate) fn learn_facility_of(world: &Bound<'_, PyAny>, agent_id: &str, facility_id: &str) -> PyResult<()> {
-    let awareness = awareness_kept(world)?;
-    with_world(world, |cell| rules::learn_facility(cell, Some(agent_id), Some(facility_id), &awareness))?.or_py()
+    rules::learn_facility_through(&PyWorldCell(world), &mut host_of(world), Some(agent_id), Some(facility_id)).map_err(|error| error.0)
 }
 
 /// `announce_installed_facility`.

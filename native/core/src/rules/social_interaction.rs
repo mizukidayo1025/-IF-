@@ -18,6 +18,9 @@
 use std::sync::Arc;
 
 use crate::config::information::InformationSpread;
+use crate::config::SectionId;
+use crate::host::Host;
+use crate::rules::information_events::OTHER_DOCUMENT;
 use crate::entities::{AgentRow, RequestStatus};
 use crate::error::{Error, Outcome, Result};
 use crate::events::{EventKind, EventRow, EventStatus};
@@ -29,7 +32,7 @@ use crate::rules::social_network::action_relief;
 use crate::state::body_state::{BodyRow, NAME as BODY_STATE};
 use crate::state::information::{InformationRow, NAME as INFORMATION, SCHEMA_VERSION as INFORMATION_VERSION};
 use crate::value::V;
-use crate::world::World;
+use crate::world::{World, WorldCell};
 
 const SOURCE_ID: &str = "ASM-EVENT-TRIGGERED-SOCIAL-INTERACTIONS-V1";
 const PAYLOAD_FIELDS: usize = 8;
@@ -53,6 +56,31 @@ pub struct Inputs {
     /// configs' stamp, and whether `model_state` holds the namespace (`Absent` stands for any value
     /// that is not a dict too).
     pub information: Option<(Kept<InformationSpread>, Held)>,
+}
+
+impl Inputs {
+    /// What the rare types read, read by the core through the host (lane P9-1a): the EventLog's
+    /// record of the contact a cooperation or an information reaction answers
+    /// (`Host::find_record`), and the information model of a reaction (H1, H2). Nothing of the
+    /// world is borrowed while the host runs.
+    pub fn read<C: WorldCell, H: Host>(cell: &C, host: &mut H, event: &EventRow) -> std::result::Result<Self, H::Error> {
+        let mut inputs = Inputs::default();
+        if let Some(trigger) = trigger_of(event) {
+            inputs.trigger = Some((trigger.clone(), host.find_record(trigger)?));
+        }
+        if interaction_type(event) == Some("information_reaction") {
+            let holding = kit::holding(cell, host)?;
+            let config = kit::section_kept(cell, host, &holding, SectionId::InformationSpread, |configs| &configs.information_spread)?;
+            inputs.information = Some((config, holding.held_dict(INFORMATION, OTHER_DOCUMENT)));
+        }
+        Ok(inputs)
+    }
+}
+
+/// `SocialInteractionHandler.apply` with its inputs read through the host (lane P9-1a).
+pub fn apply<C: WorldCell, H: Host>(cell: &C, host: &mut H, event: &EventRow) -> std::result::Result<Said, H::Error> {
+    let inputs = Inputs::read(cell, host, event)?;
+    Ok(cell.with(|world| apply_event(world, event, &inputs))??)
 }
 
 /// The type of interaction of an event's payload, for the PyO3 crate to know which inputs it reads:

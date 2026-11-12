@@ -27,7 +27,9 @@ use crate::state::movement::MovementRow;
 use crate::state::resource_service::RequestRecord;
 use crate::text::py_repr;
 use crate::value::V;
-use crate::world::World;
+use crate::config::SectionId;
+use crate::host::Host;
+use crate::world::{World, WorldCell};
 
 #[track_caller]
 fn refuse<T>(reason: &'static str) -> Result<T> {
@@ -665,4 +667,208 @@ pub fn check_resource_request(world: &World, service: &Held, metric_state_held: 
     }
     world.row::<crate::state::resource_service::ServiceRow>(crate::state::resource_service::NAME)?;
     kit::check_metric_state(world, metric_state_held)
+}
+
+// ---- What a walk reads, and `_after_arrival`, through the host (lane P9-1a) -----------------------
+
+/// The refusals of the namespaces the world holds other values of.
+pub const OTHER_MOVEMENT: &str = "the world holds another movement state";
+pub const OTHER_QUEUES: &str = "the world holds another queue state";
+pub const OTHER_OVERLAY: &str = "the world holds another overlay state";
+pub const OTHER_SERVICE: &str = "the world holds another service state";
+/// The refusal of a resource walk whose origin is not a str.
+pub const NO_ORIGIN: &str = "a resource walk's origin is not a str";
+
+/// What a walk reads of the world's outside, read through the host (lane P9-1a): whether
+/// `model_state` holds the namespaces (H1), and for a queue walk the floor plan
+/// (`Host::floor_plan`) and, with a layout, the movement section (H2). The lifecycle's inputs of a
+/// relocation are the caller's.
+pub struct Gathered {
+    pub movement: Held,
+    pub queues: Held,
+    pub overlay: Held,
+    pub geo: Option<Arc<Geo>>,
+    pub section: Option<Arc<Movement>>,
+}
+
+impl Gathered {
+    pub fn read<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &EventRow) -> std::result::Result<Self, H::Error> {
+        let purpose = match kit::payload(row, "purpose") {
+            Some(V::Str(purpose)) => purpose.clone(),
+            _ => Arc::from(""),
+        };
+        let holding = kit::holding(cell, host)?;
+        let (geo, section) = if is_queue_walk(&purpose) {
+            let geo = host.floor_plan()?;
+            let section = if geo.layout.is_some() {
+                // A refusal of the section is said here, as the PyO3 crate's `kept_value` said it.
+                let section = kit::section_value_kept(cell, host, &holding, SectionId::Movement, |configs| &configs.movement, Movement::parse)?;
+                kit::kept(&section)?;
+                section.ok()
+            } else {
+                None
+            };
+            (Some(geo), section)
+        } else {
+            (None, None)
+        };
+        Ok(Self {
+            movement: holding.held(movement::KEY, OTHER_MOVEMENT),
+            queues: holding.held(QUEUES, OTHER_QUEUES),
+            overlay: holding.held(movement::OVERLAY_KEY, OTHER_OVERLAY),
+            geo,
+            section,
+        })
+    }
+
+    /// The rule's inputs, with whether the handler has a resource service and the lifecycle's.
+    pub fn inputs<'a>(&'a self, resource_service: bool, lifecycle: Option<&'a lifecycle::Inputs<'a>>) -> Inputs<'a> {
+        Inputs {
+            movement: self.movement.clone(),
+            queues: self.queues.clone(),
+            overlay: self.overlay.clone(),
+            geo: self.geo.as_deref(),
+            section: self.section.as_deref(),
+            resource_service,
+            lifecycle,
+        }
+    }
+}
+
+const QUEUES: &str = crate::state::facility_queues::NAME;
+
+/// A walk that reached a toilet or a resource, as `_after_arrival` takes it.
+pub struct Arrival<'a> {
+    pub agent_id: &'a str,
+    pub purpose: &'a str,
+    pub facility_id: &'a str,
+    pub destination: &'a str,
+    /// The event's origin when a str (a resource walk reads it).
+    pub origin: Option<&'a str>,
+    /// `"facility_geometry" in model_configs`.
+    pub has_geometry: bool,
+    /// Whether the handler has a resource service (`_reject_room_approach` reads it).
+    pub resource_service: bool,
+    /// `handler.validate_request_state`, truthy.
+    pub validates: bool,
+}
+
+/// The requests a walk leads to, which the managers make: the toilet's queue and the resource
+/// service's (the PyO3 crate's, which reads each manager's inputs).
+pub trait Managers<H: Host> {
+    /// Whether the toilet's manager (`toilet`) or the resource service has its own `request` (a
+    /// test's), which validates the world itself as it is told.
+    fn own(&mut self, toilet: bool) -> std::result::Result<bool, H::Error>;
+    /// `toilet_service.request(agent_id, facility_id)`, without the world's validation unless the
+    /// manager's own `request` does it.
+    fn toilet(&mut self, host: &mut H, agent_id: &str, facility_id: &str) -> std::result::Result<(), H::Error>;
+    /// `resource_service.request(agent_id, facility_id)`: None queued, or the text of the `ValueError`
+    /// the queue turned the person down with, having written what it writes before that.
+    fn resource(&mut self, host: &mut H, agent_id: &str, facility_id: &str) -> std::result::Result<Option<String>, H::Error>;
+}
+
+/// A rule's result past the host: a core error or a duplicate event is the write's.
+pub type Arrived = crate::events::writer::WriteResult<()>;
+
+/// `_reject_room_approach`, with whether the world holds the service and `metric_state` read
+/// through the host. `resource`: a resource request with a resource service.
+pub fn reject_room_through<C: WorldCell, H: Host>(
+    cell: &C,
+    host: &mut H,
+    resource: bool,
+    agent_id: &str,
+    facility_id: &str,
+    origin: Option<&str>,
+) -> std::result::Result<(), H::Error> {
+    let holding = kit::holding(cell, host)?;
+    let held = holding.held(crate::state::resource_service::NAME, OTHER_SERVICE);
+    let metrics = holding.field(crate::world::METRIC_STATE);
+    let origin: Option<Arc<str>> = origin.map(Arc::from);
+    Ok(cell.with(|world| reject_room(world, &held, metrics, resource, agent_id, facility_id, origin.as_ref()))??)
+}
+
+/// `_after_arrival` where the managers make their own requests (a manager with its own `request`, a
+/// test's, is the host's: `Host::apply_foreign`). With a floor plan and a facility without
+/// independent queues the person first walks in the room (`arrival_approach`), or the approach is
+/// turned away (`_reject_room_approach`). Then a toilet walk asks the toilet's queue, with the
+/// world's validation around it where the handler asks for it, and its `ValueError` is the event's
+/// failure with its text; a resource walk asks the resource service's, and its refusal is recorded
+/// (`rejected_request`). What the floor plan's read raised is raised where the approach reads it.
+pub fn arrive<C: WorldCell, H: Host, M: Managers<H>>(
+    cell: &C,
+    host: &mut H,
+    arrival: &Arrival<'_>,
+    managers: &mut M,
+) -> std::result::Result<Arrived, H::Error> {
+    let is_toilet = arrival.purpose == "toilet_request";
+    if !is_toilet && arrival.purpose != "resource_request" {
+        return Ok(Ok(()));
+    }
+    if arrival.has_geometry {
+        let holding = kit::holding(cell, host)?;
+        let plan = host.floor_plan();
+        let section = kit::section_value_kept(cell, host, &holding, SectionId::Movement, |configs| &configs.movement, Movement::parse)?;
+        let moving = holding.held(movement::KEY, OTHER_MOVEMENT);
+        let queues = holding.held(QUEUES, OTHER_QUEUES);
+        let (agent, facility, destination): (Arc<str>, Arc<str>, Arc<str>) = (Arc::from(arrival.agent_id), Arc::from(arrival.facility_id), Arc::from(arrival.destination));
+        let walking = Walking { movement: &moving, geo: plan.as_ref().ok() };
+        let approach = cell.with(|world| arrival_approach(world, walking, &section, &queues, true, 0, &agent, arrival.purpose, &facility, &destination))?;
+        let approach = match (approach, plan) {
+            (Err(Error::Unsupported(reason)), Err(read)) if reason == crate::rules::overlay::PLAN_UNREAD => return Err(read),
+            (Err(error), _) => return Ok(Err(error.into())),
+            (Ok(approach), _) => approach,
+        };
+        match approach {
+            Approach::Request => {}
+            Approach::Reject => {
+                let resource = arrival.purpose == "resource_request" && arrival.resource_service;
+                return reject_room_through(cell, host, resource, arrival.agent_id, arrival.facility_id, arrival.origin).map(Ok);
+            }
+            Approach::Travel(trip) => {
+                return Ok(cell.with(|world| -> Arrived {
+                    let events = Events::of(world)?;
+                    travel::write_travel(world, &events, trip)
+                })?);
+            }
+        }
+    }
+    if is_toilet {
+        // `except ValueError as exc: raise EventApplicationError(str(exc))`, also for the world's
+        // validation around the request.
+        let requested = (|| {
+            let validates = arrival.validates && !managers.own(true)?;
+            if validates {
+                host.validate_world()?;
+            }
+            managers.toilet(host, arrival.agent_id, arrival.facility_id)?;
+            if validates {
+                host.validate_world()?;
+            }
+            Ok(())
+        })();
+        return match requested {
+            Ok(()) => Ok(Ok(())),
+            Err(error) if crate::host::HostFailure::class(&error) == crate::host::ErrorClass::Value => {
+                Err(Error::failed(crate::host::HostFailure::text(&error)).into())
+            }
+            Err(error) => Err(error),
+        };
+    }
+    // Read before the request, which may write the task counter and then turn the person down.
+    let holding = kit::holding(cell, host)?;
+    let held = holding.held(crate::state::resource_service::NAME, OTHER_SERVICE);
+    let metrics = holding.field(crate::world::METRIC_STATE);
+    cell.with(|world| check_resource_request(world, &held, metrics))??;
+    let Some(text) = managers.resource(host, arrival.agent_id, arrival.facility_id)? else {
+        return Ok(Ok(()));
+    };
+    // The arrival stands; the record says why the person is not in the queue, with `str(exc)`.
+    let Some(origin) = arrival.origin else {
+        return Err(Error::unsupported(NO_ORIGIN).into());
+    };
+    let origin: Arc<str> = Arc::from(origin);
+    Ok(cell.with(|world| -> Arrived {
+        let minute = world.minute_index()?;
+        Ok(rejected_request(world, &held, arrival.agent_id, arrival.facility_id, &origin, minute, &text)?)
+    })?)
 }

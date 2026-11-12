@@ -13,13 +13,14 @@ use sheltersim_core::config::body::{BodyModels, LINEAR_AFFECT, TRUST_WEIGHTED_AF
 use sheltersim_core::config::body::{AffectModel, TrustModel};
 use sheltersim_core::config::Selection;
 use sheltersim_core::rules::kit::Kept;
+use sheltersim_core::world::WorldCell;
 use sheltersim_core::rules::body_state::{self as rules, records_event, SocialEvent};
 
 use crate::core::configs;
 use crate::core::errors::OrPy;
-use crate::core::row::{attribute, exact_dict, exact_int, exact_str, namespace_is_absent, str_value, unsupported};
-use crate::core::world_core::with_world;
-use crate::state::body_state::NAME;
+use crate::core::row::{attribute, exact_dict, exact_int, exact_str, str_value, unsupported};
+use crate::core::world_core::PyWorldCell;
+use crate::host::PyHost;
 use crate::rules::social_dialogue::{mapping_proxy, payload_fields};
 use crate::Unsupported;
 
@@ -108,7 +109,8 @@ fn keys_of(event_type: &str) -> &'static [&'static str] {
     }
 }
 
-/// `record_social_event`.
+/// `record_social_event`: whether the namespace is there and the configs' models are read by the
+/// core through the native host (lane P9-1a), at the points the rule read them.
 #[pyfunction]
 pub(crate) fn record_social_event<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<()> {
     let py = world.py();
@@ -117,7 +119,9 @@ pub(crate) fn record_social_event<'py>(world: &Bound<'py, PyAny>, event: &Bound<
     if str_value(&event_type).is_some_and(|event_type| !records_event(event_type)) {
         return Ok(());
     }
-    if namespace_is_absent(world, intern!(py, NAME))? {
+    let cell = PyWorldCell(world);
+    let mut host = PyHost::of_world(world, PyDict::new(py));
+    if rules::namespace_absent(&cell, &mut host).map_err(|error| error.0)? {
         return Ok(());
     }
     let event_type = exact_str(&event_type)?;
@@ -130,11 +134,14 @@ pub(crate) fn record_social_event<'py>(world: &Bound<'py, PyAny>, event: &Bound<
     let event_id = exact_str(&event_id)?;
     let causation_id = attribute(event, intern!(py, "causation_id"))?;
     let causation_id = if causation_id.is_none() { None } else { Some(exact_str(&causation_id)?) };
-    let selection = selected_models(world)?;
-    let models = models_of(world, &selection)?;
+    let inputs = rules::Inputs::read(&cell, &mut host).map_err(|error| error.0)?;
+    let models = match &inputs.models {
+        Ok(models) => models.clone(),
+        Err(fault) => return Err(configs::raise(fault, || affect_of(world, &inputs.selection))),
+    };
     let payload = payload_fields(&payload, keys_of(event_type))?;
     let event = SocialEvent { event_id, event_type, causation_id, payload: &payload };
-    with_world(world, |cell| rules::record_social_event(cell, &event, minute, &selection, &models))?.or_py()
+    cell.with(|world| rules::record_social_event(world, &event, minute, &inputs.selection, &models)).or_py()?.or_py()
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

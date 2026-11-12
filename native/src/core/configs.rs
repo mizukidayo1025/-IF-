@@ -363,6 +363,13 @@ fn policies(py: Python<'_>) -> PyResult<&Policies> {
 
 /// Whether `function` is the module's own `selected_models`, whose selection may be kept. The
 /// first one seen is taken by its names, so a patch in place at the first read is not.
+/// Whether `selected_models` is the contract's own, whose selection is kept for the configs' stamp;
+/// a test's patch is read at every read (lane P9-1a: the host's `fill_section` of the selection).
+pub(crate) fn selection_is_kept(py: Python<'_>) -> PyResult<bool> {
+    let function = policies(py)?.module.bind(py).getattr(intern!(py, "selected_models"))?;
+    is_the_contract(&function)
+}
+
 fn is_the_contract(function: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = function.py();
     if let Some(known) = SELECTED_MODELS.get(py) {

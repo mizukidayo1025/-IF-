@@ -47,7 +47,9 @@ use crate::state::effect_program::{EffectProgramRow, NAME as PROGRAM};
 use crate::state::movement::{MovementRow, Position};
 use crate::state::staff_operations::{FinishedTask, OperationRecord, Outcome, Phase, StaffOperationsRow, NAME};
 use crate::value::V;
-use crate::world::World;
+use crate::config::SectionId;
+use crate::host::Host;
+use crate::world::{World, WorldCell};
 
 const MOVEMENT: &str = "movement_v1";
 const INFRASTRUCTURE: &str = "infrastructure_v1";
@@ -80,6 +82,62 @@ pub struct Inputs<'a> {
     pub geo: Option<&'a Arc<Geo>>,
     /// The staff operations formula, or None where its read raised.
     pub formula: Option<&'a StaffOperations>,
+}
+
+/// The refusals of the namespaces the world holds other values of.
+pub const OTHER_STAFF: &str = "the world holds another document than the row's";
+pub const OTHER_MOVEMENT: &str = "the world holds another movement state";
+pub const OTHER_BODY: &str = "the world holds another body state";
+pub const OTHER_PROGRAM: &str = "the world holds another effect_program_v1";
+const SHARED_OPERATIONS: &str = "shared_operations_v1";
+
+/// What the rules read of the world's outside, read once per entry through the host before the
+/// world is borrowed (lane P9-1a): whether `model_state` holds the namespaces (H1), the floor plan
+/// (`Host::floor_plan`) where the entry may read it, and the staff operations formula (H2) where it
+/// may read it. What the floor plan's read raised, and the formula's fault, are raised where the
+/// core reads them (`PLAN_UNREAD`, `SNAPSHOT_PLAN_UNREAD`, `FORMULA_UNREAD`), by the caller.
+pub struct Gathered<E> {
+    pub staff: Held,
+    pub movement: Held,
+    pub body: Held,
+    pub program: Held,
+    pub shared_absent: bool,
+    pub plan: Option<std::result::Result<Arc<Geo>, E>>,
+    pub formula: Option<kit::Kept<StaffOperations>>,
+}
+
+impl<E> Gathered<E> {
+    /// The namespaces, then the floor plan where `geo`, then the formula where `formula`.
+    pub fn read<C: WorldCell, H: Host<Error = E>>(cell: &C, host: &mut H, geo: bool, formula: bool) -> std::result::Result<Self, E> {
+        let holding = kit::holding(cell, host)?;
+        let plan = if geo { Some(host.floor_plan()) } else { None };
+        let formula = if formula {
+            Some(kit::section_kept(cell, host, &holding, SectionId::StaffOperations, |configs| &configs.staff_operations)?)
+        } else {
+            None
+        };
+        Ok(Self {
+            staff: holding.held_dict(NAME, OTHER_STAFF),
+            movement: holding.held(crate::rules::movement::KEY, OTHER_MOVEMENT),
+            body: holding.held(BODY, OTHER_BODY),
+            program: holding.held(PROGRAM, OTHER_PROGRAM),
+            shared_absent: !holding.contains(SHARED_OPERATIONS),
+            plan,
+            formula,
+        })
+    }
+
+    pub fn inputs(&self) -> Inputs<'_> {
+        Inputs {
+            staff: &self.staff,
+            movement: &self.movement,
+            body: &self.body,
+            program: &self.program,
+            shared_absent: self.shared_absent,
+            geo: self.plan.as_ref().and_then(|plan| plan.as_ref().ok()),
+            formula: self.formula.as_ref().and_then(|formula| formula.as_ref().ok()).map(|formula| &**formula),
+        }
+    }
 }
 
 impl Inputs<'_> {
@@ -1169,6 +1227,19 @@ pub fn write_complete(world: &World, inputs: &Inputs<'_>, plan: CompletePlan) ->
 }
 
 // ---- interrupt_staff_trips_on_closed_routes ------------------------------------------------------
+
+/// Whether an applied `effect_program_geometry` closes a route, so that the trips on closed routes
+/// stop (`_interrupt_trips_of_event`, lane P9-1a): its payload's `op` is `set_route_access`, and its
+/// `parameters` (`payload.get("parameters", {})`) are a mapping whose `accessible` is the bool False.
+pub fn closes_a_route(event: &EventRow) -> bool {
+    let op = matches!(kit::payload(event, "op"), Some(V::Str(op)) if &**op == "set_route_access");
+    let closed = match kit::payload(event, "parameters") {
+        None => false,
+        Some(V::Map(parameters)) => matches!(parameters.get("accessible"), Some(V::Bool(false))),
+        Some(_) => false,
+    };
+    op && closed
+}
 
 /// `interrupt_staff_trips_on_closed_routes`: each travelling member whose route has an edge that is
 /// gone, closed, or not clear for an independent walker on the floor plan is stopped, in ID order.

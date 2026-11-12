@@ -1,8 +1,9 @@
 //! The events of `information_spread_v1` in `events/handlers.py`: the glue of
-//! `sheltersim_core::rules::information_events` (lane P8 d1). It reads what Python holds (the config
-//! and the model selection, kept for the configs' stamp, and whether `model_state` holds the
-//! namespace), makes the event's row, and calls the core with the world (`PyWorldCell`) and the
-//! native host, which upgrades a state of schema 1 where the Python rule did (policy E11).
+//! `sheltersim_core::rules::information_events` (lane P8 d1). The core reads the config and the
+//! model selection, kept for the configs' stamp, and whether `model_state` holds the namespace,
+//! through the native host (`Gathered::read`, lane P9-1a); the glue raises the config's fault, makes
+//! the event's row, and calls the core with the world (`PyWorldCell`) and the native host, which
+//! upgrades a state of schema 1 where the Python rule did (policy E11).
 //!
 //! `InformationSpreadConfig.from_mapping` and `selected_models` stay Python's: they read the
 //! Scenario's contract, and neither changes anything. The config's error is raised here, before the
@@ -13,25 +14,24 @@ use std::sync::Arc;
 use pyo3::exceptions::PyValueError;
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyString};
+use pyo3::types::PyDict;
 
 use sheltersim_core::config::information::InformationSpread;
 use sheltersim_core::config::Selection;
 use sheltersim_core::error::Error as CoreError;
-use sheltersim_core::rules::information_events::{self as rules, Applied, Inputs, SELECTION_RAISED};
-use sheltersim_core::rules::kit::{Held, Kept};
+use sheltersim_core::config::Fault;
+use sheltersim_core::rules::information_events::{self as rules, Applied, Gathered, Inputs, SELECTION_RAISED};
+use sheltersim_core::rules::kit::Kept;
 use sheltersim_core::world::MODEL_CONFIGS;
 
 use crate::core::configs;
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, unsupported};
-use crate::core::tracked::as_readable_dict;
 use crate::core::value::{VPy, V};
-use crate::core::world_core::{namespace_held, raw_dict_get, with_world, PyWorldCell};
+use crate::core::world_core::{with_world, PyWorldCell};
 use crate::host::PyHost;
 use crate::rules::handlers::{counted, get};
 use crate::state::events::{EventRow, EventRowPy};
-use crate::state::information::NAME;
 
 /// `InformationSpreadConfig.from_mapping(model_configs.get("information_spread"))`, as the rules
 /// read it.
@@ -60,39 +60,6 @@ pub(crate) fn information_spread(world: &Bound<'_, PyAny>) -> PyResult<Kept<Info
     configs::kept(world, |configs| &configs.information_spread, || Ok(configs::parsed(world.py(), parse_spread(world))))
 }
 
-/// The config as the events take it: what its parse raised is raised again (policy E14), a
-/// `ValueError` as the event's failure.
-fn runtime_config(world: &Bound<'_, PyAny>) -> PyResult<Arc<InformationSpread>> {
-    let py = world.py();
-    match information_spread(world)? {
-        Ok(config) => Ok(config),
-        Err(fault) => {
-            let error = configs::raise(&fault, || parse_spread(world));
-            if error.is_instance_of::<PyValueError>(py) {
-                return errors::failed(py, format!("invalid information_spread config: {}", error.value(py).str()?));
-            }
-            Err(error)
-        }
-    }
-}
-
-/// Whether `model_state` holds the namespace, as the rules take it: a value that is not a dict is
-/// no state (`Absent`), another dict is refused where the rule reads the state.
-pub(crate) fn state_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    let py = world.py();
-    let held = namespace_held(world, intern!(py, NAME), "the world holds another document than the row's")?;
-    if let Held::Other(_) = held {
-        let table = attribute(world, intern!(py, "model_state"))?;
-        if as_readable_dict(&table).is_some() {
-            let value = raw_dict_get(&table, PyString::new(py, NAME).as_any())?;
-            if !value.is_some_and(|value| value.is_instance_of::<PyDict>()) {
-                return Ok(Held::Absent);
-            }
-        }
-    }
-    Ok(held)
-}
-
 /// The row of a `ScheduledEvent`; Unsupported for one a row cannot hold.
 pub(crate) fn event_row(event: &Bound<'_, PyAny>) -> PyResult<EventRow> {
     match EventRow::from_event(event)? {
@@ -117,21 +84,35 @@ fn selection_raised() -> String {
     CoreError::corrupt(MODEL_CONFIGS, SELECTION_RAISED).to_string()
 }
 
-/// Run an event's core function with what it reads of Python.
+/// The config's fault, raised as the Python rule raises it before the event is read: what its parse
+/// raises again (policy E14), a `ValueError` as the event's failure.
+fn raise_config(world: &Bound<'_, PyAny>, fault: &Fault) -> PyErr {
+    let py = world.py();
+    let error = configs::raise(fault, || parse_spread(world));
+    if error.is_instance_of::<PyValueError>(py) {
+        return match error.value(py).str() {
+            Ok(text) => errors::error(py, errors::Outcome::Failed, format!("invalid information_spread config: {text}")),
+            Err(error) => error,
+        };
+    }
+    error
+}
+
+/// Run an event's core function: read its inputs through the host (`Gathered::read`, lane P9-1a),
+/// raise the config's fault before the event is read, then the event.
 fn run_event<'py, T>(
     world: &Bound<'py, PyAny>,
     event: &Bound<'py, PyAny>,
     rule: impl FnOnce(&PyWorldCell<'_, 'py>, &mut PyHost<'py>, &Inputs<'_>, &EventRow) -> Result<T, crate::host::HostError>,
 ) -> PyResult<T> {
     let py = world.py();
-    let config = runtime_config(world)?;
-    let held = state_held(world)?;
-    let selection: Kept<Selection> = configs::selection(world)?;
-    let row = event_row(event)?;
-    let inputs = Inputs { config: &config, held: &held, selection: &selection };
+    let cell = PyWorldCell(world);
     let mut host = PyHost::of_world(world, PyDict::new(py));
-    let result = rule(&PyWorldCell(world), &mut host, &inputs, &row).map_err(|error| error.0);
-    relayed(world, &selection, result)
+    let gathered = Gathered::read(&cell, &mut host).map_err(|error| error.0)?;
+    let config = gathered.config.as_ref().map_err(|fault| raise_config(world, fault))?;
+    let row = event_row(event)?;
+    let result = rule(&cell, &mut host, &gathered.inputs(config), &row).map_err(|error| error.0);
+    relayed(world, &gathered.selection, result)
 }
 
 #[pyfunction]
@@ -155,9 +136,10 @@ fn contact<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: 
 /// The config of the events, with the model's and the state's checks, for the configs' tests
 /// (`core/configs.rs`).
 pub(crate) fn checked_config(world: &Bound<'_, PyAny>) -> PyResult<Arc<InformationSpread>> {
-    let config = runtime_config(world)?;
-    let held = state_held(world)?;
-    with_world(world, |world| rules::check_state(world, &config, &held))?.or_py()?;
+    let mut host = PyHost::of_world(world, PyDict::new(world.py()));
+    let gathered = Gathered::read(&PyWorldCell(world), &mut host).map_err(|error| error.0)?;
+    let config = gathered.config.as_ref().map_err(|fault| raise_config(world, fault))?.clone();
+    with_world(world, |world| rules::check_state(world, &config, &gathered.held))?.or_py()?;
     Ok(config)
 }
 

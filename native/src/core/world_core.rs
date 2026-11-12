@@ -2559,7 +2559,7 @@ pub(crate) fn holding_of(world: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::
                     Some((mirror, _)) if mirror.get().holds_state(&held) => Hold::Held,
                     Some(_) => Hold::Other,
                 };
-                holding.keys.insert(Arc::from(name), Key::new(hold, none));
+                holding.keys.insert(Arc::from(name), Key::with_dict(hold, none, held.is_instance_of::<pyo3::types::PyDict>()));
             }
         }
     }
