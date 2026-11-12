@@ -1,17 +1,19 @@
-//! One tick's phases in order (`experiments/phases/*.py`), calling kernels directly and Python parts
-//! through one entry per part (docs/rust-port/lanes/m6-driver.md).
+//! The glue of a tick (`TickEngine.step` asks `controller.run_tick`): the core's
+//! `sheltersim_core::rules::tick::run_tick` runs the phases (lane P9-2b of Issue #152).
 //!
 //! `TickEngine.step` asks `controller.run_tick` and, on false, runs the phases through `phase_handler`
 //! as without the kernels. This refuses, with Unsupported and before anything has changed, a tick that
-//! a hook changes: a benchmark's shadow, a patch of any step or rule it would skip. `install` gives
-//! what those are as defined, and they are compared at each tick, so a patch shows there. A trace and
-//! a Provider run here: the kernels write the trace's documents, and the Provider's hooks are Python
-//! that the kernels call where the phases call them.
+//! a hook changes: a benchmark's shadow, a patch of any step or rule it would skip, a manager of
+//! another class, or a dispatch phase that its own checks turn down (`dispatch::ready`). `install`
+//! gives what those are as defined, and they are compared at each tick, so a patch shows there. A
+//! trace and a Provider run here: the kernels write the trace's documents, and the Provider's hooks
+//! are Python that the kernels call through the host where the phases call them.
 //!
-//! After that, each step is its kernel. No Python rule stands behind one (lane L10): a kernel's
-//! Unsupported is `KernelRefusal`, which names the kernel and gives its reason (`errors::kernel_refusal`),
-//! as the step's Python entry (`segments.py`, `kernel_only`) raises it. No borrow is held across a
-//! call into Python.
+//! After that, the tick is one call of the core with one native host (`PyHost`) for all its phases.
+//! A kernel's Unsupported is `KernelRefusal`, which names the kernel and gives its reason
+//! (`errors::kernel_refusal`), as the step's Python entry (`segments.py`, `kernel_only`) raises it; the
+//! clock's check is the core's `Error::Clock` (`TickExecutionError`). No borrow is held across a call
+//! into Python.
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -47,24 +49,25 @@ struct Table {
     steps: Vec<(Py<PyString>, Py<PyAny>)>,
     /// `(holder, name, as defined)` of what a step calls: a module's function, a manager's method.
     rules: Vec<(Py<PyAny>, Py<PyString>, Py<PyAny>)>,
-    /// `TICK_PHASE_ORDER`.
-    phases: Vec<Py<PyAny>>,
-    clock_error: Py<PyType>,
 }
 
 static TABLE: GILOnceCell<Table> = GILOnceCell::new();
 
 static TICKS: AtomicU64 = AtomicU64::new(0);
 static KERNELS_REFUSED: AtomicU64 = AtomicU64::new(0);
-static REFUSALS: Mutex<BTreeMap<&'static str, u64>> = Mutex::new(BTreeMap::new());
+static REFUSALS: Mutex<BTreeMap<String, u64>> = Mutex::new(BTreeMap::new());
 static KERNEL_REASONS: Mutex<BTreeMap<String, u64>> = Mutex::new(BTreeMap::new());
 
 #[track_caller]
 fn refuse<T>(reason: &'static str) -> PyResult<T> {
+    counted(reason.to_owned());
+    unsupported(reason)
+}
+
+fn counted(reason: String) {
     if let Ok(mut refusals) = REFUSALS.lock() {
         *refusals.entry(reason).or_default() += 1;
     }
-    unsupported(reason)
 }
 
 /// A kernel's result. Its refusal is counted and becomes `KernelRefusal` naming it (`module.name`).
@@ -81,80 +84,18 @@ fn only<T>(py: Python<'_>, label: &str, result: PyResult<T>) -> PyResult<T> {
     })
 }
 
-struct Tick<'a, 'py> {
-    table: &'a Table,
-    controller: &'a Bound<'py, PyAny>,
-    world: &'a Bound<'py, PyAny>,
-    minute: &'a Bound<'py, PyAny>,
-    minute_value: i64,
-    rng: &'a Bound<'py, PyAny>,
-}
-
-impl<'py> Tick<'_, 'py> {
-    fn py(&self) -> Python<'py> {
-        self.world.py()
-    }
-
-    fn dispatch(&self) -> PyResult<()> {
-        let py = self.py();
-        only(py, "dispatch.run_phase", dispatch::run_for_driver(self.controller, self.world, self.minute))
-    }
-
-    /// `_update_movement`: the update phase's first step, whose inputs lane P9-1a moves; the core
-    /// calls it through `movement` of its phases.
-    fn update_movement(&self) -> PyResult<()> {
-        let py = self.py();
-        let (controller, world, minute) = (self.controller, self.world, self.minute);
-        let table = attribute(world, intern!(py, "model_state"))?;
-        if let Some(state) = raw_dict_get(&table, intern!(py, MOVEMENT).as_any())?.filter(|state| !state.is_none()) {
-            let moved = only(py, "movement.advance_movement", movement::advance_movement(world, minute).map(Bound::into_any))?;
-            if moved.is_truthy()? {
-                only(py, "replan.replan_journeys", replan::replan_journeys(controller, &state, &moved, minute))?;
-            }
+/// `_update_movement`: the update phase's first step, whose inputs are still read here; the core
+/// calls it through `movement` of `run_tick`.
+fn update_movement<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<()> {
+    let py = world.py();
+    let table = attribute(world, intern!(py, "model_state"))?;
+    if let Some(state) = raw_dict_get(&table, intern!(py, MOVEMENT).as_any())?.filter(|state| !state.is_none()) {
+        let moved = only(py, "movement.advance_movement", movement::advance_movement(world, minute).map(Bound::into_any))?;
+        if moved.is_truthy()? {
+            only(py, "replan.replan_journeys", replan::replan_journeys(controller, &state, &moved, minute))?;
         }
-        Ok(())
     }
-
-    /// The phases after the dispatch: one call of the core's (`sheltersim_core::rules::tick`).
-    fn core_phases(&self, observer: &Bound<'py, PyAny>) -> PyResult<()> {
-        let py = self.py();
-        let run = run_of(self.controller)?;
-        let policies = run.get().policies()?;
-        let mut host = PyHost::of_controller(self.controller)?.with_observer(observer).with_rng(self.rng);
-        let cell = PyWorldCell(self.world);
-        let neighbors = run.get().seen()?.neighbors.clone().ok_or_else(|| PyRuntimeError::new_err("the tick read no neighbors"))?;
-        let mut tick = core::Tick { cell: &cell, host: &mut host, run: run.get(), policies, minute: self.minute_value, seed: seed_of(self.rng)?, neighbors };
-        let mut movement = |host: &mut PyHost<'py>| -> core::Step<(), HostError> {
-            let moved = self.update_movement();
-            host.ran_python();
-            moved.map_err(|error| core::Failed { label: None, error: HostError(error) })
-        };
-        core::phases(&mut tick, &mut movement).map_err(|failed| match failed.label {
-            Some(label) => match only(py, label, Err::<(), _>(failed.error.0)) {
-                Err(error) => error,
-                Ok(()) => PyRuntimeError::new_err("a step's error went"),
-            },
-            None => failed.error.0,
-        })
-    }
-
-    fn run(&self, observer: &Bound<'py, PyAny>) -> PyResult<()> {
-        let py = self.py();
-        let watched = !observer.is_none();
-        // The dispatch phase, the first of `TICK_PHASE_ORDER`, until lane P9-1c moves it.
-        let phase = self.table.phases[0].bind(py);
-        if watched {
-            observer.call1((phase, true))?;
-        }
-        self.dispatch()?;
-        if !self.world.getattr(intern!(py, "minute_index"))?.eq(self.minute)? {
-            return Err(PyErr::from_type(self.table.clock_error.bind(py).clone(), sheltersim_core::error::CLOCK));
-        }
-        if watched {
-            observer.call1((phase, false))?;
-        }
-        self.core_phases(observer)
-    }
+    Ok(())
 }
 
 /// `str(rng.seed)` of the tick's `CounterRNG`, as the core's kernels read it.
@@ -280,24 +221,51 @@ fn run_tick<'py>(
         return refuse("experiments/phases/driver.py has not installed the table");
     };
     accept(table, controller, world)?;
-    let tick = Tick { table, controller, world, minute, minute_value: exact_int(minute)?, rng };
+    let minute_value = exact_int(minute)?;
+    // The dispatch phase's own checks, before anything has changed: a refusal sends the tick to
+    // `phase_handler`, whose dispatch phase refuses with the same text.
+    if let Err(reason) = dispatch::ready(controller, world, minute)? {
+        counted(format!("dispatch: {reason}"));
+        // Not counted in the census here: the phase path counts its own refusal.
+        return Err(Unsupported::counted(reason));
+    }
+    // H7: the tick's random source as the kernels read it.
+    let seed = seed_of(rng)?;
+    let run = run_of(controller)?;
+    let policies = run.get().policies()?;
+    let neighbors = run.get().seen()?.neighbors.clone().ok_or_else(|| PyRuntimeError::new_err("the tick read no neighbors"))?;
     TICKS.fetch_add(1, Ordering::Relaxed);
+    // One host for the whole tick: what it read of the holding goes at each call of it that runs
+    // Python (the observer, the movement, an LLM hook, a foreign handler).
+    let mut host = PyHost::of_controller(controller)?.on_world(world).with_observer(observer).with_rng(rng);
+    let cell = PyWorldCell(world);
+    let mut tick = core::Tick { cell: &cell, host: &mut host, run: run.get(), policies, minute: minute_value, seed, neighbors };
+    let mut movement = |host: &mut PyHost<'py>| -> core::Step<(), HostError> {
+        let moved = update_movement(controller, world, minute);
+        host.ran_python();
+        moved.map_err(|error| core::Failed { label: None, error: HostError(error) })
+    };
     // The tick has begun, so the Python path must not run over it: a refusal is KernelRefusal.
-    tick.run(observer).map_err(|error| errors::kernel_refusal(py, "tick.run_tick", error))
+    core::run_tick(&mut tick, &mut movement).map_err(|failed| {
+        let error = match failed.label {
+            Some(label) => match only(py, label, Err::<(), _>(failed.error.0)) {
+                Err(error) => error,
+                Ok(()) => PyRuntimeError::new_err("a step's error went"),
+            },
+            None => failed.error.0,
+        };
+        errors::kernel_refusal(py, core::RUN_TICK, error)
+    })
 }
 
 /// What `experiments/phases/driver.py` gives once.
 #[pyfunction]
-#[allow(clippy::too_many_arguments)]
 fn install<'py>(
     py: Python<'py>,
     controller: Bound<'py, PyType>,
     managers: (Bound<'py, PyType>, Bound<'py, PyType>, Bound<'py, PyType>),
     steps: Vec<Bound<'py, PyString>>,
     rules: Vec<(Bound<'py, PyAny>, Bound<'py, PyString>)>,
-    phases: Vec<Bound<'py, PyAny>>,
-    _metrics_recorder: Bound<'py, PyType>,
-    clock_error: Bound<'py, PyType>,
 ) -> PyResult<()> {
     let mut defined_steps = Vec::with_capacity(steps.len());
     for name in steps {
@@ -316,8 +284,6 @@ fn install<'py>(
         staff: managers.2.unbind(),
         steps: defined_steps,
         rules: defined_rules,
-        phases: phases.into_iter().map(Bound::unbind).collect(),
-        clock_error: clock_error.unbind(),
     };
     let _ = TABLE.set(py, table);
     Ok(())
@@ -332,7 +298,7 @@ fn stats<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyDict>, Bound<'py, PyDic
     let reasons = PyDict::new(py);
     if let Ok(refusals) = REFUSALS.lock() {
         for (reason, times) in refusals.iter() {
-            reasons.set_item(*reason, *times)?;
+            reasons.set_item(reason, *times)?;
         }
     }
     if let Ok(refusals) = KERNEL_REASONS.lock() {

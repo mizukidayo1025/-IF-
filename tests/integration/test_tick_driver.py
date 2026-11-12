@@ -649,11 +649,11 @@ def test_the_driver_takes_a_phase_s_steps_in_the_order_of_its_python_method(
 
 
 def test_the_driver_takes_the_phases_in_the_engine_s_order() -> None:
-    """The PyO3 driver runs the dispatch phase, then the core's phases in `Phase::ORDER`, which
+    """The PyO3 driver calls the core's `run_tick`, which runs the phases in `Phase::ORDER`, which
     names `TICK_PHASE_ORDER`'s members in their order."""
     driver = (ROOT / "native/src/rules/tick.rs").read_text("utf-8")
-    run = driver.index("fn run(&self, observer")
-    assert driver.index("self.dispatch()?", run) < driver.index("self.core_phases(observer)", run)
+    run = driver.index("fn run_tick<'py>(")
+    assert driver.index("core::run_tick(&mut tick, &mut movement)", run) > run
     host = (ROOT / "native/core/src/host.rs").read_text("utf-8")
     order = host.index("pub const ORDER: [Phase; 7] = [")
     names = host.index("pub fn name(self)", order)
@@ -662,8 +662,10 @@ def test_the_driver_takes_the_phases_in_the_engine_s_order() -> None:
     places = [host.index(f"Phase::{_camel(phase.value)},", order) for phase in TICK_PHASE_ORDER]
     assert places == sorted(places)
     phases = (CORE_TICK / "mod.rs").read_text("utf-8")
-    start = phases.index("pub fn phases<")
+    start = phases.index("pub fn run_tick<")
+    assert phases.index("for phase in Phase::ORDER {", start) > start
     bodies = {
+        TickPhase.DISPATCH_DUE_EVENTS: "Phase::DispatchDueEvents => crate::rules::dispatch::run(",
         TickPhase.COMPLETE_SCHEDULED_TASKS: "Phase::CompleteScheduledTasks => {}",
         TickPhase.UPDATE_AGENT_STATE: "Phase::UpdateAgentState => update::update(",
         TickPhase.PROPOSE_ACTIONS: "Phase::ProposeActions => propose::propose(",
@@ -672,7 +674,7 @@ def test_the_driver_takes_the_phases_in_the_engine_s_order() -> None:
         TickPhase.COLLECT_METRICS: "Phase::CollectMetrics => metrics::metrics(",
     }
     assert all(phases.find(body, start) > 0 for body in bodies.values())
-    assert list(bodies) == list(TICK_PHASE_ORDER)[1:]
+    assert list(bodies) == list(TICK_PHASE_ORDER)
 
 
 def _camel(value: str) -> str:

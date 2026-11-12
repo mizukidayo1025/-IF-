@@ -478,17 +478,23 @@ are correctly rounded everywhere, and not `**` with a float.
   body, and the commit or the rollback. There is no copy of the world any more. A rule called inside
   another's open transaction validates the world as a start does and writes it as it is.
 
-- `rules/tick.rs`: `run_tick(controller, world, minute, rng, observer)`, one tick's phases in order,
-  through `controller.run_tick` (`experiments/phases/driver.py`). Unsupported before anything changes
-  for a tick that a hook changes (a shadow, a patched step or rule in the table of `install`, a
-  toilet, resource or staff manager of another class than the installed one). It reads the Run's
-  policies again when the controller holds another manager, proximity config or table of neighbors
-  than they were read with (`_tick_marks` on the controller), and the open actions into the Run's
-  rows. Then it runs the dispatch phase, and the phases after it are one call of the core's
-  `rules::tick::phases` (`core/src/rules/tick/`, lane P9-2a), with a `PyHost` that has the observer
-  and the random source; the update phase's movement and replanning are still this file's, which the
-  core calls first. A step's error carries its kernel's label, and a refusal is `KernelRefusal`
-  naming it (`only`); no Python rule stands behind one. `stats()` says what ran.
+- `rules/tick.rs`: `run_tick(controller, world, minute, rng, observer)`, one tick, through
+  `controller.run_tick` (`experiments/phases/driver.py`). Unsupported before anything changes for a
+  tick that a hook changes (a shadow, a patched step or rule in the table of `install`, a toilet,
+  resource or staff manager of another class than the installed one) or whose dispatch phase its own
+  checks turn down (`dispatch::ready`: the dispatcher's class, the world's stores, the open actions);
+  `phase_handler` then runs the tick, and its dispatch phase refuses with the same text. It reads the
+  Run's policies again when the controller holds another manager, proximity config or table of
+  neighbors than they were read with (`_tick_marks` on the controller), and the dispatcher's handlers
+  when they changed (`_dispatch_marks`), and the open actions into the Run's rows. Then the tick is one
+  call of the core's `rules::tick::run_tick` (`core/src/rules/tick/mod.rs`, lane P9-2b) with one
+  `PyHost` for all the phases, which has the observer and the random source: the Run's scratch begins,
+  and each phase of `TICK_PHASE_ORDER` runs between `Host::phase` before and after, with the clock
+  checked after it (`Error::Clock`, `TickExecutionError`). The update phase's movement and replanning
+  are still this file's, which the core calls first in that phase. A step's error carries its
+  kernel's label, and a refusal is `KernelRefusal` naming it (`only`); the dispatch phase's is
+  `dispatch.run_phase`'s. No Python rule stands behind one. `install`, `accept` and `stats()` (what
+  ran, and the refusals by reason) stay here.
 
 - `rules/dispatch.rs`: `run_phase(controller, world, minute)`, the dispatch phase. An event type with
   a Rust function (`social_interaction`, `agent_travel_complete`, `toilet_service_complete`,

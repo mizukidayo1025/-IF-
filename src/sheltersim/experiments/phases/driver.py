@@ -1,10 +1,11 @@
-"""The tick's phases in Rust: native/src/rules/tick.rs.
+"""The tick's phases in Rust: native/src/rules/tick.rs, which calls the core's `run_tick`
+(native/core/src/rules/tick/mod.rs).
 
 `TickEngine.step` asks a handler's `run_tick` first. The driver refuses a tick that a hook changes,
-before anything has happened, and `step` then runs the phases through `phase_handler`, so a test's
-patch sees what it saw before. A trace, a Provider and an observer of the phases go with the driver.
-Past those checks each step is its kernel; a kernel's refusal is KernelRefusal (core/kernels.py).
-See docs/rust-port/lanes/m6-driver.md.
+or whose dispatch phase its own checks turn down, before anything has happened, and `step` then runs
+the phases through `phase_handler`, so a test's patch sees what it saw before. A trace, a Provider
+and an observer of the phases go with the driver. Past those checks each step is its kernel; a
+kernel's refusal is KernelRefusal (core/kernels.py). See docs/rust-port/lanes/m6-driver.md.
 """
 
 from __future__ import annotations
@@ -12,7 +13,6 @@ from __future__ import annotations
 from typing import Any
 
 from sheltersim import native
-from sheltersim.core.engine import TICK_PHASE_ORDER, TickExecutionError
 from sheltersim.core.rng import KeyedRandom
 from sheltersim.core.world import WorldState
 from sheltersim.domain import facilities, resource_service, staff
@@ -99,9 +99,6 @@ def install_driver(controller: type) -> None:
         ),
         list(DRIVEN_STEPS),
         list(DRIVEN_RULES),
-        list(TICK_PHASE_ORDER),
-        metrics.MetricsRecorder,
-        TickExecutionError,
     )
     run_kernel = rules.run_tick
     unsupported = native.Unsupported
