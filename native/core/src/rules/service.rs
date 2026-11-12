@@ -2105,9 +2105,9 @@ pub fn repr_of(value: &V) -> String {
 
 /// A kernel's failure as the host's error: the ledger's text inside its rule's error, or what the
 /// world or a write said (`failed` of the service's glue).
-pub fn failure_of<H: Host>(host: &H, failure: Failure) -> H::Error {
+pub fn failure_of<H: Host>(failure: Failure) -> H::Error {
     match failure {
-        Failure::Write(error) => host.write_error(error),
+        Failure::Write(error) => <H::Error as From<WriteError>>::from(error),
         Failure::Ledger(fault, wrap) => wrap.error(&fault.text(repr_of)).into(),
     }
 }
@@ -2135,7 +2135,7 @@ fn serve_of<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(
             Ok((Some(event_id), None))
         }
         Ok(Served::Stopped(stall)) => Ok((None, stall)),
-        Err(failure) => Err(failure_of(tick.host, failure)),
+        Err(failure) => Err(failure_of::<H>(failure)),
     }
 }
 

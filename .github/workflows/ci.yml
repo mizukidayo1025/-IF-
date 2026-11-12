@@ -120,6 +120,10 @@ jobs:
         run: ruff check .
       - name: formatを確認
         run: ruff format --check .
+      # The PyO3 crate's rules files hold only glue, and the deleted Python rules stay deleted
+      # (#152, design-p9.md section 6): each finding that stays is listed with its reason.
+      - name: Rustの窓口の規則がglueだけか確認
+        run: python benchmarks/rust_port/glue_check.py
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: native

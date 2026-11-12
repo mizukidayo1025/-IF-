@@ -3641,7 +3641,7 @@ pub fn queue_departures<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &Eve
             selected
         }
     };
-    let taken = read.run(cell, |world, inputs| write_departures(world, inputs, row, &selected)).map_err(writing)?;
+    let taken = read.run(cell, |world, inputs| write_departures(world, inputs, row, &selected)).map_err(writing::<H::Error>)?;
     // The objects of the events the departures settled on the world's queue.
     host.slots_changed(&taken).map_err(writing)?;
     let minute = flat::<_, H::Error>(cell.with(|world| world.minute_index()))?;

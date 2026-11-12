@@ -991,11 +991,6 @@ impl<'py> Host for PyHost<'py> {
         Ok(())
     }
 
-    /// A write's error as the PyO3 crate's `EventWriter` raises it (`DuplicateEventError`).
-    fn write_error(&self, error: sheltersim_core::events::writer::WriteError) -> HostError {
-        HostError(write_error(self.py(), error))
-    }
-
     /// `world.model_configs` as a value (the view reads it past the slot that does not hold it), or
     /// None for configs that are not a plain dict, which the view refuses.
     fn configs_given(&mut self) -> Result<Option<V>, HostError> {

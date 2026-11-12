@@ -1017,6 +1017,39 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
 - **確かめたこと**（`main` `48fd4b7b` の上で）：`cargo test -p sheltersim_core`（483件）と `--no-default-features`（483件）、`wasm32-unknown-unknown` の `--no-default-features` のビルド、`cargo clippy --workspace --all-targets -- -A clippy::all -D clippy::disallowed_methods`、`cargo tree -p sheltersim_core -e normal,build` に `pyo3` がないこと、`ruff check .`、`ruff format --check .`、offline の pytest（`-m "not long_simulation"`：5302 passed、6 skipped。`tests/integration/test_core_tick.py` を含みます）、長いテスト（`-m long_simulation`：10 passed）、全経路のゲート（55 scenarios、0 problems）、`--verify-rows` 付き（0 problems。31740 回の tick の終わりで実体 0 differed、木 189362 本 0 differed）、`--poison` 付き（0 problems。16963 個に毒、使用 0 回）。替わった行 1171 件はすべて同じで動き、ホストの handler は 0 件、規則のトランザクションはその場で 390 です。
 - **7日分**（100人、project の経路、生成 Scenario）：base（`48fd4b7b` のビルドとソース）と交互に、base、この PR、この PR、base の順。4回とも world、events、metrics のハッシュは同じです（69aba659…、5e4c7645…、94c8cbb2…）。load average は 1.6〜2.6 でした。thread は base 58.76・58.17 s、この PR 58.44・58.27 s（隣どうしで −0.5%・+0.2%）、`TickEngine.step` は base 14.08・13.95 s、この PR 14.01・13.98 s、`phase.update_agent_state` は 3.37・3.33 s と 3.36・3.35 s、wall は base 69.02・67.95 s、この PR 68.28・68.56 s、`computation_mib` は base 902.2・903.0、この PR 906.1・904.8 MiB です。7日分の経路は単独の dispatcher も管理者の単独の arbitrate も通らず、移動は同じ中核の関数なので、速さは揺れの中で同じです。
 
+### PR P9-3b（2/2）：Host の見直し、glue の確かめ、小さな残り物（レーン P9-3b）
+
+- **Host の見直し**：P9-2a が足した8つ（`read_queue_rows`、`write_error`、`configs_given`、`read_again`、`resources_changed`、`start_namespace`、`metric_sink`、`capture_by_sink`）を中心に、全部の方法を見直しました。窓口の関数を呼び戻すだけで中核にできるものは `write_error` だけで、消しました：ホストの誤りの型が `From<WriteError>` を持つことにし（`type Error: From<Error> + From<WriteError> + HostFailure`）、ネイティブ版は前と同じ `DuplicateEventError`、Python のないホストは中核の `From<WriteError> for Error`（前の既定と同じ `RuntimeError`）です。ほかは、Python が持つもの・Python の側の誤りのクラス・外への出口なので残します。残る `Host` の40の方法と、残す理由（決定 2：LLM と sink、E6：検証、E15：契約、H1/H2：Python が持つ入力、E10/E14、テストのフック）：
+
+  | 方法 | 残す理由 |
+  |---|---|
+  | `validate_candidate`、`canonicalized`、`restored`、`committed`、`txn_check` | E6：トランザクションの検証と、Python の見え方（列の物、木）を合わせること（6-2、E16） |
+  | `validate_world`、`validate_extensions`、`validate_in_flight` | E6：世界全体の検証は Python のまま |
+  | `slots_changed` | H6：Python が持つ予定のイベントの物を手放す（列の行は中核） |
+  | `find_record` | Python が持つ EventLog の記録（中核は Python に渡した記録のバイトを持たない） |
+  | `floor_plan` | H2：床の図面は Python の契約（`FacilityGeometry`、`SpatialConstraints`、E15）で解釈した節から |
+  | `contract` | E15：入力の pydantic の契約 |
+  | `llm`、`prioritize_support_request`、`consider_support_request`、`consider_complaint_response`、`consider_cooperation`、`consider_information_reaction` | 決定 2：LLM の境界 |
+  | `capture_metric`、`metric_sink`、`capture_by_sink` | 決定 2：指標の sink（中核の標本を取るのは `MetricsRecorder` のときだけなので、先に sink を聞きます） |
+  | `decision_sink`、`decision`、`decision_source`、`record_decision_python` | 決定 2：判断の記録の sink（H5 は Python の sink） |
+  | `trace_level`、`trace` | 決定 2：trace の sink |
+  | `phase` | `TickEngine.phase_observer`（外のフック） |
+  | `space_refreshed` | Python の `SpaceRouter`・`staff_space`（Python の読み手のため。テストが `_refresh_space` を patch します） |
+  | `holding`、`other_is_dict` | H1：`model_state` と持つ項目は Python が持つ |
+  | `fill_section`、`configs_given` | H2：Python の契約が解釈する節と、slot が持たない `model_configs` |
+  | `read_again` | E14：Python の読みの誤りを同じクラスと文で出す |
+  | `read_queue_rows` | H6：Python が予定したイベントの行を読む |
+  | `resources_changed`、`start_namespace` | H1：Python の物（`world.resources` の新しい dict、`model_state` の新しい鍵）を Python の規則と同じに作る |
+  | `upgrade_information_state` | E11 の追記：古い情報の状態の Python の upgrade（Host のフック） |
+  | `apply_foreign` | E10/H4：テストが登録・patch した handler と単独の dispatcher の handler |
+  | `draw` | テストのフック：`CounterRNG` でない乱数 |
+
+- **glue の確かめ**（設計 P9 の §6）：`benchmarks/rust_port/glue_check.py` と、そのテスト `tests/unit/repo/test_glue_check.py`、CI の lint の job の手順1つ（trigger は変えていません）。`native/src/rules/*.rs` の禁止の表（状態の窓口の読み書き、規則の計算、`namespace_held`・`field_held`・`namespace_is_absent`・`configs::kept`、`controller.call_method`、`std::time`）、Python の呼び出し、1つの式でない `with_world(` の closure を数え、`EXEMPTIONS` にファイルと種類ごとの数と理由がないものは失敗にします（`use` と注釈は数えません。数が合わない古い例外も失敗）。除くファイルは `parity.rs`、E6 の `after_tick.rs`・`tick_validation.rs`、H2 の `movement_geometry.rs` です。Python は、消した fallback と規則（`_dispatch_one_event`、`_finish_stopped_journey`、`_interrupt_trips_of_event`、`_admit_pending_returns`、`care_source_ids_for_agent`、`record_support_request`、`record_observed_contacts`、`effect_event_guard_or_suppress`、`_arbitrate_independent_facility`、`make_*_record`）が `src/sheltersim` に名前としてないこと、中核に移した手順（`_sync_movement_after_events`、`_consider_social_contact_event`、管理者の `arbitrate`、`EventDispatcher._dispatch_one`・`settle`）が本体のない `kernel_only` であること、dispatcher の数に `events_python`・`settled_python`・`finished_python`・`sync_refused` がないことを確かめます。
+  - **今の結果**：問題 0、例外 97 項目（165 か所、34 ファイル）。か所の内訳：Python の入口（段階の経路、テスト）が呼ぶたびに読む H1/H2 の入力 67（tick の中核は同じものを Host から読みます）、節の Python の解釈（H2/E15）24、Python の呼び手に渡す物の変換 21、Python の予定のイベントの物（H6）13、テストと呼び手のフック（H4/H5）8、`operational_kpi_values`（inspection の trace のための KPI。tick の手順ではありません）8、開いている行動の store 7、入口の closure 7、E10 の確かめ 3、Python の引数の読み 3、EventLog の Python の記録と受領の契約 2、段階の経路の `staff_service.assign_pending` と式の factory 2。tick の道の規則は中核で、例外は Python の呼び手のための入口と変換です。入口を中核の読み手に寄せる仕事と KPI の移動は P10 に残します（設計 P8 の §4.1-(1) の「0」はまだです）。
+- **小さな残り物**：`native/src/core/errors.rs` の `clock_class` と `invariant_class` の古い注釈を直し、呼び手のない `errors::invariant` を消しました（自分の commit）。
+- **確かめたこと**（PR P9-3b（1/2）`fe6eff01` の上で）：`python benchmarks/rust_port/glue_check.py`（0 problems）、`cargo test -p sheltersim_core`（483件）と `--no-default-features`（483件）、`wasm32-unknown-unknown` の `--no-default-features` のビルド、clippy（`-D clippy::disallowed_methods`）、`cargo tree` に `pyo3` なし、`ruff check .`、`ruff format --check .`、offline の pytest（`-m "not long_simulation"`：5305 passed、6 skipped）、長いテスト（10 passed）、全経路のゲート（55 scenarios、0 problems）、`--verify-rows` 付き（0 problems。実体 0 differed、木 189362 本 0 differed）、`--poison` 付き（0 problems。16963 個、使用 0 回）。替わった行 1171 件すべて同じで動き、ホストの handler 0 件、その場のトランザクション 390 です。
+- **7日分**：（1/2）のビルドと交互に、base、この PR、この PR、base。4回ともハッシュは同じ（69aba659…、5e4c7645…、94c8cbb2…）。thread は base 57.62・57.66 s、この PR 57.97・58.39 s、`TickEngine.step` は 13.93・13.90 s と 13.94・14.00 s、`computation_mib` は 900.6〜905.3 MiB（load average 1.4〜5.8）。tick の道は変えていない（書き込みの誤りの変換の書き方だけ）ので、差は揺れの中です。
+
 ### この後
 
 残りの PR は、下の「レーン」の順に進めます。各レーンは、終わったときにこの節の前に記録を足します。
