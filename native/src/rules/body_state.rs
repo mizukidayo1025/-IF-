@@ -3,103 +3,20 @@
 //! operators the configs select, which the Python factory decides for a model the core does not
 //! know), runs the core's kernel on the world (`with_world`), and returns.
 
-use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-use sheltersim_core::config::body::{BodyModels, LINEAR_AFFECT, TRUST_WEIGHTED_AFFECT, DISTANCE_TRUST, DURATION_TRUST};
-use sheltersim_core::config::body::{AffectModel, TrustModel};
-use sheltersim_core::config::Selection;
-use sheltersim_core::rules::kit::Kept;
+use sheltersim_core::config::SectionId;
 use sheltersim_core::world::WorldCell;
 use sheltersim_core::rules::body_state::{self as rules, records_event, SocialEvent};
 
-use crate::core::configs;
 use crate::core::errors::OrPy;
-use crate::core::row::{attribute, exact_dict, exact_int, exact_str, str_value, unsupported};
+use crate::core::row::{attribute, exact_int, exact_str, str_value, unsupported};
 use crate::core::world_core::PyWorldCell;
 use crate::host::PyHost;
 use crate::rules::social_dialogue::{mapping_proxy, payload_fields};
-use crate::Unsupported;
-
-/// `selected_models(model_configs)`, kept for the configs' stamp (`core/configs.rs`). What it raises
-/// is the rule's to say.
-fn selected_models(world: &Bound<'_, PyAny>) -> PyResult<Arc<Selection>> {
-    match configs::selection(world)? {
-        Ok(selection) => Ok(selection),
-        Err(fault) if fault.is_refusal() => unsupported("not a selection"),
-        Err(_) => unsupported("the model selection raises"),
-    }
-}
-
-/// `create_affect` without a selection: the config's, by the function that also refuses a bad one.
-fn affect_of_the_config(world: &Bound<'_, PyAny>) -> PyResult<Arc<str>> {
-    let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let raw = exact_dict(&configs)?.get_item(intern!(py, "body_dynamics"))?;
-    let config = py
-        .import(intern!(py, "sheltersim.domain.body_state"))?
-        .getattr(intern!(py, "canonical_body_config"))?
-        .call1((raw,))
-        .map_err(|_| Unsupported::new_err("the body config raises"))?;
-    Ok(Arc::from(exact_str(&config.get_item(intern!(py, "affect_policy"))?)?))
-}
-
-/// The affect and relationship models the rule creates, by name, for the tests
-/// (`core/configs.rs`'s `config_section`).
-pub(crate) fn model_names_of(world: &Bound<'_, PyAny>) -> PyResult<(&'static str, &'static str)> {
-    let models = models_of(world, &*selected_models(world)?)?;
-    let affect = match models.affect {
-        AffectModel::Linear => LINEAR_AFFECT,
-        AffectModel::TrustWeighted => TRUST_WEIGHTED_AFFECT,
-    };
-    let trust = match models.trust {
-        TrustModel::DistanceDurationRepeat { .. } => DISTANCE_TRUST,
-        TrustModel::DurationOnly => DURATION_TRUST,
-    };
-    Ok((affect, trust))
-}
-
-/// The operators the rule creates, kept for the configs' stamp (`core/configs.rs`). An ID this
-/// kernel doesn't know is left to Python's factory.
-fn models_of(world: &Bound<'_, PyAny>, selection: &Selection) -> PyResult<Arc<BodyModels>> {
-    match models_section(world, selection)? {
-        Ok(models) => Ok(models),
-        Err(fault) => Err(configs::raise(&fault, || affect_of(world, selection))),
-    }
-}
-
-fn affect_of(world: &Bound<'_, PyAny>, selection: &Selection) -> PyResult<Arc<str>> {
-    match selection.get("affect") {
-        Some(affect) => Ok(affect.clone()),
-        None => affect_of_the_config(world),
-    }
-}
-
-/// What the read of the body's models raises again, for a fault of the section (the host's
-/// `read_again`, lane P9-1c): the affect model's read of the configs.
-pub(crate) fn raise_models(world: &Bound<'_, PyAny>) -> PyResult<()> {
-    let selection = selected_models(world)?;
-    affect_of(world, &selection).map(drop)
-}
-
-/// `models_of` without its raise: the section, or its fault (the host's `fill_section`, lane P9-0).
-pub(crate) fn models_section(world: &Bound<'_, PyAny>, selection: &Selection) -> PyResult<Kept<BodyModels>> {
-    let py = world.py();
-    let relationship = selection.get("relationship").cloned();
-    let parse = || match affect_of(world, selection) {
-        Ok(affect) => configs::parsed_value(world, |configs| BodyModels::parse(&affect, relationship.as_deref(), configs)),
-        Err(error) => Ok(configs::parsed(py, Err(error))),
-    };
-    configs::kept_with_selection(world, |configs| &configs.body_models, parse)
-}
-
-/// The model selection the body's rule reads (`selected_models`), for the host (lane P9-0).
-pub(crate) fn selection_of(world: &Bound<'_, PyAny>) -> PyResult<Arc<Selection>> {
-    selected_models(world)
-}
 
 /// The payload's fields the rule reads of an event of this type.
 fn keys_of(event_type: &str) -> &'static [&'static str] {
@@ -144,7 +61,7 @@ pub(crate) fn record_social_event<'py>(world: &Bound<'py, PyAny>, event: &Bound<
     let inputs = rules::Inputs::read(&cell, &mut host).map_err(|error| error.0)?;
     let models = match &inputs.models {
         Ok(models) => models.clone(),
-        Err(fault) => return Err(configs::raise(fault, || affect_of(world, &inputs.selection))),
+        Err(fault) => return Err(host.raise_section(SectionId::BodyModels, fault)),
     };
     let payload = payload_fields(&payload, keys_of(event_type))?;
     let event = SocialEvent { event_id, event_type, causation_id, payload: &payload };

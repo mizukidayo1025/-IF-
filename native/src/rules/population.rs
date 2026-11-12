@@ -16,14 +16,11 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
 
-use sheltersim_core::config::overlay::OverlayRooms;
-use sheltersim_core::config::SectionId;
 use sheltersim_core::error::Error as CoreError;
 use sheltersim_core::rules::kit::Held;
 use sheltersim_core::rules::population::{self as core, Alternates, Built, DepartureGiven, Given, Language, Overrides, Read, RoutesFault};
 use sheltersim_core::value::V as CoreV;
 
-use crate::core::configs;
 use crate::core::errors::{self, to_py_err, OrPy};
 use crate::core::row::{attribute, exact_int, exact_str, unsupported};
 use crate::core::value::VPy;
@@ -438,20 +435,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 // ---- Readers of the glue ---------------------------------------------------------------------------
 
-/// `value.get(key)`.
-pub(crate) fn get<'py>(value: &Bound<'py, PyAny>, key: &str) -> PyResult<Bound<'py, PyAny>> {
-    value.call_method1(intern!(value.py(), "get"), (key,))
-}
-
-/// `value.get(key, {})`, for a read of a chain of mappings that may be absent.
-pub(crate) fn get_map<'py>(value: &Bound<'py, PyAny>, key: &str) -> PyResult<Bound<'py, PyAny>> {
-    value.call_method1(intern!(value.py(), "get"), (key, PyDict::new(value.py())))
-}
-
-pub(crate) fn is_dict(value: &Bound<'_, PyAny>) -> bool {
-    value.is_instance_of::<PyDict>()
-}
-
 pub(crate) fn text(value: &Bound<'_, PyAny>) -> PyResult<Arc<str>> {
     Ok(Arc::from(exact_str(value)?))
 }
@@ -472,51 +455,6 @@ pub(crate) fn event_row(event: &Bound<'_, PyAny>) -> PyResult<EventRow> {
 /// `Identifier` of contracts/extensions.py.
 pub(crate) fn is_identifier(text: &str) -> bool {
     sheltersim_core::events::is_stable_id(text)
-}
-
-/// `geometry_overlay.get("schema_version") not in {3, 4}`, as the set membership.
-fn room_schema(config: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let py = config.py();
-    pyo3::types::PySet::new(py, [3, 4])?.contains(get(config, "schema_version")?)
-}
-
-/// `room_schema` of the overlay's config, as the section holds it: what it raised is raised again.
-fn rooms_schema(world: &Bound<'_, PyAny>, rooms: &OverlayRooms) -> PyResult<bool> {
-    match &rooms.room_schema {
-        Ok(schema) => Ok(*schema),
-        Err(fault) => Err(configs::raise(fault, || {
-            room_schema(&get_map(&attribute(world, intern!(world.py(), "model_configs"))?, "geometry_overlay")?)
-        })),
-    }
-}
-
-/// What reading the section `overlay_rooms` raised, read again for its error (policy E14): the
-/// read of the config, then for a dict the room schema's.
-pub(crate) fn reraise_rooms(world: &Bound<'_, PyAny>) -> PyResult<()> {
-    let rooms = overlay_rooms(world)?;
-    if rooms.is_dict && rooms.room_schema.is_err() {
-        room_schema(&get_map(&attribute(world, intern!(world.py(), "model_configs"))?, "geometry_overlay")?)?;
-    }
-    Ok(())
-}
-
-/// The section `overlay_rooms` as the arrivals read it, for the tests: whether the config is a
-/// dict, and its room schema for a dict.
-pub(crate) fn overlay_rooms_of(world: &Bound<'_, PyAny>) -> PyResult<(bool, bool)> {
-    let mut host = host_of(world);
-    let holding = host.holding_now()?;
-    let rooms = host.host_value(&holding, SectionId::OverlayRooms, |configs| &configs.overlay_rooms)?;
-    Ok((rooms.is_dict, rooms.is_dict && rooms_schema(world, &rooms)?))
-}
-
-/// `model_configs.get("geometry_overlay", {})` as the arrivals read it: whether it is a dict, and
-/// for a dict `room_schema` of it or what that raised. The section `overlay_rooms`.
-pub(crate) fn overlay_rooms(world: &Bound<'_, PyAny>) -> PyResult<OverlayRooms> {
-    let py = world.py();
-    let config = get_map(&attribute(world, intern!(py, "model_configs"))?, "geometry_overlay")?;
-    let is_dict = is_dict(&config);
-    let room_schema = if is_dict { room_schema(&config).map_err(|error| configs::fault_of(py, &error)) } else { Ok(false) };
-    Ok(OverlayRooms { is_dict, room_schema })
 }
 
 /// A validation as a validator of `state_mirror._RUST_VALIDATORS`, which says yes or Unsupported:

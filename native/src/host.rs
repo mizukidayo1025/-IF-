@@ -816,25 +816,25 @@ impl<'py> Host for PyHost<'py> {
                 Filled::Kept
             }
             SectionId::StaffFatigue => finish(configs, |c| &c.staff_fatigue, configs::kept_section(world, |c| &c.staff_fatigue, staff::StaffFatigue::parse)?),
-            SectionId::StaffOperations => finish(configs, |c| &c.staff_operations, rules::staff::staff_operations_section(world)?),
+            SectionId::StaffOperations => finish(configs, |c| &c.staff_operations, configs::staff_operations_section(world)?),
             SectionId::StaffOperationsKnown => {
                 finish(configs, |c| &c.staff_operations_known, configs::kept_section(world, |c| &c.staff_operations_known, staff::known_staff_operations)?)
             }
             SectionId::SupportTaskMinutes => {
                 finish(configs, |c| &c.support_task_minutes, configs::kept_section(world, |c| &c.support_task_minutes, staff::support_task_minutes)?)
             }
-            SectionId::SupportCooldownMinutes => finish(configs, |c| &c.support_cooldown_minutes, rules::handlers::support_cooldown_section(world)?),
-            SectionId::InformationSpread => finish(configs, |c| &c.information_spread, rules::information_events::information_spread(world)?),
+            SectionId::SupportCooldownMinutes => finish(configs, |c| &c.support_cooldown_minutes, configs::support_cooldown_section(world)?),
+            SectionId::InformationSpread => finish(configs, |c| &c.information_spread, configs::information_spread(world)?),
             SectionId::BodyModels => {
-                let selection = rules::body_state::selection_of(world)?;
-                finish(configs, |c| &c.body_models, rules::body_state::models_section(world, &selection)?)
+                let selection = configs::body_selection(world)?;
+                finish(configs, |c| &c.body_models, configs::body_models_section(world, &selection)?)
             }
             SectionId::SocialInteractionMinutes => finish(
                 configs,
                 |c| &c.social_interaction_minutes,
                 configs::kept_section(world, |c| &c.social_interaction_minutes, body::social_interaction_minutes)?,
             ),
-            SectionId::CareOutcome => finish(configs, |c| &c.care_outcome, rules::support::care_outcome_section(world)?),
+            SectionId::CareOutcome => finish(configs, |c| &c.care_outcome, configs::care_outcome_section(world)?),
             SectionId::AgentDynamicsPolicy => {
                 finish(configs, |c| &c.agent_dynamics_policy, configs::kept_section(world, |c| &c.agent_dynamics_policy, agent_dynamics::policy)?)
             }
@@ -846,9 +846,9 @@ impl<'py> Host for PyHost<'py> {
                 |c| &c.knowledge_is_limited,
                 configs::kept_section(world, |c| &c.knowledge_is_limited, agent_dynamics::knowledge_is_limited)?,
             ),
-            SectionId::ZoneEnvironment => finish(configs, |c| &c.zone_environment, rules::effects::zone_environment_section(world)?),
-            SectionId::Infrastructure => finish(configs, |c| &c.infrastructure, rules::handlers::infrastructure_section(world)?),
-            SectionId::Proximity => finish(configs, |c| &c.proximity, rules::handlers::proximity_section(world)?),
+            SectionId::ZoneEnvironment => finish(configs, |c| &c.zone_environment, configs::zone_environment_section(world)?),
+            SectionId::Infrastructure => finish(configs, |c| &c.infrastructure, configs::infrastructure_section(world)?),
+            SectionId::Proximity => finish(configs, |c| &c.proximity, configs::proximity_section(world)?),
             SectionId::Movement => finish(configs, |c| &c.movement, configs::kept_section(world, |c| &c.movement, movement::Movement::parse)?),
             SectionId::RouteCapacities => {
                 finish(configs, |c| &c.route_capacities, configs::kept_section(world, |c| &c.route_capacities, movement::RouteCapacities::parse)?)
@@ -856,7 +856,7 @@ impl<'py> Host for PyHost<'py> {
             SectionId::TransitCapacities => finish(
                 configs,
                 |c| &c.transit_capacities,
-                configs::kept(world, |c| &c.transit_capacities, || Ok(configs::parsed(py, rules::population_lifecycle::transit_capacities(world))))?,
+                configs::kept(world, |c| &c.transit_capacities, || Ok(configs::parsed(py, configs::transit_capacities(world))))?,
             ),
             SectionId::FacilityQueues => {
                 finish(configs, |c| &c.facility_queues, configs::kept_section(world, |c| &c.facility_queues, queues::QueueConfig::parse)?)
@@ -867,7 +867,7 @@ impl<'py> Host for PyHost<'py> {
             SectionId::OverlayRooms => finish(
                 configs,
                 |c| &c.overlay_rooms,
-                configs::kept(world, |c| &c.overlay_rooms, || Ok(configs::parsed(py, rules::population::overlay_rooms(world))))?,
+                configs::kept(world, |c| &c.overlay_rooms, || Ok(configs::parsed(py, configs::overlay_rooms(world))))?,
             ),
             SectionId::ResourceService => {
                 finish(configs, |c| &c.resource_service, configs::kept_section(world, |c| &c.resource_service, service::ResourceService::parse)?)
@@ -880,7 +880,7 @@ impl<'py> Host for PyHost<'py> {
             SectionId::ExtensionsEnabled => finish(
                 configs,
                 |c| &c.extensions_enabled,
-                configs::kept(world, |c| &c.extensions_enabled, || Ok(configs::parsed(py, rules::world_view::extensions_enabled(world))))?,
+                configs::kept(world, |c| &c.extensions_enabled, || Ok(configs::parsed(py, configs::extensions_enabled(world))))?,
             ),
         })
     }
@@ -1008,39 +1008,39 @@ impl<'py> Host for PyHost<'py> {
         let py = self.py();
         match again {
             Again::Section(SectionId::ExtensionsEnabled) => {
-                crate::rules::world_view::extensions_enabled(&self.world)?;
+                configs::extensions_enabled(&self.world)?;
             }
             Again::Section(SectionId::Selection) => return Err(HostError(errors::relayed(py, configs::reraise_selection(&self.world)))),
             Again::Section(SectionId::StaffOperations) => {
-                crate::rules::staff::staff_operations(&self.world)?;
+                configs::staff_operations(&self.world)?;
             }
             Again::Section(SectionId::InformationSpread) => {
-                crate::rules::information_events::parse_spread(&self.world)?;
+                configs::parse_spread(&self.world)?;
             }
             Again::Section(SectionId::BodyModels) => {
-                crate::rules::body_state::raise_models(&self.world)?;
+                configs::raise_body_models(&self.world)?;
             }
             Again::Section(SectionId::CareOutcome) => {
-                crate::rules::support::selected_care_formula(&self.world)?;
+                configs::selected_care_formula(&self.world)?;
             }
             Again::Section(SectionId::ZoneEnvironment) => {
-                crate::rules::effects::zone_environment_spec(&self.world)?;
+                configs::zone_environment_spec(&self.world)?;
             }
             Again::Section(SectionId::SupportCooldownMinutes) => {
-                crate::rules::handlers::support_cooldown_minutes(&self.world)?;
+                configs::support_cooldown_minutes(&self.world)?;
             }
             Again::Section(SectionId::Proximity) => {
-                crate::rules::handlers::proximity_config(&self.world)?;
+                configs::proximity_config(&self.world)?;
             }
             // The population rules' sections (lane P9-3a).
             Again::Section(SectionId::FacilityGeometry) => {
                 crate::rules::movement_geometry::reparse_facility(&self.world)?;
             }
             Again::Section(SectionId::TransitCapacities) => {
-                crate::rules::population_lifecycle::transit_capacities(&self.world)?;
+                configs::transit_capacities(&self.world)?;
             }
             Again::Section(SectionId::OverlayRooms) => {
-                crate::rules::population::reraise_rooms(&self.world)?;
+                configs::reraise_rooms(&self.world)?;
             }
             Again::Section(_) => {}
             Again::Policy(path) => {

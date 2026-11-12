@@ -7,14 +7,14 @@
 
 use pyo3::prelude::*;
 
-use pyo3::types::PyDict;
 
+use sheltersim_core::config::SectionId;
 use sheltersim_core::rules::social_interaction::{self as rules, Said};
 
 use crate::core::errors::{self, OrPy};
 use crate::core::world_core::PyWorldCell;
 use crate::host::PyHost;
-use crate::rules::information_events::{event_row, information_spread};
+use crate::rules::information_events::event_row;
 use crate::state::events::EventRow;
 
 /// `SocialInteractionHandler.apply`. Raises what the Python rule raises for an event that does not
@@ -28,13 +28,15 @@ fn apply<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &B
 }
 
 fn apply_row(world: &Bound<'_, PyAny>, event: &EventRow) -> PyResult<Said> {
-    let mut host = PyHost::of_world(world, PyDict::new(world.py()));
+    let mut host = PyHost::of_entry(world);
     rules::apply(&PyWorldCell(world), &mut host, event).map_err(|error| error.0)
 }
 
 /// `query_pressure_per_claim` as an information reaction reads it, for the configs' tests.
 pub(crate) fn pressure_gain(world: &Bound<'_, PyAny>) -> PyResult<f64> {
-    rules::pressure_gain(&information_spread(world)?).or_py()
+    let mut host = PyHost::of_entry(world);
+    let holding = host.holding_now()?;
+    rules::pressure_gain(&host.host_section(&holding, SectionId::InformationSpread, |configs| &configs.information_spread)?).or_py()
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

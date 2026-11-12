@@ -20,18 +20,15 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 
-use sheltersim_core::config::environment::ZoneEnvironmentSpec;
 use sheltersim_core::rules::care_receipts::Made;
 use sheltersim_core::rules::effects::{self as core, GuardIn, Structure, CONFIG_UNREAD, COUNTS, OPERATORS, PENDING_UNREAD};
 use sheltersim_core::rules::staff_operation_events::FORMULA_UNREAD;
 use sheltersim_core::host::Holding;
 use sheltersim_core::rules::kit::Held;
-use std::sync::Arc;
 
 use crate::core::configs;
 use crate::core::errors::OrPy;
 use crate::core::row::{attribute, exact_str};
-use crate::core::value::{VPy, V};
 use crate::core::world_core::{with_world, PyWorldCell};
 use crate::host::PyHost;
 use crate::rules::care_receipts::made_record;
@@ -184,33 +181,6 @@ fn facility(handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bound<
     counted(world.py(), "facility", result)
 }
 
-/// `ScenarioZoneEnvironmentConfig.model_validate(model_configs["zone_environment"])`, kept for the
-/// configs' stamp (`core/configs.rs`); what it raises is relayed as it is.
-pub(crate) fn zone_environment_spec(world: &Bound<'_, PyAny>) -> PyResult<Arc<ZoneEnvironmentSpec>> {
-    match zone_environment_section(world)? {
-        Ok(spec) => Ok(spec),
-        Err(fault) => Err(configs::raise(&fault, || parse_zone_environment(world))),
-    }
-}
-
-/// `zone_environment_spec` without its raise (the host's `fill_section`, lane P9-0).
-pub(crate) fn zone_environment_section(world: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::rules::kit::Kept<ZoneEnvironmentSpec>> {
-    configs::kept(world, |configs| &configs.zone_environment, || Ok(configs::parsed(world.py(), parse_zone_environment(world))))
-}
-
-fn parse_zone_environment(world: &Bound<'_, PyAny>) -> PyResult<ZoneEnvironmentSpec> {
-    let py = world.py();
-    let config_data = attribute(world, intern!(py, "model_configs"))?.get_item("zone_environment")?;
-    let config = py
-        .import(intern!(py, "sheltersim.domain.environment"))?
-        .getattr(intern!(py, "ScenarioZoneEnvironmentConfig"))?
-        .call_method1(intern!(py, "model_validate"), (config_data,))?;
-    let keywords = PyDict::new(py);
-    keywords.set_item("mode", "json")?;
-    let dumped = config.call_method(intern!(py, "model_dump"), (), Some(&keywords))?;
-    configs::read(ZoneEnvironmentSpec::from_v(&<V as VPy>::from_py(&dumped)?))
-}
-
 /// `EffectProgramEnvironmentHandler.apply`. A config whose read raised raises where the rule reads it.
 #[pyfunction]
 fn environment(handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
@@ -221,7 +191,7 @@ fn environment(handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bou
         // The expiry events are read as rows of the queue.
         read_queue_rows(world)?;
         let result = handled(world, |cell, host| core::environment_event(cell, host, &row, expire));
-        read_again(py, result, CONFIG_UNREAD, || zone_environment_spec(world).map(drop))
+        read_again(py, result, CONFIG_UNREAD, || configs::zone_environment_spec(world).map(drop))
     })();
     counted(py, "environment", result)
 }
@@ -261,7 +231,7 @@ fn staff_task_order(world: &Bound<'_, PyAny>, row: &EventRow) -> PyResult<()> {
     let py = world.py();
     read_queue_rows(world)?;
     let result = handled(world, |cell, host| core::task_order_event(cell, host, row));
-    read_again(py, result, FORMULA_UNREAD, || crate::rules::staff::staff_operations(world).map(drop))
+    read_again(py, result, FORMULA_UNREAD, || configs::staff_operations(world).map(drop))
 }
 
 /// `EffectProgramStructureHandler.apply`. Its branches are told apart by the payload's fields, in

@@ -24,28 +24,16 @@ use sheltersim_core::rules::population::{OTHER_PROGRAM, PRESENCE};
 use sheltersim_core::rules::population_lifecycle::{self as core, Acted, Command, Facts, Logged, Read, TaskFacts, KEY};
 use sheltersim_core::value::V;
 
-use crate::core::configs;
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str};
 use crate::core::value::VPy;
 use crate::core::world_core::{state_value, with_world, PyWorldCell};
 use crate::host::HostError;
-use crate::rules::population::{as_refusal, event_row, get_map, host_of, optional_text, plan_read, planning, schedule_population_retry, text};
+use crate::rules::population::{as_refusal, event_row, host_of, optional_text, plan_read, planning, schedule_population_retry, text};
 use crate::state::events::{EventRow, EventWriter, QueueStore};
 use crate::Unsupported;
 
 const EFFECT_PROGRAM: &str = "effect_program_v1";
-
-/// Whether `model_configs.get("layout_routing", {}).get("max_agents_in_transit_by_edge", {})` is
-/// truthy: the section `transit_capacities`, kept for the stamp of `model_configs`.
-pub(crate) fn transit_capacities_of(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    Ok(*configs::kept_python(world, |configs| &configs.transit_capacities, transit_capacities)?)
-}
-
-pub(crate) fn transit_capacities(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let configs = attribute(world, intern!(world.py(), "model_configs"))?;
-    get_map(&get_map(&configs, "layout_routing")?, "max_agents_in_transit_by_edge")?.is_truthy()
-}
 
 fn presence_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
     Ok(host_of(world).holding_now()?.held(PRESENCE, "the world holds another presence state"))

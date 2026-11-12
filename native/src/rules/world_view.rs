@@ -25,7 +25,7 @@ use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyString, PyTuple, PyType};
 use pyo3::IntoPyObjectExt;
-use sheltersim_core::config::{Fault, SectionId, Selection};
+use sheltersim_core::config::{Fault, Selection};
 use sheltersim_core::world::MODEL_CONFIGS;
 use sheltersim_core::rules::world_view::{self as view, Inputs, ViewCache};
 
@@ -86,29 +86,6 @@ fn misinformation_applies_of(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     view::misinformation_applies(&configs::selection(world)?).or_py()
 }
 
-/// `simulator_extensions.get("enabled")` of the configs, truthy: the section `extensions_enabled`,
-/// kept for the stamp of `model_configs`.
-pub(crate) fn extensions_enabled_of(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let mut host = PyHost::of_entry(world);
-    let holding = host.holding_now()?;
-    Ok(*host.host_value(&holding, SectionId::ExtensionsEnabled, |configs| &configs.extensions_enabled)?)
-}
-
-pub(crate) fn extensions_enabled(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let py = world.py();
-    let configs = configs_of(world)?;
-    let Some(configs) = as_readable_dict(&configs) else {
-        return unsupported("the configs are not a plain dict");
-    };
-    Ok(match configs.get_item(intern!(py, "simulator_extensions"))? {
-        Some(extensions) => match extensions.call_method1(intern!(py, "get"), (intern!(py, "enabled"),))? {
-            enabled if enabled.is_none() => false,
-            enabled => enabled.is_truthy()?,
-        },
-        None => false,
-    })
-}
-
 // ---- Making a view -----------------------------------------------------------------------------
 
 /// `controller._run_core`, if it has one.
@@ -130,7 +107,7 @@ fn build(run: Option<&Bound<'_, RunCore>>, world: &Bound<'_, PyAny>, gathered: &
         run.get().put_views(cache)?;
     }
     let draft = built?.or_py()?;
-    Ok(draft.finish(extensions_enabled_of(world)?))
+    Ok(draft.finish(crate::core::configs::extensions_enabled_of(world)?))
 }
 
 /// The people's IDs of a view as Python strings, in its order.

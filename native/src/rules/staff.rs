@@ -28,15 +28,13 @@ use sheltersim_core::run::services::{staff_service, STAFF_SPEC};
 
 pub(crate) use sheltersim_core::rules::staff::OpenWait;
 
-use sheltersim_core::config::staff::{known_staff_operations, support_task_minutes, StaffOperations};
+use sheltersim_core::config::staff::{known_staff_operations, support_task_minutes};
 
-use crate::core::configs;
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_int, exact_str, unsupported};
 use crate::core::run::{policies_of, read_object};
 use crate::core::world_core::{with_world, PyWorldCell};
 use crate::host::{absent, PyHost};
-use crate::rules::handlers::get;
 use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::rules::staff_operation_events::Gathered;
 use crate::rules::travel::{self, read_queue_rows, rows_of, staff_router_rows, StaffRouter};
@@ -345,35 +343,6 @@ pub(crate) fn update_operations(world: &Bound<'_, PyAny>, minute: &Bound<'_, PyA
 #[pyfunction]
 fn format_g(value: f64) -> PyResult<String> {
     sheltersim_core::text::g_text(value).or_py()
-}
-
-/// `create_staff_operations_formula(model_configs)` and whether `policy_registry` selects it, kept
-/// for the configs' stamp as their section (`core/configs.rs`). What the factory raises is relayed
-/// as it is. A build without Python takes the built-in formulas (`StaffOperations::parse`).
-pub(crate) fn staff_operations(world: &Bound<'_, PyAny>) -> PyResult<Arc<StaffOperations>> {
-    match staff_operations_section(world)? {
-        Ok(formula) => Ok(formula),
-        Err(fault) => Err(configs::raise(&fault, || parse_staff_operations(world))),
-    }
-}
-
-/// `staff_operations` without its raise (the host's `fill_section`, lane P9-0).
-pub(crate) fn staff_operations_section(world: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::rules::kit::Kept<StaffOperations>> {
-    configs::kept(world, |configs| &configs.staff_operations, || Ok(configs::parsed(world.py(), parse_staff_operations(world))))
-}
-
-fn parse_staff_operations(world: &Bound<'_, PyAny>) -> PyResult<StaffOperations> {
-    let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let formula = py.import("sheltersim.policies.registry")?.getattr("create_staff_operations_formula")?.call1((&configs,))?;
-    let selected = get(&configs, "policy_registry")?;
-    let selected = !selected.is_none() && selected.contains("staff_operations")?;
-    let model_id = Arc::from(exact_str(&attribute(&formula, intern!(py, "model_id"))?)?);
-    let selected_source = match selected {
-        true => Some(Arc::from(exact_str(&attribute(&formula, intern!(py, "source_id"))?)?)),
-        false => None,
-    };
-    Ok(StaffOperations { model_id, selected_source })
 }
 
 /// `assign_staff_operations`, called from Python with a `SpaceRouter`: that caller's input, whose

@@ -66,7 +66,7 @@ impl<'py> Gathered<'py> {
             (PLAN_UNREAD, Some(read), _) => Err(read),
             (SNAPSHOT_PLAN_UNREAD, Some(read), _) => Err(errors::kernel_refusal(py, SNAPSHOTS, read)),
             // What reading the formula again raises (policy E14).
-            (FORMULA_UNREAD, _, Some(_)) => match crate::rules::staff::staff_operations(&self.world) {
+            (FORMULA_UNREAD, _, Some(_)) => match crate::core::configs::staff_operations(&self.world) {
                 Err(read) => Err(read),
                 Ok(_) => Err(error),
             },
