@@ -113,8 +113,10 @@ class Fixture:
         """Add a world: whole if `full`, else as the variant of the world added before whose changes
         are the shortest. A world equal to one added is that one."""
         entry = json.loads(json.dumps(export_world(world, controller, validate=False)))
+        # Compared as text: `==` takes True for 1 and 1 for 1.0.
+        text = json.dumps(entry, sort_keys=True)
         for known, other in self.entries.items():
-            if other == entry:
+            if json.dumps(other, sort_keys=True) == text:
                 return known
         assert name not in self.entries, name
         if full:
