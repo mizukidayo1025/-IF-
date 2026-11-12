@@ -78,35 +78,6 @@ impl<'py> Inputs<'py> {
         Self::read(world, config)
     }
 
-    /// `ResourceServiceManager(world)`, which holds nothing else: its config is a copy of
-    /// `model_configs["resource_service"]`, from the section kept for the stamp.
-    pub(crate) fn of_world(world: &Bound<'py, PyAny>) -> PyResult<Self> {
-        let py = world.py();
-        let service = resource_service_of(world)?;
-        let table = attribute(world, intern!(py, "model_state"))?;
-        if !service.present {
-            return unsupported("no resource service");
-        }
-        if exact_int(&attribute(world, intern!(py, "schema_version"))?)? != 6
-            || !exact_dict(&table)?.contains(intern!(py, SERVICE_KEY))?
-            || !exact_dict(&table)?.contains(intern!(py, "resource_ledger_v1"))?
-        {
-            return unsupported("not an opted-in world");
-        }
-        let config = match &service.config {
-            Some(config) => config.clone(),
-            // Not a dict: `dict(raw)` of the Python value, as before.
-            None => {
-                let configs = attribute(world, intern!(py, "model_configs"))?;
-                let raw = exact_dict(&configs)?.get_item(intern!(py, "resource_service"))?.ok_or_else(|| Unsupported::new_err("no resource service"))?;
-                let config = PyDict::new(py);
-                config.call_method1(intern!(py, "update"), (raw,))?;
-                config_of(config.as_any())?
-            }
-        };
-        Self::read(world.clone(), config)
-    }
-
     fn read(world: Bound<'py, PyAny>, config: Arc<IndexMap<Arc<str>, V>>) -> PyResult<Self> {
         let py = world.py();
         Ok(Self {
