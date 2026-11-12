@@ -1066,6 +1066,48 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
 - **確かめたこと**（`main` `cf81e696` の上で）：`python benchmarks/rust_port/glue_check.py`（0 problems）、`cargo test -p sheltersim_core`（484件）と `--no-default-features`（484件）、`cargo test -p sheltersim_core --test tick_core`（3件）、`wasm32-unknown-unknown` の `--no-default-features` のビルド、`cargo clippy --workspace --all-targets -- -A clippy::all -D clippy::disallowed_methods`、`cargo tree -p sheltersim_core -e normal,build` に `pyo3` なし、`ruff check .`、`ruff format --check .`、offline の pytest（`-m "not long_simulation"`：5306 passed、6 skipped。`tests/integration/test_core_tick.py` を含みます）、長いテスト（`-m long_simulation`：10 passed）、全経路のゲート（55 scenarios、0 problems）、`--verify-rows` 付き（0 problems。31740 回の tick の終わりで実体 0 differed、木 189362 本 0 differed）、`--poison` 付き（0 problems。16963 個に毒、使用 0 回）。替わった行 1171 件はすべて同じで動き、ホストの handler は 0 件、その場のトランザクションは 390 です。
 - **7日分**（100人、project の経路、生成 Scenario）：base（`cf81e696` のビルドとソース）と交互に、base、この PR、この PR、base の順。どの回も world、events、metrics のハッシュは同じです（69aba659…、5e4c7645…、94c8cbb2…）。最後の組（load average 1.8〜2.5）は thread が base 56.21・56.66 s、この PR 56.82・56.79 s（隣どうしで +1.1%・+0.2%）、`TickEngine.step` は base 13.55・13.65 s、この PR 13.67・13.69 s、`WorldState.validate_after_tick` は 1.669・1.685 s と 1.681・1.695 s、wall は base 66.36・66.93 s、この PR 66.87・66.97 s、`computation_mib` は base 904.9・899.7、この PR 905.0・906.5 MiB です。入口が全部の holding を毎回読んでいた途中の版は、thread が base 56.47・56.52 s に対して 57.18・57.27 s（+1.3%。inspection のフレームの `current_household_id` と tick の終わりの validator）だったので、それらの読み手は名前だけの holding にしました。tick の道（`run_tick`）は変えていません。
 
-### この後
+### PR P10-2：7日分の計算時間とメモリー、文書、#152 のまとめ（レーン P10-2）
 
-残りの PR は、下の「レーン」の順に進めます。各レーンは、終わったときにこの節の前に記録を足します。
+- **何をしたか**：#152 の終わりの条件（設計 P8 §4.1）の 6 と 7 を測り、文書を書きました。シミュレーションのコードは変えていません。`native/README.md` に workspace の節（中核と窓口に何があるか、`Host`、Python のない tick、中核の外のもの）、`docs/architecture.md` に中核と窓口の境界の項を足し、この文書の最後に #152 のまとめを書きました。
+- **7日分**（100人、project の経路、生成 Scenario、offline）：base は #152 の前の `main` `19692f8`（そのソースとビルド）、この PR は `main` `6c104a06`（PR P10-1c の後）のソースとビルドです。base、この PR、この PR、base の順の組を2回（2×2 を2回）、どれも load average 3 未満で始めました。8回とも world、events、metrics のハッシュは同じです（69aba659…、5e4c7645…、94c8cbb2…）。
+
+  | 回 | load average（1分） | wall（s） | thread（s） | `TickEngine.step`（s） | `computation_mib` |
+  |---|--:|--:|--:|--:|--:|
+  | base 1 | 0.69 | 69.64 | 59.09 | 16.51 | 893.3 |
+  | この PR 1 | 1.34 | 66.56 | 56.32 | 13.65 | 900.7 |
+  | この PR 2 | 1.73 | 67.46 | 56.87 | 13.75 | 904.9 |
+  | base 2 | 1.60 | 69.84 | 59.32 | 16.58 | 892.2 |
+  | base 3 | 1.57 | 69.53 | 59.19 | 16.57 | 893.6 |
+  | この PR 3 | 1.38 | 66.69 | 56.49 | 13.71 | 907.2 |
+  | この PR 4 | 2.33 | 66.65 | 56.41 | 13.70 | 904.4 |
+  | base 4 | 1.72 | 69.15 | 58.80 | 16.46 | 892.5 |
+  | 平均 base | | 69.54 | 59.10 | 16.53 | 892.9 |
+  | 平均 この PR | | 66.84 | 56.52 | 13.70 | 904.3 |
+
+  thread は base より 4.4% 短く（予算は +5% まで）、`TickEngine.step` は 17% 短くなりました。
+- **`computation_mib`**：base より 11.4 MiB 多く（892.9 → 904.3）、設計の幅（884〜904）の上の端です。base とこの PR を1回ずつ、保存のたびにこのプロセスの RSS（無名と file）、glibc の `mallinfo2`、Python の block の数を記録して走らせました（そのときの `computation_mib` は base 890.7、この PR 903.4。どちらも計算の最後の保存が最大です）。最後の保存での差 +12.7 MiB の内訳：
+  - **拡張の機械語** +3.2 MiB：file の RSS の差で、0 分から最後まで同じです。`sheltersim_native.abi3.so` が 10.4 MB から 14.0 MB になりました（規則の Python の本体が Rust になった分）。データではありません。
+  - **malloc の使用中** +1.4 MiB：30 分からずっと同じ差です（Run の `Policies`、設定と経路の表など、始めに作るもの）。履歴とともには増えません。
+  - **大きな塊（mmap）** +3.5 MiB：1,440 分 +0.5、2,880 分 +1.0、5,760 分 +2.0、10,050 分 +3.5 と、履歴とともに段で増えます（大きな配列の容量を広げたときの形です。どの配列かは確かめていません）。
+  - **malloc が持つ空き** +6.2 MiB：空いたが OS に返していない heap です。保存ごとの差は −3.8〜+10.9 MiB と揺れ、配置の違いで決まります。
+  - Python の block は最後に約 3,200 個少なく（Python の規則と物が減った分）、無名の RSS の残りは −1.6 MiB です。
+
+  データとして増えたのは約 5 MiB（使用中と大きな塊）で、ほかは機械語と allocator の空きです。速さや決定性と引き換えにする直し（保存ごとの `malloc_trim` など）はしていません。
+- **中核だけの tick の fixture**：移動（`movement_v1`）と型のある名前空間を入れるには、`facility_geometry` のある世界が要り、`agent_dynamics_v1`、`social_network_v1`、`staff_dynamics_v1`、`movement_v1` の行を JSON から作る読み手（中核の `Field` には JSON から読む道がありません）と、テストのホストの床の図面が要ります。300 行を超えるので、この PR では入れず、別の Issue にします。
+- **確かめたこと**（`main` `6c104a06` のビルドで）：`python benchmarks/rust_port/glue_check.py`（0 problems、例外 20 項目、34 か所）、`cargo test -p sheltersim_core`（484件）と `--no-default-features`（484件）、`--test tick_core`（3件）、`wasm32-unknown-unknown` の `--no-default-features` のビルド、`cargo clippy --workspace`（`--all-targets` も）の `-D clippy::disallowed_methods`、`cargo tree -p sheltersim_core -e normal,build` に `pyo3` なし、`ruff check .`、`ruff format --check .`、offline の pytest（`-m "not long_simulation"`：5306 passed、6 skipped）、長いテスト（`-m long_simulation`：10 passed）、全経路のゲート（55 scenarios、0 problems）、`--verify-rows` 付き（0 problems。31740 回の tick の終わりで実体 0 differed、木 189362 本 0 differed。替わった行 1171 件はすべて同じで動き、ホストの handler 0 件、その場のトランザクション 390）。
+
+## #152 のまとめ
+
+#152 で、Rust のコードを PyO3 に依存しない中核 `sheltersim_core`（`native/core`）と、PyO3 の薄い窓口 `sheltersim_native`（`native/src`）に分けました。保存されるバイト、ゲート、7日分のハッシュ、`ENGINE_VERSION`、誤りの文は変わっていません。
+
+- **中核にあるもの**：1つの世界の状態 `World`（スカラー、実体の行、持つ項目と名前空間の行、予定のイベントの列、EventLog）、行の型と正規の JSON、型の決まった設定、間取りと経路、その場のトランザクション、Run の `Policies` と `Scratch` と dispatch の表、tick の全部の規則と、tick の順序（`rules::tick::run_tick`：dispatch、complete、update、propose、arbitrate、sample、metrics）、Checkpoint の bytes の kernel。外へ出る道は `Host` の trait だけです（PR P9-3b（2/2）の表）。
+- **中核の確かめ**：`cargo tree -p sheltersim_core` に `pyo3` がないこと、`cargo test -p sheltersim_core`（機能 `parallel` ありとなし）、`wasm32-unknown-unknown` の `--no-default-features` のビルド、Python のない 1,440 tick（`--test tick_core`。ネイティブの経路と同じ digest）。どれも CI の lint の job です。
+- **窓口に残るもの**と理由：
+  - Python との変換（CONVERSION）、Python の呼び手の引数の読み（ARGUMENT）、テストと sink のフック（HOOK、H4/H5）。`benchmarks/rust_port/glue_check.py` がこれ以外を `native/src/rules/` に許しません（例外 20 項目、34 か所）。
+  - **E6**：世界全体の検証と、その文。`after_tick.rs`・`tick_validation.rs` の validator は Python が持つものを読み、`Host::validate_*` はネイティブ版で Python の検証を呼びます。Python のない tick のホストは「通る」と答えます。
+  - **E10**：tick への patch や shadow、管理者のクラスの違いの検出と、段階の経路（`KERNEL_ONLY_SEGMENTS` の入口）。窓口の `run_tick` は、この確かめと中核の `run_tick` の1回の呼び出しです。
+  - **E15**：入力の pydantic の契約（`Host::contract`）と、Python の契約が解釈する設定の節（`native/src/core/configs.rs`、`geometry.rs`、`Host::fill_section`・`floor_plan`）。
+  - **決定 2**：LLM の境界と、指標・判断・trace の sink、段階の observer は `Host` を通る Python です。
+  - **決定 4**：Scenario から世界を組み立てる処理と Checkpoint の復元は中核に入れていません（Python と窓口）。
+- **速さとメモリー**：上の PR P10-2 の表のとおり、7日分の thread は #152 の前より 4.4% 短く、`computation_mib` は 11.4 MiB 多い（主に機械語と allocator の空き）です。
+- **残り（段階4と別の Issue）**：E6 の検証の文と E15 の契約を中核で作ること、Scenario からの組み立てと Checkpoint の復元を中核に入れること（決定 4）、中核だけの tick のテストに移動と型のある名前空間を入れること。
