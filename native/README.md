@@ -458,11 +458,15 @@ are correctly rounded everywhere, and not `**` with a float.
 
 - `rules/tick.rs`: `run_tick(controller, world, minute, rng, observer)`, one tick's phases in order,
   through `controller.run_tick` (`experiments/phases/driver.py`). Unsupported before anything changes
-  for a tick that a hook changes (a shadow, a patched step or rule in the table of `install`). A trace
-  and a Provider stay on the driver: the Provider's hooks are the same Python, called from the kernels
-  at the same places. After that each step is its kernel, and a kernel's Unsupported is
-  `KernelRefusal` naming it (`only`); no Python rule stands behind one. Only the metrics' sample
-  goes to `MetricsRecorder.capture` on a refusal. `stats()` says what ran.
+  for a tick that a hook changes (a shadow, a patched step or rule in the table of `install`, a
+  toilet, resource or staff manager of another class than the installed one). It reads the Run's
+  policies again when the controller holds another manager, proximity config or table of neighbors
+  than they were read with (`_tick_marks` on the controller), and the open actions into the Run's
+  rows. Then it runs the dispatch phase, and the phases after it are one call of the core's
+  `rules::tick::phases` (`core/src/rules/tick/`, lane P9-2a), with a `PyHost` that has the observer
+  and the random source; the update phase's movement and replanning are still this file's, which the
+  core calls first. A step's error carries its kernel's label, and a refusal is `KernelRefusal`
+  naming it (`only`); no Python rule stands behind one. `stats()` says what ran.
 
 - `rules/dispatch.rs`: `run_phase(controller, world, minute)`, the dispatch phase. An event type with
   a Rust function (`social_interaction`, `agent_travel_complete`, `toilet_service_complete`,
