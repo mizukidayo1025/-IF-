@@ -87,7 +87,7 @@ split PR by PR; its last section sums up what is where.
 - **A tick without Python**: `cargo test -p sheltersim_core --test tick_core` builds a small
   World from `core/tests/data/tick_core.json` (`core/tests/support/load.rs`, test code only,
   decision 4) and runs 1,440 ticks with a `TestHost` (no LLM; the whole-world validation answers
-  Ok, E6). Its digests are the native path's (`tests/integration/test_core_tick.py`).
+  Ok, E6). Its digests are the native path's (`tests/integration/test_core_fixtures.py`).
 - **Typed rows from JSON** (#225): every `Field` reads itself from the `V` of its canonical JSON
   (`Field::from_value`, written by `state_row!` and `str_enum!`, by hand for the leaf types and
   the hand-written fields), with the checks of the PyO3 crate's `from_py`. No tick uses it; the
@@ -266,15 +266,22 @@ split PR by PR; its last section sums up what is where.
   lane P8-0b; `dispatch.rs`, the dispatcher's handlers by event type, each a `HandlerKind` the core
   runs with what it reads of the handler, or foreign, lane P9-0). `tests/support/` holds
   `TestHost`, the host of a build without Python, which fills every section of the configs from
-  outside the crate, and `load.rs`, a test-only loader of a World and a Run's `Policies` from
-  JSON (lane P10-1b; not part of the crate), which puts each typed namespace of `model_state` in
-  its slot as the row `typed.rs` names for it. `tests/typed_rows.rs` reads every typed namespace
-  of `tests/data/typed_rows.json` (written by `benchmarks/core_typed_rows_fixture.py`; the Python
-  side is `tests/integration/test_core_typed_rows.py`) and writes it back to the same bytes, and
-  refuses what `from_py` refuses. `tests/tick_core.rs` runs 1,440 ticks of a small
-  world with `TestHost` alone and reaches the digests the native path gives on the same world
-  (`tests/data/tick_core.json`, written by `benchmarks/core_tick_fixture.py`; the native side is
-  `tests/integration/test_core_tick.py`).
+  outside the crate; `load.rs`, a test-only loader of a World and a Run's `Policies` from JSON
+  (lane P10-1b; not part of the crate), which puts each typed namespace of `model_state` in its
+  slot as the row `typed.rs` names for it; `sections.rs`, which gives a `TestHost` the
+  Python-parsed sections and the floor plan of an exported world (#225, #214); and `dumps.rs`,
+  the text of Python's `json.dumps` for the digests the pytest files took of it. The JSON under
+  `tests/data/` (worlds the Python side built) is written by the builders that
+  `tests/support/core_fixtures.py` registers (`benchmarks/core_fixtures.py`), and
+  `tests/integration/test_core_fixtures.py` checks that each file is what its builder makes
+  today. A test reads one exported world with `load::entry(file, world)`, then `load::loaded`
+  (the World, the Run and its policies) and `load::host` (the sections and the floor plan).
+  `tests/tick_core.rs` runs 1,440 ticks of a small world with `TestHost` alone and reaches the
+  digests the native path gives on the same world (`tests/data/tick_core.json`);
+  `tests/typed_rows.rs` reads every typed namespace of `tests/data/typed_rows.json` and writes
+  it back to the same bytes, and refuses what `from_py` refuses; `tests/fixtures.rs` checks the
+  sections and the floor plan of an exported world against what the native path read of it, and
+  the `json.dumps` writer against Python's bytes.
   The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,
