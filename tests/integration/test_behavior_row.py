@@ -25,10 +25,10 @@ from typing import Any
 
 import pytest
 from support.paths import SMALL_REPLAY
-from support.world import view_of
+from support.world import driven_ticks, proposal_view, view_of, watching_phases
 
 from sheltersim import native
-from sheltersim.core.engine import TickEngine, TraceLevel
+from sheltersim.core.engine import TickEngine, TickPhase, TraceLevel
 from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
@@ -377,27 +377,30 @@ def test_drawn_worlds_reach_what_they_are_for(generated_scenario: Any) -> None:
 
 
 def test_each_proposal_of_a_run_has_the_bits_of_python(
-    generated_scenario: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    generated_scenario: Any, tmp_path: Path
 ) -> None:
+    """The steps' kernels on the view each tick's propose phase makes, before that phase."""
     document = copy.deepcopy(generated_scenario.model_dump(mode="json"))
     document["duration_minutes"] = 90
     counts = {"calls": 0, "proposals": 0, "observed": 0}
     bits = _Bits()
 
-    def propose(self: Any, view: WorldView, rng: Any) -> Any:
-        made = bits.add(_rules().propose_due(self, view, rng))
+    def propose(engine: Any, phase: TickPhase, before: bool) -> None:
+        if phase is not TickPhase.PROPOSE_ACTIONS or not before:
+            return
+        controller = engine.phase_handler
+        view = proposal_view(controller, engine.world)
+        made = bits.add(_rules().propose_due(controller, view, engine.rng))
         counts["calls"] += 1
         counts["proposals"] += len(made)
-        return made
+        for proposal in made:
+            bits.add(_rules().observed_state(controller, view, proposal.agent_id))
+            counts["observed"] += 1
 
-    def observed(self: Any, view: WorldView, agent_id: str) -> Any:
-        made = bits.add(_rules().observed_state(self, view, agent_id))
-        counts["observed"] += 1
-        return made
-
-    monkeypatch.setattr(OfflineSimulationController, "_propose_due", propose)
-    monkeypatch.setattr(OfflineSimulationController, "_observed_state", observed)
-    run_scenario(ScenarioSpec.model_validate(document), tmp_path, trace_level=TraceLevel.OFF)
+    ticks = driven_ticks()
+    with watching_phases(propose):
+        run_scenario(ScenarioSpec.model_validate(document), tmp_path, trace_level=TraceLevel.OFF)
+    assert driven_ticks() - ticks == 90
     assert counts["calls"] == 90
     assert counts["proposals"] == counts["observed"] > 0
     bits.check("39e0d6ea65c6015b")
@@ -406,31 +409,39 @@ def test_each_proposal_of_a_run_has_the_bits_of_python(
 def test_a_tick_makes_no_python_view_of_the_people(
     generated_scenario: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """No view of a tick makes its people in Python: no Python rule reads them."""
     world = WorldState.from_scenario(generated_scenario)
     controller = _controller(world)
     engine = TickEngine(world, phase_handler=controller)
-    views: list[WorldView] = []
-    apply_due = OfflineSimulationController._apply_due_proposals
-    proposals: list[int] = []
-    propose = OfflineSimulationController._propose_due
+    made: list[int] = []
+    read = WorldView.__getattr__
 
-    def counted(self: Any, view: WorldView, rng: Any) -> Any:
-        made = propose(self, view, rng)
-        proposals.append(len(made))
-        return made
+    def counted(self: WorldView, name: str) -> Any:
+        if "agents" not in self.__dict__ and "_rust_view" in self.__dict__:
+            made.append(world.minute_index)
+        return read(self, name)
 
-    def checked(self: Any, view: WorldView, rng: Any) -> None:
-        apply_due(self, view, rng)
-        views.append(view)
+    decided: list[int] = []
+    due: dict[str, int] = {}
 
-    monkeypatch.setattr(OfflineSimulationController, "_propose_due", counted)
-    monkeypatch.setattr(OfflineSimulationController, "_apply_due_proposals", checked)
+    def watch(phase: TickPhase, before: bool) -> None:
+        # A decision moves its person's next decision on.
+        if phase is TickPhase.PROPOSE_ACTIONS:
+            now = {agent.id: agent.next_decision_at for agent in world.agents.values()}
+            if before:
+                due.update(now)
+            else:
+                decided.append(sum(now[agent_id] != at for agent_id, at in due.items()))
+
+    monkeypatch.setattr(WorldView, "__getattr__", counted)
+    engine.phase_observer = watch
+    ticks = driven_ticks()
     for _ in range(20):
         engine.step()
-    assert len(views) == 20 and sum(proposals) > 0
+    assert driven_ticks() - ticks == 20
+    assert len(decided) == 20 and sum(decided) > 0
     # The first tick's social step is Python's: its namespace doesn't exist yet.
-    for view in views[1:]:
-        assert "agents" not in view.__dict__
+    assert all(minute == 0 for minute in made)
 
 
 def test_a_view_python_made_is_refused(generated_scenario: Any) -> None:

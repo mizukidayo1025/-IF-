@@ -22,7 +22,7 @@ from dataclasses import replace
 from typing import Any
 
 import pytest
-from support.world import view_of
+from support.world import driven_ticks, view_of
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine, TickPhase
@@ -173,22 +173,23 @@ def test_nothing_python_is_made_until_a_reader_asks(generated_scenario: Any) -> 
 
 
 def test_a_tick_with_the_kernels_makes_no_python_view_in_the_update_phase(
-    generated_scenario: Any, monkeypatch: pytest.MonkeyPatch
+    generated_scenario: Any,
 ) -> None:
     """The prior view is Rust's, so Python didn't make it, and no rule has asked for its people."""
     world = WorldState.from_scenario(generated_scenario)
     controller = _controller(world)
     engine = TickEngine(world, phase_handler=controller)
     seen: list[set[str]] = []
-    run_propose = OfflineSimulationController._run_propose_phase
 
-    def before_propose(self: Any, world_: Any, minute: int, rng: Any) -> None:
-        seen.append(set(self._view_before_proposals.__dict__))
-        run_propose(self, world_, minute, rng)
+    def before_propose(phase: TickPhase, before: bool) -> None:
+        if phase is TickPhase.PROPOSE_ACTIONS and before:
+            seen.append(set(controller._view_before_proposals.__dict__))
 
-    monkeypatch.setattr(OfflineSimulationController, "_run_propose_phase", before_propose)
+    engine.phase_observer = before_propose
+    ticks = driven_ticks()
     for _ in range(3):
         engine.step()
+    assert driven_ticks() - ticks == 3
     assert len(seen) == 3
     # The first tick's social step is Python's: its namespace doesn't exist yet.
     for fields in seen[1:]:

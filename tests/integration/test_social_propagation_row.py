@@ -17,10 +17,10 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from support.world import view_of
+from support.world import driven_ticks, view_of, watching_phases
 
 from sheltersim import native
-from sheltersim.core.engine import TraceLevel
+from sheltersim.core.engine import TickPhase, TraceLevel
 from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
@@ -602,36 +602,74 @@ def test_unsorted_deltas_are_sorted_except_for_degroot(generated_scenario: Any) 
     ["sparse-family-zone-contact-v1", "degroot-contact-v1", "expressiveness-channel-openness-v1"],
 )
 def test_every_tick_of_a_run_matches_the_python_rule_and_writes_no_whole_namespace(
-    generated_scenario_with: Any, tmp_path: Any, monkeypatch: pytest.MonkeyPatch, policy: str
+    generated_scenario_with: Any, tmp_path: Any, policy: str
 ) -> None:
+    """After each update phase, the namespace and the final deltas, which `_apply_state_deltas`
+    wrote to the people and their body records. Their answers were recorded from the Python rule
+    through the phases' Python steps, which went with #221; they are not recorded again."""
+    if _RECORD:
+        pytest.skip("the Python rule's answers of a Run were recorded through the phases")
     scenario = generated_scenario_with(social_policy_id=policy)
     document = scenario.model_dump(mode="json")
     document["duration_minutes"] = 90
     scenario = type(scenario).model_validate(document)
-    step = OfflineSimulationController._social_propagation
     texts: list[str] = []
     ran = []
-    worlds = []
 
-    def counted(self: Any, world: Any, view: Any, deltas: Any, minute: int, rng: Any) -> Any:
-        assert self.stress_policy.policy_version == policy
-        worlds[:] = [world]
-        if _RECORD:
-            expected = _python_result(world, self, view, deltas, rng)
-            texts.extend([json.dumps(expected.runtime_state), _deltas_text(expected.deltas)])
-        final = step(self, world, view, deltas, minute, rng)
+    def counted(engine: Any, phase: TickPhase, before: bool) -> None:
+        if phase is not TickPhase.UPDATE_AGENT_STATE or before:
+            return
+        world = engine.world
+        assert engine.phase_handler.stress_policy.policy_version == policy
         ran.append(len(world.model_state[KEY]["contacts"]))
-        if not _RECORD:
-            texts.extend([json.dumps(world.model_state[KEY]), _deltas_text(final)])
+        texts.extend(
+            [json.dumps(world.model_state[KEY]), _deltas_text(_written_deltas(world, len(ran) - 1))]
+        )
         assert _mirror(world).verify()
-        return final
 
-    monkeypatch.setattr(OfflineSimulationController, "_social_propagation", counted)
-    run_scenario(scenario, tmp_path, trace_level=TraceLevel.OFF)
+    ticks = driven_ticks()
+    with watching_phases(counted):
+        world = run_scenario(scenario, tmp_path, trace_level=TraceLevel.OFF)
+    assert driven_ticks() - ticks == 90
     assert len(ran) == 90 and sum(ran) > 0
     # The first tick makes the namespace, as the Python rule did.
-    assert _mirror(worlds[0]).stats()["whole_writes"] == 1
+    assert _mirror(world).stats()["whole_writes"] == 1
     _answers(f"run-{policy}", texts)
+
+
+def _written_deltas(world: Any, minute: int) -> list[AgentStateDelta]:
+    """The final deltas of the minute as `_apply_state_deltas` wrote them: each person's needs,
+    stress and trust, and the body values of their record (None without one), in ID order."""
+    records = world.model_state.get("body_state_v1", {}).get("agents", {})
+    deltas = []
+    for agent_id in sorted(world.agents):
+        agent = world.agents[agent_id]
+        record = records.get(agent_id)
+        fields = {
+            "agent_id": agent_id,
+            "minute_index": minute,
+            "toilet_urgency": agent.needs.toilet_urgency,
+            "hunger": agent.needs.hunger,
+            "fatigue": agent.needs.fatigue,
+            "stress": agent.stress,
+            "trust": agent.trust,
+            "hydration_need": agent.needs.hydration_need,
+        }
+        for name in _BODY_VALUES:
+            fields[name] = None if record is None else record[name]
+        deltas.append(AgentStateDelta.within_bounds(fields))
+    return deltas
+
+
+_BODY_VALUES = (
+    "sleep_debt_minutes",
+    "uncertainty",
+    "reassurance",
+    "discontent",
+    "positive_affect",
+    "negative_affect",
+    "hygiene_need",
+)
 
 
 def test_a_run_with_a_trace_is_the_same_world_as_one_without(

@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import copy
 import struct
+from collections.abc import Iterator
+from contextlib import contextmanager
 
-from support.world import view_of
+from support.world import driven_ticks, proposal_view, view_of, watching_phases
 
 from sheltersim import native
-from sheltersim.core.engine import TraceLevel
+from sheltersim.core.engine import TickPhase, TraceLevel
 from sheltersim.domain.information import INFORMATION_SPREAD_STATE_KEY
 from sheltersim.experiments.runner import run_scenario
 from sheltersim.experiments.scenario import ScenarioSpec
@@ -47,35 +49,37 @@ def _assert_same_views(made: WorldView, read: WorldView) -> None:
                 assert _same_bits(value, getattr(other, name)), (agent_id, name)
 
 
-def _compared_ticks(monkeypatch, worlds: list | None = None) -> list[WorldView]:
-    """Each proposal view a Run makes from the update phase's, compared with a new view; the
-    world of each goes to `worlds`."""
-    from sheltersim.experiments.runner import OfflineSimulationController
-
-    original = OfflineSimulationController._view_for_proposals
+@contextmanager
+def _compared_ticks(worlds: list | None = None) -> Iterator[list[WorldView]]:
+    """Each proposal view a Run makes from the update phase's, before the propose phase, compared
+    with a new view; the world of each goes to `worlds`."""
     views: list[WorldView] = []
+    compared = [0]
 
-    def checked(self, world, minute):
-        refreshed = self._view_before_proposals is not None
-        made = original(self, world, minute)
+    def checked(engine, phase, before):
+        if phase is not TickPhase.PROPOSE_ACTIONS or not before:
+            return
+        compared[0] += 1
+        world = engine.world
+        refreshed = engine.phase_handler._view_before_proposals is not None
+        made = proposal_view(engine.phase_handler, world)
         _assert_same_views(made, view_of(world))
         if refreshed:
             views.append(made)
         if worlds is not None:
             worlds.append(world)
-        return made
 
-    monkeypatch.setattr(OfflineSimulationController, "_view_for_proposals", checked)
-    return views
+    ticks = driven_ticks()
+    with watching_phases(checked):
+        yield views
+    assert driven_ticks() - ticks == compared[0]
 
 
-def test_the_proposal_view_equals_a_read_view_at_every_tick(
-    generated_scenario, tmp_path, monkeypatch
-) -> None:
+def test_the_proposal_view_equals_a_read_view_at_every_tick(generated_scenario, tmp_path) -> None:
     document = generated_scenario.model_dump(mode="json")
     document["duration_minutes"] = 240
-    views = _compared_ticks(monkeypatch)
-    run_scenario(ScenarioSpec.model_validate(document), tmp_path, trace_level=TraceLevel.OFF)
+    with _compared_ticks() as views:
+        run_scenario(ScenarioSpec.model_validate(document), tmp_path, trace_level=TraceLevel.OFF)
     assert [view.minute_index for view in views] == list(range(240))
 
 
@@ -84,7 +88,6 @@ def test_the_proposal_view_equals_a_read_view_with_messages_and_beliefs(
     information_spread_scenario,
     information_spread_config,
     tmp_path,
-    monkeypatch,
 ) -> None:
     document = copy.deepcopy(generated_previews()["scenario"])
     events = information_spread_scenario(duration=60, correction=True)
@@ -94,8 +97,8 @@ def test_the_proposal_view_equals_a_read_view_with_messages_and_beliefs(
     configs = document["model_configs"]
     configs["information_spread"] = configs["information_spread"] | information_spread_config()
     worlds: list = []
-    views = _compared_ticks(monkeypatch, worlds)
-    run_scenario(ScenarioSpec.model_validate(document), tmp_path, trace_level=TraceLevel.OFF)
+    with _compared_ticks(worlds) as views:
+        run_scenario(ScenarioSpec.model_validate(document), tmp_path, trace_level=TraceLevel.OFF)
     assert len(views) == 60
     state = worlds[-1].model_state[INFORMATION_SPREAD_STATE_KEY]
     assert state["messages"] and any(state["beliefs"].values())
@@ -152,16 +155,16 @@ def test_a_config_edited_between_ticks_is_seen_by_the_next_phases(generated_scen
     moved_x = point["x"] + 0.125
     point["x"] = moved_x
     seen = []
-    original = controller._run_phase
 
-    def run_phase(phase, world_, minute, rng):
+    def watch(phase, before):
         assert _CONFIG_SCOPE.get() is controller._parsed_configs
-        seen.append(effective_geometry(world_).facility_points[facility_id].x)
-        original(phase, world_, minute, rng)
+        seen.append(effective_geometry(world).facility_points[facility_id].x)
 
-    controller._run_phase = run_phase
+    engine.phase_observer = watch
+    ticks = driven_ticks()
     engine.step()
-    assert seen and all(value == moved_x for value in seen)
+    assert driven_ticks() - ticks == 1
+    assert len(seen) == 14 and all(value == moved_x for value in seen)
     kernel_points = dict(native.rules("movement_geometry").geo_summary_of(world)["facility_points"])
     assert kernel_points[facility_id][0] == moved_x
     # The zones' conditions are kept in the Run, read again for the configs' new stamp.
