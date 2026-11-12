@@ -273,7 +273,7 @@ macro_rules! python_class {
     };
 }
 
-// Used by `invariant` and `corrupt`, which wait for the step-4 entry (docs/rust-port/lanes/l8-texts-rest.md).
+// `to_py_err` maps the core's `Error::Invariant` and `Error::Corrupt` to it.
 #[allow(dead_code)]
 mod invariant_class {
     use super::*;
@@ -282,8 +282,8 @@ mod invariant_class {
 #[allow(unused_imports)]
 pub(crate) use invariant_class::StateInvariantError;
 
-// `to_py_err` maps the core's `Error::Clock` (lane P9-0); the tick driver raises it itself until the
-// core's tick does (P9-2b).
+// `to_py_err` maps the core's `Error::Clock` (lane P9-0), which the core's `run_tick` raises when a
+// phase moved the clock (since P9-2b); the tick's glue raises that error as it is.
 #[allow(dead_code)]
 mod clock_class {
     use super::*;
@@ -310,13 +310,6 @@ pub(crate) fn ledger_error(text: impl Into<String>) -> PyErr {
 #[track_caller]
 pub(crate) fn value_error(text: impl Into<String>) -> PyErr {
     to_py_err(Error::value_error(text))
-}
-
-/// `raise StateInvariantError(text)` of a Python rule.
-#[track_caller]
-#[allow(dead_code)]
-pub(crate) fn invariant(text: impl Into<String>) -> PyErr {
-    to_py_err(Error::invariant(text))
 }
 
 /// The error of a Python call that the rule makes too (a contract's `model_validate`), raised as
