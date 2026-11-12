@@ -20,6 +20,7 @@ use serde_json::{json, Value};
 use sheltersim_core::checkpoint::sha256_hex;
 use sheltersim_core::error::Error;
 use sheltersim_core::json::Encoder;
+use sheltersim_core::mathx::{py_max, py_min};
 use sheltersim_core::row::Field;
 use sheltersim_core::rules::social_dialogue::{
     capture_context, validate_context, AFFECT_INVALID, NEEDS_INVALID, NOT_ITS_EVENT, NOT_ONE_OR_TWO, NOT_UNIT, STATE_FIELDS,
@@ -430,20 +431,20 @@ fn formula(world: &World, kind: &str, actor: &str, participant: &str) -> Vec<u64
             None => 0.02,
             Some(other) => panic!("a transfer of another type: {other:?}"),
         };
-        ((record.positive_affect - record.negative_affect).max(-1.0).min(1.0), transfer)
+        (py_min(1.0, py_max(-1.0, record.positive_affect - record.negative_affect)), transfer)
     };
     let relief = transfer * signal;
     let rows = world.rows().unwrap();
     let (actor_row, participant_row) = (rows.agents.get(actor).unwrap(), rows.agents.get(participant).unwrap());
     let mut actor_values = (actor_row.stress, actor_row.trust, actor_row.needs.fatigue);
     let participant_values = (
-        (participant_row.stress - relief).max(0.0).min(1.0),
-        (participant_row.trust + relief * 0.5).max(0.0).min(1.0),
+        py_min(1.0, py_max(0.0, participant_row.stress - relief)),
+        py_min(1.0, py_max(0.0, participant_row.trust + relief * 0.5)),
         participant_row.needs.fatigue,
     );
     if kind != "reassurance_exchange" {
-        actor_values.2 = (actor_values.2 + 0.002).min(1.0);
-        actor_values.1 = (actor_values.1 + (relief * 0.25).max(0.0)).min(1.0);
+        actor_values.2 = py_min(1.0, actor_values.2 + 0.002);
+        actor_values.1 = py_min(1.0, actor_values.1 + py_max(0.0, relief * 0.25));
     }
     [actor_values, participant_values].iter().flat_map(|(stress, trust, fatigue)| [stress.to_bits(), trust.to_bits(), fatigue.to_bits()]).collect()
 }
@@ -476,7 +477,7 @@ fn a_social_action_gives_the_bits_of_the_rule_s_formula() {
                         agent.needs.toilet_urgency = 0.0;
                         agent.needs.hydration_need = 0.0;
                         let other = rows.agents.get_mut(participant).unwrap();
-                        other.stress = stress.max(0.6);
+                        other.stress = py_max(stress, 0.6);
                         other.trust = trust;
                     }
                     set_affect(world, actor, positive, negative);
