@@ -802,8 +802,10 @@ def trip_event(world: Any, edge_id: str) -> Any:
     )
 
 
-def capacity_controller(root: Any, name: str, capacity: int = 1) -> Any:
-    """A controller writing a Run's artifacts, whose Run has this capacity on every edge."""
+def capacity_controller(root: Any, name: str, capacity: int = 1, *, started: bool = True) -> Any:
+    """A controller writing a Run's artifacts under `root / name`, whose Run has this capacity on
+    every edge. Without `started`, the writer has not written its initial artifacts, nor opened
+    its trace spool: for a builder that only exports the world, which the writer does not change."""
     from sheltersim.core.engine import TraceLevel
     from sheltersim.core.world import WorldState
     from sheltersim.experiments.runner import OfflineSimulationController
@@ -816,7 +818,8 @@ def capacity_controller(root: Any, name: str, capacity: int = 1) -> Any:
     scenario = ScenarioSpec.model_validate(document)
     world = WorldState.from_scenario(scenario)
     artifacts = RunArtifactWriter(scenario, Path(root) / name, trace_level=TraceLevel.OFF)
-    artifacts.write_initial(world, execution_mode="offline")
+    if started:
+        artifacts.write_initial(world, execution_mode="offline")
     return OfflineSimulationController(world, artifacts)
 
 
@@ -1211,7 +1214,7 @@ def _drawn_world(document: dict[str, Any], drawn: dict[str, Any]) -> dict[str, A
 def _route_worlds(made: _StaffWorlds, root: str) -> None:
     """The worlds of a controller whose Run has route capacities, and its staff service's own
     route and trip."""
-    controller = capacity_controller(root, "full")
+    controller = capacity_controller(root, "full", started=False)
     world = controller.world
     for agent in world.agents.values():
         agent.zone_id = "sleeping"
@@ -1219,7 +1222,7 @@ def _route_worlds(made: _StaffWorlds, root: str) -> None:
         world.schedule_event(trip_event(world, edge))
     made.inputs["route_full_edge"] = {"world": made.add("edges_full", world, controller)}
 
-    controller = capacity_controller(root, "room", capacity=2)
+    controller = capacity_controller(root, "room", capacity=2, started=False)
     world = controller.world
     for edge in world.zone_edges:
         world.schedule_event(trip_event(world, edge))
@@ -1227,7 +1230,7 @@ def _route_worlds(made: _StaffWorlds, root: str) -> None:
 
     own = {}
     for label in ("full", "late", "trip"):
-        controller = capacity_controller(root, f"own-{label}")
+        controller = capacity_controller(root, f"own-{label}", started=False)
         world = controller.world
         people = sorted(world.agents)
         for agent in world.agents.values():
