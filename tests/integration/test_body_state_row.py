@@ -2,18 +2,16 @@
 
 (docs/rust-port/lanes/m3-body-state.md). The Python rule is gone (lane L10, `kernel_only`): each
 case of small worlds and values no scenario reaches was run with it once (2d8fb46), and the tree it
-left is pinned in PYTHON_GAVE, per test and in call order, as a digest compared on every OS, as the
-gate's hashes are. Since lane P8 a2 the tree follows the row, whose history items are their
-canonical JSON: the digests sort each item's keys, and were pinned again from the build before that
-lane, whose trees give the same digests so.
+left was pinned as a digest. The core's tests (native/core/tests/body_state_rows.rs, on the worlds
+and the random inputs of this file, #225) check the rule against those digests, and what it
+refuses of its inputs. Here: the entry test, the row and its tree, what taints it, each way of
+writing that the check must see, and the comparisons with the Python validation.
 """
 
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
-import random
 from types import MappingProxyType
 from typing import Any
 
@@ -27,75 +25,18 @@ from sheltersim.domain import body_state
 from sheltersim.domain.body_state import (
     BODY_STATE_KEY,
     MAX_SOCIAL_HISTORY,
-    MAX_SOCIAL_RELATIONSHIPS,
     create_body_state,
     validate_body_state,
 )
-from sheltersim.domain.information import create_information_runtime_state
-from sheltersim.domain.models import AgentInformationState, ordered_pair_key
+from sheltersim.domain.models import ordered_pair_key
 from sheltersim.events.models import EventKind, ScheduledEvent
-
-# ---- What the Python rule gave ----------------------------------------------------------------
-
-PYTHON_GAVE: dict[str, list[str]] = {
-    "test_a_correction_is_python_s_bit_for_bit[0]": ["34db09179e3303c2"],
-    "test_a_correction_is_python_s_bit_for_bit[1]": ["42dcc7a70bd10934"],
-    "test_a_positions_distance_reaches_trust_and_the_deltas": ["f734bed8be073263"],
-    "test_each_event_is_python_s_bit_for_bit[0-0]": ["005dcea969a92e5b"],
-    "test_each_event_is_python_s_bit_for_bit[0-1]": ["fdb7e9d9e11c0aad"],
-    "test_each_event_is_python_s_bit_for_bit[1-0]": ["8f1caed430a305f8"],
-    "test_each_event_is_python_s_bit_for_bit[1-1]": ["681c8392395a1d95"],
-    "test_many_random_events_are_python_s_bit_for_bit": ["3a1ec129bd6d269a"],
-    "test_observe_event_copies_the_trust_this_kernel_wrote[0]": ["53b1fd25f6b14c3c"],
-    "test_observe_event_copies_the_trust_this_kernel_wrote[1]": ["53b2eddd2e54f2af"],
-    "test_observe_event_copies_the_trust_this_kernel_wrote[2]": ["7c9c53d7223555b6"],
-    "test_observe_event_copies_the_trust_this_kernel_wrote[3]": ["618f054e67e24524"],
-}
-_SCOPE: list[Any] = ["", 0]
 
 
 @pytest.fixture(autouse=True)
 def _trees(keep_trees: Any) -> None:
-    """These tests pin the tree the kernel writes beside the row, key order and all: the
-    namespace keeps its tree here (support/world.py keep_trees)."""
+    """These tests read the tree the kernel writes beside the row: the namespace keeps its tree
+    here (support/world.py keep_trees)."""
     keep_trees(BODY_STATE_KEY)
-
-
-@pytest.fixture(autouse=True)
-def _pinned_scope(request: Any) -> None:
-    """The test's name, with the index of each parameter: its key in PYTHON_GAVE."""
-    name = request.node.originalname
-    callspec = getattr(request.node, "callspec", None)
-    if callspec is not None:
-        name += "[" + "-".join(str(index) for index in callspec.indices.values()) + "]"
-    _SCOPE[:] = [name, 0]
-
-
-def _with_canonical_history(value: Any) -> Any:
-    """The value with the keys of each history item sorted, as the row holds an item (its
-    canonical JSON) and the tree follows the row (lane P8-0c)."""
-    if not isinstance(value, dict):
-        return value
-    return {
-        key: [json.loads(json.dumps(item, sort_keys=True)) for item in item]
-        if key == "history" and isinstance(item, list)
-        else item
-        for key, item in value.items()
-    }
-
-
-def _digest(*values: Any) -> str:
-    # Not sorted: the keys are in the order the rule wrote them, but in a history item, whose keys
-    # are in the row's order.
-    text = "\n".join(json.dumps(_with_canonical_history(value), default=repr) for value in values)
-    return hashlib.sha256(text.encode()).hexdigest()[:16]
-
-
-def _python_gave(*values: Any) -> None:
-    """These values are what the Python rule left at this call of the test."""
-    name, index = _SCOPE
-    _SCOPE[1] += 1
-    assert _digest(*values) == PYTHON_GAVE[name][index]
 
 
 def _kernel() -> Any:
@@ -139,17 +80,6 @@ def _event(kind: str, payload: dict[str, Any], number: int = 1) -> ScheduledEven
         payload=payload,
         causation_id=None if number % 2 else "cause",
     )
-
-
-def _both(world: WorldState, event: ScheduledEvent, minute: int = 10) -> None:
-    """The kernel writes the tree, and the row the tree's. A test then pins the tree it left."""
-    _kernel()(world, event, minute)
-    assert world._core.mirror(BODY_STATE_KEY).verify()
-
-
-def _the_python_rule_s_tree(world: WorldState) -> None:
-    """The tree is the one the Python rule left: its bits, its key order, every history item."""
-    _python_gave(world.model_state[BODY_STATE_KEY])
 
 
 def _pair(world: WorldState) -> tuple[str, str]:
@@ -352,110 +282,6 @@ def test_no_whole_write_in_ticks(generated_scenario: Any, tmp_path: Any) -> None
     assert world.model_state[BODY_STATE_KEY]["relationships"]
 
 
-# ---- The rule against its Python base ------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "affect", ["linear-positive-negative-v1", "trust-weighted-positive-negative-v1"]
-)
-@pytest.mark.parametrize(
-    "relationship", ["distance-duration-repeat-trust-v1", "duration-contact-trust-v1"]
-)
-def test_each_event_is_python_s_bit_for_bit(
-    generated_scenario: Any, affect: str, relationship: str
-) -> None:
-    world = _world(generated_scenario, affect=affect, relationship=relationship)
-    first, second = _pair(world)
-    rng = random.Random(4)
-    records = world.model_state[BODY_STATE_KEY]["agents"]
-    for name in ("positive_affect", "negative_affect", "reassurance", "uncertainty", "discontent"):
-        records[first][name] = rng.random()
-        records[second][name] = rng.random()
-    for number, (kind, payload) in enumerate(_payloads(first, second) * 3):
-        _both(world, _event(kind, payload, number), 10 + 7 * number)
-    _the_python_rule_s_tree(world)
-
-
-def test_many_random_events_are_python_s_bit_for_bit(generated_scenario: Any) -> None:
-    world = _world(generated_scenario, affect="trust-weighted-positive-negative-v1")
-    people = sorted(world.agents)[:8]
-    rng = random.Random(11)
-    records = world.model_state[BODY_STATE_KEY]["agents"]
-    for person in people:
-        for name in records[person]:
-            records[person][name] = rng.random()
-    choices = [
-        (kind, payload) for _ in range(12) for kind, payload in _payloads(*rng.sample(people, 2))
-    ]
-    rng.shuffle(choices)
-    for number, (kind, payload) in enumerate(choices):
-        changed = dict(payload)
-        if "distance_m" in changed:
-            changed["distance_m"] = rng.choice([0.0, rng.random() * 20, 1e308])
-        if "contact_minutes" in changed:
-            changed["contact_minutes"] = rng.choice([0, 1, 2.5, 1e9, -3])
-        if "interaction_duration_minutes" in changed:
-            changed["interaction_duration_minutes"] = rng.choice([0, 1, 90, 0.25, -1, None, "x"])
-        _both(world, _event(kind, changed, number), 10 + number)
-    _the_python_rule_s_tree(world)
-
-
-def test_a_positions_distance_reaches_trust_and_the_deltas(generated_scenario: Any) -> None:
-    world = _world(generated_scenario)
-    first, second = _pair(world)
-    if "movement_v1" not in world.model_state:
-        pytest.skip("the scenario has no movement")
-    positions = world.model_state["movement_v1"]["positions"]
-    positions[first]["point"] = {"x": 1.25, "y": 2.0}
-    positions[second]["point"] = {"x": 4.0, "y": 6.5}
-    _both(
-        world,
-        _event(
-            "information_contact_update", {"sender_agent_id": first, "recipient_agent_id": second}
-        ),
-    )
-    _the_python_rule_s_tree(world)
-    item = world.model_state[BODY_STATE_KEY]["history"][-1]
-    assert item["deltas"]["contact_distance_m"] > 0
-
-
-@pytest.mark.parametrize("evidence_aware", [False, True])
-def test_a_correction_is_python_s_bit_for_bit(
-    generated_scenario: Any, evidence_aware: bool
-) -> None:
-    world = _world(generated_scenario, relationship="duration-contact-trust-v1")
-    selection = world.model_configs["policy_registry"]
-    if evidence_aware:
-        selection["information"] = "evidence-aware-rumor-v1"
-    zone = next(iter(world.agents.values())).zone_id
-    records = world.model_state[BODY_STATE_KEY]["agents"]
-    for record in records.values():
-        record["uncertainty"] = 0.5
-    people = sorted(id_ for id_, agent in world.agents.items() if agent.zone_id == zone)
-    event = _event("information_correction", {"zone_id": zone, "message_id": "M"})
-    # The kernel reads the beliefs' row (lane P8 a2): the first took it, the second did not.
-    information = create_information_runtime_state(set(world.agents))
-    for person, last_event_id in ((people[0], event.event_id), (people[-1], "other")):
-        information["beliefs"][person]["M"] = AgentInformationState(
-            message_id="M",
-            belief="verified",
-            source="S",
-            last_contact=0,
-            last_event_id=last_event_id,
-            correction_exposed=True,
-            correction_accepted=True,
-            last_correction_accepted=True,
-        ).to_dict()
-    world.model_state["information_spread_v1"] = information
-    assert world._core.mirror("information_spread_v1").has_row
-    _both(world, event)
-    _the_python_rule_s_tree(world)
-    items = world.model_state[BODY_STATE_KEY]["history"]
-    assert [item["actor_ids"] for item in items] == (
-        [[people[0]]] if evidence_aware else [[person] for person in people]
-    )
-
-
 def test_the_history_keeps_its_limit_in_the_row_and_the_tree(generated_scenario: Any) -> None:
     world = _world(generated_scenario)
     first, second = _pair(world)
@@ -495,37 +321,6 @@ def test_the_history_keeps_its_limit_in_the_row_and_the_tree(generated_scenario:
     assert world._core.mirror(BODY_STATE_KEY).verify()
 
 
-def test_the_relationship_limit_stops_new_pairs_only(
-    generated_scenario: Any, monkeypatch: Any
-) -> None:
-    world = _world(generated_scenario)
-    first, second = _pair(world)
-    state = world.model_state[BODY_STATE_KEY]
-    # Filled on a plain copy and loaded whole: 100,000 single writes would only take long.
-    plain = json.loads(json.dumps(state))
-    other_a, other_b = sorted(world.agents)[2:4]
-    record = {
-        "contact_count": 0,
-        "trust": 0.5,
-        "contact_minutes": 0,
-        "last_contact_minute": None,
-        "last_interaction": None,
-        "topic_ids": [],
-    }
-    for number in range(MAX_SOCIAL_RELATIONSHIPS):
-        plain["relationships"][f'["{other_a}","{other_b}-{number}"]'] = dict(record)
-    world.model_state[BODY_STATE_KEY] = plain
-    event = _event(
-        "information_contact_update", {"sender_agent_id": first, "recipient_agent_id": second}
-    )
-    _kernel()(world, event, 10)
-    state = world.model_state[BODY_STATE_KEY]
-    assert ordered_pair_key(second, first) not in state["relationships"]
-    # The affect moved all the same, and its item is there, without a relationship update.
-    assert [item["kind"] for item in state["history"]] == ["information_contact"]
-    assert world._core.mirror(BODY_STATE_KEY).verify()
-
-
 # ---- social_network_v1 reads this namespace through the tree ---------------------------------
 
 
@@ -547,7 +342,8 @@ def _with_social(scenario: Any) -> WorldState:
 def test_observe_event_copies_the_trust_this_kernel_wrote(
     generated_scenario: Any, interaction: str
 ) -> None:
-    """handlers.py calls record_social_event, then observe_event, which reads the tree."""
+    """handlers.py calls record_social_event, then observe_event, which reads the tree: the entries
+    of both (the core's tests check the trees they leave against the Python rules')."""
     from sheltersim.domain.social_network import SOCIAL_NETWORK_STATE_KEY
 
     world = _with_social(generated_scenario)
@@ -568,7 +364,6 @@ def test_observe_event_copies_the_trust_this_kernel_wrote(
         minute = 10 + 30 * number
         _kernel()(world, event, minute)
         observe(world, event, minute)
-    _python_gave(world.model_state[BODY_STATE_KEY], world.model_state[SOCIAL_NETWORK_STATE_KEY])
     for name in (BODY_STATE_KEY, SOCIAL_NETWORK_STATE_KEY):
         mirror = world._core.mirror(name)
         assert mirror.has_row and mirror.verify(), mirror.tainted
@@ -602,68 +397,7 @@ def test_observe_event_refuses_a_tainted_body_state(generated_scenario: Any) -> 
 
 
 # ---- What the kernel refuses: no applied event or valid state holds it ----------------------
-
-
-def _untouched(world: WorldState) -> bytes:
-    return world._core.mirror(BODY_STATE_KEY).row_json()
-
-
-@pytest.mark.parametrize(
-    ("kind", "payload", "why"),
-    [
-        ("information_contact_update", {"sender_agent_id": 3, "recipient_agent_id": "x"}, "ID"),
-        ("proximity_contact_update", {"distance_m": 2}, "distance"),
-        ("proximity_contact_update", {"distance_m": "far"}, "distance"),
-        ("social_interaction", {"agent_id": ["x"]}, "ID"),
-        ("information_correction", {"zone_id": 5}, "zone"),
-    ],
-)
-def test_what_the_kernel_refuses_changes_nothing_here(
-    generated_scenario: Any, kind: str, payload: dict[str, Any], why: str
-) -> None:
-    world = _world(generated_scenario)
-    before = _untouched(world)
-    with pytest.raises(native.Unsupported, match=why):
-        _kernel()(world, _event(kind, payload), 10)
-    assert _untouched(world) == before
-
-
-def test_a_person_without_a_record_is_refused(generated_scenario: Any) -> None:
-    world = _world(generated_scenario)
-    first, second = _pair(world)
-    world.model_state[BODY_STATE_KEY]["agents"].pop(second)
-    event = _event(
-        "information_contact_update", {"sender_agent_id": first, "recipient_agent_id": second}
-    )
-    before = _untouched(world)
-    with pytest.raises(native.Unsupported, match="no body record"):
-        _kernel()(world, event, 10)
-    with pytest.raises(KernelRefusal):
-        body_state.record_social_event(world, event, 10)
-    assert _untouched(world) == before
-
-
-def test_a_relationship_without_trust_is_refused(generated_scenario: Any) -> None:
-    world = _world(generated_scenario)
-    first, second = _pair(world)
-    state = world.model_state[BODY_STATE_KEY]
-    state["relationships"][ordered_pair_key(second, first)] = {
-        "contact_count": 0,
-        "trust": None,
-        "contact_minutes": 0,
-        "last_contact_minute": None,
-        "last_interaction": None,
-        "topic_ids": [],
-    }
-    event = _event(
-        "information_contact_update", {"sender_agent_id": first, "recipient_agent_id": second}
-    )
-    before = _untouched(world)
-    with pytest.raises(native.Unsupported, match="no trust"):
-        _kernel()(world, event, 10)
-    with pytest.raises(KernelRefusal):
-        body_state.record_social_event(world, event, 10)
-    assert _untouched(world) == before
+# (the core's tests check what it refuses of an event and of the state)
 
 
 def test_a_model_this_kernel_does_not_know_is_refused(
