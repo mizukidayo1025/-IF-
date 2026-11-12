@@ -304,7 +304,7 @@ pub(crate) fn config_section<'py>(
         },
         // ---- Lane 7-5a: `key` names a person or a policy where a section has several.
         "movement" => {
-            let movement = crate::rules::movement::movement_of(world)?;
+            let movement = crate::rules::movement::movement_now(world)?;
             let model = read(movement.model.clone())?;
             let speeds = (model.independent, model.assisted, model.wheelchair, model.density_slowdown, model.maximum_slowdown);
             (movement.has_model, movement.has_geometry, speeds).into_bound_py_any(py)

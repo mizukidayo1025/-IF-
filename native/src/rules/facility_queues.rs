@@ -12,6 +12,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PySet, PyTuple};
 use sheltersim_core::config::population::AccessibilityNeeds;
 use sheltersim_core::rules::facility_queues as core;
+use sheltersim_core::config::SectionId;
+use sheltersim_core::host::Holding;
 use sheltersim_core::rules::kit::Held;
 
 pub(crate) use sheltersim_core::rules::facility_queues::request_of_task;
@@ -20,9 +22,10 @@ pub(crate) use crate::state::facility_queues::{
 };
 
 use crate::core::configs;
+use crate::host::PyHost;
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, PyField};
-use crate::core::world_core::{namespace_held, with_world};
+use crate::core::world_core::with_world;
 use crate::rules::movement_geometry::{self, Geo, GeoPy};
 use crate::state::events::{write_result, EventWriter};
 use crate::state::facility_queues::{held, held_mirror, request_node, QueueRequest};
@@ -31,8 +34,8 @@ use crate::Unsupported;
 pub(crate) const STATE_KEY: &str = core::STATE_KEY;
 
 /// Whether the world holds `movement_v1`, as `movement::mirror_held` answers.
-fn movement_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    namespace_held(world, intern!(world.py(), "movement_v1"), "the world holds another movement state")
+fn movement_held(holding: &Holding) -> Held {
+    holding.held("movement_v1", "the world holds another movement state")
 }
 
 // ---- The kernels ---------------------------------------------------------------------------------
@@ -86,12 +89,14 @@ fn create_facility_queue_state<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound
 #[pyfunction]
 pub(crate) fn choose_queue_id(world: &Bound<'_, PyAny>, facility_id: &Bound<'_, PyAny>, agent_id: &Bound<'_, PyAny>) -> PyResult<Option<String>> {
     let (facility_id, agent_id) = (exact_str(facility_id)?, exact_str(agent_id)?);
-    let held = held(world)?;
+    let mut host = PyHost::of_entry(world);
+    let holding = host.holding_now()?;
+    let held = holding.held(STATE_KEY, "the world holds another queue state");
     if held == Held::Absent {
         return Ok(None);
     }
     // The population's needs (`config::population`), kept for the stamp of `model_configs`.
-    let needs = configs::kept_value(world, |configs| &configs.accessibility_needs, AccessibilityNeeds::parse)?;
+    let needs = host.value(&holding, SectionId::AccessibilityNeeds, |configs| &configs.accessibility_needs, AccessibilityNeeds::parse)?;
     let needs = configs::read(needs.of(agent_id))?;
     let geo = Geo::of(world)?;
     let chosen = with_world(world, |world| core::choose_queue(world, &held, &geo, facility_id, agent_id, needs))?.or_py()?;
@@ -232,10 +237,7 @@ fn record_queue_transition(
     let (transition, task_id) = (exact_str(transition)?, exact_str(task_id)?);
     let held = held(world)?;
     let geo = Geo::of(world)?;
-    let written = with_world(world, |world| {
-        let recording = core::plan_record(world, &held, &geo, &request, transition, task_id, wait, cause)?;
-        core::write_record(world, recording, cause)
-    })?;
+    let written = with_world(world, |world| core::record_transition(world, &held, &geo, &request, transition, task_id, wait, cause))?;
     write_result(world.py(), written)
 }
 
@@ -253,7 +255,7 @@ fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
         return Ok(false);
     }
     let geo = Geo::of(world)?;
-    let movement = movement_held(world)?;
+    let movement = movement_held(&*PyHost::of_entry(world).holding_now()?);
     with_world(world, |world| core::validate(world, &Held::Held, &geo, &movement))?.or_py()
 }
 

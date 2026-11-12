@@ -366,7 +366,7 @@ fn check(table: &Table, world: &Bound<'_, PyAny>, memo: &Bound<'_, TickMemo>) ->
         memo.borrow().geometry_scope.bind(py).clear();
     }
     let route_capacities = configs::kept_section(world, |configs| &configs.route_capacities, RouteCapacities::parse)?;
-    let overlay_schema = crate::rules::overlay::schema_of(world)?;
+    let overlay_schema = crate::rules::overlay::schema_now(world)?;
     let namespaces = held_namespaces(world, &plan)?;
     // The entity rules read the pending events as rows: those held only as objects get theirs.
     read_queue_rows(world)?;

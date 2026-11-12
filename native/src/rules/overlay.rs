@@ -20,6 +20,8 @@ use pyo3::types::{PyDict, PyString, PyTuple};
 use sheltersim_core::config::movement::Movement;
 use sheltersim_core::config::overlay::overlay_schema as parse_overlay_schema;
 use sheltersim_core::config::service::ResourceService;
+use sheltersim_core::config::SectionId;
+use sheltersim_core::host::Holding;
 use sheltersim_core::rules::kit::{Held, Kept};
 use sheltersim_core::rules::overlay::{self as core, Beds, Change, Intake, Places, OVERLAY_KEY, PLAN_UNREAD, SPACES_KEY};
 
@@ -29,10 +31,10 @@ use crate::core::configs;
 use crate::core::errors::OrPy;
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, str_value, unsupported};
 use crate::core::value::{V, VPy};
-use crate::core::world_core::{core_of, namespace_held, raw_dict_get, state_value, with_world, PyWorldCell};
+use crate::core::world_core::{core_of, raw_dict_get, state_value, with_world, PyWorldCell};
 use crate::host::PyHost;
 use crate::rules::movement::point_object;
-use crate::state::entities::{entities_of, EntityStore};
+use crate::state::entities::rows_follow_maps;
 use crate::rules::movement_geometry::{Geo, GeoPy, Pt};
 use crate::state::events::{EventRow, EventRowPy};
 use crate::Unsupported;
@@ -78,27 +80,41 @@ fn stats<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyDict>, Bound<'py, PyDic
 
 // ---- What Python holds ----------------------------------------------------------------------------
 
-pub(crate) fn spaces_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    namespace_held(world, intern!(world.py(), SPACES_KEY), "the world holds another temporary spaces state")
+pub(crate) fn spaces_held(holding: &Holding) -> Held {
+    holding.held(SPACES_KEY, "the world holds another temporary spaces state")
 }
 
-pub(crate) fn overlay_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    namespace_held(world, intern!(world.py(), OVERLAY_KEY), "the world holds another overlay state")
+pub(crate) fn overlay_held(holding: &Holding) -> Held {
+    holding.held(OVERLAY_KEY, "the world holds another overlay state")
 }
 
-fn movement_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    namespace_held(world, intern!(world.py(), crate::rules::movement::KEY), "the world holds another movement state")
+fn movement_held(holding: &Holding) -> Held {
+    holding.held(crate::rules::movement::KEY, "the world holds another movement state")
 }
 
-pub(crate) fn schema_of(world: &Bound<'_, PyAny>) -> PyResult<Kept<Option<i64>>> {
-    configs::kept_section(world, |configs| &configs.overlay_schema, parse_overlay_schema)
+/// The holding read now, through the native host of an entry.
+fn holding_now(world: &Bound<'_, PyAny>) -> PyResult<Arc<Holding>> {
+    PyHost::of_entry(world).holding_now()
 }
 
 /// `config.get("schema_version")` of the overlay's config, for a dict config: the section
-/// `overlay_schema` (`config::overlay`), kept for the stamp of `model_configs`; refused here.
+/// `overlay_schema` (`config::overlay`), kept for the stamp of `model_configs` and read through the
+/// core's reader (`kit::section_value`); its refusal is said where the rule reads it.
+pub(crate) fn schema_of(host: &mut PyHost<'_>, holding: &Holding) -> PyResult<Kept<Option<i64>>> {
+    host.value_section(holding, SectionId::OverlaySchema, |configs| &configs.overlay_schema, parse_overlay_schema)
+}
+
+/// `schema_of` through the native host of an entry, with the holding read now.
+pub(crate) fn schema_now(world: &Bound<'_, PyAny>) -> PyResult<Kept<Option<i64>>> {
+    let mut host = PyHost::of_entry(world);
+    let holding = host.holding_now()?;
+    schema_of(&mut host, &holding)
+}
+
+/// `schema_of`, refused here, for the sections' tests.
 #[track_caller]
 pub(crate) fn overlay_schema(world: &Bound<'_, PyAny>) -> PyResult<Option<i64>> {
-    Ok(*configs::kept_value(world, |configs| &configs.overlay_schema, parse_overlay_schema)?)
+    Ok(*configs::read(schema_now(world)?)?)
 }
 
 /// The floor plan as `Geo::of` read it, or not read: a kernel whose overlay is absent never reads it.
@@ -148,7 +164,7 @@ impl Plan {
 fn register_temporary_space(world: &Bound<'_, PyAny>, record: &Bound<'_, PyAny>, event_id: &Bound<'_, PyAny>) -> PyResult<()> {
     let result = (|| {
         let event_id = exact_str(event_id)?;
-        let held = spaces_held(world)?;
+        let held = spaces_held(&*holding_now(world)?);
         let record = <V as VPy>::from_py(record)?;
         with_world(world, |world| core::register_space(world, &held, record, event_id))?.or_py()
     })();
@@ -166,7 +182,7 @@ fn expire_temporary_space(
     let result = (|| {
         let cause = if causation_id.is_none() { None } else { Some(exact_str(causation_id)?) };
         let (space_id, event_id) = (exact_str(space_id)?, exact_str(event_id)?);
-        let held = spaces_held(world)?;
+        let held = spaces_held(&*holding_now(world)?);
         with_world(world, |world| core::expire_space(world, &held, space_id, event_id, cause))?.or_py()
     })();
     counted(world.py(), "expire_temporary_space", result)
@@ -176,7 +192,7 @@ fn expire_temporary_space(
 #[pyfunction]
 fn validate_spaces(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let result = (|| {
-        let held = spaces_held(world)?;
+        let held = spaces_held(&*holding_now(world)?);
         with_world(world, |world| core::validate_spaces(world, &held))?.or_py()
     })();
     counted(world.py(), "validate_spaces", result)
@@ -191,7 +207,9 @@ struct PlacesIn {
 
 impl PlacesIn {
     fn of(world: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self { spaces: spaces_held(world)?, overlay: overlay_held(world)?, schema: schema_of(world)? })
+        let mut host = PyHost::of_entry(world);
+        let holding = host.holding_now()?;
+        Ok(Self { spaces: spaces_held(&holding), overlay: overlay_held(&holding), schema: schema_of(&mut host, &holding)? })
     }
 
     fn places(&self) -> Places<'_> {
@@ -231,23 +249,11 @@ pub(crate) fn capacity_of(world: &Bound<'_, PyAny>, zone_id: &str, nominal: i64,
 /// `IdMap`, tainted zones.
 fn nominal_of(world: &Bound<'_, PyAny>, zone_id: &Bound<'_, PyAny>) -> PyResult<Option<i64>> {
     let py = world.py();
-    if let Ok(store) = entities_of(world) {
-        let state = attribute(world, intern!(py, "__dict__"))?;
-        if let (Ok(zone_id), Ok(state)) = (zone_id.downcast_exact::<PyString>(), state.downcast::<PyDict>()) {
-            if EntityStore::follows_every_map(&store, state)? {
-                let zone_id = zone_id.to_str()?;
-                let found = with_world(world, |cell| -> sheltersim_core::error::Result<Option<Option<i64>>> {
-                    let rows = cell.entities.try_borrow()?;
-                    if rows.zones_tainted().is_some() {
-                        return Ok(None);
-                    }
-                    drop(rows);
-                    core::nominal_capacity(cell, zone_id).map(Some)
-                })?
-                .or_py()?;
-                if let Some(nominal) = found {
-                    return Ok(nominal);
-                }
+    if let Ok(zone_id) = zone_id.downcast_exact::<PyString>() {
+        if rows_follow_maps(world)? {
+            let zone_id = zone_id.to_str()?;
+            if let Some(nominal) = with_world(world, |cell| core::nominal_of_rows(cell, zone_id))?.or_py()? {
+                return Ok(nominal);
             }
         }
     }
@@ -346,7 +352,7 @@ fn incoming_travelers(world: &Bound<'_, PyAny>, zone_id: &Bound<'_, PyAny>, excl
 
 /// `release_sleep_bed` (`part` "bed_reservations") or `release_temporary_room_admission`.
 fn release_from(world: &Bound<'_, PyAny>, part: &str, agent_id: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let held = overlay_held(world)?;
+    let held = overlay_held(&*holding_now(world)?);
     with_world(world, |world| core::release(world, &held, part, str_value(agent_id)))?.or_py()
 }
 
@@ -370,9 +376,11 @@ struct IntakeIn {
 
 impl IntakeIn {
     fn of(world: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let overlay = overlay_held(world)?;
-        let movement = movement_held(world)?;
-        let schema = schema_of(world)?;
+        let mut host = PyHost::of_entry(world);
+        let holding = host.holding_now()?;
+        let overlay = overlay_held(&holding);
+        let movement = movement_held(&holding);
+        let schema = schema_of(&mut host, &holding)?;
         let plan = Plan::with(world, &overlay);
         Ok(Self { overlay, movement, schema, plan })
     }
@@ -443,10 +451,10 @@ struct BedsIn {
 }
 
 impl BedsIn {
-    fn of(world: &Bound<'_, PyAny>, overlay: Held) -> PyResult<Self> {
-        let movement = movement_held(world)?;
-        let schema = schema_of(world)?;
-        let walking = configs::kept_section(world, |configs| &configs.movement, Movement::parse)?;
+    fn of(world: &Bound<'_, PyAny>, host: &mut PyHost<'_>, holding: &Holding, overlay: Held) -> PyResult<Self> {
+        let movement = movement_held(holding);
+        let schema = schema_of(host, holding)?;
+        let walking = host.value_section(holding, SectionId::Movement, |configs| &configs.movement, Movement::parse)?;
         let plan = Plan::with(world, &overlay);
         Ok(Self { overlay, movement, schema, walking, plan })
     }
@@ -458,11 +466,13 @@ impl BedsIn {
 
 /// `reserve_sleep_bed`, writing only the empty reservations of an older state: None for no bed.
 pub(crate) fn plan_bed(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Option<Bed>> {
-    let overlay = overlay_held(world)?;
+    let mut host = PyHost::of_entry(world);
+    let holding = host.holding_now()?;
+    let overlay = overlay_held(&holding);
     if matches!(overlay, Held::Absent) {
         return Ok(None);
     }
-    let inputs = BedsIn::of(world, overlay)?;
+    let inputs = BedsIn::of(world, &mut host, &holding, overlay)?;
     inputs.plan.finish(world.py(), with_world(world, |world| core::plan_bed(world, &inputs.beds(), agent_id))?.or_py())
 }
 
@@ -471,7 +481,7 @@ pub(crate) fn write_bed(world: &Bound<'_, PyAny>, agent_id: &str, bed: &Bed) -> 
     if !bed.is_new {
         return Ok(());
     }
-    let held = overlay_held(world)?;
+    let held = overlay_held(&*holding_now(world)?);
     with_world(world, |world| core::write_bed(world, &held, agent_id, bed))?.or_py()
 }
 
@@ -505,7 +515,9 @@ fn reserve_sleep_bed<'py>(world: &Bound<'py, PyAny>, agent_id: &Bound<'py, PyAny
 #[pyfunction]
 fn installed_facility_placement_enabled(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let result = (|| {
-        let (schema, overlay) = (schema_of(world)?, overlay_held(world)?);
+        let mut host = PyHost::of_entry(world);
+        let holding = host.holding_now()?;
+        let (schema, overlay) = (schema_of(&mut host, &holding)?, overlay_held(&holding));
         core::placement_enabled(&schema, &overlay).or_py()
     })();
     counted(world.py(), "installed_facility_placement_enabled", result)
@@ -517,7 +529,7 @@ fn installed_facility_point<'py>(world: &Bound<'py, PyAny>, facility_id: &Bound<
     let py = world.py();
     let result = (|| {
         let facility_id = exact_str(facility_id)?;
-        let held = overlay_held(world)?;
+        let held = overlay_held(&*holding_now(world)?);
         let plan = Plan::of(world);
         match plan.finish(py, with_world(world, |world| core::installed_point(world, &held, plan.get(), facility_id))?.or_py())? {
             Some(point) => point_object(py, point),
@@ -541,7 +553,7 @@ fn place_installed_facility<'py>(
         let held: Vec<Bound<'_, PyAny>> = tuple.iter().collect();
         let names = held.iter().map(|item| exact_str(item)).collect::<PyResult<Vec<&str>>>()?;
         let (facility_id, event_id) = (exact_str(facility_id)?, exact_str(event_id)?);
-        let overlay = overlay_held(world)?;
+        let overlay = overlay_held(&*holding_now(world)?);
         let plan = Plan::of(world);
         let point = plan.finish(py, with_world(world, |world| core::place_facility(world, &overlay, plan.get(), facility_id, event_id, &names))?.or_py())?;
         point_object(py, point)
@@ -562,15 +574,15 @@ pub(crate) struct ChangeIn {
 }
 
 impl ChangeIn {
-    pub(crate) fn of(world: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let py = world.py();
-        let overlay = overlay_held(world)?;
+    pub(crate) fn of(world: &Bound<'_, PyAny>, host: &mut PyHost<'_>) -> PyResult<Self> {
+        let holding = host.holding_now()?;
+        let overlay = overlay_held(&holding);
         let plan = Plan::with(world, &overlay);
         Ok(Self {
-            movement: movement_held(world)?,
-            staff_operations: namespace_held(world, intern!(py, "staff_operations_v1"), "the world holds another staff operations state")?,
-            resource_service: namespace_held(world, intern!(py, "resource_service_v1"), "the world holds another resource service state")?,
-            service: configs::kept_section(world, |configs| &configs.resource_service, ResourceService::parse)?,
+            movement: movement_held(&holding),
+            staff_operations: holding.held("staff_operations_v1", "the world holds another staff operations state"),
+            resource_service: holding.held("resource_service_v1", "the world holds another resource service state"),
+            service: host.value_section(&holding, SectionId::ResourceService, |configs| &configs.resource_service, ResourceService::parse)?,
             overlay,
             plan,
         })
@@ -609,8 +621,8 @@ fn validate_geometry_change(
     let result = (|| {
         let (op, target, end_minute) = (exact_str(op)?, exact_str(target)?, end_of(end_minute)?);
         let parameters = <V as VPy>::from_py(parameters)?;
-        let inputs = ChangeIn::of(world)?;
-        let mut host = PyHost::of_world(world, PyDict::new(py));
+        let mut host = PyHost::of_entry(world);
+        let inputs = ChangeIn::of(world, &mut host)?;
         let checked = core::check_change(&PyWorldCell(world), &mut host, &inputs.change(), op, target, &parameters, end_minute);
         inputs.plan.finish(py, checked.map(drop).map_err(|error| error.0))
     })();
@@ -625,8 +637,8 @@ fn apply_geometry_change(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, exp
         let Some(row) = EventRow::from_event(event)? else {
             return unsupported("not a ScheduledEvent");
         };
-        let inputs = ChangeIn::of(world)?;
-        let mut host = PyHost::of_world(world, PyDict::new(py));
+        let mut host = PyHost::of_entry(world);
+        let inputs = ChangeIn::of(world, &mut host)?;
         let applied = core::apply_change(&PyWorldCell(world), &mut host, &inputs.change(), &row, expire);
         inputs.plan.finish(py, applied.map_err(|error| error.0))
     })();
@@ -638,7 +650,7 @@ fn apply_geometry_change(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, exp
 fn validate_overlay(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = world.py();
     let result = (|| {
-        let held = overlay_held(world)?;
+        let held = overlay_held(&*holding_now(world)?);
         let plan = Plan::with(world, &held);
         plan.finish(py, with_world(world, |world| core::check_overlay(world, &held, plan.get()))?.or_py())
     })();

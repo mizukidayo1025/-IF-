@@ -18,12 +18,13 @@
 
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyString, PyTuple};
+use pyo3::types::{PyDict, PyTuple};
 
 use sheltersim_core::config::environment::ZoneEnvironmentSpec;
 use sheltersim_core::rules::care_receipts::Made;
 use sheltersim_core::rules::effects::{self as core, GuardIn, Structure, CONFIG_UNREAD, COUNTS, OPERATORS, PENDING_UNREAD};
 use sheltersim_core::rules::staff_operation_events::FORMULA_UNREAD;
+use sheltersim_core::host::Holding;
 use sheltersim_core::rules::kit::Held;
 use std::sync::Arc;
 
@@ -31,7 +32,7 @@ use crate::core::configs;
 use crate::core::errors::OrPy;
 use crate::core::row::{attribute, exact_str};
 use crate::core::value::{VPy, V};
-use crate::core::world_core::{namespace_held, with_world, PyWorldCell};
+use crate::core::world_core::{with_world, PyWorldCell};
 use crate::host::PyHost;
 use crate::rules::care_receipts::made_record;
 use crate::rules::information_events::event_row;
@@ -68,12 +69,8 @@ fn stats<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyDict>, Bound<'py, PyDic
 
 // ---- What the rules read of the Python world ------------------------------------------------------
 
-fn held(world: &Bound<'_, PyAny>, name: &'static str, other: &'static str) -> PyResult<Held> {
-    namespace_held(world, &PyString::new(world.py(), name), other)
-}
-
-fn program_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    held(world, core::MARKER, "the world holds another effect_program_v1")
+fn program_held(holding: &Holding) -> Held {
+    holding.held(core::MARKER, "the world holds another effect_program_v1")
 }
 
 /// What a guard reads of the Python world.
@@ -83,8 +80,8 @@ struct Guarded {
 }
 
 impl Guarded {
-    fn of(world: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self { program: program_held(world)?, ledger: held(world, "resource_ledger_v1", "the world holds another ledger")? })
+    fn of(holding: &Holding) -> Self {
+        Self { program: program_held(holding), ledger: holding.held("resource_ledger_v1", "the world holds another ledger") }
     }
 
     fn ins(&self) -> GuardIn<'_> {
@@ -94,7 +91,7 @@ impl Guarded {
 
 /// The native host of a world, for its contracts and its validation.
 fn host_of<'py>(world: &Bound<'py, PyAny>) -> PyHost<'py> {
-    PyHost::of_world(world, PyDict::new(world.py()))
+    PyHost::of_entry(world)
 }
 
 /// The core's result, with the host's Python error.
@@ -119,8 +116,9 @@ fn should_apply_guard(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyR
             return Ok(true);
         }
         let row = event_row(event)?;
-        let guarded = Guarded::of(world)?;
-        raised(core::guard(&PyWorldCell(world), &mut host_of(world), &guarded.ins(), &row))
+        let mut host = host_of(world);
+        let guarded = Guarded::of(&*host.holding_now()?);
+        raised(core::guard(&PyWorldCell(world), &mut host, &guarded.ins(), &row))
     })();
     counted(py, "guard", result)
 }
@@ -133,7 +131,7 @@ fn has_active_modifier(world: &Bound<'_, PyAny>, facility_id: &Bound<'_, PyAny>)
     let py = world.py();
     let result = (|| {
         let id = exact_str(facility_id)?;
-        let program = program_held(world)?;
+        let program = program_held(&*host_of(world).holding_now()?);
         with_world(world, |world| core::has_active_modifier(world, &program, id))?.or_py()
     })();
     counted(py, "has_active_modifier", result)
@@ -297,7 +295,7 @@ fn validate_state(world: &Bound<'_, PyAny>, validate_event_history: bool) -> PyR
     let py = world.py();
     let label = if validate_event_history { "validate_state.history" } else { "validate_state.tick" };
     let result = (|| {
-        let program = program_held(world)?;
+        let program = program_held(&*host_of(world).holding_now()?);
         let check = || raised(core::check_state(&PyWorldCell(world), &mut host_of(world), &program, validate_event_history));
         match check() {
             // The rows of the events Python scheduled, read only when a check needs them.

@@ -9,10 +9,12 @@ use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyString};
+use pyo3::types::PyBool;
 use sheltersim_core::config::movement::Movement;
 use sheltersim_core::config::queues::{QueueConfig, QueuePolicy as Policy};
-use sheltersim_core::config::FaultClass;
+use sheltersim_core::config::{FaultClass, SectionId};
+use sheltersim_core::host::Holding;
+use sheltersim_core::world::METRIC_STATE;
 use sheltersim_core::rules::kit::Held;
 use sheltersim_core::rules::queues::{self as core, LeaveInputs, Prepare, Prepared, Walk};
 
@@ -20,7 +22,8 @@ use sheltersim_core::rules::queues::{self as core, LeaveInputs, Prepare, Prepare
 use crate::core::configs;
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, unsupported};
-use crate::core::world_core::{field_held, namespace_held, with_world};
+use crate::core::world_core::with_world;
+use crate::host::PyHost;
 use crate::rules::movement::{movement_of, EXACT_INT, KEY};
 use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::state::events::write_result;
@@ -54,8 +57,8 @@ fn selected_queue_model(world: &Bound<'_, PyAny>) -> PyResult<Option<Arc<str>>> 
 /// `create_queue_policy` of the configs: the policy of the selected model, from the section of the
 /// queue configs (`config::queues`), kept for the stamp of `model_configs`. The constructor's
 /// `ValueError` and the kernel's refusals are raised here, as they were when it read the tree.
-fn policy_of(world: &Bound<'_, PyAny>) -> PyResult<Policy> {
-    let config = configs::kept_value(world, |configs| &configs.facility_queues, QueueConfig::parse)?;
+fn policy_of(world: &Bound<'_, PyAny>, host: &mut PyHost<'_>, holding: &Holding) -> PyResult<Policy> {
+    let config = host.value(holding, SectionId::FacilityQueues, |configs| &configs.facility_queues, QueueConfig::parse)?;
     let selected = selected_queue_model(world)?;
     let need_weighted = match &selected {
         Some(model) => match &**model {
@@ -75,27 +78,24 @@ fn policy_of(world: &Bound<'_, PyAny>) -> PyResult<Policy> {
 /// The policy of the configs as `policy_of` reads it, for the tests: its name, then the limits,
 /// the threshold and the retry delay of the need-weighted one.
 pub(crate) fn policy_text(world: &Bound<'_, PyAny>) -> PyResult<(&'static str, Option<([i64; 3], f64, i64)>)> {
-    Ok(match policy_of(world)? {
+    let mut host = PyHost::of_entry(world);
+    let holding = host.holding_now()?;
+    Ok(match policy_of(world, &mut host, &holding)? {
         Policy::Strict => ("strict", None),
         Policy::NeedWeighted { limits, threshold, retry } => ("need_weighted", Some((limits, threshold, retry))),
     })
 }
 
-/// Whether the world holds a namespace, as a kernel of the core takes it.
-fn held_of(world: &Bound<'_, PyAny>, name: &'static str, other: &'static str) -> PyResult<Held> {
-    namespace_held(world, &PyString::new(world.py(), name), other)
+fn movement_held(holding: &Holding) -> Held {
+    holding.held(KEY, "the world holds another movement state")
 }
 
-fn movement_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    held_of(world, KEY, "the world holds another movement state")
+fn queues_held(holding: &Holding) -> Held {
+    holding.held("facility_queues_v1", "the world holds another queue state")
 }
 
-fn queues_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    crate::state::facility_queues::held(world)
-}
-
-fn service_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    held_of(world, "resource_service_v1", "the world holds another service state")
+fn service_held(holding: &Holding) -> Held {
+    holding.held("resource_service_v1", "the world holds another service state")
 }
 
 /// `repr(kind)`, where the rule turns the kind down and its error names it.
@@ -115,9 +115,9 @@ struct Leave {
 }
 
 impl Leave {
-    fn read(world: &Bound<'_, PyAny>, moving: &Held, independent: bool) -> PyResult<Self> {
-        let metric_state_held = field_held(world, intern!(world.py(), "metric_state"))?;
-        let movement = movement_of(world)?;
+    fn read(world: &Bound<'_, PyAny>, host: &mut PyHost<'_>, holding: &Holding, moving: &Held, independent: bool) -> PyResult<Self> {
+        let metric_state_held = holding.field(METRIC_STATE);
+        let movement = movement_of(host, holding)?;
         let placed = !matches!(moving, Held::Absent) && movement.has_geometry;
         let geo = if placed || independent { Some(Geo::of(world)?) } else { None };
         Ok(Self { movement, geo, metric_state_held })
@@ -149,11 +149,13 @@ pub(crate) fn prepare_facility_queue<'py>(
         return Ok(());
     };
     let minute = plain_minute(minute)?;
-    let policy = policy_of(world)?;
-    let movement = movement_held(world)?;
+    let mut host = PyHost::of_entry(world);
+    let holding = host.holding_now()?;
+    let policy = policy_of(world, &mut host, &holding)?;
+    let movement = movement_held(&holding);
     let repr = kind_repr(py, &kind)?;
     let (queues, service) = match resource {
-        true => (queues_held(world)?, service_held(world)?),
+        true => (queues_held(&holding), service_held(&holding)),
         false => (Held::Absent, Held::Absent),
     };
     let prepare = Prepare {
@@ -167,7 +169,7 @@ pub(crate) fn prepare_facility_queue<'py>(
     };
     let mut result = with_world(world, |world| core::prepare(world, facility, &prepare, None))?;
     if matches!(result, Ok(Prepared::NeedsLeaveInputs)) {
-        let leave = Leave::read(world, &prepare.movement, false)?;
+        let leave = Leave::read(world, &mut host, &holding, &prepare.movement, false)?;
         result = with_world(world, |world| core::prepare(world, facility, &prepare, Some(&leave.inputs())))?;
     }
     write_result(py, result).map(|_| ())
@@ -187,13 +189,15 @@ pub(crate) fn prepare_independent_facility_queue<'py>(
     let queue = exact_str(queue_id)?;
     let resource = exact_bool(resource)?;
     let minute = plain_minute(minute)?;
-    let queues = queues_held(world)?;
-    let movement = movement_held(world)?;
+    let mut host = PyHost::of_entry(world);
+    let holding = host.holding_now()?;
+    let queues = queues_held(&holding);
+    let movement = movement_held(&holding);
     let found = with_world(world, |world| core::independent_queue(world, queue, &queues, &movement))?.or_py()?;
     let Some((facility, kind)) = found else {
         return Ok(());
     };
-    let policy = policy_of(world)?;
+    let policy = policy_of(world, &mut host, &holding)?;
     let repr = match &kind {
         Some(kind) => kind_repr(py, kind)?,
         None => None,
@@ -213,27 +217,29 @@ pub(crate) fn prepare_independent_facility_queue<'py>(
     }
     // Someone gives up: a resource queue's stall is read once each has left.
     if resource {
-        prepare.service = service_held(world)?;
+        prepare.service = service_held(&holding);
     }
-    let leave = Leave::read(world, &prepare.movement, true)?;
+    let leave = Leave::read(world, &mut host, &holding, &prepare.movement, true)?;
     let done = with_world(world, |world| core::prepare_independent(world, queue, &facility, &prepare, Some(&leave.inputs())))?;
     write_result(py, done).map(|_| ())
 }
 
 /// The movement section of a placed world (`"facility_geometry"` in the configs and `movement_v1`
 /// in the state), or None: the walking kernels do nothing then.
-fn placed(world: &Bound<'_, PyAny>) -> PyResult<Option<Arc<Movement>>> {
+fn placed(world: &Bound<'_, PyAny>, host: &mut PyHost<'_>, holding: &Holding) -> PyResult<Option<Arc<Movement>>> {
     let table = attribute(world, intern!(world.py(), "model_state"))?;
     if !exact_dict(&table)?.contains(KEY)? {
         return Ok(None);
     }
-    let movement = movement_of(world)?;
+    let movement = movement_of(host, holding)?;
     Ok(movement.has_geometry.then_some(movement))
 }
 
 /// The floor plan of a placed world, which `physical_service_capacity` reads, or None.
 pub(crate) fn placement(world: &Bound<'_, PyAny>) -> PyResult<Option<Arc<Geo>>> {
-    match placed(world)? {
+    let mut host = PyHost::of_entry(world);
+    let holding = host.holding_now()?;
+    match placed(world, &mut host, &holding)? {
         Some(_) => Geo::of(world).map(Some),
         None => Ok(None),
     }
@@ -254,16 +260,18 @@ pub(crate) struct Walking {
 impl Walking {
     /// None where the world is not placed: the walking kernels do nothing then.
     pub(crate) fn read(world: &Bound<'_, PyAny>, independent: bool) -> PyResult<Option<Self>> {
-        let Some(movement) = placed(world)? else {
+        let mut host = PyHost::of_entry(world);
+        let holding = host.holding_now()?;
+        let Some(movement) = placed(world, &mut host, &holding)? else {
             return Ok(None);
         };
-        Self::of(world, movement, independent).map(Some)
+        Self::of(world, &holding, movement, independent).map(Some)
     }
 
-    fn of(world: &Bound<'_, PyAny>, movement: Arc<Movement>, independent: bool) -> PyResult<Self> {
+    fn of(world: &Bound<'_, PyAny>, holding: &Holding, movement: Arc<Movement>, independent: bool) -> PyResult<Self> {
         let geo = Geo::of(world)?;
-        let queues = if independent { queues_held(world)? } else { Held::Absent };
-        Ok(Self { movement, geo, moving: movement_held(world)?, queues, metric_state_held: field_held(world, intern!(world.py(), "metric_state"))? })
+        let queues = if independent { queues_held(holding) } else { Held::Absent };
+        Ok(Self { movement, geo, moving: movement_held(holding), queues, metric_state_held: holding.field(METRIC_STATE) })
     }
 
     pub(crate) fn walk(&self) -> Walk<'_> {
@@ -274,6 +282,7 @@ impl Walking {
 /// A walking kernel, once the world is placed.
 fn walk(
     world: &Bound<'_, PyAny>,
+    holding: &Holding,
     movement: Arc<Movement>,
     facility_id: &str,
     resource: bool,
@@ -281,7 +290,7 @@ fn walk(
     queue_id: Option<&str>,
     kernel: fn(&sheltersim_core::world::World, &Walk<'_>, &str, bool, i64, Option<&str>) -> sheltersim_core::events::writer::WriteResult<bool>,
 ) -> PyResult<bool> {
-    let walking = Walking::of(world, movement, queue_id.is_some())?;
+    let walking = Walking::of(world, holding, movement, queue_id.is_some())?;
     let result = with_world(world, |world| kernel(world, &walking.walk(), facility_id, resource, minute, queue_id))?;
     write_result(world.py(), result)
 }
@@ -296,7 +305,9 @@ pub(crate) fn progress_physical_queue_positions<'py>(
     minute: &Bound<'py, PyAny>,
     queue_id: Option<&Bound<'py, PyAny>>,
 ) -> PyResult<bool> {
-    let Some(movement) = placed(world)? else {
+    let mut host = PyHost::of_entry(world);
+    let holding = host.holding_now()?;
+    let Some(movement) = placed(world, &mut host, &holding)? else {
         return Ok(false);
     };
     let facility = exact_str(facility_id)?;
@@ -305,7 +316,7 @@ pub(crate) fn progress_physical_queue_positions<'py>(
         Some(queue) if !queue.is_none() => Some(exact_str(queue)?),
         _ => None,
     };
-    walk(world, movement, facility, resource, minute, queue, core::positions)
+    walk(world, &holding, movement, facility, resource, minute, queue, core::positions)
 }
 
 /// `progress_physical_queue_head_to_service`.
@@ -333,10 +344,12 @@ fn head_to_service<'py>(
     minute: i64,
     queue_id: Option<&str>,
 ) -> PyResult<bool> {
-    let Some(movement) = placed(world)? else {
+    let mut host = PyHost::of_entry(world);
+    let holding = host.holding_now()?;
+    let Some(movement) = placed(world, &mut host, &holding)? else {
         return Ok(false);
     };
-    walk(world, movement, exact_str(facility_id)?, resource, minute, queue_id, core::head_to_service)
+    walk(world, &holding, movement, exact_str(facility_id)?, resource, minute, queue_id, core::head_to_service)
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

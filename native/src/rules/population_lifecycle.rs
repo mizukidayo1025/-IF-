@@ -30,7 +30,7 @@ use crate::core::row::{attribute, exact_dict, exact_int, exact_str};
 use crate::core::value::VPy;
 use crate::core::world_core::{state_value, with_world, PyWorldCell};
 use crate::host::HostError;
-use crate::rules::population::{as_refusal, event_row, get_map, held, host_of, optional_text, plan_read, planning, schedule_population_retry, text};
+use crate::rules::population::{as_refusal, event_row, get_map, host_of, optional_text, plan_read, planning, schedule_population_retry, text};
 use crate::state::events::{EventRow, EventWriter, QueueStore};
 use crate::Unsupported;
 
@@ -48,7 +48,7 @@ pub(crate) fn transit_capacities(world: &Bound<'_, PyAny>) -> PyResult<bool> {
 }
 
 fn presence_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    held(world, PRESENCE, "the world holds another presence state")
+    Ok(host_of(world).holding_now()?.held(PRESENCE, "the world holds another presence state"))
 }
 
 /// `current_household_id`.

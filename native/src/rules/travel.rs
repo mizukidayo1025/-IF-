@@ -23,19 +23,20 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyTuple};
 use sheltersim_core::config::movement::Movement;
+use sheltersim_core::config::SectionId;
+use sheltersim_core::host::Holding;
 use sheltersim_core::routes::{Edge, Router, Which};
 use sheltersim_core::rules::kit::{Held, Kept};
 use sheltersim_core::rules::overlay::PLAN_UNREAD;
 use sheltersim_core::rules::travel::{self as core, Graph, Routing, Walking};
-use sheltersim_core::world::World;
 
 pub(crate) use sheltersim_core::rules::travel::{Route, Trip};
 
-use crate::core::configs;
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_int, exact_str, unsupported};
 use crate::core::run::{run_of, RunCore};
-use crate::core::world_core::{core_of, namespace_held, with_world};
+use crate::core::world_core::{core_of, with_world};
+use crate::host::PyHost;
 use crate::rules::movement::{optional_str, route_points_of, str_tuple, KEY as MOVEMENT};
 use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::state::events::{write_result, EventRef, EventRow, EventRowPy};
@@ -69,18 +70,19 @@ impl Plan {
 }
 
 /// Whether the world holds `movement_v1`, as the rules take it.
-pub(crate) fn movement_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    namespace_held(world, intern!(world.py(), MOVEMENT), "the world holds another movement state")
+pub(crate) fn movement_held(holding: &Holding) -> Held {
+    holding.held(MOVEMENT, "the world holds another movement state")
 }
 
 /// Whether the world holds `staff_operations_v1`, as the rules take it.
-pub(crate) fn staff_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    namespace_held(world, intern!(world.py(), STAFF_OPERATIONS), "the world holds another document than the row's")
+pub(crate) fn staff_held(holding: &Holding) -> Held {
+    holding.held(STAFF_OPERATIONS, "the world holds another document than the row's")
 }
 
-/// The movement section of the configs, kept for the stamp of `model_configs`.
-pub(crate) fn movement_section(world: &Bound<'_, PyAny>) -> PyResult<Kept<Movement>> {
-    configs::kept_section(world, |configs| &configs.movement, Movement::parse)
+/// The movement section of the configs, kept for the stamp of `model_configs`, through the core's
+/// reader (`kit::section_value`).
+pub(crate) fn movement_section(host: &mut PyHost<'_>, holding: &Holding) -> PyResult<Kept<Movement>> {
+    host.value_section(holding, SectionId::Movement, |configs| &configs.movement, Movement::parse)
 }
 
 /// The rows of the pending events Python scheduled, read before a kernel reads the whole queue.
@@ -105,8 +107,16 @@ pub(crate) struct Inputs {
 }
 
 impl Inputs {
+    /// Read through the native host of an entry, with the holding read now.
     pub(crate) fn of(world: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self { plan: Plan::of(world), section: movement_section(world)?, movement: movement_held(world)?, staff: staff_held(world)? })
+        let mut host = PyHost::of_entry(world);
+        let holding = host.holding_now()?;
+        Self::read(world, &mut host, &holding)
+    }
+
+    pub(crate) fn read(world: &Bound<'_, PyAny>, host: &mut PyHost<'_>, holding: &Holding) -> PyResult<Self> {
+        let plan = Plan::of(world);
+        Ok(Self { plan, section: movement_section(host, holding)?, movement: movement_held(holding), staff: staff_held(holding) })
     }
 
     pub(crate) fn routing<'a>(&'a self, graph: &'a Graph) -> Routing<'a> {
@@ -361,7 +371,7 @@ fn schedule_travel<'py>(
         return Ok(false);
     }
     if validate {
-        crate::host::PyHost::of_world(&world, pyo3::types::PyDict::new(py)).validate_world().map_err(|error| error.0)?;
+        PyHost::of_entry(&world).validate_world().map_err(|error| error.0)?;
     }
     Ok(true)
 }
@@ -381,9 +391,9 @@ impl Home {
         Ok(Self { graph, inputs: Inputs::of(world)? })
     }
 
-    /// `_schedule_return_to_initial_zone` on the world borrowed.
-    pub(crate) fn schedule(&self, world: &World, event: &EventRow) -> sheltersim_core::events::writer::WriteResult<()> {
-        core::schedule_return(world, &self.inputs.routing(&self.graph), self.inputs.walking(), event)
+    /// What `_schedule_return_to_initial_zone` takes besides the world and the event.
+    pub(crate) fn parts(&self) -> (Routing<'_>, Walking<'_>) {
+        (self.inputs.routing(&self.graph), self.inputs.walking())
     }
 
     /// The result of `schedule`, as Python's.
@@ -398,7 +408,8 @@ pub(crate) fn schedule_return<'py>(controller: &Bound<'py, PyAny>, world: &Bound
     let owned = EventRow::from_event(object)?.ok_or_else(|| Unsupported::new_err("the event is not a row"))?;
     let row = &owned;
     let home = Home::of(controller, world)?;
-    let returned = with_world(world, |cell| home.schedule(cell, row))?;
+    let (routing, walking) = home.parts();
+    let returned = with_world(world, |cell| core::schedule_return(cell, &routing, walking, row))?;
     home.finish(world.py(), returned)
 }
 

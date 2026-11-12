@@ -14,16 +14,18 @@ use std::sync::Arc;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
-use pyo3::types::{PyBool, PyDict, PyList, PyString};
+use pyo3::types::{PyBool, PyList, PyString};
 
 use sheltersim_core::config::population::AccessibilityNeeds;
+use sheltersim_core::config::SectionId;
+use sheltersim_core::host::Holding;
+use sheltersim_core::world::METRIC_STATE;
 use sheltersim_core::rules::kit::{Held, Kept};
 use sheltersim_core::rules::toilet::{self as core, Request, Rng, ScheduleReturn, Start, Started};
 
-use crate::core::configs;
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_int_text, exact_str};
-use crate::core::world_core::{field_held, namespace_held, with_world, PyWorldCell};
+use crate::core::world_core::{with_world, PyWorldCell};
 use crate::host::PyHost;
 use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::rules::queues::{placement, Walking};
@@ -39,6 +41,10 @@ fn receipt_class(py: Python<'_>) -> PyResult<&Bound<'_, PyAny>> {
         .bind(py))
 }
 
+fn queues_held(holding: &Holding) -> Held {
+    holding.held("facility_queues_v1", "the world holds another queue state")
+}
+
 /// What `request` reads of the Python world.
 struct Inputs {
     queues: Held,
@@ -48,10 +54,12 @@ struct Inputs {
 
 impl Inputs {
     fn of(world: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let mut host = PyHost::of_entry(world);
+        let holding = host.holding_now()?;
         Ok(Self {
-            queues: crate::state::facility_queues::held(world)?,
+            queues: queues_held(&holding),
             geo: Geo::of(world)?,
-            needs: configs::kept_section(world, |configs| &configs.accessibility_needs, AccessibilityNeeds::parse)?,
+            needs: host.value_section(&holding, SectionId::AccessibilityNeeds, |configs| &configs.accessibility_needs, AccessibilityNeeds::parse)?,
         })
     }
 
@@ -99,7 +107,7 @@ fn request<'py>(
     }
     let (agent, facility) = (exact_str(agent_id)?, exact_str(facility_id)?);
     let inputs = Inputs::of(&world)?;
-    let mut host = PyHost::of_world(&world, PyDict::new(py));
+    let mut host = PyHost::of_entry(&world);
     let receipt = core::request(&PyWorldCell(&world), &mut host, &inputs.request(agent, facility, queue_name), validates).map_err(|error| error.0)?;
     receipt_class(py)?.call1((agent_id, facility_id, receipt.requested_at, &*receipt.queue_task_id, receipt.queue_position))
 }
@@ -109,7 +117,7 @@ fn request<'py>(
 pub(crate) fn facilities_to_serve<'py>(manager: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyList>> {
     let py = manager.py();
     let world = attribute(manager, intern!(py, "world"))?;
-    let queues = crate::state::facility_queues::held(&world)?;
+    let queues = queues_held(&*PyHost::of_entry(&world).holding_now()?);
     let due = with_world(&world, |world| core::facilities_to_serve(world, &queues))?.or_py()?;
     let result = PyList::empty(py);
     if !due.is_empty() {
@@ -131,7 +139,7 @@ pub(crate) fn has_room<'py>(manager: &Bound<'py, PyAny>, facility_id: &Bound<'py
     let world = attribute(manager, intern!(py, "world"))?;
     exact_dict(&attribute(&world, intern!(py, "model_state"))?)?;
     let name = exact_str(facility_id)?;
-    let queues = crate::state::facility_queues::held(&world)?;
+    let queues = queues_held(&*PyHost::of_entry(&world).holding_now()?);
     let placement = placement(&world)?;
     with_world(&world, |world| core::has_room(world, &queues, placement.as_deref(), name))?.or_py()
 }
@@ -181,15 +189,16 @@ fn start_one<'py>(
     let lowest = exact_int(&attribute(manager, intern!(py, "min_service_minutes"))?)?;
     let highest = exact_int(&attribute(manager, intern!(py, "max_service_minutes"))?)?;
     let policy: Arc<str> = Arc::from(exact_str(&attribute(manager, intern!(py, "policy_version"))?)?);
-    let queues = crate::state::facility_queues::held(&world)?;
+    let holding = PyHost::of_entry(&world).holding_now()?;
+    let queues = queues_held(&holding);
     let geo = Geo::of(&world)?;
     let walking = match queue_id {
         Some(_) => Walking::read(&world, true)?,
         None => None,
     };
     let walk = walking.as_ref().map(Walking::walk);
-    let metric_state_held = field_held(&world, intern!(py, "metric_state"))?;
-    let mut host = PyHost::of_world(&world, PyDict::new(py)).with_rng(rng);
+    let metric_state_held = holding.field(METRIC_STATE);
+    let mut host = PyHost::of_entry(&world).with_rng(rng);
     let start = Start {
         facility_id: facility,
         minute,
@@ -218,21 +227,19 @@ pub(crate) fn complete_event<'py>(world: &Bound<'py, PyAny>, event: EventRef<'_,
     let EventRef::Object(object) = event;
     let owned = EventRow::from_event(object)?.ok_or_else(|| Unsupported::new_err("the event is not a row"))?;
     let row = &owned;
-    let queues = crate::state::facility_queues::held(world)?;
+    let holding = PyHost::of_entry(world).holding_now()?;
+    let queues = queues_held(&holding);
     let geo = Geo::of(world)?;
-    let body = namespace_held(world, intern!(py, "body_state_v1"), "the world holds another body state")?;
-    let metric_state_held = field_held(world, intern!(py, "metric_state"))?;
+    let body = holding.held("body_state_v1", "the world holds another body state");
+    let metric_state_held = holding.field(METRIC_STATE);
     // What the walk home reads of Python, read before the borrow; what reading it raised is the walk
     // home's error, after the completion.
     let home = home.map(|controller| crate::rules::travel::Home::of(controller, world));
-    let (completed, returned) = with_world(world, |cell| {
-        let completed = core::complete(cell, row, &queues, &geo, &body, metric_state_held);
-        let returned = match (&completed, &home) {
-            (Ok(ScheduleReturn), Some(Ok(home))) => Some(home.schedule(cell, row)),
-            _ => None,
-        };
-        (completed, returned)
-    })?;
+    let parts = match &home {
+        Some(Ok(home)) => Some(home.parts()),
+        _ => None,
+    };
+    let (completed, returned) = with_world(world, |cell| core::complete_then_home(cell, row, &queues, &geo, &body, metric_state_held, parts))?;
     let ScheduleReturn = write_result(py, completed)?;
     Ok(match (home, returned) {
         (None, _) => Ok(()),

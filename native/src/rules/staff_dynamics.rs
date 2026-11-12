@@ -12,12 +12,14 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyList, PyString};
 use sheltersim_core::config::staff::StaffFatigue;
+use sheltersim_core::config::SectionId;
+use sheltersim_core::host::Holding;
 use sheltersim_core::rules::staff_dynamics as core;
 
-use crate::core::configs;
 use crate::core::errors::{self, OrPy};
-use crate::core::row::{attribute, exact_dict, exact_int, exact_list, exact_str, namespace_is_absent, unsupported, PyField};
+use crate::core::row::{attribute, exact_dict, exact_int, exact_list, exact_str, unsupported, PyField};
 use crate::core::world_core::with_world;
+use crate::host::{absent, PyHost};
 use crate::state::staff_dynamics::{shifts_are_valid, Shift, StaffRecord, MAX_REST_MINUTES, MAX_SHIFTS, MINUTES_PER_DAY, MINUTES_PER_WEEK, NAME, POLICY_V1, POLICY_V2};
 
 const SOURCE_V1: &str = "ASM-STAFF-DYNAMICS-V1";
@@ -34,9 +36,16 @@ const CONFIG_FIELDS: [&str; 8] = [
 ];
 
 /// `create_staff_fatigue_formula`, for the formulas the core knows, kept for the configs' stamp
-/// (`core/configs.rs`). A later registered one, or anything but plain documents, is refused.
+/// and read through the core's reader (`kit::section_value`). A later registered one, or anything
+/// but plain documents, is refused.
 pub(crate) fn fatigue_formula(world: &Bound<'_, PyAny>) -> PyResult<Arc<StaffFatigue>> {
-    configs::kept_value(world, |configs| &configs.staff_fatigue, StaffFatigue::parse)
+    let mut host = PyHost::of_entry(world);
+    let holding = host.holding_now()?;
+    formula_of(&mut host, &holding)
+}
+
+fn formula_of(host: &mut PyHost<'_>, holding: &Holding) -> PyResult<Arc<StaffFatigue>> {
+    host.value(holding, SectionId::StaffFatigue, |configs| &configs.staff_fatigue, StaffFatigue::parse)
 }
 
 // ---- The entries -----------------------------------------------------------------------------------
@@ -44,18 +53,21 @@ pub(crate) fn fatigue_formula(world: &Bound<'_, PyAny>) -> PyResult<Arc<StaffFat
 /// `update_staff_dynamics`.
 #[pyfunction]
 pub(crate) fn update(world: &Bound<'_, PyAny>, minute: &Bound<'_, PyAny>) -> PyResult<()> {
-    if namespace_is_absent(world, intern!(world.py(), NAME))? {
+    let mut host = PyHost::of_entry(world);
+    let holding = host.holding_now()?;
+    if absent(&holding, NAME)? {
         return Ok(());
     }
     let minute = exact_int(minute)?;
-    let formula = fatigue_formula(world)?;
+    let formula = formula_of(&mut host, &holding)?;
     with_world(world, |world| core::update(world, minute, &formula))?.or_py()
 }
 
 /// `staff_dynamics_on_shift`.
 #[pyfunction(name = "on_shift")]
 fn on_shift_now(world: &Bound<'_, PyAny>, staff_id: &Bound<'_, PyAny>, minute: &Bound<'_, PyAny>) -> PyResult<bool> {
-    if namespace_is_absent(world, intern!(world.py(), NAME))? {
+    let holding = PyHost::of_entry(world).holding_now()?;
+    if absent(&holding, NAME)? {
         return Ok(true);
     }
     let id = exact_str(staff_id)?;
@@ -66,7 +78,8 @@ fn on_shift_now(world: &Bound<'_, PyAny>, staff_id: &Bound<'_, PyAny>, minute: &
 /// `staff_dynamics_is_available`.
 #[pyfunction(name = "is_available")]
 pub(crate) fn is_available_now(world: &Bound<'_, PyAny>, staff_id: &Bound<'_, PyAny>, minute: &Bound<'_, PyAny>) -> PyResult<bool> {
-    if namespace_is_absent(world, intern!(world.py(), NAME))? {
+    let holding = PyHost::of_entry(world).holding_now()?;
+    if absent(&holding, NAME)? {
         return Ok(true);
     }
     if staff_id.downcast_exact::<PyString>().is_err() {
@@ -74,14 +87,15 @@ pub(crate) fn is_available_now(world: &Bound<'_, PyAny>, staff_id: &Bound<'_, Py
     }
     let id = exact_str(staff_id)?;
     let minute = exact_int(minute)?;
-    let absent = namespace_is_absent(world, intern!(world.py(), "staff_operations_v1"))?;
+    let absent = absent(&holding, "staff_operations_v1")?;
     with_world(world, |world| core::is_available_now(world, id, minute, absent))?.or_py()
 }
 
 /// `add_staff`: one record.
 #[pyfunction]
 fn add_staff(world: &Bound<'_, PyAny>, staff_id: &Bound<'_, PyAny>) -> PyResult<()> {
-    if namespace_is_absent(world, intern!(world.py(), NAME))? {
+    let holding = PyHost::of_entry(world).holding_now()?;
+    if absent(&holding, NAME)? {
         return Ok(());
     }
     let id = exact_str(staff_id)?;

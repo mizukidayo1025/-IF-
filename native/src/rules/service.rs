@@ -15,20 +15,21 @@ use indexmap::IndexMap;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
-use pyo3::types::{PyBool, PyDict, PyList, PyString, PyTuple};
+use pyo3::types::{PyBool, PyList, PyString, PyTuple};
 
 use sheltersim_core::config::population::AccessibilityNeeds;
 use sheltersim_core::config::service::ResourceService;
+use sheltersim_core::config::SectionId;
+use sheltersim_core::world::METRIC_STATE;
 use sheltersim_core::rules::kit::{Held, Kept};
 use sheltersim_core::rules::resources::Applied;
 use sheltersim_core::rules::service::{self as core, Failure, Manager, Minute, Pending, Request, Requested, Serve, Served};
 
 
-use crate::core::configs;
 use crate::core::errors::{self, to_py_err, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, str_value, unsupported};
 use crate::core::value::{VPy, V};
-use crate::core::world_core::{field_held, namespace_held, raw_dict_get, with_world, PyWorldCell};
+use crate::core::world_core::{raw_dict_get, with_world, PyWorldCell};
 use crate::host::PyHost;
 use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::rules::queues::Walking;
@@ -41,10 +42,13 @@ use crate::Unsupported;
 const SERVICE_KEY: &str = "resource_service_v1";
 
 /// The section `resource_service` of the world's configs (`config::service`), kept for the stamp
-/// of `model_configs`; a configs that is not a dict is refused here.
+/// of `model_configs` and read through the core's reader (`kit::section_value`); a configs that is
+/// not a dict is refused here. For the sections' tests.
 #[track_caller]
 pub(crate) fn resource_service_of(world: &Bound<'_, PyAny>) -> PyResult<Arc<ResourceService>> {
-    configs::kept_value(world, |configs| &configs.resource_service, ResourceService::parse)
+    let mut host = PyHost::of_entry(world);
+    let holding = host.holding_now()?;
+    host.value(&holding, SectionId::ResourceService, |configs| &configs.resource_service, ResourceService::parse)
 }
 
 /// What a kernel takes of the manager and of the Python world (`core::Manager`).
@@ -79,13 +83,13 @@ impl<'py> Inputs<'py> {
     }
 
     fn read(world: Bound<'py, PyAny>, config: Arc<IndexMap<Arc<str>, V>>) -> PyResult<Self> {
-        let py = world.py();
+        let holding = PyHost::of_entry(&world).holding_now()?;
         Ok(Self {
-            service: namespace_held(&world, intern!(py, SERVICE_KEY), "the world holds another service state")?,
-            ledger: namespace_held(&world, intern!(py, "resource_ledger_v1"), "the world holds another ledger")?,
-            queues: crate::state::facility_queues::held(&world)?,
+            service: holding.held(SERVICE_KEY, "the world holds another service state"),
+            ledger: holding.held("resource_ledger_v1", "the world holds another ledger"),
+            queues: holding.held("facility_queues_v1", "the world holds another queue state"),
             geo: Geo::of(&world)?,
-            metric_state_held: field_held(&world, intern!(py, "metric_state"))?,
+            metric_state_held: holding.field(METRIC_STATE),
             config,
             world,
         })
@@ -363,7 +367,9 @@ fn receipt<'py>(agent_id: &Bound<'py, PyAny>, facility_id: &Bound<'py, PyAny>, r
 /// The population's accessibility needs, kept for the configs' stamp, or the fault the core raises
 /// where `choose_queue_id` reads them.
 fn needs_of(world: &Bound<'_, PyAny>) -> PyResult<Kept<AccessibilityNeeds>> {
-    configs::kept_section(world, |configs| &configs.accessibility_needs, AccessibilityNeeds::parse)
+    let mut host = PyHost::of_entry(world);
+    let holding = host.holding_now()?;
+    host.value_section(&holding, SectionId::AccessibilityNeeds, |configs| &configs.accessibility_needs, AccessibilityNeeds::parse)
 }
 
 /// `ResourceServiceManager.request`, without the world's whole validation: the receipt, or the text
@@ -412,7 +418,7 @@ fn request<'py>(
     let needs = needs_of(world)?;
     let pending = pending_reserves(world)?;
     let request = Request { agent_id: agent_name, facility_id: facility_name, minute, queue_id: queue_name, needs: &needs };
-    let mut host = PyHost::of_world(world, PyDict::new(py));
+    let mut host = PyHost::of_entry(world);
     let requested = core::request(&PyWorldCell(world), &mut host, &inputs.manager(), &request, &pending, validates).map_err(|error| error.0)?;
     match requested {
         Requested::Queued(queued) => receipt(agent_id, facility_id, &queued),
@@ -455,7 +461,7 @@ fn interrupt_with<'py>(inputs: &Inputs<'py>, staff_id: &Bound<'py, PyAny>, causa
 /// `record_request_outcome`: the record at the end of the service's `request_history`, on the row
 /// (an attached tree follows it).
 pub(crate) fn append_outcome(world: &Bound<'_, PyAny>, record: RequestRecord) -> PyResult<()> {
-    let service = namespace_held(world, intern!(world.py(), SERVICE_KEY), "the world holds another service state")?;
+    let service = PyHost::of_entry(world).holding_now()?.held(SERVICE_KEY, "the world holds another service state");
     with_world(world, |world| core::append_outcome(world, &service, record))?.or_py()
 }
 

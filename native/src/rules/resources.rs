@@ -11,10 +11,11 @@ use pyo3::types::{PyDict, PyString};
 use sheltersim_core::rules::resources::{self as core, Applied, Fail, OperationArg, OperationEvent};
 
 use crate::core::errors::{self, ledger_error, to_py_err, OrPy};
-use crate::core::row::{attribute, namespace_is_absent, unsupported};
+use crate::core::row::{attribute, unsupported};
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::{VPy, V};
 use crate::core::world_core::with_world;
+use crate::host::PyHost;
 use crate::state::events::{EventRow, EventRowPy};
 use crate::state::resource_ledger::{held_mirror, RESOURCE_IDS};
 use crate::state::world_fields;
@@ -99,7 +100,7 @@ const COLUMNS: [[&str; 6]; 2] = [
 #[pyfunction]
 pub(crate) fn metric_values<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyDict>>> {
     let py = world.py();
-    if namespace_is_absent(world, intern!(py, "resource_ledger_v1"))? {
+    if PyHost::of_entry(world).absent_now("resource_ledger_v1")? {
         return Ok(None);
     }
     held_mirror(world)?;

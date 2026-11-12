@@ -17,6 +17,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
 
 use sheltersim_core::config::overlay::OverlayRooms;
+use sheltersim_core::config::SectionId;
 use sheltersim_core::error::Error as CoreError;
 use sheltersim_core::rules::kit::Held;
 use sheltersim_core::rules::population::{self as core, Alternates, Built, DepartureGiven, Given, Language, Overrides, Read, RoutesFault};
@@ -26,7 +27,7 @@ use crate::core::configs;
 use crate::core::errors::{self, to_py_err, OrPy};
 use crate::core::row::{attribute, exact_int, exact_str, unsupported};
 use crate::core::value::VPy;
-use crate::core::world_core::{namespace_held, state_value, with_world, PyWorldCell};
+use crate::core::world_core::{state_value, with_world, PyWorldCell};
 use crate::host::{HostError, PyHost};
 use crate::rules::movement_geometry::approach_routes;
 use crate::state::events::{read_frozen, EventRow, EventRowPy, MAX_ROW_DEPTH};
@@ -57,13 +58,9 @@ pub(crate) fn plan_read(py: Python<'_>, error: &PyErr) -> CoreError {
     }
 }
 
-pub(crate) fn held(world: &Bound<'_, PyAny>, name: &str, other: &'static str) -> PyResult<Held> {
-    namespace_held(world, &PyString::intern(world.py(), name), other)
-}
-
 /// The native host of an entry.
 pub(crate) fn host_of<'py>(world: &Bound<'py, PyAny>) -> PyHost<'py> {
-    PyHost::of_world(world, PyDict::new(world.py()))
+    PyHost::of_entry(world)
 }
 
 /// What the population rules read beside the rows, through the native host, and the host.
@@ -324,19 +321,14 @@ fn choose_admission_target<'py>(world: &Bound<'py, PyAny>, item: &Bound<'py, PyA
 /// table): those are read from their Python values, for the same core rule.
 #[pyfunction]
 pub(crate) fn validate_population_dynamics_state(world: &Bound<'_, PyAny>) -> PyResult<()> {
-    let dynamics = held(world, DYNAMICS, "the world holds another population dynamics state")?;
-    let presence = held(world, PRESENCE, "the world holds another presence state")?;
+    let holding = host_of(world).holding_now()?;
+    let dynamics = holding.held(DYNAMICS, "the world holds another population dynamics state");
+    let presence = holding.held(PRESENCE, "the world holds another presence state");
     let other = |held: &Held| matches!(held, Held::Other(_));
     let core_holds = !other(&dynamics)
         && !other(&presence)
         && crate::core::world_core::core_of(world).is_ok()
-        && with_world(world, |cell| {
-            let readable = |held: &Held, name: &str| matches!(held, Held::Absent) || cell.row::<sheltersim_core::row::ValueRow>(name).is_ok();
-            readable(&dynamics, DYNAMICS)
-                && readable(&presence, PRESENCE)
-                && cell.rows().is_ok()
-                && cell.entities.try_borrow().is_ok_and(|rows| rows.zones_tainted().is_none())
-        })?;
+        && with_world(world, |cell| core::holds_for_validation(cell, &dynamics, &presence))?;
     if !core_holds {
         return validate_values(world);
     }
@@ -511,7 +503,9 @@ pub(crate) fn reraise_rooms(world: &Bound<'_, PyAny>) -> PyResult<()> {
 /// The section `overlay_rooms` as the arrivals read it, for the tests: whether the config is a
 /// dict, and its room schema for a dict.
 pub(crate) fn overlay_rooms_of(world: &Bound<'_, PyAny>) -> PyResult<(bool, bool)> {
-    let rooms = configs::kept_python(world, |configs| &configs.overlay_rooms, overlay_rooms)?;
+    let mut host = host_of(world);
+    let holding = host.holding_now()?;
+    let rooms = host.host_value(&holding, SectionId::OverlayRooms, |configs| &configs.overlay_rooms)?;
     Ok((rooms.is_dict, rooms.is_dict && rooms_schema(world, &rooms)?))
 }
 
