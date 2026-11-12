@@ -1,7 +1,9 @@
 //! Checkpoint save kernels over bytes (docs/rust-port.md, stage B3), without Python: the
 //! privacy check's candidates, the content-defined chunk starts, the chunk hashes, the length
 //! `json.dumps` gives, and the items of a saved JSON array. The PyO3 crate's `checkpoint.rs` reads
-//! the Python bytes and calls these, in parallel without the GIL where it did.
+//! the Python bytes and calls these, in parallel without the GIL where it did. Without the
+//! `parallel` feature (the wasm32 build), `sensitive_candidates` and `chunk_hashes` read their
+//! inputs one after another on the calling thread, with the same result.
 //!
 //! `candidates` reads a chunk's canonical JSON bytes and returns what the privacy check of
 //! `ProjectStore` must look at: the distinct object keys, and the distinct string values that its
@@ -17,6 +19,7 @@
 //! matches every Unicode decimal digit; a string with one of those is returned whatever else it
 //! holds (`char::is_numeric` covers more than `\d`).
 
+#[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use rustc_hash::FxHashSet;
 use sha2::{Digest, Sha256};
@@ -134,16 +137,25 @@ pub fn candidates(raw: &[u8]) -> std::result::Result<Candidates, String> {
     Ok((keys, strings))
 }
 
-/// The `candidates` of several JSON texts together, read in parallel.
+/// The `candidates` of several JSON texts together, read in parallel. The sets are the same
+/// in any order of reading; the order they iterate in is not part of the result (Python reads
+/// them as sets). Of several texts that can not be read, which one's error is returned is not
+/// fixed in parallel; read in order, it is the first one's.
 pub fn sensitive_candidates(raws: &[&[u8]]) -> std::result::Result<Candidates, String> {
-    raws.par_iter().map(|raw| candidates(raw)).try_reduce(
-        || (FxHashSet::default(), FxHashSet::default()),
-        |(mut keys, mut strings), (more_keys, more_strings)| {
-            keys.extend(more_keys);
-            strings.extend(more_strings);
-            Ok((keys, strings))
-        },
-    )
+    #[cfg(feature = "parallel")]
+    let read = raws.par_iter().map(|raw| candidates(raw)).try_reduce(Candidates::default, merge_candidates);
+    #[cfg(not(feature = "parallel"))]
+    let read = raws.iter().try_fold(Candidates::default(), |read, raw| merge_candidates(read, candidates(raw)?));
+    read
+}
+
+fn merge_candidates(
+    (mut keys, mut strings): Candidates,
+    (more_keys, more_strings): Candidates,
+) -> std::result::Result<Candidates, String> {
+    keys.extend(more_keys);
+    strings.extend(more_strings);
+    Ok((keys, strings))
 }
 
 /// A 64-bit hash of one item's bytes that decides content-defined chunk ends. It is part of
@@ -195,23 +207,27 @@ pub fn content_chunk_starts(items: &[&[u8]], average: u64, maximum: usize) -> Re
 }
 
 /// The SHA-256 hex digest of `[item,item,...]` for each chunk of items, computed in parallel
-/// without joining the items.
+/// without joining the items, in the chunks' order.
 pub fn chunk_hashes(chunks: &[Vec<&[u8]>]) -> Vec<String> {
-    chunks
-        .par_iter()
-        .map(|chunk| {
-            let mut hasher = Sha256::new();
-            hasher.update(b"[");
-            for (index, item) in chunk.iter().enumerate() {
-                if index > 0 {
-                    hasher.update(b",");
-                }
-                hasher.update(item);
-            }
-            hasher.update(b"]");
-            hex(&hasher.finalize())
-        })
-        .collect()
+    #[cfg(feature = "parallel")]
+    let hashes = chunks.par_iter().map(|chunk| chunk_hash(chunk)).collect();
+    #[cfg(not(feature = "parallel"))]
+    let hashes = chunks.iter().map(|chunk| chunk_hash(chunk)).collect();
+    hashes
+}
+
+/// The SHA-256 hex digest of `[item,item,...]`, without joining the items.
+pub fn chunk_hash(chunk: &[&[u8]]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"[");
+    for (index, item) in chunk.iter().enumerate() {
+        if index > 0 {
+            hasher.update(b",");
+        }
+        hasher.update(item);
+    }
+    hasher.update(b"]");
+    hex(&hasher.finalize())
 }
 
 /// Lowercase hex digits of bytes, as `hashlib`'s `hexdigest` writes them.

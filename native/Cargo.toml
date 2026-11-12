@@ -18,7 +18,9 @@ members = [".", "core"]
 iter_over_hash_type = "deny"
 
 [dependencies]
-sheltersim_core = { path = "core" }
+# The kernels use the core's helper threads: its default feature `parallel`, named here so that
+# the wrapper keeps it whatever the core's defaults become.
+sheltersim_core = { path = "core", features = ["parallel"] }
 pyo3 = { version = "0.23", features = ["extension-module", "abi3-py312"] }
 indexmap = "2"
 itoa = "1"

@@ -25,6 +25,28 @@ cd .. && PYTHONPATH=src:native/pylib SHELTERSIM_LLM_MODE=offline .venv/bin/pytho
 (random and edge-case floats, strings, structures, and optionally a saved
 Checkpoint document) and times them.
 
+## The core's feature `parallel` and the wasm32 build
+
+`sheltersim_core` has one feature, `parallel`, on by default. It brings in rayon for the
+helper threads of `parallel.rs` (`in_order`, `parts_in_order`) and the Checkpoint kernels of
+`checkpoint.rs` (`sensitive_candidates`, `chunk_hashes`). Without it, the same functions run
+on the calling thread, in the same parts and the same order, and give the same bytes
+(`sensitive_candidates` the same sets: their iteration order was never fixed, and Python reads
+them as sets); `parallel_state` is then `(0, 0)`. The wrapper names the feature in `native/Cargo.toml`, so the
+extension keeps its threads. The build for the browser (#132, #152) leaves the feature out:
+
+```shell
+rustup target add wasm32-unknown-unknown
+cargo build --manifest-path native/Cargo.toml -p sheltersim_core --target wasm32-unknown-unknown --no-default-features
+cargo test --manifest-path native/Cargo.toml -p sheltersim_core --no-default-features
+```
+
+CI's lint job runs these, after `cargo test -p sheltersim_core` with the feature.
+`core/tests/parallel.rs` compares both builds with one frozen digest, and
+`core/tests/no_platform.rs` fails if the core's source names `std::time`, `fs`, `env` or
+`thread` (they are missing on wasm32 and would tie results to the machine; `thread_local!`,
+`Mutex` and `OnceLock` work on one thread and are allowed).
+
 ## Layout for lanes
 
 - `core/` (`sheltersim_core`): the simulation core without Python (Issue #152,
