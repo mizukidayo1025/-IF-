@@ -171,7 +171,7 @@ M4 の資源と列のレーンが残したものを移しました。`resource_s
 - **RSS は測っていません。** `resource_service_v1` の履歴が行と木の両方にあるぶん増えます（7日分で約1万件の型付きの行）。
 - **イベントの連番：** 計画は予定のイベントの `sequence` を調べません（`QueueStore` に問い合わせがなく、列のレーンと同じです）。`validate` が `id_counters["event"]` は予定と記録の最大より大きいと確かめているので、検証の通った世界では起きません。起きたら `schedule` が Python と同じ型の `DuplicateEventError` を出します。
 - **`shortest` の順序：** `Arc<str>` の比較（バイト順）で Python の tuple の比較（コードポイント順）を置き換えています。UTF-8 では同じ順です。ASCII でない ID はテストしていません。
-- **`_physically_closed_edges`：** Rust は実効の間取りの `routes` を見ます。Python は生の設定の `routes` を見ます。ID が同じ前提で、`effective_geometry` は `routes` を変えません。`test_every_route_is_python_s_for_every_mobility` と影の範囲で確かめています。
+- **`_physically_closed_edges`：** Rust は実効の間取りの `routes` を見ます。Python は生の設定の `routes` を見ます。ID が同じ前提で、`effective_geometry` は `routes` を変えません。`test_every_route_is_python_s_for_every_mobility`（#225 で `native/core/tests/service_rules.rs` の `every_route_for_every_mobility` に移しました）と影の範囲で確かめています。
 - **`policy_version` ではなく `ShortestTravelTimePolicy` の型名で判断します。** 同じ名前の別のクラスには気づきません。
 - **`controller._route_rows` の属性：** グラフのオブジェクトが同じ間は読み直しません。`ZoneGraph` は frozen です。`edges` の中の値を書き換えるコードは `src/` にありません。（PR 7-3 で `_route_rows` はなくなり、`_refresh_space` が epoch を変えるまで読み直しません。）
 - **別名：** `world.model_state["resource_service_v1"]` は置き換えられなくなりました。`src/` で持ち続ける形は調べた範囲でありません。

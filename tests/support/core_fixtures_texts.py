@@ -14,7 +14,8 @@ pytest files of the same names built. This module builds those worlds and export
   with the Run's policies (`load::loaded` reads them, and `load::following_host` the world), and
   its variants: the EffectPrograms the tests schedule (built and validated with pydantic, as
   `schedule_effect_program` writes them into the world) and the floor plan with an arrival
-  approach route.
+  approach route; and the worlds of the requests at once of lane M6, with their `inputs`
+  (`core_fixtures_service.at_once_worlds`).
 - `handoff_texts.json`: the world where a patrol is under way and its handoff is scheduled.
 
 A variant is stored as the changes from its base world, as `core_texts.py` stores its worlds
@@ -32,6 +33,7 @@ from pathlib import Path
 from typing import Any
 
 from support.core_fixtures import export_world
+from support.core_fixtures_service import at_once_worlds
 from support.core_texts import changes
 
 
@@ -543,14 +545,19 @@ def _arrival_contracts() -> list[dict[str, Any]]:
 
 def generated_texts_fixture() -> dict[str, Any]:
     """`generated_texts.json`: the generated world, and the variants of the effect and population
-    tests."""
+    tests and of the requests at once, with the inputs of the requests at once."""
     base = _generated_world()
     generated = export_world(base, _controller(base))
     generated["population"] = _population_inputs(base)
     worlds: dict[str, Any] = {"generated": generated}
     for name, world in {**_effect_worlds(base), **_population_worlds(base)}.items():
         worlds[name] = variant("generated", generated, export_world(world, _controller(world)))
-    return {"worlds": worlds}
+    # The requests at once of lane M6 (`core_fixtures_service.at_once_worlds`).
+    plain = {key: value for key, value in generated.items() if key != "population"}
+    at_once, inputs = at_once_worlds(plain)
+    assert not set(at_once) & set(worlds)
+    worlds.update(at_once)
+    return {"worlds": worlds, "inputs": inputs}
 
 
 def handoff_texts_fixture() -> dict[str, Any]:
