@@ -6,10 +6,10 @@
 //! each entry has the world's canonical document at its minute, the slots its core owns, what the
 //! Run read of the controller (`RunCore.policies_document`), and the Python-parsed sections of its
 //! configs (`sections.rs`). `entry` reads one; `fixture` is the small world of
-//! `tests/support/core_tick.py` at minute 0 (`tick_core.json`). `world` builds the World the PyO3
-//! crate's core holds for a document: the scalars, the entity rows, one slot per owned name (the
-//! four fields with their rows, each namespace with the row its document has), the queue's events
-//! and the log's records. A namespace of `model_state` becomes its typed row where it has one
+//! `tests/support/core_tick.py` at minute 0 (`tick_core.json`'s `small_replay`). `world` builds the
+//! World the PyO3 crate's core holds for a document: the scalars, the entity rows, one slot per owned
+//! name (the four fields with their rows, each namespace with the row its document has), the queue's
+//! events and the log's records. A namespace of `model_state` becomes its typed row where it has one
 //! (`support/typed.rs`, each read with `Field::from_value`), and a `ValueRow` otherwise (the
 //! population's, the temporary spaces', the overlay's, and keys no lane owns).
 //!
@@ -17,6 +17,7 @@
 //! values, the faults and the dispatch table, as the PyO3 crate read them.
 
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use indexmap::IndexMap;
@@ -26,16 +27,19 @@ use sheltersim_core::config::{Fault, FaultClass};
 use sheltersim_core::entities::{
     AgentRow, EdgeRow, FacilityRow, NeedRow, ProfileRow, RequestRow, Skills, StaffRow, TaskRow, ZoneRow,
 };
+use sheltersim_core::error::Error;
 use sheltersim_core::events::log::EventLog;
 use sheltersim_core::events::queue::Queue;
 use sheltersim_core::events::{EventKind, EventRow, EventStatus};
+use sheltersim_core::geometry::{Geo, OverlayKey};
 use sheltersim_core::row::{IdMap, StrEnum, ValueRow};
 use sheltersim_core::rules::tick::{Seed, ZoneNeighbors};
 use sheltersim_core::run::dispatch::{Dispatch, Handler, HandlerKind, Native};
 use sheltersim_core::run::held::{Class, Held, Obj};
 use sheltersim_core::run::{Capacity, Policies, RouteCapacities, Run, RunConfig};
+use sheltersim_core::state::resource_ledger::RESOURCE_IDS;
 use sheltersim_core::value::V;
-use sheltersim_core::world::{self, Fit, Place, World};
+use sheltersim_core::world::{self, Fit, Place, World, WorldCell};
 
 /// A fixture file of `tests/data/` (`<name>.json`).
 pub fn data(name: &str) -> Value {
@@ -52,10 +56,13 @@ pub fn entry(file: &str, world: &str) -> Value {
     data["worlds"].get_mut(world).unwrap_or_else(|| panic!("{file} has no world {world}: {names:?}")).take()
 }
 
-/// The world of the core's tick test (`tick_core.json`).
+/// The small world of the core's tick test (`tick_core.json`'s `small_replay`).
 pub fn fixture() -> Value {
     entry("tick_core", "small_replay")
 }
+
+/// The overlay's namespace (`GEOMETRY_OVERLAY_KEY`).
+const OVERLAY: &str = "geometry_overlay_v1";
 
 fn text(value: &str) -> Arc<str> {
     Arc::from(value)
@@ -264,6 +271,22 @@ fn put_row<T: sheltersim_core::row::Row>(world: &mut World, name: &str, row: T) 
     slot.try_borrow_mut().unwrap().row = Some(Box::new(row));
 }
 
+/// `model_state[name] = value` in the World the PyO3 crate's core holds: the namespace's typed row
+/// where it has one (`support/typed.rs`; an owned namespace, whose slot the world has), and a
+/// `ValueRow` otherwise, in a slot of its own where the world has none.
+pub fn put_namespace(world: &mut World, name: &str, value: V) {
+    if let Some(row) = super::typed::typed_row(name, &value) {
+        let row = row.unwrap_or_else(|misfit| panic!("{name} does not fit its row: {}", misfit.0));
+        let slot = world.slots.get(name).unwrap_or_else(|| panic!("{name} has no slot"));
+        slot.try_borrow_mut().unwrap().row = Some(row);
+        return;
+    }
+    if world.slots.get(name).is_none() {
+        world.slots.add(text(name), Place::Value).unwrap();
+    }
+    put_row(world, name, ValueRow(value));
+}
+
 /// The World of a canonical document, with a slot for each owned name (`[name, is_field]`).
 pub fn world(document: &Value, slots: &Value) -> World {
     let mut world = World::default();
@@ -309,18 +332,7 @@ pub fn world(document: &Value, slots: &Value) -> World {
     put_row(&mut world, world::METRIC_STATE, metrics);
     put_row(&mut world, world::MODEL_CONFIGS, ValueRow(v(&document["model_configs"])));
     for (name, value) in document["model_state"].as_object().unwrap() {
-        let value = v(value);
-        if let Some(row) = super::typed::typed_row(name, &value) {
-            // An owned namespace: its slot is one of `slots`.
-            let row = row.unwrap_or_else(|misfit| panic!("{name} does not fit its row: {}", misfit.0));
-            let slot = world.slots.get(name).unwrap_or_else(|| panic!("{name} has no slot"));
-            slot.try_borrow_mut().unwrap().row = Some(row);
-            continue;
-        }
-        if world.slots.get(name.as_str()).is_none() {
-            world.slots.add(text(name), Place::Value).unwrap();
-        }
-        put_row(&mut world, name, ValueRow(value));
+        put_namespace(&mut world, name, v(value));
     }
     let mut queue = Queue::new();
     for item in document["event_queue"].as_array().unwrap() {
@@ -483,4 +495,66 @@ pub fn host(fixture: &Value) -> super::TestHost {
     super::sections::fill(&mut host, fixture);
     host.plan = super::sections::floor_plan(fixture).ok();
     host
+}
+
+/// `host` on the loaded world, for a Run's ticks (#214): it does what the PyO3 crate's host does to
+/// the Python world it owns (`Following`).
+pub fn following_host(fixture: &Value, loaded: &Rc<Loaded>) -> super::TestHost {
+    let mut host = host(fixture);
+    // What `plan_of` reads of the export: the sections and the configs.
+    let entry = serde_json::json!({
+        "sections": fixture["sections"].clone(),
+        "world": {"model_configs": fixture["world"]["model_configs"].clone()},
+    });
+    host.world = Some(Following { loaded: Rc::clone(loaded), entry, built: None, builds: 0 });
+    host
+}
+
+/// What a host does to the world it owns besides the core's writes, as the PyO3 crate's `PyHost`
+/// does to the Python world, on a loaded World (#214).
+pub struct Following {
+    loaded: Rc<Loaded>,
+    /// The sections and the configs of the export, which the plan is built from.
+    entry: Value,
+    /// The plan last built, and the overlay's key it was built for.
+    built: Option<(OverlayKey, Arc<Geo>)>,
+    builds: usize,
+}
+
+impl Following {
+    /// `Geo::of`: the plan of the world's overlay (`geometry_overlay_v1`) now, built again
+    /// (`sections::plan_of`) when the overlay's facility moves or partitions change (its
+    /// `OverlayKey`), so a tick that moves a facility walks on the new plan. An error is the refusal
+    /// `Geo::of` raises.
+    pub fn floor_plan(&mut self) -> Result<Arc<Geo>, Error> {
+        let overlay = self.loaded.cell.with(|world| world.slots.try_value(OVERLAY).map(|value| value.map(|value| value.clone())))??;
+        let key = OverlayKey::of(overlay.as_ref(), None)?;
+        if let Some((held, geo)) = &self.built {
+            if *held == key {
+                return Ok(geo.clone());
+            }
+        }
+        let geo = super::sections::plan_of(&self.entry, overlay.as_ref())?;
+        self.built = Some((key, geo.clone()));
+        self.builds += 1;
+        Ok(geo)
+    }
+
+    /// How many times `floor_plan` built the plan.
+    pub fn builds(&self) -> usize {
+        self.builds
+    }
+
+    /// `model_state[name] = value`: the namespace's row in the world (`put_namespace`), as the PyO3
+    /// crate's mirror gives its slot the row.
+    pub fn start_namespace(&self, name: &str, value: &V) -> Result<(), Error> {
+        self.loaded.cell.with(|world| put_namespace(world, name, value.clone()))
+    }
+
+    /// `replace_resources`: `world.resources` with `remaining` for `RESOURCE_IDS[index]`.
+    pub fn resources_changed(&self, index: usize, remaining: i64) -> Result<(), Error> {
+        self.loaded.cell.with(|world| world.row_mut::<IdMap<i64>>(world::RESOURCES).map(|mut resources| {
+            resources.insert(text(RESOURCE_IDS[index]), remaining);
+        }))?
+    }
 }
