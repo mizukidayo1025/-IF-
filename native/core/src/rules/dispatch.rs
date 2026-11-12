@@ -405,6 +405,21 @@ pub fn settle_alone<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H,
     settle(tick, row, status, detail)
 }
 
+/// `handler.apply(world, event)` of a handler the core runs, called alone as the PyO3 crate's
+/// entry of its kind calls it: the kernel `apply_native` runs for the dispatcher, with no guard, no
+/// settle, no record appended and no count (for the core's tests, Issue #225). None where it
+/// applied; else the outcome it raised, its status and `str(exc)`. A refusal is the handler's, as
+/// the dispatcher labels it.
+pub fn apply_alone<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>, native: &Native, row: &EventRow) -> std::result::Result<Option<(EventStatus, String)>, H::Error>
+where
+    H::Error: From<WriteError>,
+{
+    Ok(match handled(label_of(native.kind), apply_native(tick, native, row))? {
+        Handled::Applied { .. } => None,
+        Handled::Outcome(status, text) => Some((status, text)),
+    })
+}
+
 /// What the queue holds of this ID now: None when it left, else its row (None for an object no
 /// row holds).
 fn current<C: WorldCell, H: Host, R: RunCell>(tick: &Tick<'_, C, H, R>, event_id: &str) -> std::result::Result<Option<Option<Arc<EventRow>>>, H::Error> {

@@ -27,6 +27,7 @@
 
 mod support;
 
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -35,7 +36,6 @@ use sheltersim_core::checkpoint::sha256_hex;
 use sheltersim_core::config::movement::RouteCapacities;
 use sheltersim_core::config::overlay::overlay_schema;
 use sheltersim_core::config::SectionId;
-use sheltersim_core::entities::{EntityRow, Table};
 use sheltersim_core::error::{Error, Result};
 use sheltersim_core::host::Phase;
 use sheltersim_core::json::Encoder;
@@ -47,6 +47,7 @@ use sheltersim_core::rules::tick::{self, Tick};
 use sheltersim_core::state::movement::MovementRow;
 use sheltersim_core::world::{Fit, Place, World, WorldCell, MODEL_CONFIGS};
 
+use support::canonical;
 use support::load::{self, Loaded};
 use support::{Call, TestHost};
 
@@ -138,102 +139,39 @@ fn run(loaded: &Loaded, host: &mut TestHost, ticks: i64, after: &mut dyn FnMut(&
 
 // ---- Digests of the world, as `tests/support/core_tick.py` writes them -----------------------------
 
-fn table<R: EntityRow>(table: &Table<R>, version: i64) -> Vec<u8> {
-    let mut rows: Vec<&R> = table.iter().map(|(_, row)| row).collect();
-    rows.sort_by(|first, second| first.id().as_bytes().cmp(second.id().as_bytes()));
-    let mut encoder = Encoder::with_capacity(1024);
-    encoder.out.push(b'[');
-    for (index, row) in rows.into_iter().enumerate() {
-        if index > 0 {
-            encoder.out.push(b',');
-        }
-        row.write_json(&mut encoder, version).unwrap();
-    }
-    encoder.out.push(b']');
-    encoder.out
-}
-
-fn slot_json(world: &World, name: &str) -> Vec<u8> {
-    let slot = world.slots.get(name).unwrap().try_borrow().unwrap();
-    let mut encoder = Encoder::with_capacity(256);
-    slot.row.as_deref().unwrap_or_else(|| panic!("{name} has no row")).write_json(&mut encoder).unwrap();
-    encoder.out
-}
-
-/// The canonical JSON of each part of the world, by the names of `PARTS` in `core_tick.py`.
+/// The canonical JSON of each part of the world, by the names of `PARTS` in `core_tick.py`: the
+/// document's parts (`support/canonical.rs`), and the scalars as one list.
 fn parts(world: &World) -> Vec<(&'static str, Vec<u8>)> {
-    let version = world.schema_version().unwrap();
-    let rows = world.rows().unwrap();
-    let mut parts = vec![
-        ("agents", table(&rows.agents, version)),
-        ("zones", table(&rows.zones, version)),
-        ("zone_edges", table(&rows.zone_edges, version)),
-        ("facilities", table(&rows.facilities, version)),
-        ("staff", table(&rows.staff, version)),
-        ("support_requests", table(&rows.support_requests, version)),
-        ("active_tasks", table(&rows.active_tasks, version)),
-        ("resources", slot_json(world, "resources")),
-    ];
-    drop(rows);
-    let queue = world.queue().unwrap();
-    let mut encoder = Encoder::with_capacity(1024);
-    encoder.out.push(b'[');
-    for (index, (_, serial)) in queue.ordered().iter().enumerate() {
+    let mut all: HashMap<&'static str, Vec<u8>> = canonical::parts(world).into_iter().collect();
+    let mut take = |name: &str| all.remove(name).unwrap_or_else(|| panic!("no part {name}"));
+    let mut parts: Vec<(&'static str, Vec<u8>)> = [
+        "agents",
+        "zones",
+        "zone_edges",
+        "facilities",
+        "staff",
+        "support_requests",
+        "active_tasks",
+        "resources",
+        "event_queue",
+        "event_log",
+        "id_counters",
+        "metric_state",
+        "model_configs",
+        "model_state",
+    ]
+    .into_iter()
+    .map(|name| (name, take(name)))
+    .collect();
+    let mut scalars = vec![b'['];
+    for (index, name) in ["schema_version", "scenario_id", "seed", "duration_minutes", "minute_index"].into_iter().enumerate() {
         if index > 0 {
-            encoder.out.push(b',');
+            scalars.push(b',');
         }
-        queue.slot(*serial).row.as_ref().expect("an event with its row").write_json(&mut encoder).unwrap();
+        scalars.extend_from_slice(&take(name));
     }
-    encoder.out.push(b']');
-    parts.push(("event_queue", encoder.out));
-    let log = world.log().unwrap();
-    let mut written = vec![b'['];
-    for index in 0..log.len() {
-        if index > 0 {
-            written.push(b',');
-        }
-        written.extend_from_slice(log.written(index).expect("a record's bytes"));
-    }
-    written.push(b']');
-    parts.push(("event_log", written));
-    parts.push(("id_counters", slot_json(world, "id_counters")));
-    parts.push(("metric_state", slot_json(world, "metric_state")));
-    parts.push(("model_configs", slot_json(world, "model_configs")));
-    let mut names: Vec<&Arc<str>> = world
-        .slots
-        .names()
-        .filter(|name| {
-            let slot = world.slots.get(name).unwrap().try_borrow().unwrap();
-            slot.place != Place::Field && slot.row.is_some()
-        })
-        .collect();
-    names.sort_by(|first, second| first.as_bytes().cmp(second.as_bytes()));
-    let mut encoder = Encoder::with_capacity(256);
-    encoder.out.push(b'{');
-    for (index, name) in names.into_iter().enumerate() {
-        if index > 0 {
-            encoder.out.push(b',');
-        }
-        encoder.string(name);
-        encoder.out.push(b':');
-        encoder.out.extend_from_slice(&slot_json(world, name));
-    }
-    encoder.out.push(b'}');
-    parts.push(("model_state", encoder.out));
-    let scalars = world.scalars().unwrap();
-    let mut encoder = Encoder::with_capacity(64);
-    encoder.out.push(b'[');
-    encoder.int(scalars.schema_version().unwrap());
-    encoder.out.push(b',');
-    encoder.string(scalars.scenario_id().unwrap());
-    encoder.out.push(b',');
-    encoder.out.extend_from_slice(scalars.seed().unwrap().text.as_bytes());
-    encoder.out.push(b',');
-    encoder.int(scalars.duration_minutes().unwrap());
-    encoder.out.push(b',');
-    encoder.int(scalars.minute_index().unwrap());
-    encoder.out.push(b']');
-    parts.push(("scalars", encoder.out));
+    scalars.push(b']');
+    parts.push(("scalars", scalars));
     parts
 }
 
