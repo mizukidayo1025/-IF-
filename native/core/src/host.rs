@@ -23,6 +23,7 @@ use indexmap::IndexMap;
 
 use crate::config::{Configs, Filled, SectionId};
 use crate::error::Error;
+use crate::events::writer::WriteError;
 use crate::events::{EventRow, EventStatus};
 use crate::geometry::Geo;
 use crate::mathx::MathError;
@@ -373,6 +374,30 @@ pub const NO_DRAW: &str = "not a CounterRNG";
 pub const NO_RECORDS: &str = "the host has no records";
 /// The text of a host that cannot read the floor plan (`Host::floor_plan`).
 pub const NO_PLAN: &str = "the host has no floor plan";
+/// The text of a host that cannot start a namespace in `model_state` (`Host::start_namespace`).
+pub const NO_NAMESPACE: &str = "the host starts no namespace";
+/// The text of a host whose sink samples no metrics itself (`Host::capture_by_sink`).
+pub const NO_SINK: &str = "the host has no sink that samples";
+
+// ---- What a tick's phases 2-6 ask of the host (lane P9-2a) ----------------------------------------
+
+/// A read of Python to make again, for the error it raised (policy E14).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Again<'a> {
+    /// The section's parse, as its read site parses it.
+    Section(SectionId),
+    /// The controller's attributes along this path (`controller.psychology.source_id`).
+    Policy(&'a [&'a str]),
+}
+
+/// Where a minute's metrics go (`Host::metric_sink`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MetricSink {
+    /// A `MetricsRecorder` the sink holds, whose `capture` is the sink's: it takes the core's sample.
+    Recorder,
+    /// Any other sink: `artifacts.capture_metric(world, minute=)` samples on its own.
+    Sink,
+}
 
 /// The outside of the world. Each call runs with nothing of the world borrowed (rule R6).
 pub trait Host {
@@ -555,6 +580,60 @@ pub trait Host {
     /// Its `ValueError` is the event's failure. A host without the Python rule refuses.
     fn upgrade_information_state(&mut self) -> Result<(), Self::Error> {
         Err(Error::unsupported(crate::rules::information_events::OLDER_STATE).into())
+    }
+
+    // ---- A tick's phases 2-6 in the core (lane P9-2a) ------------------------------------------------
+
+    /// The rows of the pending events Python scheduled, read before a rule reads the whole queue
+    /// (H6 of design-p9.md). A host without Python has nothing to read.
+    fn read_queue_rows(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    /// A write's error as the host raises it: the core's error, or a duplicate event (the native
+    /// host's `DuplicateEventError`; a `RuntimeError` here, which a world the checks let through
+    /// never has).
+    fn write_error(&self, error: WriteError) -> Self::Error {
+        match error {
+            WriteError::Error(error) => error.into(),
+            WriteError::Duplicate(text) => Error::Runtime(text).into(),
+        }
+    }
+
+    /// `world.model_configs` as a value while it is a dict the world's slot does not hold (assigned
+    /// whole), for a rule that reads the configs past their sections; None while the slot holds it.
+    fn configs_given(&mut self) -> Result<Option<V>, Self::Error> {
+        Ok(None)
+    }
+
+    /// Make a read of Python again whose fault a rule raises (policy E14): its error, or Ok where
+    /// it raises nothing now. A host without Python has nothing to read again.
+    fn read_again(&mut self, _again: Again<'_>) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    /// `world.resources` took `remaining` for `RESOURCE_IDS[index]` (an operation of the ledger): the
+    /// native host gives the field a new dict, as the Python rule did.
+    fn resources_changed(&mut self, _index: usize, _remaining: i64) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    /// `model_state[name] = value` for a namespace a rule starts (the social model's first tick, as
+    /// the deleted Python rule stored it), before the rule writes its row. What the world holds
+    /// changes, so a rule asks for the holding again after it.
+    fn start_namespace(&mut self, _name: &str, _value: &V) -> Result<(), Self::Error> {
+        Err(Error::unsupported(NO_NAMESPACE).into())
+    }
+
+    /// Where this minute's metrics go, read at each tick (a test may put its own `capture_metric`
+    /// on the sink).
+    fn metric_sink(&mut self) -> Result<MetricSink, Self::Error> {
+        Ok(MetricSink::Recorder)
+    }
+
+    /// `artifacts.capture_metric(world, minute=)` of a sink that samples on its own.
+    fn capture_by_sink(&mut self, _minute: i64) -> Result<(), Self::Error> {
+        Err(Error::unsupported(NO_SINK).into())
     }
 
     // ---- A test's hook ---------------------------------------------------------------------------

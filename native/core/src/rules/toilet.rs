@@ -718,3 +718,128 @@ pub fn complete(world: &World, event: &EventRow, queues: &Held, geo: &Geo, body:
     }
     Ok(ScheduleReturn)
 }
+
+// ---- arbitrate (lane P9-2a: the tick driver's loop, moved from the PyO3 crate) ---------------------
+
+/// `ToiletServiceManager.arbitrate` of the tick: each facility with anyone queued, in ID order; a
+/// facility with independent queues serves each of them (`_arbitrate_independent_facility`), any
+/// other its shared queue while it has room. Nothing reads what it returns here, so the started
+/// events are not looked up. The manager is the controller's, of the class the driver was installed
+/// with (the driver refused another before the tick began).
+pub fn arbitrate<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(tick: &mut crate::rules::tick::Tick<'_, C, H, R>) -> crate::rules::tick::Step<(), H::Error> {
+    use crate::rules::tick::Labelled;
+    let due = facilities_of(tick).at("toilet.facilities_to_serve")?;
+    for id in due {
+        if let Some(queues) = tick.independent_queues(&id)? {
+            arbitrate_independent(tick, &id, &queues)?;
+            continue;
+        }
+        tick.prepare_queue(&id, false)?;
+        loop {
+            let room = room_of(tick, &id).at("toilet.has_room")?;
+            if !room || tick.progress(&id, false, false, None)? || tick.progress(&id, false, true, None)? {
+                break;
+            }
+            if start_of(tick, &id, None).at("toilet.start_head")? == Started::Stopped {
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// `_arbitrate_independent_facility`: each queue, with the check of its signed point.
+fn arbitrate_independent<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(
+    tick: &mut crate::rules::tick::Tick<'_, C, H, R>,
+    id: &str,
+    queues: &[Arc<str>],
+) -> crate::rules::tick::Step<(), H::Error> {
+    use crate::rules::tick::Labelled;
+    for queue in queues {
+        tick.prepare_independent(queue, false)?;
+        tick.check_signed_point(queue, "service")?;
+        while tick.queue_has_people(queue)? {
+            if tick.progress(id, false, false, Some(queue))? {
+                break;
+            }
+            if start_of(tick, id, Some(queue)).at("toilet.serve_independent_head")? == Started::Stopped {
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// `facilities_to_serve` of the manager's world.
+fn facilities_of<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(tick: &mut crate::rules::tick::Tick<'_, C, H, R>) -> std::result::Result<Vec<Arc<str>>, H::Error> {
+    let holding = tick.holding()?;
+    let queues = holding.held("facility_queues_v1", "the world holds another queue state");
+    tick.cell.with(|world| facilities_to_serve(world, &queues)).and_then(|due| due).map_err(H::Error::from)
+}
+
+/// `has_room` of the tick (`toilet.has_room`).
+fn room_of<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(tick: &mut crate::rules::tick::Tick<'_, C, H, R>, id: &str) -> std::result::Result<bool, H::Error> {
+    let holding = tick.holding()?;
+    if !holding.table {
+        return Err(Error::unsupported("a value is not a plain dict").into());
+    }
+    let queues = holding.held("facility_queues_v1", "the world holds another queue state");
+    let placement = tick.placement()?;
+    tick.cell.with(|world| has_room(world, &queues, placement.as_deref(), id)).and_then(|room| room).map_err(H::Error::from)
+}
+
+/// A pass of the loop after the positions (`start_one` of the toilet's glue): the manager's
+/// durations and policy as the Run read them, the tick's random source.
+fn start_of<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(
+    tick: &mut crate::rules::tick::Tick<'_, C, H, R>,
+    facility_id: &str,
+    queue_id: Option<&str>,
+) -> std::result::Result<Started, H::Error> {
+    use crate::rules::tick::Seed;
+    use crate::run::held::Held as Read;
+    let minute = tick.minute;
+    let random = match &tick.seed {
+        Seed::Counter { text: Some(text), .. } => Rng::Seed(text.to_string()),
+        Seed::Counter { text: None, .. } => return Err(Error::unsupported("a value is not an int").into()),
+        Seed::Other => Rng::Host,
+    };
+    let policies = tick.policies.clone();
+    let manager = match policies.services.toilet.object() {
+        Ok(manager) => manager,
+        Err(fault) => return Err(tick.policy_error(&["toilet_service"], &fault)),
+    };
+    let int = |name: &str| -> Result<i64> {
+        match manager.get(name) {
+            Ok(Read::Value(V::Int(value))) => Ok(*value),
+            _ => Err(Error::unsupported("a value is not an int")),
+        }
+    };
+    let lowest = int("min_service_minutes")?;
+    let highest = int("max_service_minutes")?;
+    let policy = match manager.get("policy_version") {
+        Ok(Read::Value(V::Str(text))) => text.clone(),
+        _ => return Err(Error::unsupported("a value is not a str").into()),
+    };
+    let holding = tick.holding()?;
+    let queues = holding.held("facility_queues_v1", "the world holds another queue state");
+    let geo = tick.host.floor_plan()?;
+    let walking = match queue_id {
+        Some(_) => tick.walking(true)?,
+        None => None,
+    };
+    let walk = walking.as_ref().map(|walking| walking.walk());
+    let pass = Start {
+        facility_id,
+        minute,
+        queue_id,
+        lowest,
+        highest,
+        policy,
+        rng: &random,
+        queues: &queues,
+        geo: &geo,
+        walk: walk.as_ref(),
+        metric_state_held: holding.field(crate::world::METRIC_STATE),
+    };
+    start(tick.cell, tick.host, &pass)
+}
