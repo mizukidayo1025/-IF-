@@ -117,8 +117,10 @@ class Fixture:
     def add(self, name: str, entry: dict[str, Any], *, full: bool = False) -> str:
         """Add an entry of `export_world` (which a builder may have changed), as `world` does."""
         entry = json.loads(json.dumps(entry))
+        # Compared as text: `==` takes True for 1 and 1 for 1.0.
+        text = json.dumps(entry, sort_keys=True)
         for known, other in self.entries.items():
-            if other == entry:
+            if json.dumps(other, sort_keys=True) == text:
                 return known
         assert name not in self.entries, name
         if full:
