@@ -299,7 +299,8 @@ split PR by PR; its last section sums up what is where.
   `tests/resource_service_texts.rs`, `tests/effect_program_texts.rs` and `tests/population_texts.rs`
   check the texts the service's, the EffectProgram handlers' and the population's rules save, on
   the worlds of the pytest files of the same names, with the world unchanged where a check comes
-  before any write.
+  before any write; `tests/staff_rules.rs` checks the staff's rules of a tick and the shared
+  operations' receipts on the worlds of `tests/data/staff_rules.json`.
   The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,
