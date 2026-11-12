@@ -217,12 +217,6 @@ impl<'py> PyHost<'py> {
         self
     }
 
-    /// With the handler `apply_foreign` hands an event to (lane P9-1a).
-    pub(crate) fn with_handler(mut self, handler: &Bound<'py, PyAny>) -> Self {
-        self.handler = Some(handler.clone());
-        self
-    }
-
     /// On this world rather than the controller's (the dispatch phase's, lane P9-1c).
     pub(crate) fn on_world(mut self, world: &Bound<'py, PyAny>) -> Self {
         self.world = world.clone();
