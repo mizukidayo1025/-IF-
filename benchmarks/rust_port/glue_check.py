@@ -78,11 +78,6 @@ DENY: Mapping[str, str] = {
 CLOSURE = "with_world block"
 
 # Why a finding stays (the categories of the exemptions below).
-ENTRY = (
-    "a Python entry (the phase path of policy E10, the tests, a Python caller) reads what the world"
-    " holds or a section per call; the tick's core reads the same through Host (H1, H2) since"
-    " P9-1a/P9-2a/P9-3a. Moving the entry onto the core's readers is P10 work"
-)
 SECTION = (
     "H2/E15: the Python parse of a config section (its contract or factory), which"
     " PyHost::fill_section and read_again run at the read site's first read"
@@ -99,10 +94,6 @@ ACTIONS = (
     "the open actions' store (`ActiveActions`, a pyclass) lent as the Run's rows for one core call"
 )
 E10 = "E10: the checks before anything changes, which send a tick to the phase path"
-BLOCK = (
-    "a Python entry's closure that runs several core calls on one borrow (the entry's own order);"
-    " a single core function for it is P10 work"
-)
 KPI = (
     "`operational_kpi_values` (inspection traces, not a tick step) still reads the rows in the"
     " PyO3 crate; moving it to the core is P10 work"
@@ -113,7 +104,6 @@ HOOK = "a Python hook a test or a caller set (H4/H5): its own `after_complete`, 
 EXEMPTIONS: Mapping[tuple[str, str], tuple[int, str]] = {
     ("action_lifecycle.rs", "with_rows"): (6, ACTIONS),
     ("action_lifecycle.rs", "EventWriter"): (3, QUEUE),
-    ("agent_dynamics.rs", "configs::kept"): (1, ENTRY),
     ("behavior.rs", "raw_setattr"): (1, CONVERSION + " (`object.__new__` and its `__dict__`)"),
     ("behavior.rs", "python call"): (2, CONVERSION + " (`ActionKind` members, `object.__new__`)"),
     ("body_state.rs", "configs::kept"): (1, SECTION),
@@ -128,15 +118,10 @@ EXEMPTIONS: Mapping[tuple[str, str], tuple[int, str]] = {
     ("decisions.rs", "python call"): (4, HOOK + ": a proposal Python made, and a Python sink (H5)"),
     ("dispatch.rs", "with_rows"): (1, E10),
     ("dispatch.rs", "EventWriter"): (1, E10),
-    ("effects.rs", "namespace_held"): (1, ENTRY),
     ("effects.rs", "configs::kept"): (1, SECTION),
     ("effects.rs", "python call"): (2, SECTION + " (`ScenarioZoneEnvironmentConfig`)"),
     ("facility_queues.rs", "EventWriter"): (1, QUEUE),
-    ("facility_queues.rs", "namespace_held"): (1, ENTRY),
-    ("facility_queues.rs", "configs::kept"): (1, ENTRY),
     ("facility_queues.rs", "python call"): (1, CONVERSION + " (a copy of the request's record)"),
-    ("facility_queues.rs", "with_world block"): (1, BLOCK),
-    ("handlers.rs", "namespace_held"): (1, ENTRY),
     ("handlers.rs", "configs::kept"): (3, SECTION),
     ("handlers.rs", "python call"): (7, SECTION + "; and `EventLogRecord` for a Python caller"),
     ("information_events.rs", "configs::kept"): (1, SECTION),
@@ -149,53 +134,23 @@ EXEMPTIONS: Mapping[tuple[str, str], tuple[int, str]] = {
     ("metrics.rs", "py_sum"): (1, KPI),
     ("metrics.rs", "namespace_is_absent"): (1, KPI),
     ("metrics.rs", "python call"): (1, CONVERSION + " (`MetricSnapshot`)"),
-    ("movement.rs", "mirror_of"): (1, ENTRY),
-    ("movement.rs", "namespace_held"): (2, ENTRY),
-    ("movement.rs", "configs::kept"): (1, ENTRY),
     ("movement.rs", "python call"): (4, CONVERSION + " (`Point2D`, `ZoneRoute`)"),
-    ("overlay.rs", "entities_of"): (1, ENTRY + " (whether the entities follow every map)"),
-    ("overlay.rs", "EntityStore::"): (1, ENTRY + " (whether the entities follow every map)"),
-    ("overlay.rs", "namespace_held"): (5, ENTRY),
-    ("overlay.rs", "configs::kept"): (4, ENTRY),
-    ("overlay.rs", "with_world block"): (1, BLOCK),
-    ("population.rs", "namespace_held"): (1, ENTRY),
-    ("population.rs", "configs::kept"): (1, SECTION),
     ("population.rs", "python call"): (2, ARGUMENT),
-    ("population.rs", "with_world block"): (1, BLOCK + " (an E6 validator's read)"),
     ("population_lifecycle.rs", "EventWriter"): (1, QUEUE),
     ("population_lifecycle.rs", "configs::kept"): (1, SECTION),
     ("population_lifecycle.rs", "python call"): (
         2,
         SECTION + " (`PopulationPresenceCommand`, E15)",
     ),
-    ("proposals.rs", "namespace_held"): (5, ENTRY),
-    ("proposals.rs", "field_held"): (1, ENTRY),
-    ("proposals.rs", "namespace_is_absent"): (1, ENTRY),
-    ("proposals.rs", "configs::kept"): (3, ENTRY),
-    ("psychology.rs", "namespace_held"): (1, ENTRY),
-    ("psychology.rs", "field_held"): (1, ENTRY),
     ("psychology.rs", "python call"): (2, CONVERSION + " (`AgentStateDelta`, the result)"),
-    ("queues.rs", "namespace_held"): (1, ENTRY),
-    ("queues.rs", "field_held"): (2, ENTRY),
-    ("queues.rs", "configs::kept"): (1, ENTRY),
-    ("resources.rs", "namespace_is_absent"): (1, ENTRY),
     ("service.rs", "EventWriter"): (1, QUEUE),
-    ("service.rs", "namespace_held"): (3, ENTRY),
-    ("service.rs", "field_held"): (1, ENTRY),
-    ("service.rs", "configs::kept"): (2, ENTRY),
     ("service.rs", "python call"): (2, QUEUE + "; and `ResourceRequestReceipt` (conversion)"),
     ("social_dialogue.rs", "python call"): (1, ARGUMENT),
     ("social_propagation.rs", "python call"): (1, CONVERSION + " (`AgentStateDelta`)"),
     ("staff.rs", "EventWriter"): (1, QUEUE),
-    ("staff.rs", "namespace_held"): (1, ENTRY),
-    ("staff.rs", "field_held"): (1, ENTRY),
-    ("staff.rs", "namespace_is_absent"): (4, ENTRY),
-    ("staff.rs", "configs::kept"): (3, ENTRY + "; and the staff operations' formula (H2)"),
+    ("staff.rs", "configs::kept"): (1, SECTION + " (the staff operations' formula)"),
     ("staff.rs", "python call"): (1, SECTION + " (`create_staff_operations_formula`)"),
-    ("staff_dynamics.rs", "namespace_is_absent"): (5, ENTRY),
-    ("staff_dynamics.rs", "configs::kept"): (1, ENTRY),
     ("staff_operation_events.rs", "EventWriter"): (1, QUEUE),
-    ("staff_operation_events.rs", "with_world block"): (3, BLOCK),
     ("support.rs", "EventWriter"): (2, QUEUE),
     ("support.rs", "configs::kept"): (1, SECTION),
     ("support.rs", "python call"): (
@@ -204,19 +159,11 @@ EXEMPTIONS: Mapping[tuple[str, str], tuple[int, str]] = {
         " care formula's factory (H2)",
     ),
     ("tick.rs", "with_rows"): (1, E10),
-    ("toilet.rs", "namespace_held"): (1, ENTRY),
-    ("toilet.rs", "field_held"): (2, ENTRY),
-    ("toilet.rs", "configs::kept"): (1, ENTRY),
     ("toilet.rs", "python call"): (2, HOOK + "; and `ToiletRequestReceipt` (conversion)"),
-    ("toilet.rs", "with_world block"): (1, BLOCK),
-    ("travel.rs", "namespace_held"): (2, ENTRY),
-    ("travel.rs", "configs::kept"): (1, ENTRY),
     ("travel.rs", "python call"): (1, CONVERSION + " (`ZoneRoute`)"),
     ("travel_completion.rs", "EventWriter"): (1, QUEUE),
     ("travel_completion.rs", "python call"): (2, HOOK + " (a manager's own `request`, H4)"),
     ("world_view.rs", "raw_setattr"): (1, CONVERSION + " (`object.__new__` and its `__dict__`)"),
-    ("world_view.rs", "field_held"): (1, ENTRY),
-    ("world_view.rs", "configs::kept"): (1, SECTION),
     ("world_view.rs", "python call"): (3, CONVERSION + "; a view Python made (argument); H2"),
     ("zone_environment.rs", "python call"): (
         3,
