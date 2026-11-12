@@ -33,6 +33,7 @@ use sheltersim_core::events::queue::Queue;
 use sheltersim_core::events::{EventKind, EventRow, EventStatus};
 use sheltersim_core::geometry::{Geo, OverlayKey};
 use sheltersim_core::row::{IdMap, StrEnum, ValueRow};
+use sheltersim_core::rules::common_operations::Logged;
 use sheltersim_core::rules::tick::{Seed, ZoneNeighbors};
 use sheltersim_core::run::dispatch::{Dispatch, Handler, HandlerKind, Native};
 use sheltersim_core::run::held::{Class, Held, Obj};
@@ -498,7 +499,8 @@ pub fn host(fixture: &Value) -> super::TestHost {
 }
 
 /// `host` on the loaded world, for a Run's ticks (#214): it does what the PyO3 crate's host does to
-/// the Python world it owns (`Following`).
+/// the Python world it owns (`Following`), and finds the records of the world's log as it is at each
+/// call (`Following::find_record`, #225 lane M9).
 pub fn following_host(fixture: &Value, loaded: &Rc<Loaded>) -> super::TestHost {
     let mut host = host(fixture);
     // What `plan_of` reads of the export: the sections and the configs.
@@ -549,6 +551,23 @@ impl Following {
     /// crate's mirror gives its slot the row.
     pub fn start_namespace(&self, name: &str, value: &V) -> Result<(), Error> {
         self.loaded.cell.with(|world| put_namespace(world, name, value.clone()))
+    }
+
+    /// `event_log.find`: the record of an event in the world's log now, read back from the bytes
+    /// the log wrote of it, as the native host finds a record the Python world's log holds (the
+    /// ones a rule wrote in the same call too).
+    pub fn find_record(&self, event_id: &str) -> Result<Option<Logged>, Error> {
+        self.loaded.cell.with(|world| -> Result<Option<Logged>, Error> {
+            let log = world.log()?;
+            for index in 0..log.len() {
+                let record: Value = serde_json::from_slice(log.written(index).expect("a record's bytes")).unwrap();
+                if record["event"]["event_id"] == event_id {
+                    let status = EventStatus::parse(record["status"].as_str().unwrap()).unwrap();
+                    return Ok(Some(Logged { status, realized_minute: i(&record, "realized_minute"), event: event(&record["event"]) }));
+                }
+            }
+            Ok(None)
+        })?
     }
 
     /// `replace_resources`: `world.resources` with `remaining` for `RESOURCE_IDS[index]`.

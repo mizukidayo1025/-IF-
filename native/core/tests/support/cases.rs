@@ -2,9 +2,10 @@
 //! #225, lane M1; `tests/support/core_texts.py` writes the files).
 //!
 //! A world of such a file is an exported world, or a variant of another world of the same file
-//! (`{"base": name, "changes": [...]}`): `entry` (`resolve` of a file read already) makes the
-//! entry again, applying each change in order (`["set", path, value]`, where an index one past a
-//! list's end appends, and `["del", path]`). A case is one event for one handler of one world: the
+//! (`{"base": name, "changes": [...]}`) or of another file (`{"file": stem, "base": name, ...}`,
+//! lane M8): `entry` (`resolve` of a file read already) makes the entry again, applying each
+//! change in order (`["set", path, value]`, where an index one past a list's end appends, and
+//! `["del", path]`). A case is one event for one handler of one world: the
 //! outcome the Python rule raised (`[class, text]`), or `after`, the world it left when the event
 //! applied. `check` runs the core's handler (`dispatch::apply_alone`, the kernel the handler's
 //! PyO3 entry calls) on a fresh load of the world with its host (`load::loaded`, and `host`:
@@ -40,7 +41,10 @@ pub fn resolve(worlds: &Value, name: &str) -> Value {
     let Some(base) = world.get("base") else {
         return world.clone();
     };
-    let mut entry = resolve(worlds, base.as_str().unwrap());
+    let mut entry = match world.get("file") {
+        Some(file) => self::entry(file.as_str().unwrap(), base.as_str().unwrap()),
+        None => resolve(worlds, base.as_str().unwrap()),
+    };
     for change in world["changes"].as_array().unwrap() {
         apply(&mut entry, change);
     }

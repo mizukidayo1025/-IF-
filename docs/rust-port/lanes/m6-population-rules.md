@@ -11,7 +11,7 @@
   - 履歴の上限（どちらも 20,000件）、再試行の上限（1,440回）、部屋の人との距離（0.5 m）
   - 壊れた状態を断ること
 - **Rust の行の網羅は測っていません。** 下の数は kernel ごとの回数で、枝ごとではありません。`apply_presence_action` の動作ごとの内訳も数えていません。
-- ゲートのシナリオは足していません（fixture は変わりません）。テスト `tests/unit/domain/test_population_rules.py` が、ゲートの届かないところを同じ方法で比べます。
+- ゲートのシナリオは足していません（fixture は変わりません）。テスト `tests/unit/domain/test_population_rules.py` が、ゲートの届かないところを同じ方法で比べます（#225で、入口ごとの1件と境界のテストのほかは中核の`native/core/tests/population_rules.rs`に移しました）。
 
 ## 形
 

@@ -15,7 +15,7 @@
 //! toilet; each with the Run's policies (the manager's config, the dispatch table). The edits of
 //! each case are made here, as the pytest file made them in Python. The pytest file keeps one test
 //! of each Python entry: its request is the one no independent queue takes, on a floor plan of its
-//! own, and its request at once is the propose step's, whose inputs the core reads inside its tick.
+//! own. The propose step's request at once the queue turns down is in `requests_at_once.rs`.
 
 mod support;
 
