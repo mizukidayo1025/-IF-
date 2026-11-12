@@ -14,7 +14,8 @@ pytest files of the same names built. This module builds those worlds and export
   with the Run's policies (`load::loaded` reads them, and `load::following_host` the world), and
   its variants: the EffectPrograms the tests schedule (built and validated with pydantic, as
   `schedule_effect_program` writes them into the world) and the floor plan with an arrival
-  approach route.
+  approach route; and the worlds of the requests at once of lane M6, with their `inputs`
+  (`core_fixtures_service.at_once_worlds`).
 - `handoff_texts.json`: the world where a patrol is under way and its handoff is scheduled.
 
 A variant is stored as the changes from its base world, as `core_texts.py` stores its worlds

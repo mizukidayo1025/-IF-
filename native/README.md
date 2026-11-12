@@ -281,7 +281,9 @@ split PR by PR; its last section sums up what is where.
   directly: the canonical text of a world in a cell, the outcome a rule raised, and events
   changed as the pytest files changed them. `answers.rs`
   chains a test's answers and the world's canonical parts after each, for the digests a moved
-  test records again from the core. The JSON under
+  test records again from the core. `steps.rs` is for the tests that call one step of a tick on
+  an exported world: `Case` (the world, its Run and a following host; the step's `Tick`; edits of
+  the world's canonical document between steps) and the inputs a builder wrote down. The JSON under
   `tests/data/` (worlds the Python side built) is written by the builders that
   `tests/support/core_fixtures.py` registers (`benchmarks/core_fixtures.py`), and
   `tests/integration/test_core_fixtures.py` checks that each file is what its builder makes
@@ -301,7 +303,11 @@ split PR by PR; its last section sums up what is where.
   `tests/resource_service_texts.rs`, `tests/effect_program_texts.rs` and `tests/population_texts.rs`
   check the texts the service's, the EffectProgram handlers' and the population's rules save, on
   the worlds of the pytest files of the same names, with the world unchanged where a check comes
-  before any write.
+  before any write; `tests/service_rules.rs`, `tests/requests_at_once.rs` and
+  `tests/staff_assignment.rs` call `_apply_effect` (`tick::propose::apply_alone`), `_route`,
+  `_schedule_travel`, the water and meal service and the staff's assignment, relief and support
+  waits on the worlds of the pytest files of the same names (`tests/data/service_rules.json`,
+  `generated_texts.json`, `staff_assignment.json`).
   The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,
