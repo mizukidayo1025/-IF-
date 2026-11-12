@@ -3,10 +3,10 @@
 `native/core/tests/tick_core.rs` builds a World from `native/core/tests/data/tick_core.json`
 and runs the core's `run_tick` on it with a host that has no Python. The fixture is this
 module's world: h00_small_replay (4 people, 4 zones, 6 edges, 4 toilets, 5 staff) with a
-toilet outage and its recovery, set up for a Run and exported at minute 0
-(`benchmarks/core_tick_fixture.py` writes it). The same world run through `TickEngine`
-gives the digests the fixture freezes (`tests/integration/test_core_tick.py` checks that the
-native path still does).
+toilet outage and its recovery, set up for a Run and exported at minute 0 by
+`support/core_fixtures.py` (`tick_core_fixture`; `benchmarks/core_fixtures.py` writes it). The
+same world run through `TickEngine` gives the digests the fixture freezes
+(`integration/test_core_fixtures.py` checks that the file is what the native path gives today).
 
 The digests are the sha256 of the canonical JSON of each part of `WorldState.canonical_json()`
 (the rows, the queue, the log, the fields and `model_state`; not `rng_state`, which the core's
@@ -18,9 +18,9 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
-import tempfile
 from typing import Any
 
+from support.core_fixtures import export_world, run_world
 from support.paths import SMALL_REPLAY
 
 # The length of the test, in ticks.
@@ -76,22 +76,7 @@ def core_tick_scenario() -> Any:
 
 def core_tick_run() -> tuple[Any, Any, Any]:
     """The world, its controller and its engine, as `run_scenario` sets them up, at minute 0."""
-    from sheltersim.core.engine import TickEngine, TraceLevel
-    from sheltersim.core.world import WorldState
-    from sheltersim.domain.simulator_state import initialize_simulator_extensions
-    from sheltersim.experiments.runner import OfflineSimulationController
-    from sheltersim.inspection.traces import RunArtifactWriter
-
-    scenario = core_tick_scenario()
-    world = WorldState.from_scenario(scenario)
-    initialize_simulator_extensions(world)
-    artifacts = RunArtifactWriter(
-        scenario, tempfile.mkdtemp(prefix="core-tick-"), trace_level=TraceLevel.OFF
-    )
-    artifacts.write_initial(world, execution_mode="offline")
-    controller = OfflineSimulationController(world, artifacts)
-    engine = TickEngine(world, phase_handler=controller)
-    return world, controller, engine
+    return run_world(core_tick_scenario())
 
 
 def _text(value: Any) -> bytes:
@@ -131,28 +116,6 @@ def event_types(world: Any) -> list[str]:
     return [record.event.event_type for record in world.event_log.records]
 
 
-def fixture_document(world: Any, controller: Any) -> dict[str, Any]:
-    """What the core's test reads: the world at minute 0 and what the Run read of the controller."""
-    from sheltersim.contracts.policies import selected_models
-    from sheltersim.core.state_mirror import OWNED_FIELDS
-
-    core = world.__dict__["_core"]
-    return {
-        "world": json.loads(world.canonical_json()),
-        "initial": world_digests(world),
-        # The model selection, which a Python contract parses (`Host::fill_section`).
-        "selection": [list(item) for item in selected_models(world.model_configs).items()],
-        "slots": [[name, name in OWNED_FIELDS] for name in core.owned_names()],
-        "run": {
-            "route_capacities": controller.route_capacities,
-            "zone_neighbors": {
-                zone: list(neighbors) for zone, neighbors in controller.zone_neighbors.items()
-            },
-            "policies": controller._run_core.policies_document(),
-        },
-    }
-
-
 def native_result(ticks: int = TICKS) -> dict[str, Any]:
     """The world of the fixture run through `TickEngine` for `ticks` ticks: its digests."""
     world, controller, engine = core_tick_run()
@@ -165,3 +128,13 @@ def native_result(ticks: int = TICKS) -> dict[str, Any]:
         "metric_count": len(controller.artifacts.metrics.snapshots),
         "event_types": event_types(world),
     }
+
+
+def tick_core_fixture() -> dict[str, Any]:
+    """`tick_core.json`: the world at minute 0 (`load::fixture` of the core's tests), its digests,
+    and what the native path gives after `TICKS` ticks."""
+    world, controller, _ = core_tick_run()
+    entry = export_world(world, controller)
+    entry["initial"] = world_digests(world)
+    entry["expected"] = native_result()
+    return {"worlds": {"small_replay": entry}}

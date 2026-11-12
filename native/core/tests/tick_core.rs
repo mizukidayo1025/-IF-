@@ -6,15 +6,16 @@
 //! from `tests/data/tick_core.json` by the test-only loader (`support/load.rs`, orchestrator decision
 //! (b)). The Run's policies are what the PyO3 crate read of that controller. Each tick is the core's
 //! `run_tick` with the `TestHost` (decision (c)): what the world holds from its slots, the
-//! Python-parsed sections with fixed test values, contracts that take their input as given, no
-//! foreign handler, sinks into its calls, no LLM, `space_refreshed` Ok. The test does what
-//! `TickEngine.step` does around the phases: the minute moves on, then the end-of-tick check
-//! (`after_tick::check`, with no Python validator to ask).
+//! Python-parsed sections of the exported world (`support/sections.rs`), contracts that take their
+//! input as given, no foreign handler, sinks into its calls, no LLM, `space_refreshed` Ok. The test
+//! does what `TickEngine.step` does around the phases: the minute moves on, then the end-of-tick
+//! check (`after_tick::check`, with no Python validator to ask).
 //!
 //! After `TICKS` ticks the digests of the world's parts (the rows, the queue, the log, the fields,
 //! `model_state`, the scalars) and of the metric samples are the ones the native path gives on the
-//! same world through `TickEngine` (frozen in the fixture by `benchmarks/core_tick_fixture.py`, and
-//! checked against the native path by `tests/integration/test_core_tick.py`).
+//! same world through `TickEngine` (frozen in the fixture by `tests/support/core_tick.py`, written
+//! by `benchmarks/core_fixtures.py`, and checked against the native path by
+//! `tests/integration/test_core_fixtures.py`).
 //!
 //! The update phase's movement and replanning are the core's since P9-3b (`update_movement`); this
 //! world has no `movement_v1`, so neither path walks anyone (extending the fixture is P10 work).
@@ -359,8 +360,8 @@ fn the_core_runs_the_ticks_alone_and_reaches_the_native_path_s_world() {
             }
         }
     }
-    // The Python-parsed sections the ticks read: the model selection (the fixture's), whether the
-    // extensions are on (no: the configs have none) and the plan of the check (the test's).
+    // The Python-parsed sections the ticks read, each the exported world's: the model selection,
+    // whether the extensions are on (no: the configs have none) and the plan of the check.
     assert_eq!(filled, vec![SectionId::Selection, SectionId::ExtensionsEnabled, SectionId::TickPlan]);
     let phases = host.calls.iter().filter(|call| matches!(call, Call::Phase(Phase::CollectMetrics, false))).count();
     assert_eq!(phases as i64, ticks);
