@@ -277,7 +277,9 @@ split PR by PR; its last section sums up what is where.
   a World's `canonical_json()` bytes, part by part; and `cases.rs`, the files of events given to
   one handler of an exported world (worlds stored as the changes from another world of the file)
   with the outcome or the world the Python rule left, checked through `dispatch::apply_alone`,
-  the kernel a handler's PyO3 entry calls (#225). The JSON under
+  the kernel a handler's PyO3 entry calls (#225); and `texts.rs`, for the tests that call a rule
+  directly: the canonical text of a world in a cell, the outcome a rule raised, and events
+  changed as the pytest files changed them. The JSON under
   `tests/data/` (worlds the Python side built) is written by the builders that
   `tests/support/core_fixtures.py` registers (`benchmarks/core_fixtures.py`), and
   `tests/integration/test_core_fixtures.py` checks that each file is what its builder makes
@@ -293,7 +295,11 @@ split PR by PR; its last section sums up what is where.
   sections and the floor plan of an exported world against what the native path read of it, and
   the `json.dumps` writer against Python's bytes; `tests/event_texts.rs`,
   `tests/social_interaction_texts.rs` and `tests/travel_completion_texts.rs` check the handlers'
-  saved texts (`tests/data/event_texts.json`, `rumor_texts.json`, `travel_texts.json`).
+  saved texts (`tests/data/event_texts.json`, `rumor_texts.json`, `travel_texts.json`);
+  `tests/resource_service_texts.rs`, `tests/effect_program_texts.rs` and `tests/population_texts.rs`
+  check the texts the service's, the EffectProgram handlers' and the population's rules save, on
+  the worlds of the pytest files of the same names, with the world unchanged where a check comes
+  before any write.
   The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,
