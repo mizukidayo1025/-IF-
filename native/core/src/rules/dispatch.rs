@@ -414,9 +414,23 @@ pub fn apply_alone<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, 
 where
     H::Error: From<WriteError>,
 {
+    Ok(apply_alone_made(tick, native, row)?.err())
+}
+
+/// `apply_alone`, with what the handler made where it applied: the records it returns, and its care
+/// receipt, planned with its sequence taken (the record the PyO3 entry of a staff member's support
+/// returns), which the dispatcher would append (for the core's tests, Issue #225).
+pub fn apply_alone_made<C: WorldCell, H: Host, R: RunCell>(
+    tick: &mut Tick<'_, C, H, R>,
+    native: &Native,
+    row: &EventRow,
+) -> std::result::Result<std::result::Result<(Vec<Record>, Option<PlannedTransition>), (EventStatus, String)>, H::Error>
+where
+    H::Error: From<WriteError>,
+{
     Ok(match handled(label_of(native.kind), apply_native(tick, native, row))? {
-        Handled::Applied { .. } => None,
-        Handled::Outcome(status, text) => Some((status, text)),
+        Handled::Applied { records, receipt } => Ok((records, receipt)),
+        Handled::Outcome(status, text) => Err((status, text)),
     })
 }
 

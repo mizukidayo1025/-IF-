@@ -313,6 +313,12 @@ split PR by PR; its last section sums up what is where.
   (`tick::update::replan_journeys`), the walk of `advance_movement` (`advance_through`) and the
   other rules of `domain/movement.py` on the worlds of the pytest files of the same names
   (`tests/data/replan_journeys.json`, `movement_walk_order.json`, `movement_rules.json`).
+  `tests/handler_rules.rs` checks the handlers' kernels and the steps around them (the toilet's
+  queue and service, the care receipts, a seek, a request's and a support's end, the walk home,
+  the care formulas, the social events, the draws of a claim) on the worlds of
+  `tests/data/handler_rules.json`, calling each kernel as its PyO3 entry does
+  (`dispatch::apply_alone_made` for a handler's records, `tick::propose::apply_alone` for
+  `_apply_effect`).
   The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,
