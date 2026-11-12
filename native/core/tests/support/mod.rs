@@ -20,6 +20,7 @@ pub mod contracts;
 pub mod dumps;
 pub mod load;
 pub mod sections;
+pub mod steps;
 pub mod texts;
 pub mod ticks;
 pub mod typed;
@@ -104,7 +105,8 @@ pub struct TestHost {
     /// Run at each LLM call (`consider_*`, `prioritize_support_request`), as an LLM hook of the
     /// native host writes the world.
     pub on_llm: Option<Box<dyn FnMut()>>,
-    /// The EventLog's records `find_record` finds, by event ID (lane P9-1a).
+    /// The EventLog's records `find_record` finds, by event ID (lane P9-1a); past them, those of
+    /// the loaded world's log where `world` is set (#225 lane M9).
     pub records: IndexMap<Arc<str>, Logged>,
     /// The floor plan `floor_plan` gives; none means it refuses as a host without one does.
     pub plan: Option<Arc<Geo>>,
@@ -119,6 +121,9 @@ pub struct TestHost {
     pub foreign: Option<Box<dyn FnMut(&EventRow) -> Result<Foreign, Error>>>,
     /// What `contract` does (lane P9-3a): a test's contract; none gives the input back.
     pub contracts: Option<Box<dyn FnMut(&Contract, &V) -> Result<V, Error>>>,
+    /// Run before (true) and after (false) each phase of a tick, as `TickEngine.phase_observer`
+    /// (Issue #225, lane M10b): a test reads the world and the Run there.
+    pub on_phase: Option<Box<dyn FnMut(Phase, bool)>>,
 }
 
 impl std::fmt::Debug for TestHost {
@@ -144,6 +149,7 @@ impl Default for TestHost {
             sections: Vec::new(),
             foreign: None,
             contracts: None,
+            on_phase: None,
         }
     }
 }
@@ -338,6 +344,9 @@ impl Host for TestHost {
 
     fn phase(&mut self, phase: Phase, before: bool) -> Result<(), Error> {
         self.calls.push(Call::Phase(phase, before));
+        if let Some(hook) = &mut self.on_phase {
+            hook(phase, before);
+        }
         Ok(())
     }
 
@@ -362,7 +371,13 @@ impl Host for TestHost {
 
     fn find_record(&mut self, event_id: &str) -> Result<Option<Logged>, Error> {
         self.calls.push(Call::FindRecord(text(event_id)));
-        Ok(self.records.get(event_id).cloned())
+        if let Some(found) = self.records.get(event_id) {
+            return Ok(Some(found.clone()));
+        }
+        match &self.world {
+            Some(world) => world.find_record(event_id),
+            None => Ok(None),
+        }
     }
 
     fn floor_plan(&mut self) -> Result<Arc<Geo>, Error> {

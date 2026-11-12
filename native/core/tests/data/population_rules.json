@@ -1,0 +1,694 @@
+{
+ "inputs": {
+  "commands": {
+   "exit": {
+    "action": "temporary_exit",
+    "agent_id": "A001",
+    "agent_ids": [],
+    "expected_return_minute": null,
+    "household_id": null,
+    "source_ids": [],
+    "zone_id": null
+   },
+   "exit_5": {
+    "action": "temporary_exit",
+    "agent_id": "A001",
+    "agent_ids": [],
+    "expected_return_minute": 5,
+    "household_id": null,
+    "source_ids": [],
+    "zone_id": null
+   },
+   "exit_9": {
+    "action": "temporary_exit",
+    "agent_id": "A001",
+    "agent_ids": [],
+    "expected_return_minute": 9,
+    "household_id": null,
+    "source_ids": [],
+    "zone_id": null
+   },
+   "exit_9_sources": {
+    "action": "temporary_exit",
+    "agent_id": "A001",
+    "agent_ids": [],
+    "expected_return_minute": 9,
+    "household_id": null,
+    "source_ids": [
+     "ASM-TEST-A",
+     "ASM-TEST-B"
+    ],
+    "zone_id": null
+   },
+   "out": {
+    "action": "temporary_exit",
+    "agent_id": "A001",
+    "agent_ids": [],
+    "expected_return_minute": null,
+    "household_id": null,
+    "source_ids": [],
+    "zone_id": null
+   },
+   "refused_relocate": {
+    "action": "relocate",
+    "agent_id": "nobody",
+    "agent_ids": [],
+    "expected_return_minute": null,
+    "household_id": null,
+    "source_ids": [],
+    "zone_id": "nowhere"
+   },
+   "refused_return": {
+    "action": "return",
+    "agent_id": "nobody",
+    "agent_ids": [],
+    "expected_return_minute": null,
+    "household_id": null,
+    "source_ids": [],
+    "zone_id": null
+   },
+   "refused_reunite": {
+    "action": "reunite",
+    "agent_id": null,
+    "agent_ids": [
+     "nobody",
+     "nor-them"
+    ],
+    "expected_return_minute": null,
+    "household_id": "h",
+    "source_ids": [],
+    "zone_id": null
+   },
+   "refused_temporary_exit": {
+    "action": "temporary_exit",
+    "agent_id": "nobody",
+    "agent_ids": [],
+    "expected_return_minute": null,
+    "household_id": null,
+    "source_ids": [],
+    "zone_id": null
+   },
+   "refused_transfer": {
+    "action": "transfer",
+    "agent_id": "nobody",
+    "agent_ids": [],
+    "expected_return_minute": null,
+    "household_id": null,
+    "source_ids": [],
+    "zone_id": null
+   },
+   "relocate": {
+    "action": "relocate",
+    "agent_id": "A001",
+    "agent_ids": [],
+    "expected_return_minute": null,
+    "household_id": null,
+    "source_ids": [],
+    "zone_id": "corridor"
+   },
+   "relocate_in_place": {
+    "action": "relocate",
+    "agent_id": "A001",
+    "agent_ids": [],
+    "expected_return_minute": null,
+    "household_id": null,
+    "source_ids": [],
+    "zone_id": "sleeping"
+   },
+   "relocate_walker": {
+    "action": "relocate",
+    "agent_id": "A002",
+    "agent_ids": [],
+    "expected_return_minute": null,
+    "household_id": null,
+    "source_ids": [],
+    "zone_id": "corridor"
+   },
+   "return": {
+    "action": "return",
+    "agent_id": "A001",
+    "agent_ids": [],
+    "expected_return_minute": null,
+    "household_id": null,
+    "source_ids": [],
+    "zone_id": null
+   },
+   "return_here": {
+    "action": "return",
+    "agent_id": "A001",
+    "agent_ids": [],
+    "expected_return_minute": null,
+    "household_id": null,
+    "source_ids": [],
+    "zone_id": "sleeping"
+   },
+   "reunite": {
+    "action": "reunite",
+    "agent_id": null,
+    "agent_ids": [
+     "A001",
+     "A002"
+    ],
+    "expected_return_minute": null,
+    "household_id": "household-new",
+    "source_ids": [],
+    "zone_id": null
+   },
+   "transfer": {
+    "action": "transfer",
+    "agent_id": "A001",
+    "agent_ids": [],
+    "expected_return_minute": null,
+    "household_id": null,
+    "source_ids": [],
+    "zone_id": null
+   },
+   "transfer_other": {
+    "action": "transfer",
+    "agent_id": "A001",
+    "agent_ids": [],
+    "expected_return_minute": null,
+    "household_id": null,
+    "source_ids": [],
+    "zone_id": "corridor"
+   }
+  },
+  "contracts": [
+   {
+    "input": {
+     "age_years": 30,
+     "household_role": "adult",
+     "languages": [
+      "not a language"
+     ]
+    },
+    "model": "PersonTraits",
+    "raises": [
+     "Value",
+     "1 validation error for PersonTraits\nlanguages.0\n  String should match pattern '^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$' [type=string_pattern_mismatch, input_value='not a language', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/string_pattern_mismatch"
+    ]
+   },
+   {
+    "input": {
+     "member_index": 9
+    },
+    "model": "DynamicArrivalPersonContext",
+    "raises": [
+     "Value",
+     "1 validation error for DynamicArrivalPersonContext\n  Value error, dynamic arrival context override requires a care support kind [type=value_error, input_value={'member_index': 9}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/value_error"
+    ]
+   }
+  ],
+  "first": "A001",
+  "other": "corridor",
+  "person": "A001",
+  "second": "A002",
+  "walker": "A002",
+  "zone": "sleeping"
+ },
+ "worlds": {
+  "out_and_back": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 1,
+       "event_id": "effect-event-0",
+       "event_type": "effect_program_population",
+       "kind": "intervention",
+       "payload": {
+        "command": {
+         "action": "temporary_exit",
+         "agent_id": "A001",
+         "expected_return_minute": null,
+         "household_id": null,
+         "source_ids": [],
+         "zone_id": null
+        },
+        "effect_id": "out",
+        "op": "population_presence",
+        "program_id": "program-out-and-back"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "out",
+         "op": "population_presence",
+         "phase": "start",
+         "policy_dependencies": [
+          "population_lifecycle_v1"
+         ],
+         "program_id": "program-out-and-back",
+         "source_text_hash": "2d5baeb2225ca2efac36a50e529a13e4ba777d4b312cabac92d4c6de7b94ccc7",
+         "units": "population_transition"
+        }
+       },
+       "sequence": 0,
+       "source_id": "TEST-PRESENCE"
+      },
+      {
+       "causation_id": null,
+       "due_minute": 3,
+       "event_id": "effect-event-1",
+       "event_type": "effect_program_population",
+       "kind": "intervention",
+       "payload": {
+        "command": {
+         "action": "return",
+         "agent_id": "A001",
+         "expected_return_minute": null,
+         "household_id": null,
+         "source_ids": [],
+         "zone_id": null
+        },
+        "effect_id": "back",
+        "op": "population_presence",
+        "program_id": "program-out-and-back"
+       },
+       "priority": 0,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "back",
+         "op": "population_presence",
+         "phase": "start",
+         "policy_dependencies": [
+          "population_lifecycle_v1"
+         ],
+         "program_id": "program-out-and-back",
+         "source_text_hash": "2d5baeb2225ca2efac36a50e529a13e4ba777d4b312cabac92d4c6de7b94ccc7",
+         "units": "population_transition"
+        }
+       },
+       "sequence": 1,
+       "source_id": "TEST-PRESENCE"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "program-out-and-back": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "out",
+         "back"
+        ],
+        "narrative": "out and back",
+        "operators": {
+         "back": "population_presence",
+         "out": "population_presence"
+        },
+        "program_hash": "004e0c0cefa4f82e71b22df212e5f667d6d408fb59bfaf828275c8c8f5d9bcf9",
+        "scheduled_event_ids": [
+         "effect-event-0",
+         "effect-event-1"
+        ],
+        "source_text_hash": "2d5baeb2225ca2efac36a50e529a13e4ba777d4b312cabac92d4c6de7b94ccc7",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ]
+   ],
+   "file": "generated_texts"
+  },
+  "overlay_3": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "geometry_overlay",
+      "schema_version"
+     ],
+     3
+    ]
+   ],
+   "file": "generated_texts"
+  },
+  "room": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log"
+     ],
+     [
+      {
+       "detail": null,
+       "event": {
+        "causation_id": null,
+        "due_minute": 1,
+        "event_id": "effect-event-0",
+        "event_type": "effect_program_geometry",
+        "kind": "intervention",
+        "payload": {
+         "effect_id": "room",
+         "end_minute": 20,
+         "modifier_id": "modifier-b5bc53b45dbdf13c6cc9c8daa03823cb",
+         "op": "temporary_room_geometry",
+         "parameters": {
+          "bed_points_m": [],
+          "people_capacity": 4,
+          "polygon_m": [
+           {
+            "x": 8.0,
+            "y": 2.4
+           },
+           {
+            "x": 9.3,
+            "y": 2.4
+           },
+           {
+            "x": 9.3,
+            "y": 4.4
+           },
+           {
+            "x": 8.0,
+            "y": 4.4
+           }
+          ],
+          "room_id": "room",
+          "route_edge_ids": [
+           "route_corridor_quiet",
+           "route_quiet_corridor"
+          ],
+          "schema_version": 1,
+          "sleeping_capacity": 0,
+          "source_ids": [
+           "ASM-TEST-ROOM"
+          ],
+          "zone_id": "quiet"
+         },
+         "program_id": "room-program",
+         "target_id": "quiet"
+        },
+        "priority": 0,
+        "provenance": {
+         "effect_program_v1": {
+          "assumption_ids": [],
+          "compiler_provenance": {
+           "compiler_kind": "offline_rule",
+           "compiler_version": "test-v1",
+           "model_id": null,
+           "prompt_hash": null
+          },
+          "effect_id": "room",
+          "op": "temporary_room_geometry",
+          "phase": "start",
+          "policy_dependencies": [
+           "geometry_overlay_v1"
+          ],
+          "program_id": "room-program",
+          "source_text_hash": "1f1c5b2fad778434024f1537986346927917f4755a6e7d3fd91f22653b7c3132",
+          "units": "metre_2d"
+         }
+        },
+        "sequence": 0,
+        "source_id": "ASM-TEST-ROOM"
+       },
+       "realized_minute": 1,
+       "status": "applied"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": "effect-event-0",
+       "due_minute": 20,
+       "event_id": "effect-event-1",
+       "event_type": "effect_program_geometry_expire",
+       "kind": "intervention",
+       "payload": {
+        "effect_id": "room",
+        "end_minute": 20,
+        "modifier_id": "modifier-b5bc53b45dbdf13c6cc9c8daa03823cb",
+        "op": "temporary_room_geometry",
+        "parameters": {
+         "bed_points_m": [],
+         "people_capacity": 4,
+         "polygon_m": [
+          {
+           "x": 8.0,
+           "y": 2.4
+          },
+          {
+           "x": 9.3,
+           "y": 2.4
+          },
+          {
+           "x": 9.3,
+           "y": 4.4
+          },
+          {
+           "x": 8.0,
+           "y": 4.4
+          }
+         ],
+         "room_id": "room",
+         "route_edge_ids": [
+          "route_corridor_quiet",
+          "route_quiet_corridor"
+         ],
+         "schema_version": 1,
+         "sleeping_capacity": 0,
+         "source_ids": [
+          "ASM-TEST-ROOM"
+         ],
+         "zone_id": "quiet"
+        },
+        "program_id": "room-program",
+        "target_id": "quiet"
+       },
+       "priority": 20,
+       "provenance": {
+        "effect_program_v1": {
+         "assumption_ids": [],
+         "compiler_provenance": {
+          "compiler_kind": "offline_rule",
+          "compiler_version": "test-v1",
+          "model_id": null,
+          "prompt_hash": null
+         },
+         "effect_id": "room",
+         "op": "temporary_room_geometry",
+         "phase": "expiry",
+         "policy_dependencies": [
+          "geometry_overlay_v1"
+         ],
+         "program_id": "room-program",
+         "source_text_hash": "1f1c5b2fad778434024f1537986346927917f4755a6e7d3fd91f22653b7c3132",
+         "units": "metre_2d"
+        }
+       },
+       "sequence": 1,
+       "source_id": "ASM-TEST-ROOM"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "minute_index"
+     ],
+     1
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "effect_program_v1"
+     ],
+     {
+      "active_facility_modifiers": {},
+      "programs": {
+       "room-program": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "room"
+        ],
+        "narrative": "A surveyed room.",
+        "operators": {
+         "room": "temporary_room_geometry"
+        },
+        "program_hash": "58533bad1883e3dc928a79c01204a6ec74f45df55eaa7eeedfbd93401eba9d58",
+        "scheduled_event_ids": [
+         "effect-event-0",
+         "effect-event-1"
+        ],
+        "source_text_hash": "1f1c5b2fad778434024f1537986346927917f4755a6e7d3fd91f22653b7c3132",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "geometry_overlay_v1",
+      "history"
+     ],
+     [
+      {
+       "causation_id": null,
+       "event_id": "effect-event-0",
+       "minute": 1,
+       "op": "temporary_room_geometry",
+       "source_ids": [
+        "ASM-TEST-ROOM"
+       ],
+       "status": "applied",
+       "target_id": "room",
+       "transition_id": "effect-event-0"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "geometry_overlay_v1",
+      "temporary_rooms",
+      "room"
+     ],
+     {
+      "active": true,
+      "bed_points_m": [],
+      "effect_id": "room",
+      "end_event_id": null,
+      "end_minute": 20,
+      "people_capacity": 4,
+      "polygon_m": [
+       {
+        "x": 8.0,
+        "y": 2.4
+       },
+       {
+        "x": 9.3,
+        "y": 2.4
+       },
+       {
+        "x": 9.3,
+        "y": 4.4
+       },
+       {
+        "x": 8.0,
+        "y": 4.4
+       }
+      ],
+      "program_id": "room-program",
+      "room_id": "room",
+      "route_edge_ids": [
+       "route_corridor_quiet",
+       "route_quiet_corridor"
+      ],
+      "schema_version": 1,
+      "sleeping_capacity": 0,
+      "source_ids": [
+       "ASM-TEST-ROOM"
+      ],
+      "start_event_id": "effect-event-0",
+      "start_minute": 1,
+      "zone_id": "quiet"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "zones",
+      3,
+      "capacity"
+     ],
+     0
+    ],
+    [
+     "set",
+     [
+      "world",
+      "zones",
+      4,
+      "capacity"
+     ],
+     0
+    ]
+   ],
+   "file": "generated_texts"
+  }
+ }
+}

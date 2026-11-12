@@ -25,7 +25,7 @@ Rust が `resource_ledger_v1` を型付きの行で持ち、操作の規則を�
 | 行（`LedgerRow`、`Account`、`Reservation`、`AuditRecord`、`Audit`、`UsedIds`）と毎 tick の検証 `validate` | `native/src/state/resource_ledger.rs` |
 | `apply_operation`、`metric_values`、`reservation_id_was_used` | `native/src/rules/resources.rs` |
 | 比較 | `benchmarks/rule_shadow/shadow_resources.py` |
-| テスト | `tests/integration/test_resource_ledger_row.py` |
+| テスト | `tests/integration/test_resource_ledger_row.py`（操作が書いたものと断る文の、Python の規則の digest と文との比較は、#225 で中核のテスト `native/core/tests/resource_ledger_ops.rs` に移しました） |
 | 木から dict のキーを消す `NamespaceMirror::delete_through` | `native/src/core/world_core.rs` |
 
 - **監査の記録は項目ごとの正準 bytes です。** 規則が読むのは各資源の最新の1件だけで、それは型付きで持ちます。

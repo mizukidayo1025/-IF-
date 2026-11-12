@@ -1,0 +1,5775 @@
+{
+ "cases": {
+  "a_walk_named_for_another_purpose": [
+   {
+    "event": {
+     "causation_id": null,
+     "due_minute": 1,
+     "event_id": "walk-other",
+     "event_type": "agent_travel_complete",
+     "kind": "endogenous",
+     "payload": {
+      "agent_id": "A001",
+      "destination_zone_id": "corridor",
+      "facility_id": null,
+      "purpose": "sleep_bed",
+      "route_edge_ids": [
+       "sleeping_corridor"
+      ],
+      "route_zone_ids": [
+       "sleeping",
+       "corridor"
+      ],
+      "task_id": "agent-travel-0",
+      "travel_minutes": 1
+     },
+     "priority": 0,
+     "provenance": {
+      "source_type": "assumption"
+     },
+     "sequence": 5000,
+     "source_id": "probe-1"
+    },
+    "handler": {
+     "attrs": {},
+     "table": "agent_travel_complete"
+    },
+    "outcome": [
+     "Failed",
+     "sleep-bed travel does not match its live reservation"
+    ],
+    "world": "return_walk"
+   },
+   {
+    "event": {
+     "causation_id": null,
+     "due_minute": 1,
+     "event_id": "walk-other",
+     "event_type": "agent_travel_complete",
+     "kind": "endogenous",
+     "payload": {
+      "agent_id": "A001",
+      "destination_zone_id": "corridor",
+      "facility_id": null,
+      "purpose": "presence_relocation",
+      "route_edge_ids": [
+       "sleeping_corridor"
+      ],
+      "route_zone_ids": [
+       "sleeping",
+       "corridor"
+      ],
+      "task_id": "agent-travel-0",
+      "travel_minutes": 1
+     },
+     "priority": 0,
+     "provenance": {
+      "source_type": "assumption"
+     },
+     "sequence": 5000,
+     "source_id": "probe-1"
+    },
+    "handler": {
+     "attrs": {},
+     "table": "agent_travel_complete"
+    },
+    "outcome": [
+     "Failed",
+     "presence relocation completion does not match its route"
+    ],
+    "world": "return_walk"
+   },
+   {
+    "event": {
+     "causation_id": null,
+     "due_minute": 1,
+     "event_id": "walk-other",
+     "event_type": "agent_travel_complete",
+     "kind": "endogenous",
+     "payload": {
+      "agent_id": "A001",
+      "destination_zone_id": "corridor",
+      "facility_id": null,
+      "purpose": "another",
+      "route_edge_ids": [
+       "sleeping_corridor"
+      ],
+      "route_zone_ids": [
+       "sleeping",
+       "corridor"
+      ],
+      "task_id": "agent-travel-0",
+      "travel_minutes": 1
+     },
+     "priority": 0,
+     "provenance": {
+      "source_type": "assumption"
+     },
+     "sequence": 5000,
+     "source_id": "probe-1"
+    },
+    "handler": {
+     "attrs": {},
+     "table": "agent_travel_complete"
+    },
+    "outcome": [
+     "Failed",
+     "unsupported travel purpose 'another'"
+    ],
+    "world": "return_walk"
+   }
+  ],
+  "a_walk_that_does_not_fit": [
+   {
+    "event": {
+     "causation_id": null,
+     "due_minute": 1,
+     "event_id": "agent-travel-complete-0",
+     "event_type": "agent_travel_complete",
+     "kind": "completion",
+     "payload": {
+      "agent_id": "A001",
+      "destination_zone_id": "corridor",
+      "facility_id": null,
+      "purpose": "return",
+      "route_edge_ids": [
+       "sleeping_corridor"
+      ],
+      "route_zone_ids": [
+       "sleeping",
+       "corridor"
+      ],
+      "task_id": "agent-travel-0",
+      "travel_minutes": 1
+     },
+     "priority": 0,
+     "provenance": {
+      "policy_version": "shortest-travel-time-v1",
+      "source_id": "ASM-ZONE-ROUTING-V1",
+      "source_type": "assumption"
+     },
+     "sequence": 0,
+     "source_id": "agent-travel-0"
+    },
+    "handler": {
+     "attrs": {},
+     "table": "agent_travel_complete"
+    },
+    "outcome": [
+     "Failed",
+     "travel completion does not match an active task"
+    ],
+    "world": "spoiled_walk_0"
+   },
+   {
+    "event": {
+     "causation_id": null,
+     "due_minute": 1,
+     "event_id": "agent-travel-complete-0",
+     "event_type": "agent_travel_complete",
+     "kind": "completion",
+     "payload": {
+      "agent_id": "A001",
+      "destination_zone_id": "corridor",
+      "facility_id": null,
+      "purpose": "return",
+      "route_edge_ids": [
+       "sleeping_corridor"
+      ],
+      "route_zone_ids": [
+       "sleeping",
+       "corridor"
+      ],
+      "task_id": "agent-travel-0",
+      "travel_minutes": 1
+     },
+     "priority": 0,
+     "provenance": {
+      "policy_version": "shortest-travel-time-v1",
+      "source_id": "ASM-ZONE-ROUTING-V1",
+      "source_type": "assumption"
+     },
+     "sequence": 0,
+     "source_id": "agent-travel-0"
+    },
+    "handler": {
+     "attrs": {},
+     "table": "agent_travel_complete"
+    },
+    "outcome": [
+     "Failed",
+     "return travel completion does not match its target"
+    ],
+    "world": "spoiled_walk_1"
+   },
+   {
+    "event": {
+     "causation_id": null,
+     "due_minute": 1,
+     "event_id": "agent-travel-complete-0",
+     "event_type": "agent_travel_complete",
+     "kind": "completion",
+     "payload": {
+      "agent_id": "A001",
+      "destination_zone_id": "corridor",
+      "facility_id": null,
+      "purpose": "return",
+      "route_edge_ids": [
+       "sleeping_corridor"
+      ],
+      "route_zone_ids": [
+       "sleeping",
+       "corridor"
+      ],
+      "task_id": "agent-travel-0",
+      "travel_minutes": 1
+     },
+     "priority": 0,
+     "provenance": {
+      "policy_version": "shortest-travel-time-v1",
+      "source_id": "ASM-ZONE-ROUTING-V1",
+      "source_type": "assumption"
+     },
+     "sequence": 0,
+     "source_id": "agent-travel-0"
+    },
+    "handler": {
+     "attrs": {},
+     "table": "agent_travel_complete"
+    },
+    "outcome": [
+     "Failed",
+     "travel completion Agent does not match its active task"
+    ],
+    "world": "spoiled_walk_2"
+   }
+  ]
+ },
+ "worlds": {
+  "hundred": {
+   "run": {
+    "policies": {
+     "controller": {
+      "attrs": {
+       "artifacts": {
+        "object": {
+         "attrs": {
+          "trace_level": {
+           "opaque": true
+          }
+         },
+         "class": [
+          "support.core_fixtures_reads",
+          "Sink",
+          true
+         ],
+         "class_own": {},
+         "own": {}
+        }
+       },
+       "decisions": {
+        "object": {
+         "attrs": {
+          "policy": {
+           "object": {
+            "attrs": {
+             "autonomy_enabled": {
+              "value": false
+             },
+             "decision_interval_minutes": {
+              "value": 15
+             },
+             "decision_interval_minutes_by_agent": {
+              "value": {}
+             },
+             "hunger_action_threshold": {
+              "value": 0.7
+             },
+             "hydration_action_threshold": {
+              "value": 0.25
+             },
+             "information_query_threshold": {
+              "value": 1.1
+             },
+             "information_query_utility_weight": {
+              "value": 0.0
+             },
+             "meal_utility_base": {
+              "value": 0.18
+             },
+             "meal_utility_need_weight": {
+              "value": 0.85
+             },
+             "policy_version": {
+              "value": "utility-softmax-v1"
+             },
+             "resource_service_enabled": {
+              "value": false
+             },
+             "scorer": {
+              "fault": [
+               "builtins.AttributeError",
+               "'UtilityBehaviorPolicy' object has no attribute 'scorer'"
+              ]
+             },
+             "sleep_debt_utility_weight": {
+              "value": 1.0
+             },
+             "temperature": {
+              "value": 0.2
+             },
+             "temperature_by_agent": {
+              "value": {}
+             },
+             "water_utility_base": {
+              "value": 0.18
+             },
+             "water_utility_need_weight": {
+              "value": 1.0
+             }
+            },
+            "class": [
+             "sheltersim.policies.behavior",
+             "UtilityBehaviorPolicy",
+             true
+            ],
+            "class_own": {},
+            "own": {}
+           }
+          }
+         },
+         "class": [
+          "sheltersim.policies.behavior",
+          "BehaviorDecisionRunner",
+          true
+         ],
+         "class_own": {},
+         "own": {}
+        }
+       },
+       "information_policy": {
+        "value": null
+       },
+       "llm_router": {
+        "value": null
+       },
+       "proximity_contact_config": {
+        "value": null
+       },
+       "proximity_policy": {
+        "object": {
+         "attrs": {
+          "config": {
+           "fault": [
+            "builtins.AttributeError",
+            "'DisabledProximityPolicy' object has no attribute 'config'"
+           ]
+          }
+         },
+         "class": [
+          "sheltersim.policies.proximity",
+          "DisabledProximityPolicy",
+          true
+         ],
+         "class_own": {},
+         "own": {}
+        }
+       },
+       "psychology": {
+        "object": {
+         "attrs": {
+          "base": {
+           "fault": [
+            "builtins.AttributeError",
+            "'SimplePsychologyPolicy' object has no attribute 'base'"
+           ]
+          },
+          "body_config": {
+           "fault": [
+            "builtins.AttributeError",
+            "'SimplePsychologyPolicy' object has no attribute 'body_config'"
+           ]
+          },
+          "body_formula": {
+           "fault": [
+            "builtins.AttributeError",
+            "'SimplePsychologyPolicy' object has no attribute 'body_formula'"
+           ]
+          },
+          "include_direct_rest_stress_recovery": {
+           "value": true
+          },
+          "parameters": {
+           "object": {
+            "attrs": {
+             "awake_fatigue_growth": {
+              "value": 0.0008
+             },
+             "awake_fatigue_growth_by_agent": {
+              "value": {}
+             },
+             "baseline_distress_by_agent": {
+              "value": {}
+             },
+             "chronic_acute_weight": {
+              "value": 0.08
+             },
+             "chronic_high_distress_weight": {
+              "value": 0.02
+             },
+             "chronic_retention": {
+              "value": 0.9
+             },
+             "high_distress_threshold": {
+              "value": 0.7
+             },
+             "hunger_growth": {
+              "value": 0.0005
+             },
+             "hunger_growth_by_agent": {
+              "value": {}
+             },
+             "hydration_growth": {
+              "value": 0.0
+             },
+             "natural_recovery_rate_by_agent": {
+              "value": {}
+             },
+             "natural_recovery_rate_per_minute": {
+              "value": 0.01
+             },
+             "need_pressure_threshold": {
+              "value": 0.35
+             },
+             "queued_stress": {
+              "value": 0.002
+             },
+             "resting_fatigue_recovery": {
+              "value": 0.004
+             },
+             "resting_stress_recovery": {
+              "value": 0.003
+             },
+             "sleeping_fatigue_recovery": {
+              "value": 0.01
+             },
+             "sleeping_stress_recovery": {
+              "value": 0.006
+             },
+             "stress_pressure": {
+              "value": 0.012
+             },
+             "support_wait_stress": {
+              "value": 0.001
+             },
+             "toilet_growth": {
+              "value": 0.001
+             },
+             "toilet_growth_by_agent": {
+              "value": {}
+             }
+            },
+            "class": [
+             "sheltersim.policies.psychology",
+             "PsychologyParameters",
+             true
+            ],
+            "class_own": {},
+            "own": {}
+           }
+          },
+          "policy_version": {
+           "value": "causal-stress-v1"
+          },
+          "source_id": {
+           "value": "ASM-H04-CAUSAL-STRESS-V1"
+          },
+          "update_long_term_state": {
+           "fault": [
+            "builtins.AttributeError",
+            "'SimplePsychologyPolicy' object has no attribute 'update_long_term_state'"
+           ]
+          },
+          "use_tick_start_stress_for_feedback": {
+           "fault": [
+            "builtins.AttributeError",
+            "'SimplePsychologyPolicy' object has no attribute 'use_tick_start_stress_for_feedback'"
+           ]
+          }
+         },
+         "class": [
+          "sheltersim.policies.psychology",
+          "SimplePsychologyPolicy",
+          true
+         ],
+         "class_own": {},
+         "own": {}
+        }
+       },
+       "resource_service": {
+        "value": null
+       },
+       "social_policy": {
+        "value": null
+       },
+       "staff_service": {
+        "object": {
+         "attrs": {
+          "cooldown_minutes": {
+           "value": 30
+          },
+          "fairness_after_minutes": {
+           "value": 30
+          },
+          "policy_version": {
+           "value": "staff-support-fifo-aging-v2"
+          },
+          "route_resolver": {
+           "method": "_route"
+          },
+          "task_duration_minutes": {
+           "value": 10
+          },
+          "travel_scheduler": {
+           "method": "_schedule_staff_support_travel"
+          },
+          "unresolved_after_minutes": {
+           "value": 90
+          }
+         },
+         "class": [
+          "sheltersim.domain.staff",
+          "StaffService",
+          true
+         ],
+         "class_own": {},
+         "own": {}
+        }
+       },
+       "stress_policy": {
+        "object": {
+         "attrs": {
+          "parameters": {
+           "object": {
+            "attrs": {
+             "cooldown_minutes": {
+              "value": 30
+             },
+             "enabled": {
+              "value": false
+             },
+             "family_channel_strength": {
+              "value": 1.0
+             },
+             "max_agent_stress_increase_per_minute": {
+              "value": 0.05
+             },
+             "max_contacts_per_agent": {
+              "value": 3
+             },
+             "max_pair_stress_increase": {
+              "value": 0.05
+             },
+             "minimum_contact_minutes": {
+              "value": 5
+             },
+             "natural_recovery_per_minute": {
+              "value": 0.0005
+             },
+             "nearby_zone_channel_strength": {
+              "value": 0.5
+             },
+             "same_zone_channel_strength": {
+              "value": 0.75
+             },
+             "source_expressiveness_by_agent": {
+              "value": {}
+             },
+             "source_id": {
+              "value": "ASM-SOCIAL-PROPAGATION-V1"
+             },
+             "stress_spread_per_minute": {
+              "value": 0.001
+             }
+            },
+            "class": [
+             "sheltersim.policies.social",
+             "SocialPropagationParameters",
+             true
+            ],
+            "class_own": {},
+            "own": {}
+           }
+          },
+          "policy_version": {
+           "value": "sparse-family-zone-contact-v1"
+          }
+         },
+         "class": [
+          "sheltersim.policies.social",
+          "StressPropagationPolicy",
+          true
+         ],
+         "class_own": {},
+         "own": {}
+        }
+       },
+       "toilet_service": {
+        "object": {
+         "attrs": {
+          "max_service_minutes": {
+           "value": 8
+          },
+          "min_service_minutes": {
+           "value": 4
+          },
+          "policy_version": {
+           "value": "toilet-service-uniform-v1"
+          }
+         },
+         "class": [
+          "sheltersim.domain.facilities",
+          "ToiletServiceManager",
+          true
+         ],
+         "class_own": {},
+         "own": {}
+        }
+       }
+      },
+      "class": [
+       "sheltersim.experiments.runner",
+       "OfflineSimulationController",
+       true
+      ],
+      "class_own": {},
+      "own": {}
+     },
+     "dispatch": {
+      "handlers": {
+       "value": {
+        "agent_travel_complete": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "AgentTravelCompletionHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "resource_service": {
+            "value": null
+           },
+           "toilet_service": {
+            "object": {
+             "attrs": {},
+             "class": [
+              "sheltersim.domain.facilities",
+              "ToiletServiceManager",
+              true
+             ],
+             "class_own": {},
+             "own": {}
+            }
+           },
+           "validate_request_state": {
+            "value": false
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "AgentTravelCompletionHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "delivery_delayed": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "DeliveryDelayHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "DeliveryDelayHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "effect_program_apply": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramFacilityHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": false
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramFacilityHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "effect_program_environment": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramEnvironmentHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": false
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramEnvironmentHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "effect_program_environment_expire": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramEnvironmentHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": true
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramEnvironmentHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "effect_program_expire": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramFacilityHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": true
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramFacilityHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "effect_program_geometry": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramGeometryHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": false
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramGeometryHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "effect_program_geometry_expire": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramGeometryHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": true
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramGeometryHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "effect_program_population": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "EffectProgramPopulationHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "EffectProgramPopulationHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "effect_program_structure": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramStructureHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramStructureHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "effect_program_temporary_space": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramTemporarySpaceHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": false
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramTemporarySpaceHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "effect_program_temporary_space_expire": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramTemporarySpaceHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": true
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramTemporarySpaceHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "environmental_stressor_end": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "equipment_failure": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "equipment_repaired": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "extreme_cold": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "extreme_heat": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "facility_outage": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "FacilityOutageHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "FacilityOutageHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "facility_recovery": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "FacilityRecoveryHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "FacilityRecoveryHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "information_contact_update": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InformationContactHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InformationContactHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "information_correction": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InformationCorrectionHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InformationCorrectionHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "information_rumor": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InformationRumorHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InformationRumorHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "population_approach_complete": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "EffectProgramPopulationHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "EffectProgramPopulationHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "power_outage": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "power_restored": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "proximity_contact_update": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ProximityContactHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "ProximityContactHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "resource_consume": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ResourceLedgerHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "operation": {
+            "value": "consume"
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "ResourceLedgerHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "resource_delivery": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ResourceLedgerHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "operation": {
+            "value": "delivery"
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "ResourceLedgerHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "resource_loss": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ResourceLedgerHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "operation": {
+            "value": "loss"
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "ResourceLedgerHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "resource_release": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ResourceLedgerHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "operation": {
+            "value": "release"
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "ResourceLedgerHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "resource_reserve": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ResourceLedgerHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "operation": {
+            "value": "reserve"
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "ResourceLedgerHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "social_interaction": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "SocialInteractionHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "SocialInteractionHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "staff_operation_arrive": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffOperationArrivalHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "StaffOperationArrivalHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "staff_operation_complete": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffOperationCompletionHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "StaffOperationCompletionHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "staff_operation_relief": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffOperationReliefHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "StaffOperationReliefHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "staff_restored": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffRestorationHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "StaffRestorationHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "staff_shift_change": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffUnavailabilityHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "StaffUnavailabilityHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "staff_support_complete": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffSupportCompletionHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "cooldown_minutes": {
+            "value": 30
+           },
+           "require_colocated": {
+            "value": true
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "StaffSupportCompletionHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "staff_unavailable": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffUnavailabilityHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "StaffUnavailabilityHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "supply_route_interruption": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "supply_route_restored": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "support_request_timeout": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "SupportRequestTimeoutHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "cooldown_minutes": {
+            "value": 30
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "SupportRequestTimeoutHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "toilet_service_complete": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ToiletServiceCompletionHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "after_complete": {
+            "method": "_schedule_return_to_initial_zone"
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "ToiletServiceCompletionHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "water_outage": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "WaterOutageHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "WaterOutageHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "water_restored": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "WaterRestorationHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "WaterRestorationHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        }
+       }
+      },
+      "known": {
+       "value": true
+      }
+     }
+    },
+    "route_capacities": {},
+    "zone_neighbors": {
+     "corridor": [
+      "information_desk",
+      "sleeping",
+      "toilet"
+     ],
+     "information_desk": [
+      "corridor"
+     ],
+     "sleeping": [
+      "corridor"
+     ],
+     "toilet": [
+      "corridor"
+     ]
+    }
+   },
+   "sections": {
+    "body_models": {
+     "value": {
+      "affect": "linear-positive-negative-v1",
+      "relationship": null
+     }
+    },
+    "care_outcome": {
+     "fault": [
+      "Refused",
+      "an input has no such attribute"
+     ]
+    },
+    "extensions_enabled": {
+     "value": false
+    },
+    "facility_geometry": {
+     "absent": true
+    },
+    "information_spread": {
+     "value": {
+      "correction_acceptance_probability": 0.7,
+      "correction_source_reliability_by_id": {},
+      "correction_source_sensitivity": 0.2,
+      "correction_trust_sensitivity": 0.2,
+      "default_source_reliability": 0.7,
+      "enabled": false,
+      "minimum_contact_minutes": 2,
+      "present": false,
+      "query_pressure_per_claim": 0.5,
+      "query_pressure_relief_per_correction": 0.5,
+      "rumor_belief_probability": 0.5,
+      "rumor_source_sensitivity": 0.2,
+      "rumor_trust_sensitivity": 0.2
+     }
+    },
+    "infrastructure": {
+     "fault": [
+      "Key",
+      "'infrastructure'"
+     ]
+    },
+    "overlay_rooms": {
+     "value": {
+      "is_dict": true,
+      "room_schema": {
+       "value": false
+      }
+     }
+    },
+    "proximity": {
+     "value": null
+    },
+    "selection": {
+     "value": [
+      [
+       "behavior",
+       "utility-softmax-v1"
+      ],
+      [
+       "psychology",
+       "causal-stress-v1"
+      ],
+      [
+       "social",
+       "sparse-family-zone-contact-v1"
+      ],
+      [
+       "information",
+       "sparse-information-contact-v1"
+      ]
+     ]
+    },
+    "spatial_constraints": {
+     "value": {
+      "accessible_facility_ids": [],
+      "equipment_footprints": [],
+      "obstacles": [],
+      "openings": [],
+      "planning_capacity_by_zone": {},
+      "schema_version": 1,
+      "walls": []
+     }
+    },
+    "staff_operations": {
+     "value": {
+      "model_id": "staff-urgency-first-v1",
+      "selected_source": null
+     }
+    },
+    "support_cooldown_minutes": {
+     "value": 30
+    },
+    "tick_plan": {
+     "value": {
+      "declared": [],
+      "environment_zones": null,
+      "independent_queues": false,
+      "information_enabled": false,
+      "infrastructure_configured": false,
+      "infrastructure_events": [
+       "environmental_stressor_end",
+       "equipment_failure",
+       "equipment_repaired",
+       "extreme_cold",
+       "extreme_heat",
+       "power_outage",
+       "power_restored",
+       "staff_shift_change",
+       "supply_route_interruption",
+       "supply_route_restored"
+      ],
+      "mean_reverting": false,
+      "operational_enabled": false,
+      "operational_events": [
+       "delivery_delayed",
+       "resource_delivery",
+       "staff_shift_change",
+       "staff_unavailable",
+       "water_outage",
+       "water_restored"
+      ],
+      "required": [],
+      "resource_config": null,
+      "shared_configured": false
+     }
+    },
+    "transit_capacities": {
+     "value": false
+    },
+    "zone_environment": {
+     "fault": [
+      "Key",
+      "'zone_environment'"
+     ]
+    }
+   },
+   "slots": [
+    [
+     "psychological_distress_v1",
+     false
+    ],
+    [
+     "staff_dynamics_v1",
+     false
+    ],
+    [
+     "information_spread_v1",
+     false
+    ],
+    [
+     "social_propagation_v1",
+     false
+    ],
+    [
+     "movement_v1",
+     false
+    ],
+    [
+     "body_state_v1",
+     false
+    ],
+    [
+     "social_network_v1",
+     false
+    ],
+    [
+     "agent_dynamics_v1",
+     false
+    ],
+    [
+     "staff_operations_v1",
+     false
+    ],
+    [
+     "shared_operations_v1",
+     false
+    ],
+    [
+     "resource_ledger_v1",
+     false
+    ],
+    [
+     "population_presence_v1",
+     false
+    ],
+    [
+     "population_lifecycle_v1",
+     false
+    ],
+    [
+     "population_dynamics_v1",
+     false
+    ],
+    [
+     "temporary_spaces_v1",
+     false
+    ],
+    [
+     "geometry_overlay_v1",
+     false
+    ],
+    [
+     "resource_service_v1",
+     false
+    ],
+    [
+     "effect_program_v1",
+     false
+    ],
+    [
+     "facility_queues_v1",
+     false
+    ],
+    [
+     "metric_state",
+     true
+    ],
+    [
+     "model_configs",
+     true
+    ],
+    [
+     "resources",
+     true
+    ],
+    [
+     "id_counters",
+     true
+    ]
+   ],
+   "world": {
+    "active_tasks": [],
+    "agents": [
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.4976599457955883,
+       "hunger": 0.9794616646381298,
+       "toilet_urgency": 0.1866529940393592
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G001",
+       "id": "A001",
+       "initial_needs": {
+        "fatigue": 0.4976599457955883,
+        "hunger": 0.9794616646381298,
+        "toilet_urgency": 0.1866529940393592
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A001",
+       "stress_sensitivity": 0.7435250194629027,
+       "support_need": 0.37387076915424183
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.5684506322013796,
+       "hunger": 0.8271342046961999,
+       "toilet_urgency": 0.47906218480808616
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G001",
+       "id": "A002",
+       "initial_needs": {
+        "fatigue": 0.5684506322013796,
+        "hunger": 0.8271342046961999,
+        "toilet_urgency": 0.47906218480808616
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A002",
+       "stress_sensitivity": 0.2083001013072911,
+       "support_need": 0.28083414617585156
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.06249928486435384,
+       "hunger": 0.025615816358124276,
+       "toilet_urgency": 0.704628461624468
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G001",
+       "id": "A003",
+       "initial_needs": {
+        "fatigue": 0.06249928486435384,
+        "hunger": 0.025615816358124276,
+        "toilet_urgency": 0.704628461624468
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A003",
+       "stress_sensitivity": 0.27645139337514474,
+       "support_need": 0.46795630236779584
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.288857036280807,
+       "hunger": 0.04849068202211752,
+       "toilet_urgency": 0.5559265558453603
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G001",
+       "id": "A004",
+       "initial_needs": {
+        "fatigue": 0.288857036280807,
+        "hunger": 0.04849068202211752,
+        "toilet_urgency": 0.5559265558453603
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "wheelchair",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A004",
+       "stress_sensitivity": 0.490539207381208,
+       "support_need": 0.4111610558633719
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.34003028505632454,
+       "hunger": 0.24109144498122487,
+       "toilet_urgency": 0.826760819534379
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G002",
+       "id": "A005",
+       "initial_needs": {
+        "fatigue": 0.34003028505632454,
+        "hunger": 0.24109144498122487,
+        "toilet_urgency": 0.826760819534379
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A005",
+       "stress_sensitivity": 0.7712322302333914,
+       "support_need": 0.4261747376275999
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.0630683675432566,
+       "hunger": 0.18647556452727773,
+       "toilet_urgency": 0.6987823538371716
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G002",
+       "id": "A006",
+       "initial_needs": {
+        "fatigue": 0.0630683675432566,
+        "hunger": 0.18647556452727773,
+        "toilet_urgency": 0.6987823538371716
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A006",
+       "stress_sensitivity": 0.18457414589033103,
+       "support_need": 0.4664973599858302
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.33390246116111255,
+       "hunger": 0.6896800994924098,
+       "toilet_urgency": 0.23279163292521432
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G002",
+       "id": "A007",
+       "initial_needs": {
+        "fatigue": 0.33390246116111255,
+        "hunger": 0.6896800994924098,
+        "toilet_urgency": 0.23279163292521432
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A007",
+       "stress_sensitivity": 0.3549786283536269,
+       "support_need": 0.5798684185848776
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.4192553920699942,
+       "hunger": 0.44455517774895803,
+       "toilet_urgency": 0.8083693011700799
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G002",
+       "id": "A008",
+       "initial_needs": {
+        "fatigue": 0.4192553920699942,
+        "hunger": 0.44455517774895803,
+        "toilet_urgency": 0.8083693011700799
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A008",
+       "stress_sensitivity": 0.5320105712749215,
+       "support_need": 0.32034334123722646
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.02835536117569259,
+       "hunger": 0.6346465712954263,
+       "toilet_urgency": 0.7700054978913509
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G003",
+       "id": "A009",
+       "initial_needs": {
+        "fatigue": 0.02835536117569259,
+        "hunger": 0.6346465712954263,
+        "toilet_urgency": 0.7700054978913509
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A009",
+       "stress_sensitivity": 0.9037148709887222,
+       "support_need": 0.46834112805305905
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.43676062401117094,
+       "hunger": 0.16231142392747705,
+       "toilet_urgency": 0.4368081160036895
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G003",
+       "id": "A010",
+       "initial_needs": {
+        "fatigue": 0.43676062401117094,
+        "hunger": 0.16231142392747705,
+        "toilet_urgency": 0.4368081160036895
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "wheelchair",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A010",
+       "stress_sensitivity": 0.4240629931884438,
+       "support_need": 0.17014752721312518
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.16325033592453117,
+       "hunger": 0.7082943887763258,
+       "toilet_urgency": 0.11600176163454744
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G003",
+       "id": "A011",
+       "initial_needs": {
+        "fatigue": 0.16325033592453117,
+        "hunger": 0.7082943887763258,
+        "toilet_urgency": 0.11600176163454744
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A011",
+       "stress_sensitivity": 0.9673729998891208,
+       "support_need": 0.10392972090106636
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.18822916227840317,
+       "hunger": 0.002784314558562091,
+       "toilet_urgency": 0.8990407480861088
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G003",
+       "id": "A012",
+       "initial_needs": {
+        "fatigue": 0.18822916227840317,
+        "hunger": 0.002784314558562091,
+        "toilet_urgency": 0.8990407480861088
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A012",
+       "stress_sensitivity": 0.1856568003699712,
+       "support_need": 0.36519287402968736
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.2561135289166919,
+       "hunger": 0.6388967569269571,
+       "toilet_urgency": 0.8275134386152697
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G004",
+       "id": "A013",
+       "initial_needs": {
+        "fatigue": 0.2561135289166919,
+        "hunger": 0.6388967569269571,
+        "toilet_urgency": 0.8275134386152697
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A013",
+       "stress_sensitivity": 0.4636370740549706,
+       "support_need": 0.2253051948748559
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.34611947354869543,
+       "hunger": 0.07596985955637717,
+       "toilet_urgency": 0.9538329147245069
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G004",
+       "id": "A014",
+       "initial_needs": {
+        "fatigue": 0.34611947354869543,
+        "hunger": 0.07596985955637717,
+        "toilet_urgency": 0.9538329147245069
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A014",
+       "stress_sensitivity": 0.04377693260551267,
+       "support_need": 0.5768329229171016
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.625315170363712,
+       "hunger": 0.990539237536727,
+       "toilet_urgency": 0.4138910647027792
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G004",
+       "id": "A015",
+       "initial_needs": {
+        "fatigue": 0.625315170363712,
+        "hunger": 0.990539237536727,
+        "toilet_urgency": 0.4138910647027792
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A015",
+       "stress_sensitivity": 0.09432954756201009,
+       "support_need": 0.5557218203247387
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.39753320194636366,
+       "hunger": 0.6777634188542927,
+       "toilet_urgency": 0.9144936615234323
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G004",
+       "id": "A016",
+       "initial_needs": {
+        "fatigue": 0.39753320194636366,
+        "hunger": 0.6777634188542927,
+        "toilet_urgency": 0.9144936615234323
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A016",
+       "stress_sensitivity": 0.44353294201545845,
+       "support_need": 0.5231783800485779
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.27469814327527203,
+       "hunger": 0.18139551938682622,
+       "toilet_urgency": 0.612209959903757
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G005",
+       "id": "A017",
+       "initial_needs": {
+        "fatigue": 0.27469814327527203,
+        "hunger": 0.18139551938682622,
+        "toilet_urgency": 0.612209959903757
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A017",
+       "stress_sensitivity": 0.3518027019684377,
+       "support_need": 0.3335392807398947
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.6074143498454289,
+       "hunger": 0.6998419406409473,
+       "toilet_urgency": 0.7028013632178348
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G005",
+       "id": "A018",
+       "initial_needs": {
+        "fatigue": 0.6074143498454289,
+        "hunger": 0.6998419406409473,
+        "toilet_urgency": 0.7028013632178348
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A018",
+       "stress_sensitivity": 0.3853676654922448,
+       "support_need": 0.44856793753574764
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.8251611140607061,
+       "hunger": 0.03392153528051208,
+       "toilet_urgency": 0.07513597727364126
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G005",
+       "id": "A019",
+       "initial_needs": {
+        "fatigue": 0.8251611140607061,
+        "hunger": 0.03392153528051208,
+        "toilet_urgency": 0.07513597727364126
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A019",
+       "stress_sensitivity": 0.27004638887388077,
+       "support_need": 0.546824393848391
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.41721099559648145,
+       "hunger": 0.263653532351067,
+       "toilet_urgency": 0.2559479457138743
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G005",
+       "id": "A020",
+       "initial_needs": {
+        "fatigue": 0.41721099559648145,
+        "hunger": 0.263653532351067,
+        "toilet_urgency": 0.2559479457138743
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A020",
+       "stress_sensitivity": 0.7234927126682814,
+       "support_need": 0.5157455011442196
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.045577787318585326,
+       "hunger": 0.15373168139795382,
+       "toilet_urgency": 0.983912526445407
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G006",
+       "id": "A021",
+       "initial_needs": {
+        "fatigue": 0.045577787318585326,
+        "hunger": 0.15373168139795382,
+        "toilet_urgency": 0.983912526445407
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A021",
+       "stress_sensitivity": 0.013604658728496245,
+       "support_need": 0.04702268435268949
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.03079215612975392,
+       "hunger": 0.08573550179330768,
+       "toilet_urgency": 0.3519146712838817
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G006",
+       "id": "A022",
+       "initial_needs": {
+        "fatigue": 0.03079215612975392,
+        "hunger": 0.08573550179330768,
+        "toilet_urgency": 0.3519146712838817
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A022",
+       "stress_sensitivity": 0.9605568607653874,
+       "support_need": 0.4875160607164382
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.5172952207652077,
+       "hunger": 0.2716819686066791,
+       "toilet_urgency": 0.89231199082153
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G006",
+       "id": "A023",
+       "initial_needs": {
+        "fatigue": 0.5172952207652077,
+        "hunger": 0.2716819686066791,
+        "toilet_urgency": 0.89231199082153
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A023",
+       "stress_sensitivity": 0.11668299482604579,
+       "support_need": 0.2019144501544313
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.14927468354936332,
+       "hunger": 0.7465826171703801,
+       "toilet_urgency": 0.7314687679727021
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G006",
+       "id": "A024",
+       "initial_needs": {
+        "fatigue": 0.14927468354936332,
+        "hunger": 0.7465826171703801,
+        "toilet_urgency": 0.7314687679727021
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A024",
+       "stress_sensitivity": 0.05862660834461162,
+       "support_need": 0.5180148329652066
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.8868127571732788,
+       "hunger": 0.7734095462511099,
+       "toilet_urgency": 0.5887780597631904
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G007",
+       "id": "A025",
+       "initial_needs": {
+        "fatigue": 0.8868127571732788,
+        "hunger": 0.7734095462511099,
+        "toilet_urgency": 0.5887780597631904
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A025",
+       "stress_sensitivity": 0.049638679931075166,
+       "support_need": 0.16134630527453228
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.3945889778389033,
+       "hunger": 0.7938884087165905,
+       "toilet_urgency": 0.3644169577906528
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G007",
+       "id": "A026",
+       "initial_needs": {
+        "fatigue": 0.3945889778389033,
+        "hunger": 0.7938884087165905,
+        "toilet_urgency": 0.3644169577906528
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A026",
+       "stress_sensitivity": 0.34685250379444993,
+       "support_need": 0.1389969069715403
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.03872603672800319,
+       "hunger": 0.7361196723677684,
+       "toilet_urgency": 0.9359076982339561
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G007",
+       "id": "A027",
+       "initial_needs": {
+        "fatigue": 0.03872603672800319,
+        "hunger": 0.7361196723677684,
+        "toilet_urgency": 0.9359076982339561
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A027",
+       "stress_sensitivity": 0.4758231528435808,
+       "support_need": 0.3807866716536618
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.6620008798095631,
+       "hunger": 0.244898073887123,
+       "toilet_urgency": 0.482284245140214
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G007",
+       "id": "A028",
+       "initial_needs": {
+        "fatigue": 0.6620008798095631,
+        "hunger": 0.244898073887123,
+        "toilet_urgency": 0.482284245140214
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A028",
+       "stress_sensitivity": 0.3573967695657496,
+       "support_need": 0.3267678488786372
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.22497590907329992,
+       "hunger": 0.9172050565258288,
+       "toilet_urgency": 0.8596097858266414
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G008",
+       "id": "A029",
+       "initial_needs": {
+        "fatigue": 0.22497590907329992,
+        "hunger": 0.9172050565258288,
+        "toilet_urgency": 0.8596097858266414
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A029",
+       "stress_sensitivity": 0.566199637500572,
+       "support_need": 0.43465056517272016
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.4305579858574212,
+       "hunger": 0.3486129459693313,
+       "toilet_urgency": 0.9916224784502324
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G008",
+       "id": "A030",
+       "initial_needs": {
+        "fatigue": 0.4305579858574212,
+        "hunger": 0.3486129459693313,
+        "toilet_urgency": 0.9916224784502324
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A030",
+       "stress_sensitivity": 0.17254537030402275,
+       "support_need": 0.48694794373447686
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.5312118798849819,
+       "hunger": 0.2515604317199174,
+       "toilet_urgency": 0.35277259433681135
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G008",
+       "id": "A031",
+       "initial_needs": {
+        "fatigue": 0.5312118798849819,
+        "hunger": 0.2515604317199174,
+        "toilet_urgency": 0.35277259433681135
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A031",
+       "stress_sensitivity": 0.453867067915602,
+       "support_need": 0.22946463183155807
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.19269958403437706,
+       "hunger": 0.4025499475418284,
+       "toilet_urgency": 0.554666103934444
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G008",
+       "id": "A032",
+       "initial_needs": {
+        "fatigue": 0.19269958403437706,
+        "hunger": 0.4025499475418284,
+        "toilet_urgency": 0.554666103934444
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A032",
+       "stress_sensitivity": 0.18734683670329838,
+       "support_need": 0.11438401883563565
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.3457047575205871,
+       "hunger": 0.167854806058281,
+       "toilet_urgency": 0.5632971740208771
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G009",
+       "id": "A033",
+       "initial_needs": {
+        "fatigue": 0.3457047575205871,
+        "hunger": 0.167854806058281,
+        "toilet_urgency": 0.5632971740208771
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A033",
+       "stress_sensitivity": 0.5286957656023812,
+       "support_need": 0.09875025583586947
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.25897919693442983,
+       "hunger": 0.1940691211113189,
+       "toilet_urgency": 0.03638860863827239
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G009",
+       "id": "A034",
+       "initial_needs": {
+        "fatigue": 0.25897919693442983,
+        "hunger": 0.1940691211113189,
+        "toilet_urgency": 0.03638860863827239
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A034",
+       "stress_sensitivity": 0.7272952447293436,
+       "support_need": 0.5435585266270139
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.9810262067213446,
+       "hunger": 0.33181519594725706,
+       "toilet_urgency": 0.3066446348218124
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G009",
+       "id": "A035",
+       "initial_needs": {
+        "fatigue": 0.9810262067213446,
+        "hunger": 0.33181519594725706,
+        "toilet_urgency": 0.3066446348218124
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A035",
+       "stress_sensitivity": 0.2530801444473387,
+       "support_need": 0.36236909444672794
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.7194962467241356,
+       "hunger": 0.28257863702891584,
+       "toilet_urgency": 0.18424729533122244
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G009",
+       "id": "A036",
+       "initial_needs": {
+        "fatigue": 0.7194962467241356,
+        "hunger": 0.28257863702891584,
+        "toilet_urgency": 0.18424729533122244
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A036",
+       "stress_sensitivity": 0.2298905897685119,
+       "support_need": 0.5481816919165615
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.3146154522798082,
+       "hunger": 0.8173906439042012,
+       "toilet_urgency": 0.6532782406210811
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G010",
+       "id": "A037",
+       "initial_needs": {
+        "fatigue": 0.3146154522798082,
+        "hunger": 0.8173906439042012,
+        "toilet_urgency": 0.6532782406210811
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A037",
+       "stress_sensitivity": 0.7571949420490112,
+       "support_need": 0.20124453062546657
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.9158615908954937,
+       "hunger": 0.6594561867909872,
+       "toilet_urgency": 0.11232426639884223
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G010",
+       "id": "A038",
+       "initial_needs": {
+        "fatigue": 0.9158615908954937,
+        "hunger": 0.6594561867909872,
+        "toilet_urgency": 0.11232426639884223
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "wheelchair",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A038",
+       "stress_sensitivity": 0.07144075399451068,
+       "support_need": 0.44501443588866607
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.3106053370419704,
+       "hunger": 0.8788510943745547,
+       "toilet_urgency": 0.6542100585833864
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G010",
+       "id": "A039",
+       "initial_needs": {
+        "fatigue": 0.3106053370419704,
+        "hunger": 0.8788510943745547,
+        "toilet_urgency": 0.6542100585833864
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A039",
+       "stress_sensitivity": 0.6278271615851303,
+       "support_need": 0.012634177551386006
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.6287195472567444,
+       "hunger": 0.03802634917847644,
+       "toilet_urgency": 0.3264438564704227
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G010",
+       "id": "A040",
+       "initial_needs": {
+        "fatigue": 0.6287195472567444,
+        "hunger": 0.03802634917847644,
+        "toilet_urgency": 0.3264438564704227
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A040",
+       "stress_sensitivity": 0.21973141651059136,
+       "support_need": 0.16707214344965257
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.990756013245531,
+       "hunger": 0.15178597227056786,
+       "toilet_urgency": 0.7274522331362142
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G011",
+       "id": "A041",
+       "initial_needs": {
+        "fatigue": 0.990756013245531,
+        "hunger": 0.15178597227056786,
+        "toilet_urgency": 0.7274522331362142
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A041",
+       "stress_sensitivity": 0.8268342277029587,
+       "support_need": 0.13278582814018514
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.5891411544165963,
+       "hunger": 0.5609789511292065,
+       "toilet_urgency": 0.3213961606625815
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G011",
+       "id": "A042",
+       "initial_needs": {
+        "fatigue": 0.5891411544165963,
+        "hunger": 0.5609789511292065,
+        "toilet_urgency": 0.3213961606625815
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A042",
+       "stress_sensitivity": 0.6509859871256972,
+       "support_need": 0.2926262281424095
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.6214418489554894,
+       "hunger": 0.6304730861610444,
+       "toilet_urgency": 0.8415726052262409
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G011",
+       "id": "A043",
+       "initial_needs": {
+        "fatigue": 0.6214418489554894,
+        "hunger": 0.6304730861610444,
+        "toilet_urgency": 0.8415726052262409
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A043",
+       "stress_sensitivity": 0.7209147558341579,
+       "support_need": 0.5926658441592615
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.5759571679594406,
+       "hunger": 0.6357927421399133,
+       "toilet_urgency": 0.3347164912493037
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G011",
+       "id": "A044",
+       "initial_needs": {
+        "fatigue": 0.5759571679594406,
+        "hunger": 0.6357927421399133,
+        "toilet_urgency": 0.3347164912493037
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A044",
+       "stress_sensitivity": 0.8902040972540844,
+       "support_need": 0.06516498270089036
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.618156295692107,
+       "hunger": 0.11560915000221939,
+       "toilet_urgency": 0.03390709287741216
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G012",
+       "id": "A045",
+       "initial_needs": {
+        "fatigue": 0.618156295692107,
+        "hunger": 0.11560915000221939,
+        "toilet_urgency": 0.03390709287741216
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A045",
+       "stress_sensitivity": 0.6960233761112552,
+       "support_need": 0.005284024902721792
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.243615890538553,
+       "hunger": 0.2447195583668941,
+       "toilet_urgency": 0.7921486102065393
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G012",
+       "id": "A046",
+       "initial_needs": {
+        "fatigue": 0.243615890538553,
+        "hunger": 0.2447195583668941,
+        "toilet_urgency": 0.7921486102065393
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A046",
+       "stress_sensitivity": 0.6100926433803024,
+       "support_need": 0.241032209853287
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.8715339030721627,
+       "hunger": 0.8414096124013148,
+       "toilet_urgency": 0.11952880349181273
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G012",
+       "id": "A047",
+       "initial_needs": {
+        "fatigue": 0.8715339030721627,
+        "hunger": 0.8414096124013148,
+        "toilet_urgency": 0.11952880349181273
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A047",
+       "stress_sensitivity": 0.3363208843479736,
+       "support_need": 0.13675047603416757
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.18755531379676285,
+       "hunger": 0.35966798723673765,
+       "toilet_urgency": 0.38350011087689795
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G012",
+       "id": "A048",
+       "initial_needs": {
+        "fatigue": 0.18755531379676285,
+        "hunger": 0.35966798723673765,
+        "toilet_urgency": 0.38350011087689795
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A048",
+       "stress_sensitivity": 0.23540870591521212,
+       "support_need": 0.5871510429052843
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.7387383260318878,
+       "hunger": 0.5647342705400901,
+       "toilet_urgency": 0.45477413760566593
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G013",
+       "id": "A049",
+       "initial_needs": {
+        "fatigue": 0.7387383260318878,
+        "hunger": 0.5647342705400901,
+        "toilet_urgency": 0.45477413760566593
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A049",
+       "stress_sensitivity": 0.6997306660695968,
+       "support_need": 0.07127300643831552
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.26672959538283025,
+       "hunger": 0.6658097638017382,
+       "toilet_urgency": 0.2824580501758703
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G013",
+       "id": "A050",
+       "initial_needs": {
+        "fatigue": 0.26672959538283025,
+        "hunger": 0.6658097638017382,
+        "toilet_urgency": 0.2824580501758703
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A050",
+       "stress_sensitivity": 0.4334676087166803,
+       "support_need": 0.43518904258103625
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.7567485839856433,
+       "hunger": 0.4414576889135463,
+       "toilet_urgency": 0.05089477144045578
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G013",
+       "id": "A051",
+       "initial_needs": {
+        "fatigue": 0.7567485839856433,
+        "hunger": 0.4414576889135463,
+        "toilet_urgency": 0.05089477144045578
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A051",
+       "stress_sensitivity": 0.3196719161511663,
+       "support_need": 0.04424359590176943
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.7272780275448176,
+       "hunger": 0.28057286452931723,
+       "toilet_urgency": 0.13533560794322538
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G013",
+       "id": "A052",
+       "initial_needs": {
+        "fatigue": 0.7272780275448176,
+        "hunger": 0.28057286452931723,
+        "toilet_urgency": 0.13533560794322538
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A052",
+       "stress_sensitivity": 0.38572248577915885,
+       "support_need": 0.014209618514156405
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.023741767710655802,
+       "hunger": 0.3956731775935446,
+       "toilet_urgency": 0.018157074593138717
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G014",
+       "id": "A053",
+       "initial_needs": {
+        "fatigue": 0.023741767710655802,
+        "hunger": 0.3956731775935446,
+        "toilet_urgency": 0.018157074593138717
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A053",
+       "stress_sensitivity": 0.170684949010727,
+       "support_need": 0.109460989839563
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.43669913325156917,
+       "hunger": 0.9046081829521945,
+       "toilet_urgency": 0.8584995126136756
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G014",
+       "id": "A054",
+       "initial_needs": {
+        "fatigue": 0.43669913325156917,
+        "hunger": 0.9046081829521945,
+        "toilet_urgency": 0.8584995126136756
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A054",
+       "stress_sensitivity": 0.5461144685307323,
+       "support_need": 0.045971767772626446
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.5558811190548865,
+       "hunger": 0.4352995938767192,
+       "toilet_urgency": 0.4028549484535214
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G014",
+       "id": "A055",
+       "initial_needs": {
+        "fatigue": 0.5558811190548865,
+        "hunger": 0.4352995938767192,
+        "toilet_urgency": 0.4028549484535214
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "wheelchair",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A055",
+       "stress_sensitivity": 0.6332358868782161,
+       "support_need": 0.10773798754134717
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.009876679570650942,
+       "hunger": 0.8152735788840006,
+       "toilet_urgency": 0.2894401180206103
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G014",
+       "id": "A056",
+       "initial_needs": {
+        "fatigue": 0.009876679570650942,
+        "hunger": 0.8152735788840006,
+        "toilet_urgency": 0.2894401180206103
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A056",
+       "stress_sensitivity": 0.1522388434063527,
+       "support_need": 0.10229314136282647
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.7706219897968903,
+       "hunger": 0.5563927490308459,
+       "toilet_urgency": 0.5898964744250872
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G015",
+       "id": "A057",
+       "initial_needs": {
+        "fatigue": 0.7706219897968903,
+        "hunger": 0.5563927490308459,
+        "toilet_urgency": 0.5898964744250872
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A057",
+       "stress_sensitivity": 0.5096884707961556,
+       "support_need": 0.41640973730293745
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.028044533164284815,
+       "hunger": 0.19884683305011328,
+       "toilet_urgency": 0.7599168158785433
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G015",
+       "id": "A058",
+       "initial_needs": {
+        "fatigue": 0.028044533164284815,
+        "hunger": 0.19884683305011328,
+        "toilet_urgency": 0.7599168158785433
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A058",
+       "stress_sensitivity": 0.554891962343944,
+       "support_need": 0.5726340182124566
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.11533780864325335,
+       "hunger": 0.868710969661535,
+       "toilet_urgency": 0.44968928426785343
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G015",
+       "id": "A059",
+       "initial_needs": {
+        "fatigue": 0.11533780864325335,
+        "hunger": 0.868710969661535,
+        "toilet_urgency": 0.44968928426785343
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A059",
+       "stress_sensitivity": 0.31418171429933167,
+       "support_need": 0.4288192378866473
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.39279228880080114,
+       "hunger": 0.7978973071229368,
+       "toilet_urgency": 0.9998034465756225
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G015",
+       "id": "A060",
+       "initial_needs": {
+        "fatigue": 0.39279228880080114,
+        "hunger": 0.7978973071229368,
+        "toilet_urgency": 0.9998034465756225
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A060",
+       "stress_sensitivity": 0.42357604839478796,
+       "support_need": 0.4706332486045775
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.4081925348411267,
+       "hunger": 0.005028341190634134,
+       "toilet_urgency": 0.33182356011709196
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G016",
+       "id": "A061",
+       "initial_needs": {
+        "fatigue": 0.4081925348411267,
+        "hunger": 0.005028341190634134,
+        "toilet_urgency": 0.33182356011709196
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A061",
+       "stress_sensitivity": 0.14834764697942676,
+       "support_need": 0.4067516078435674
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.6586926317317834,
+       "hunger": 0.2580615662439584,
+       "toilet_urgency": 0.04078532898489251
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G016",
+       "id": "A062",
+       "initial_needs": {
+        "fatigue": 0.6586926317317834,
+        "hunger": 0.2580615662439584,
+        "toilet_urgency": 0.04078532898489251
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A062",
+       "stress_sensitivity": 0.3414057462566079,
+       "support_need": 0.3751134826017181
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.6924623711673882,
+       "hunger": 0.018131537292211664,
+       "toilet_urgency": 0.5880844414594496
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G016",
+       "id": "A063",
+       "initial_needs": {
+        "fatigue": 0.6924623711673882,
+        "hunger": 0.018131537292211664,
+        "toilet_urgency": 0.5880844414594496
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A063",
+       "stress_sensitivity": 0.9357019493062269,
+       "support_need": 0.4336140009146005
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.7216016616080293,
+       "hunger": 0.8745077126605364,
+       "toilet_urgency": 0.8519303382001353
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G016",
+       "id": "A064",
+       "initial_needs": {
+        "fatigue": 0.7216016616080293,
+        "hunger": 0.8745077126605364,
+        "toilet_urgency": 0.8519303382001353
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A064",
+       "stress_sensitivity": 0.1911647143520024,
+       "support_need": 0.1673916291333139
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.9005084900557827,
+       "hunger": 0.5119243792159993,
+       "toilet_urgency": 0.2674314796235389
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G017",
+       "id": "A065",
+       "initial_needs": {
+        "fatigue": 0.9005084900557827,
+        "hunger": 0.5119243792159993,
+        "toilet_urgency": 0.2674314796235389
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A065",
+       "stress_sensitivity": 0.7460418617089207,
+       "support_need": 0.27702617637471527
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.750965895234635,
+       "hunger": 0.43070864338622167,
+       "toilet_urgency": 0.9326548046067896
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G017",
+       "id": "A066",
+       "initial_needs": {
+        "fatigue": 0.750965895234635,
+        "hunger": 0.43070864338622167,
+        "toilet_urgency": 0.9326548046067896
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A066",
+       "stress_sensitivity": 0.7778228169542717,
+       "support_need": 0.5658005351763873
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.662132443458115,
+       "hunger": 0.42351545697284126,
+       "toilet_urgency": 0.7543378589984562
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G017",
+       "id": "A067",
+       "initial_needs": {
+        "fatigue": 0.662132443458115,
+        "hunger": 0.42351545697284126,
+        "toilet_urgency": 0.7543378589984562
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A067",
+       "stress_sensitivity": 0.018598192653514544,
+       "support_need": 0.139872793140006
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.9811907356365231,
+       "hunger": 0.6113204006183477,
+       "toilet_urgency": 0.9736482692693672
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G017",
+       "id": "A068",
+       "initial_needs": {
+        "fatigue": 0.9811907356365231,
+        "hunger": 0.6113204006183477,
+        "toilet_urgency": 0.9736482692693672
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A068",
+       "stress_sensitivity": 0.7218550488288168,
+       "support_need": 0.06737603737463864
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.7799534560809466,
+       "hunger": 0.8374748290278481,
+       "toilet_urgency": 0.8994389590339308
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G018",
+       "id": "A069",
+       "initial_needs": {
+        "fatigue": 0.7799534560809466,
+        "hunger": 0.8374748290278481,
+        "toilet_urgency": 0.8994389590339308
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A069",
+       "stress_sensitivity": 0.14137563950147364,
+       "support_need": 0.5900060830673002
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.48431995694422014,
+       "hunger": 0.30195431339095025,
+       "toilet_urgency": 0.19571270539308128
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G018",
+       "id": "A070",
+       "initial_needs": {
+        "fatigue": 0.48431995694422014,
+        "hunger": 0.30195431339095025,
+        "toilet_urgency": 0.19571270539308128
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A070",
+       "stress_sensitivity": 0.7330870242063018,
+       "support_need": 0.3467196929752417
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.44507612423762316,
+       "hunger": 0.735023869249216,
+       "toilet_urgency": 0.4151421222859475
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G018",
+       "id": "A071",
+       "initial_needs": {
+        "fatigue": 0.44507612423762316,
+        "hunger": 0.735023869249216,
+        "toilet_urgency": 0.4151421222859475
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "wheelchair",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A071",
+       "stress_sensitivity": 0.32886074473114624,
+       "support_need": 0.5738100044752541
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.847761597138878,
+       "hunger": 0.5338782946822316,
+       "toilet_urgency": 0.8273303020798894
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G018",
+       "id": "A072",
+       "initial_needs": {
+        "fatigue": 0.847761597138878,
+        "hunger": 0.5338782946822316,
+        "toilet_urgency": 0.8273303020798894
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A072",
+       "stress_sensitivity": 0.45572290810654653,
+       "support_need": 0.22977079168164696
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.4384660260332103,
+       "hunger": 0.06991281060159493,
+       "toilet_urgency": 0.2360879444994058
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G019",
+       "id": "A073",
+       "initial_needs": {
+        "fatigue": 0.4384660260332103,
+        "hunger": 0.06991281060159493,
+        "toilet_urgency": 0.2360879444994058
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A073",
+       "stress_sensitivity": 0.9830147769534641,
+       "support_need": 0.5039875139961821
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.6575116040547778,
+       "hunger": 0.6778419155665854,
+       "toilet_urgency": 0.9507252478736328
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G019",
+       "id": "A074",
+       "initial_needs": {
+        "fatigue": 0.6575116040547778,
+        "hunger": 0.6778419155665854,
+        "toilet_urgency": 0.9507252478736328
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "wheelchair",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A074",
+       "stress_sensitivity": 0.22036992168535352,
+       "support_need": 0.5851289573462067
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.722901537848054,
+       "hunger": 0.6142340231545241,
+       "toilet_urgency": 0.5630018335541254
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G019",
+       "id": "A075",
+       "initial_needs": {
+        "fatigue": 0.722901537848054,
+        "hunger": 0.6142340231545241,
+        "toilet_urgency": 0.5630018335541254
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A075",
+       "stress_sensitivity": 0.9017224477672331,
+       "support_need": 0.33523951452214157
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.10232842839948819,
+       "hunger": 0.2747050876188687,
+       "toilet_urgency": 0.6425960688877853
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G019",
+       "id": "A076",
+       "initial_needs": {
+        "fatigue": 0.10232842839948819,
+        "hunger": 0.2747050876188687,
+        "toilet_urgency": 0.6425960688877853
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A076",
+       "stress_sensitivity": 0.5308549342107426,
+       "support_need": 0.33714271478381486
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.7077595136876111,
+       "hunger": 0.43705534426287734,
+       "toilet_urgency": 0.31965160469054116
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G020",
+       "id": "A077",
+       "initial_needs": {
+        "fatigue": 0.7077595136876111,
+        "hunger": 0.43705534426287734,
+        "toilet_urgency": 0.31965160469054116
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A077",
+       "stress_sensitivity": 0.9965844520316066,
+       "support_need": 0.5078064832885003
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.21197349537837468,
+       "hunger": 0.5332326804383203,
+       "toilet_urgency": 0.5493678560778559
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G020",
+       "id": "A078",
+       "initial_needs": {
+        "fatigue": 0.21197349537837468,
+        "hunger": 0.5332326804383203,
+        "toilet_urgency": 0.5493678560778559
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A078",
+       "stress_sensitivity": 0.6546841767126577,
+       "support_need": 0.08849865801047595
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.504286735740635,
+       "hunger": 0.8400617643160638,
+       "toilet_urgency": 0.34063864693720614
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G020",
+       "id": "A079",
+       "initial_needs": {
+        "fatigue": 0.504286735740635,
+        "hunger": 0.8400617643160638,
+        "toilet_urgency": 0.34063864693720614
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A079",
+       "stress_sensitivity": 0.3613509895400057,
+       "support_need": 0.07708819519372336
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.8925070444684853,
+       "hunger": 0.7213672896354839,
+       "toilet_urgency": 0.7624913560600339
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G020",
+       "id": "A080",
+       "initial_needs": {
+        "fatigue": 0.8925070444684853,
+        "hunger": 0.7213672896354839,
+        "toilet_urgency": 0.7624913560600339
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A080",
+       "stress_sensitivity": 0.7043608879266471,
+       "support_need": 0.5075620154546375
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.47656122825214625,
+       "hunger": 0.4668437436085626,
+       "toilet_urgency": 0.6366100069349772
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G021",
+       "id": "A081",
+       "initial_needs": {
+        "fatigue": 0.47656122825214625,
+        "hunger": 0.4668437436085626,
+        "toilet_urgency": 0.6366100069349772
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A081",
+       "stress_sensitivity": 0.6723824452832539,
+       "support_need": 0.34389591686535775
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.8421431964792171,
+       "hunger": 0.8188733648794342,
+       "toilet_urgency": 0.16980595672161986
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G021",
+       "id": "A082",
+       "initial_needs": {
+        "fatigue": 0.8421431964792171,
+        "hunger": 0.8188733648794342,
+        "toilet_urgency": 0.16980595672161986
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A082",
+       "stress_sensitivity": 0.040719764039619515,
+       "support_need": 0.5891639949355493
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.6339747592238371,
+       "hunger": 0.7345963965770732,
+       "toilet_urgency": 0.7645122087418185
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G021",
+       "id": "A083",
+       "initial_needs": {
+        "fatigue": 0.6339747592238371,
+        "hunger": 0.7345963965770732,
+        "toilet_urgency": 0.7645122087418185
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A083",
+       "stress_sensitivity": 0.7523691837867794,
+       "support_need": 0.560902293202863
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.07233140778135463,
+       "hunger": 0.39101375434264884,
+       "toilet_urgency": 0.6670196898071621
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G021",
+       "id": "A084",
+       "initial_needs": {
+        "fatigue": 0.07233140778135463,
+        "hunger": 0.39101375434264884,
+        "toilet_urgency": 0.6670196898071621
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A084",
+       "stress_sensitivity": 0.5412696843213475,
+       "support_need": 0.3117322021379496
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.9997272219070735,
+       "hunger": 0.9087301956069035,
+       "toilet_urgency": 0.25343250740861917
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G022",
+       "id": "A085",
+       "initial_needs": {
+        "fatigue": 0.9997272219070735,
+        "hunger": 0.9087301956069035,
+        "toilet_urgency": 0.25343250740861917
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A085",
+       "stress_sensitivity": 0.23631598945527318,
+       "support_need": 0.5327547327566552
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.0802482235952305,
+       "hunger": 0.12906268188612932,
+       "toilet_urgency": 0.6300644102736671
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G022",
+       "id": "A086",
+       "initial_needs": {
+        "fatigue": 0.0802482235952305,
+        "hunger": 0.12906268188612932,
+        "toilet_urgency": 0.6300644102736671
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A086",
+       "stress_sensitivity": 0.7114371007214961,
+       "support_need": 0.4126158466427315
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.7625931187514068,
+       "hunger": 0.04730610308972561,
+       "toilet_urgency": 0.40045356142138544
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G022",
+       "id": "A087",
+       "initial_needs": {
+        "fatigue": 0.7625931187514068,
+        "hunger": 0.04730610308972561,
+        "toilet_urgency": 0.40045356142138544
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A087",
+       "stress_sensitivity": 0.29762630750861296,
+       "support_need": 0.41958544882129645
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.6965293344487989,
+       "hunger": 0.4120283011579541,
+       "toilet_urgency": 0.9262889554898006
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G022",
+       "id": "A088",
+       "initial_needs": {
+        "fatigue": 0.6965293344487989,
+        "hunger": 0.4120283011579541,
+        "toilet_urgency": 0.9262889554898006
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A088",
+       "stress_sensitivity": 0.8213365286881481,
+       "support_need": 0.4491159779744771
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.5952103732261347,
+       "hunger": 0.48214073989951345,
+       "toilet_urgency": 0.18910758361451255
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G023",
+       "id": "A089",
+       "initial_needs": {
+        "fatigue": 0.5952103732261347,
+        "hunger": 0.48214073989951345,
+        "toilet_urgency": 0.18910758361451255
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A089",
+       "stress_sensitivity": 0.22140105774610314,
+       "support_need": 0.045769819448873414
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.6853249496432872,
+       "hunger": 0.637518662838668,
+       "toilet_urgency": 0.3091364231428141
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G023",
+       "id": "A090",
+       "initial_needs": {
+        "fatigue": 0.6853249496432872,
+        "hunger": 0.637518662838668,
+        "toilet_urgency": 0.3091364231428141
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A090",
+       "stress_sensitivity": 0.8620343129746114,
+       "support_need": 0.0337809958132812
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.5315162144387359,
+       "hunger": 0.6969823124184964,
+       "toilet_urgency": 0.688419393334484
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G023",
+       "id": "A091",
+       "initial_needs": {
+        "fatigue": 0.5315162144387359,
+        "hunger": 0.6969823124184964,
+        "toilet_urgency": 0.688419393334484
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A091",
+       "stress_sensitivity": 0.041282591321360876,
+       "support_need": 0.08392128244904791
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.6219617305501667,
+       "hunger": 0.9181561070955474,
+       "toilet_urgency": 0.41082690809528183
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G023",
+       "id": "A092",
+       "initial_needs": {
+        "fatigue": 0.6219617305501667,
+        "hunger": 0.9181561070955474,
+        "toilet_urgency": 0.41082690809528183
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A092",
+       "stress_sensitivity": 0.1269645997554304,
+       "support_need": 0.13913496318123314
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.8834178975591569,
+       "hunger": 0.16909290416055103,
+       "toilet_urgency": 0.9362937408028982
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G024",
+       "id": "A093",
+       "initial_needs": {
+        "fatigue": 0.8834178975591569,
+        "hunger": 0.16909290416055103,
+        "toilet_urgency": 0.9362937408028982
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A093",
+       "stress_sensitivity": 0.054712242013625914,
+       "support_need": 0.5576528546928835
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.233786033456822,
+       "hunger": 0.8317112783465492,
+       "toilet_urgency": 0.8947282717328521
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G024",
+       "id": "A094",
+       "initial_needs": {
+        "fatigue": 0.233786033456822,
+        "hunger": 0.8317112783465492,
+        "toilet_urgency": 0.8947282717328521
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A094",
+       "stress_sensitivity": 0.08165417817269925,
+       "support_need": 0.2022196505295624
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.2862378811167854,
+       "hunger": 0.9444865701277608,
+       "toilet_urgency": 0.25993408005360275
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G024",
+       "id": "A095",
+       "initial_needs": {
+        "fatigue": 0.2862378811167854,
+        "hunger": 0.9444865701277608,
+        "toilet_urgency": 0.25993408005360275
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A095",
+       "stress_sensitivity": 0.07442085727916235,
+       "support_need": 0.5855953365866121
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.7599881483424089,
+       "hunger": 0.3626906145199251,
+       "toilet_urgency": 0.75065827977536
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G024",
+       "id": "A096",
+       "initial_needs": {
+        "fatigue": 0.7599881483424089,
+        "hunger": 0.3626906145199251,
+        "toilet_urgency": 0.75065827977536
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A096",
+       "stress_sensitivity": 0.6221646649250715,
+       "support_need": 0.01742742961296186
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.6922195883038043,
+       "hunger": 0.4429661068583837,
+       "toilet_urgency": 0.8843728190477261
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G025",
+       "id": "A097",
+       "initial_needs": {
+        "fatigue": 0.6922195883038043,
+        "hunger": 0.4429661068583837,
+        "toilet_urgency": 0.8843728190477261
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A097",
+       "stress_sensitivity": 0.7883767370034677,
+       "support_need": 0.33486429256452543
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.706450083172928,
+       "hunger": 0.9688422593832522,
+       "toilet_urgency": 0.10615002687784966
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G025",
+       "id": "A098",
+       "initial_needs": {
+        "fatigue": 0.706450083172928,
+        "hunger": 0.9688422593832522,
+        "toilet_urgency": 0.10615002687784966
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A098",
+       "stress_sensitivity": 0.8553577293453307,
+       "support_need": 0.15021390048260044
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.05893146888589353,
+       "hunger": 0.7903926572504846,
+       "toilet_urgency": 0.29507153952288573
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G025",
+       "id": "A099",
+       "initial_needs": {
+        "fatigue": 0.05893146888589353,
+        "hunger": 0.7903926572504846,
+        "toilet_urgency": 0.29507153952288573
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A099",
+       "stress_sensitivity": 0.8083682472554923,
+       "support_need": 0.02625087769168098
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.7175313553281314,
+       "hunger": 0.6182328494187399,
+       "toilet_urgency": 0.6409644337818274
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G025",
+       "id": "A100",
+       "initial_needs": {
+        "fatigue": 0.7175313553281314,
+        "hunger": 0.6182328494187399,
+        "toilet_urgency": 0.6409644337818274
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A100",
+       "stress_sensitivity": 0.8383874672410737,
+       "support_need": 0.5369452883162477
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     }
+    ],
+    "duration_minutes": 600,
+    "event_log": [],
+    "event_queue": [],
+    "facilities": [
+     {
+      "active_agent_ids": [],
+      "capacity": 1,
+      "id": "toilet_1",
+      "kind": "toilet",
+      "queue_agent_ids": [],
+      "working_units": 1,
+      "zone_id": "toilet"
+     },
+     {
+      "active_agent_ids": [],
+      "capacity": 1,
+      "id": "toilet_2",
+      "kind": "toilet",
+      "queue_agent_ids": [],
+      "working_units": 1,
+      "zone_id": "toilet"
+     },
+     {
+      "active_agent_ids": [],
+      "capacity": 1,
+      "id": "toilet_3",
+      "kind": "toilet",
+      "queue_agent_ids": [],
+      "working_units": 1,
+      "zone_id": "toilet"
+     },
+     {
+      "active_agent_ids": [],
+      "capacity": 1,
+      "id": "toilet_4",
+      "kind": "toilet",
+      "queue_agent_ids": [],
+      "working_units": 1,
+      "zone_id": "toilet"
+     }
+    ],
+    "id_counters": {
+     "agent": 100,
+     "event": 0
+    },
+    "metric_state": {},
+    "minute_index": 0,
+    "model_configs": {
+     "behavior": {
+      "mode": "offline",
+      "source_type": "assumption"
+     }
+    },
+    "model_state": {},
+    "resources": {},
+    "rng_state": null,
+    "scenario_id": "baseline_100_7d",
+    "schema_version": 5,
+    "seed": 2026,
+    "staff": [
+     {
+      "active_task_id": null,
+      "busy_until": 0,
+      "id": "S01",
+      "skills": [
+       "support"
+      ],
+      "work_queue": [],
+      "zone_id": "information_desk"
+     },
+     {
+      "active_task_id": null,
+      "busy_until": 0,
+      "id": "S02",
+      "skills": [
+       "support"
+      ],
+      "work_queue": [],
+      "zone_id": "information_desk"
+     },
+     {
+      "active_task_id": null,
+      "busy_until": 0,
+      "id": "S03",
+      "skills": [
+       "support"
+      ],
+      "work_queue": [],
+      "zone_id": "information_desk"
+     },
+     {
+      "active_task_id": null,
+      "busy_until": 0,
+      "id": "S04",
+      "skills": [
+       "support"
+      ],
+      "work_queue": [],
+      "zone_id": "information_desk"
+     },
+     {
+      "active_task_id": null,
+      "busy_until": 0,
+      "id": "S05",
+      "skills": [
+       "support"
+      ],
+      "work_queue": [],
+      "zone_id": "information_desk"
+     }
+    ],
+    "support_requests": [],
+    "zone_edges": [
+     {
+      "closed": false,
+      "from_zone_id": "corridor",
+      "id": "corridor_desk",
+      "to_zone_id": "information_desk",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "corridor",
+      "id": "corridor_sleeping",
+      "to_zone_id": "sleeping",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "corridor",
+      "id": "corridor_toilet",
+      "to_zone_id": "toilet",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "information_desk",
+      "id": "desk_corridor",
+      "to_zone_id": "corridor",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "sleeping",
+      "id": "sleeping_corridor",
+      "to_zone_id": "corridor",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "toilet",
+      "id": "toilet_corridor",
+      "to_zone_id": "corridor",
+      "travel_minutes": 1
+     }
+    ],
+    "zones": [
+     {
+      "capacity": null,
+      "display_x": 1.0,
+      "display_y": 0.0,
+      "id": "corridor",
+      "name": "Corridor"
+     },
+     {
+      "capacity": 8,
+      "display_x": 1.0,
+      "display_y": 1.0,
+      "id": "information_desk",
+      "name": "Information desk"
+     },
+     {
+      "capacity": 120,
+      "display_x": 0.0,
+      "display_y": 0.0,
+      "id": "sleeping",
+      "name": "Sleeping area"
+     },
+     {
+      "capacity": 20,
+      "display_x": 2.0,
+      "display_y": 0.0,
+      "id": "toilet",
+      "name": "Toilets"
+     }
+    ]
+   }
+  },
+  "no_handler": {
+   "base": "hundred",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 0,
+       "event_id": "x",
+       "event_type": "probe",
+       "kind": "endogenous",
+       "payload": {},
+       "priority": 0,
+       "provenance": {
+        "source_type": "assumption"
+       },
+       "sequence": 901,
+       "source_id": "probe-1"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     902
+    ]
+   ]
+  },
+  "return_walk": {
+   "base": "hundred",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "active_tasks"
+     ],
+     [
+      {
+       "agent_id": "A001",
+       "due_minute": 1,
+       "id": "agent-travel-0",
+       "kind": "travel_return",
+       "resource_id": null,
+       "staff_id": null,
+       "start_minute": 0
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "activity"
+     ],
+     "moving"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "target_id"
+     ],
+     "corridor"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 1,
+       "event_id": "agent-travel-complete-0",
+       "event_type": "agent_travel_complete",
+       "kind": "completion",
+       "payload": {
+        "agent_id": "A001",
+        "destination_zone_id": "corridor",
+        "facility_id": null,
+        "purpose": "return",
+        "route_edge_ids": [
+         "sleeping_corridor"
+        ],
+        "route_zone_ids": [
+         "sleeping",
+         "corridor"
+        ],
+        "task_id": "agent-travel-0",
+        "travel_minutes": 1
+       },
+       "priority": 0,
+       "provenance": {
+        "policy_version": "shortest-travel-time-v1",
+        "source_id": "ASM-ZONE-ROUTING-V1",
+        "source_type": "assumption"
+       },
+       "sequence": 0,
+       "source_id": "agent-travel-0"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     1
+    ],
+    [
+     "set",
+     [
+      "world",
+      "minute_index"
+     ],
+     1
+    ]
+   ]
+  },
+  "social": {
+   "base": "hundred",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_queue"
+     ],
+     [
+      {
+       "causation_id": null,
+       "due_minute": 0,
+       "event_id": "social-901",
+       "event_type": "social_interaction",
+       "kind": "endogenous",
+       "payload": {
+        "action": "offer_reassurance",
+        "agent_id": "A001",
+        "interaction_duration_minutes": 5,
+        "interaction_type": "reassurance_exchange",
+        "participant_agent_id": "A002",
+        "reason_short": "autonomous_need_choice",
+        "topic_id": "emotional_check_in",
+        "zone_id": "sleeping"
+       },
+       "priority": 0,
+       "provenance": {
+        "policy_version": "social-policy-1",
+        "source_id": "ASM-EVENT-TRIGGERED-SOCIAL-INTERACTIONS-V1",
+        "source_type": "assumption"
+       },
+       "sequence": 901,
+       "source_id": "social-policy-1"
+      }
+     ]
+    ],
+    [
+     "set",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ],
+     902
+    ]
+   ]
+  },
+  "social_apart": {
+   "base": "social",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      1,
+      "zone_id"
+     ],
+     "corridor"
+    ]
+   ]
+  },
+  "social_other_reason": {
+   "base": "social",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_queue",
+      0,
+      "payload",
+      "reason_short"
+     ],
+     "other"
+    ]
+   ]
+  },
+  "spoiled_walk_0": {
+   "base": "return_walk",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "active_tasks"
+     ],
+     []
+    ]
+   ]
+  },
+  "spoiled_walk_1": {
+   "base": "return_walk",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "target_id"
+     ],
+     "x"
+    ]
+   ]
+  },
+  "spoiled_walk_2": {
+   "base": "return_walk",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "activity"
+     ],
+     "idle"
+    ]
+   ]
+  },
+  "toilet_walk": {
+   "base": "return_walk",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "active_tasks",
+      0,
+      "due_minute"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "active_tasks",
+      0,
+      "kind"
+     ],
+     "travel_to_toilet"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "agents",
+      0,
+      "target_id"
+     ],
+     "toilet_1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue",
+      0,
+      "due_minute"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue",
+      0,
+      "payload",
+      "destination_zone_id"
+     ],
+     "toilet"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue",
+      0,
+      "payload",
+      "facility_id"
+     ],
+     "toilet_1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue",
+      0,
+      "payload",
+      "purpose"
+     ],
+     "toilet_request"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue",
+      0,
+      "payload",
+      "route_edge_ids",
+      1
+     ],
+     "corridor_toilet"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue",
+      0,
+      "payload",
+      "route_zone_ids",
+      2
+     ],
+     "toilet"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "event_queue",
+      0,
+      "payload",
+      "travel_minutes"
+     ],
+     2
+    ],
+    [
+     "set",
+     [
+      "world",
+      "minute_index"
+     ],
+     2
+    ]
+   ]
+  }
+ }
+}
