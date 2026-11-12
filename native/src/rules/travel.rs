@@ -187,8 +187,6 @@ pub(crate) fn rows_of(controller: &Bound<'_, PyAny>) -> PyResult<RunGraph> {
 
 /// Where `assign_staff_operations` finds its graph.
 pub(crate) enum StaffRouter<'a, 'py> {
-    /// A controller's staff graph, built at its last refresh.
-    Run(&'a Bound<'py, PyAny>),
     /// A `SpaceRouter` a Python caller gave, read at each call.
     Given(&'a Bound<'py, PyAny>),
 }
@@ -229,11 +227,6 @@ fn read_graph(graph: &Bound<'_, PyAny>) -> PyResult<Router> {
 /// The graph of `assign_staff_operations`' router, whose routes `edge_loads` always reach.
 pub(crate) fn staff_router_rows(source: StaffRouter<'_, '_>) -> PyResult<Arc<Router>> {
     match source {
-        StaffRouter::Run(controller) => {
-            let run = run_of(controller)?;
-            let run = run.get();
-            run.router(Which::Staff, || router_of(controller, run, Which::Staff))
-        }
         StaffRouter::Given(router) => {
             let py = router.py();
             let policy = attribute(router, intern!(py, "policy"))?;
