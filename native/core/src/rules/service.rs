@@ -1977,7 +1977,7 @@ fn arbitrate_independent<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(
 
 /// What a kernel takes of the manager (`Inputs::of` of the service's glue): its config as the Run
 /// read it, and what the world holds.
-struct ManagerIn {
+pub struct ManagerIn {
     config: IndexMap<Arc<str>, V>,
     service: Held,
     ledger: Held,
@@ -1987,7 +1987,7 @@ struct ManagerIn {
 }
 
 impl ManagerIn {
-    fn manager(&self) -> Manager<'_> {
+    pub fn manager(&self) -> Manager<'_> {
         Manager {
             config: &self.config,
             service: self.service.clone(),
@@ -2000,18 +2000,34 @@ impl ManagerIn {
 }
 
 fn manager_of<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(tick: &mut crate::rules::tick::Tick<'_, C, H, R>) -> std::result::Result<ManagerIn, H::Error> {
-    use crate::run::held::Held as Read;
     let policies = tick.policies.clone();
+    manager_parts(tick.cell, tick.host, &policies)
+}
+
+/// The controller's resource manager as a kernel takes it (lane P9-1c: the dispatch's completion,
+/// cancellation and walk's request read it too). A read of the Run that raised is raised again
+/// (policy E14).
+pub fn manager_parts<C: WorldCell, H: Host>(cell: &C, host: &mut H, policies: &crate::run::Policies) -> std::result::Result<ManagerIn, H::Error> {
+    use crate::run::held::Held as Read;
+    let raised = |host: &mut H, path: &[&str], fault: &crate::config::Fault| -> H::Error {
+        if fault.is_refusal() {
+            return Error::unsupported(fault.text.to_string()).into();
+        }
+        match host.read_again(crate::host::Again::Policy(path)) {
+            Err(error) => error,
+            Ok(()) => Error::unsupported(fault.text.to_string()).into(),
+        }
+    };
     let manager = match policies.services.resource.object() {
         Ok(manager) => manager,
-        Err(fault) => return Err(tick.policy_error(&["resource_service"], &fault)),
+        Err(fault) => return Err(raised(host, &["resource_service"], &fault)),
     };
     let config = match manager.get("config") {
         Ok(Read::Value(V::Map(config))) => config.clone(),
         Ok(_) => return Err(Error::unsupported("a value is not a plain dict").into()),
-        Err(fault) => return Err(tick.policy_error(&["resource_service", "config"], &fault)),
+        Err(fault) => return Err(raised(host, &["resource_service", "config"], &fault)),
     };
-    let holding = tick.holding()?;
+    let holding = crate::rules::kit::holding(cell, host)?;
     if !holding.table {
         return Err(Error::unsupported("a value is not a plain dict").into());
     }
@@ -2020,9 +2036,14 @@ fn manager_of<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(tick: &mut 
         service: holding.held(KEY, "the world holds another service state"),
         ledger: holding.held(LEDGER_KEY, "the world holds another ledger"),
         queues: holding.held("facility_queues_v1", "the world holds another queue state"),
-        geo: tick.host.floor_plan()?,
+        geo: host.floor_plan()?,
         metric_state_held: holding.field(crate::world::METRIC_STATE),
     })
+}
+
+/// `manager_parts` of the tick's Run.
+pub fn manager_in<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(tick: &mut crate::rules::tick::Tick<'_, C, H, R>) -> std::result::Result<ManagerIn, H::Error> {
+    manager_of(tick)
 }
 
 /// `facilities_to_serve` of the manager's world, as `(facility, resource_id)`.
@@ -2044,7 +2065,7 @@ fn facilities_of<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(tick: &m
 
 /// The `reservation_id` of each pending `resource_reserve` event, in the queue's order, from the
 /// rows of the queue (the rows of the events Python scheduled are read first).
-fn reserves_of(world: &World) -> Result<Vec<Pending>> {
+pub fn reserves_of(world: &World) -> Result<Vec<Pending>> {
     let queue = world.queue()?;
     let mut found = Vec::new();
     for (_, serial) in queue.ordered() {
@@ -2064,7 +2085,7 @@ fn reserves_of(world: &World) -> Result<Vec<Pending>> {
 }
 
 /// Python's `repr` of a value a ledger's text names.
-fn repr_of(value: &V) -> String {
+pub fn repr_of(value: &V) -> String {
     match value {
         V::Null => "None".to_owned(),
         V::Bool(true) => "True".to_owned(),
@@ -2077,7 +2098,7 @@ fn repr_of(value: &V) -> String {
 
 /// A kernel's failure as the host's error: the ledger's text inside its rule's error, or what the
 /// world or a write said (`failed` of the service's glue).
-fn failure_of<H: Host>(host: &H, failure: Failure) -> H::Error {
+pub fn failure_of<H: Host>(host: &H, failure: Failure) -> H::Error {
     match failure {
         Failure::Write(error) => host.write_error(error),
         Failure::Ledger(fault, wrap) => wrap.error(&fault.text(repr_of)).into(),
