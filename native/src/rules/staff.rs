@@ -206,17 +206,6 @@ pub(crate) fn assign_pending<'py>(service: &Bound<'py, PyAny>, minute: &Bound<'p
     PyTuple::new(py, assigned.iter().map(|id| &**id))
 }
 
-/// `_assign_staff_support` of the tick, with the controller's `staff_service` as the Run read it
-/// (`Policies`).
-pub(crate) fn assign_pending_of_run<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyTuple>> {
-    let py = controller.py();
-    let at = exact_int(minute)?;
-    let policies = policies_of(controller)?;
-    let read = policies.services.staff.object().and_then(|service| staff_service(service));
-    let parameters = service_of(read, || controller.getattr(intern!(py, "staff_service")))?;
-    let assigned = assign(world, Some(controller), &parameters, at, false)?;
-    PyTuple::new(py, assigned.iter().map(|id| &**id))
-}
 
 /// `StaffService.assign_pending` when every pending request stays pending, for the tests: its
 /// writes and (), or None with nothing changed where the step validates, the minute is not the

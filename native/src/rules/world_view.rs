@@ -187,7 +187,7 @@ pub(crate) fn view_for_proposals<'py>(
 /// The snapshot behind a `WorldView`, in its `_rust_view`.
 #[pyclass(module = "sheltersim_native", frozen)]
 pub struct RustView {
-    data: ViewData,
+    data: Arc<ViewData>,
     /// The people's IDs as Python strings, whose hashes are kept, in the order of `data.agents`.
     keys: Vec<Py<PyString>>,
 }
@@ -195,6 +195,11 @@ pub struct RustView {
 impl RustView {
     pub(crate) fn data(&self) -> &ViewData {
         &self.data
+    }
+
+    /// The snapshot, shared (the Run's scratch keeps it, lane P9-2a).
+    pub(crate) fn shared(&self) -> Arc<ViewData> {
+        self.data.clone()
     }
 
     pub(crate) fn key<'py>(&self, py: Python<'py>, index: usize) -> &Bound<'py, PyString> {
@@ -448,7 +453,8 @@ impl RustView {
 }
 
 /// A `WorldView` over a snapshot, whose Python parts are made when a Python reader asks.
-fn new_view<'py>(py: Python<'py>, data: ViewData, keys: Vec<Py<PyString>>, hash: Option<String>) -> PyResult<Bound<'py, PyAny>> {
+fn new_view<'py>(py: Python<'py>, data: impl Into<Arc<ViewData>>, keys: Vec<Py<PyString>>, hash: Option<String>) -> PyResult<Bound<'py, PyAny>> {
+    let data: Arc<ViewData> = data.into();
     let helpers = helpers(py)?;
     let fields = PyDict::new(py);
     fields.set_item(intern!(py, "minute_index"), data.minute_index)?;
@@ -458,6 +464,13 @@ fn new_view<'py>(py: Python<'py>, data: ViewData, keys: Vec<Py<PyString>>, hash:
     fields.set_item(intern!(py, "_has_population_context"), data.has_population_context)?;
     fields.set_item(intern!(py, "_rust_view"), Py::new(py, RustView { data, keys })?)?;
     new_object(helpers, &helpers.world_view, &fields)
+}
+
+/// The `WorldView` of the update phase's snapshot the Run's scratch keeps (the getter of
+/// `_view_before_proposals`, decision D4 of design-p9.md), with the Run's keys of its people.
+pub(crate) fn view_of_data<'py>(py: Python<'py>, run: &RunCore, data: Arc<ViewData>) -> PyResult<Bound<'py, PyAny>> {
+    let keys = run.keys(py, data.agents.iter().map(|agent| &agent.id))?;
+    new_view(py, data, keys, None)
 }
 
 // ---- A view Python made ---------------------------------------------------------------------------
@@ -600,7 +613,7 @@ fn from_python_view<'py>(view: &Bound<'py, PyAny>) -> PyResult<Bound<'py, RustVi
         agents,
         facilities: Vec::new(),
     };
-    Bound::new(py, RustView { data, keys })
+    Bound::new(py, RustView { data: Arc::new(data), keys })
 }
 
 /// The snapshot of a view, for the update kernels. They read the same tick's rows as well.

@@ -47,7 +47,7 @@ fn unsupported<T>(reason: &'static str) -> PyResult<T> {
 
 static COUNTER_RNG: GILOnceCell<Py<PyType>> = GILOnceCell::new();
 
-fn counter_rng(py: Python<'_>) -> PyResult<&Py<PyType>> {
+pub(crate) fn counter_rng(py: Python<'_>) -> PyResult<&Py<PyType>> {
     COUNTER_RNG.get_or_try_init(py, || {
         Ok(py.import("sheltersim.core.rng")?.getattr("CounterRNG")?.downcast_into::<PyType>()?.unbind())
     })
@@ -64,7 +64,7 @@ fn exact_int(value: &Bound<'_, PyAny>) -> PyResult<i64> {
 
 /// `controller.zone_neighbors`, each zone's value read now and refused only where the step reads
 /// it: `sorted(zone_neighbors.get(zone, ()))` needs strs in a tuple or a list.
-fn neighbors_of(zone_neighbors: &Bound<'_, PyAny>) -> PyResult<Neighbors> {
+pub(crate) fn neighbors_of(zone_neighbors: &Bound<'_, PyAny>) -> PyResult<Neighbors> {
     let Some(table) = as_readable_dict(zone_neighbors) else {
         return Ok(Err("the zone neighbors are not a dict"));
     };

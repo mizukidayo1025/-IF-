@@ -14,6 +14,29 @@ from sheltersim.policies.world_view import WorldView
 class UpdatePhase:
     """Steps of TickPhase.UPDATE_AGENT_STATE, a mixin of OfflineSimulationController."""
 
+    @property
+    def _view_before_proposals(self) -> WorldView | None:
+        """The update phase's view of this tick, which the propose phase builds on.
+
+        The Run's core keeps it (`Run.scratch`, native/core/src/rules/tick): the update phase's
+        snapshot, made a `WorldView` at each read, or a view set here, which is given back as it
+        was set. None before the update phase and after the propose phase.
+        """
+        run = self.__dict__.get("_run_core")
+        if run is None:
+            return None
+        return run.view_before_proposals()
+
+    @_view_before_proposals.setter
+    def _view_before_proposals(self, view: WorldView | None) -> None:
+        run = self.__dict__.get("_run_core")
+        if run is None:
+            # The controller's `__init__` empties it before its Run's core exists.
+            if view is not None:
+                raise RuntimeError("the controller has no Run core to keep a view")
+            return
+        run.set_view_before_proposals(view)
+
     def _run_update_phase(self, world: WorldState, minute: int, rng: KeyedRandom) -> None:
         self._update_movement(minute)
         view = self._view_after_movement(world)

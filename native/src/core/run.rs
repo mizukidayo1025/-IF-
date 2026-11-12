@@ -48,7 +48,30 @@ pub struct RunCore {
     run: Mutex<Run>,
     /// The people's IDs as Python strings, for the views' keys.
     keys: Mutex<FxHashMap<Arc<str>, Py<PyString>>>,
+    /// What the tick driver last saw of the controller (lane P9-2a): the objects whose change
+    /// makes it read the policies again, and `controller.zone_neighbors` as the core reads it.
+    seen: Mutex<Seen>,
 }
+
+/// What the tick driver read of the controller (`rules/tick.rs`, `accept`): what the core reads of
+/// `controller.zone_neighbors`. The objects it was read from are the controller's own
+/// (`_tick_marks`), so that no reference of the Run's core holds the controller's world.
+#[derive(Default)]
+pub(crate) struct Seen {
+    pub(crate) neighbors: Option<Arc<sheltersim_core::rules::tick::ZoneNeighbors>>,
+}
+
+/// The run's lock for the core's tick (`RunCell`), taken only while the core runs a closure that
+/// reaches no Python.
+impl sheltersim_core::rules::tick::RunCell for RunCore {
+    fn with<R>(&self, f: impl FnOnce(&mut Run) -> R) -> sheltersim_core::error::Result<R> {
+        let mut run = self.run.lock().map_err(|_| sheltersim_core::error::Error::unsupported("the run is poisoned"))?;
+        Ok(f(&mut run))
+    }
+}
+
+/// A view Python set on `_view_before_proposals`, kept as it was set (lane P9-2a).
+struct PriorObject(Py<PyAny>);
 
 /// `controller.route_capacities` as `route_for` reads it: a refusal is kept with the text the
 /// read would raise, and raised where a route is asked.
@@ -281,6 +304,18 @@ impl RunCore {
         Ok(f(&mut self.lock()?.scratch))
     }
 
+    /// What the tick driver last saw of the controller.
+    pub(crate) fn seen(&self) -> PyResult<MutexGuard<'_, Seen>> {
+        self.seen.lock().map_err(|_| Unsupported::new_err("the run is poisoned"))
+    }
+
+    /// Read the controller's policies again (the tick driver, when what they were read with changed).
+    pub(crate) fn reread_policies(&self, controller: &Bound<'_, PyAny>) -> PyResult<()> {
+        let policies = Arc::new(read_policies(controller));
+        self.lock()?.policies = policies;
+        Ok(())
+    }
+
     /// `controller.route_capacities`, or the refusal reading them gives.
     pub(crate) fn capacities(&self) -> PyResult<Arc<RouteCapacities>> {
         self.lock()?.config.route_capacities().cloned().or_py()
@@ -332,14 +367,63 @@ impl RunCore {
     fn new(route_capacities: &Bound<'_, PyAny>, controller: Option<&Bound<'_, PyAny>>) -> Self {
         let config = RunConfig { route_capacities: read_capacities(route_capacities) };
         let policies = controller.map_or_else(Policies::absent, read_policies);
-        Self { run: Mutex::new(Run::with_policies(config, policies)), keys: Mutex::new(FxHashMap::default()) }
+        Self { run: Mutex::new(Run::with_policies(config, policies)), keys: Mutex::new(FxHashMap::default()), seen: Mutex::new(Seen::default()) }
     }
 
     /// Read the controller's policies again: after a test or tool puts another policy or manager
     /// on it.
     fn refresh_policies(&self, controller: &Bound<'_, PyAny>) -> PyResult<()> {
-        let policies = Arc::new(read_policies(controller));
-        self.lock()?.policies = policies;
+        self.reread_policies(controller)
+    }
+
+    /// `controller._view_before_proposals` (decision D4 of design-p9.md): the update phase's view
+    /// the Run's scratch keeps, made as a `WorldView` now, or the view Python set there, or None.
+    fn view_before_proposals<'py>(slf: &Bound<'py, Self>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        use sheltersim_core::rules::tick::Prior;
+        let py = slf.py();
+        let this = slf.get();
+        let (prior, object) = {
+            let run = this.lock()?;
+            (run.scratch.get::<Prior>().cloned(), run.scratch.get::<PriorObject>().map(|object| object.0.clone_ref(py)))
+        };
+        match prior {
+            None => Ok(None),
+            Some(Prior::View(data)) => crate::rules::world_view::view_of_data(py, this, data).map(Some),
+            Some(Prior::Python { .. }) => Ok(object.map(|object| object.into_bound(py))),
+        }
+    }
+
+    /// Set `controller._view_before_proposals`: None empties it; a view the kernels made keeps its
+    /// snapshot; any other is kept as it is, with its minute.
+    fn set_view_before_proposals(&self, view: &Bound<'_, PyAny>) -> PyResult<()> {
+        use sheltersim_core::rules::tick::Prior;
+        let py = view.py();
+        let (prior, object) = if view.is_none() {
+            (None, None)
+        } else {
+            let fields = view.getattr(intern!(py, "__dict__")).ok();
+            let rust = match &fields {
+                Some(fields) => crate::core::world_core::raw_dict_get(fields, intern!(py, "_rust_view").as_any())?
+                    .and_then(|found| found.downcast_into::<crate::rules::world_view::RustView>().ok()),
+                None => None,
+            };
+            match rust {
+                Some(rust) => (Some(Prior::View(rust.get().shared())), None),
+                None => {
+                    let minute = view.getattr(intern!(py, "minute_index")).ok().and_then(|minute| minute.downcast_exact::<PyInt>().ok().and_then(|minute| minute.extract::<i64>().ok()));
+                    (Some(Prior::Python { minute }), Some(PriorObject(view.clone().unbind())))
+                }
+            }
+        };
+        let mut run = self.lock()?;
+        run.scratch.take::<Prior>();
+        run.scratch.take::<PriorObject>();
+        if let Some(prior) = prior {
+            run.scratch.put(prior);
+        }
+        if let Some(object) = object {
+            run.scratch.put(object);
+        }
         Ok(())
     }
 
