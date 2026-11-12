@@ -31,7 +31,7 @@ use crate::core::row::{attribute, exact_dict, exact_int, exact_str, str_value, u
 use crate::core::value::{VPy, V};
 use crate::core::world_core::{raw_dict_get, with_world, PyWorldCell};
 use crate::host::PyHost;
-use crate::rules::movement_geometry::{Geo, GeoPy};
+use crate::core::geometry::{Geo, GeoPy};
 use crate::rules::queues::Walking;
 use crate::rules::resources::{raised, replace_resources};
 use crate::rules::social_network::mapping_get;

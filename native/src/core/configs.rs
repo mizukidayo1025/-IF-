@@ -8,7 +8,7 @@
 //! at the line it raises it today. A refusal keeps its reason there; an error the rule relays as it
 //! is comes from a second parse (`reraise`), so its class and text are Python's own. The sections
 //! of the geometry (`facility_geometry`, `spatial_constraints`) are filled by
-//! `rules/movement_geometry.rs`, beside the readers of their parsed models.
+//! `core/geometry.rs`, beside the readers of their parsed models.
 //!
 //! The stamp changes with every write to the configs, so an edit of `model_configs` in place is
 //! seen at the next read. Inside a tick phase the Python scopes (`selected_models_scope`,
@@ -450,12 +450,12 @@ static WRITES_IN_TICK: AtomicU64 = AtomicU64::new(0);
 #[pyfunction]
 pub(crate) fn watch_config_writes(on: bool) {
     WRITES_IN_TICK.store(0, Ordering::Relaxed);
-    crate::rules::movement_geometry::reset_stale_geometry_hits();
+    crate::core::geometry::reset_stale_geometry_hits();
     WATCHING.store(on, Ordering::Relaxed);
 }
 
 /// Whether a debug run counts (`watch_config_writes`): the geometry plans then also check that a
-/// stamp hit was built from the overlay held now (`rules/movement_geometry.rs`).
+/// stamp hit was built from the overlay held now (`core/geometry.rs`).
 #[inline]
 pub(crate) fn watching() -> bool {
     WATCHING.load(Ordering::Relaxed)

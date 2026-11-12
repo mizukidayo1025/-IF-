@@ -35,7 +35,7 @@ use crate::core::row::{attribute, exact_int, exact_str, unsupported};
 use crate::core::run::{policies_of, read_object};
 use crate::core::world_core::{with_world, PyWorldCell};
 use crate::host::{absent, PyHost};
-use crate::rules::movement_geometry::{Geo, GeoPy};
+use crate::core::geometry::{Geo, GeoPy};
 use crate::rules::staff_operation_events::Gathered;
 use crate::rules::travel::{self, read_queue_rows, rows_of, staff_router_rows, StaffRouter};
 use crate::state::events::{write_result, EventWriter};

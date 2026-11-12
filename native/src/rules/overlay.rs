@@ -35,7 +35,7 @@ use crate::core::world_core::{core_of, raw_dict_get, state_value, with_world, Py
 use crate::host::PyHost;
 use crate::rules::movement::point_object;
 use crate::state::entities::rows_follow_maps;
-use crate::rules::movement_geometry::{Geo, GeoPy, Pt};
+use crate::core::geometry::{Geo, GeoPy, Pt};
 use crate::state::events::{EventRow, EventRowPy};
 use crate::Unsupported;
 

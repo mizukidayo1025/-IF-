@@ -38,7 +38,7 @@ use crate::core::run::{run_of, RunCore};
 use crate::core::world_core::{core_of, with_world};
 use crate::host::PyHost;
 use crate::rules::movement::{optional_str, route_points_of, str_tuple, KEY as MOVEMENT};
-use crate::rules::movement_geometry::{Geo, GeoPy};
+use crate::core::geometry::{Geo, GeoPy};
 use crate::state::events::{write_result, EventRef, EventRow, EventRowPy};
 use crate::state::staff_operations::NAME as STAFF_OPERATIONS;
 use crate::Unsupported;

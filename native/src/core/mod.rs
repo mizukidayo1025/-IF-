@@ -4,6 +4,7 @@
 pub(crate) mod census;
 pub(crate) mod configs;
 pub(crate) mod errors;
+pub(crate) mod geometry;
 pub(crate) mod interner;
 pub(crate) mod mathx;
 pub(crate) mod parallel;

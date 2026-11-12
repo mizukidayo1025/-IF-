@@ -48,7 +48,7 @@ use crate::core::run::run_of;
 use crate::core::value::VPy;
 use crate::core::world_core::{attached_state, core_of, holding_of, mirror_of, raw_dict_get, raw_list_append, PyWorldCell};
 use crate::eventlog::EventStore;
-use crate::rules::movement_geometry::{Geo, GeoPy};
+use crate::core::geometry::{Geo, GeoPy};
 use crate::state::information::{NAME as INFORMATION, SCHEMA_VERSION as INFORMATION_VERSION};
 use crate::state::events::{frozen, write_error, EventRowPy, QueueStore};
 use crate::Unsupported;
@@ -808,11 +808,11 @@ impl<'py> Host for PyHost<'py> {
                 Filled::Kept
             }
             SectionId::FacilityGeometry => {
-                rules::movement_geometry::facility_geometry(configs, &raw()?);
+                crate::core::geometry::facility_geometry(configs, &raw()?);
                 Filled::Kept
             }
             SectionId::SpatialConstraints => {
-                rules::movement_geometry::spatial_constraints(configs, &raw()?);
+                crate::core::geometry::spatial_constraints(configs, &raw()?);
                 Filled::Kept
             }
             SectionId::StaffFatigue => finish(configs, |c| &c.staff_fatigue, configs::kept_section(world, |c| &c.staff_fatigue, staff::StaffFatigue::parse)?),
@@ -1034,7 +1034,7 @@ impl<'py> Host for PyHost<'py> {
             }
             // The population rules' sections (lane P9-3a).
             Again::Section(SectionId::FacilityGeometry) => {
-                crate::rules::movement_geometry::reparse_facility(&self.world)?;
+                crate::core::geometry::reparse_facility(&self.world)?;
             }
             Again::Section(SectionId::TransitCapacities) => {
                 configs::transit_capacities(&self.world)?;

@@ -27,7 +27,7 @@ use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_int_text, exact_str};
 use crate::core::world_core::{with_world, PyWorldCell};
 use crate::host::PyHost;
-use crate::rules::movement_geometry::{Geo, GeoPy};
+use crate::core::geometry::{Geo, GeoPy};
 use crate::rules::queues::{placement, Walking};
 use crate::state::events::{write_result, EventRef, EventRow, EventRowPy};
 use crate::Unsupported;

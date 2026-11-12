@@ -25,7 +25,7 @@ use crate::core::row::{attribute, exact_dict, exact_int, exact_str, unsupported}
 use crate::core::world_core::with_world;
 use crate::host::PyHost;
 use crate::rules::movement::{movement_of, EXACT_INT, KEY};
-use crate::rules::movement_geometry::{Geo, GeoPy};
+use crate::core::geometry::{Geo, GeoPy};
 use crate::state::events::write_result;
 
 fn exact_bool(value: &Bound<'_, PyAny>) -> PyResult<bool> {

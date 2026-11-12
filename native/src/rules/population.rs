@@ -26,7 +26,7 @@ use crate::core::row::{attribute, exact_int, exact_str, unsupported};
 use crate::core::value::VPy;
 use crate::core::world_core::{state_value, with_world, PyWorldCell};
 use crate::host::{HostError, PyHost};
-use crate::rules::movement_geometry::approach_routes;
+use crate::core::geometry::approach_routes;
 use crate::state::events::{read_frozen, EventRow, EventRowPy, MAX_ROW_DEPTH};
 use crate::Unsupported;
 

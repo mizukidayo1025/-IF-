@@ -26,7 +26,7 @@ use crate::host::PyHost;
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, PyField};
 use crate::core::world_core::with_world;
-use crate::rules::movement_geometry::{self, Geo, GeoPy};
+use crate::core::geometry::{self, Geo, GeoPy};
 use crate::state::events::{write_result, EventWriter};
 use crate::state::facility_queues::{held, held_mirror, request_node, QueueRequest};
 use crate::Unsupported;
@@ -41,17 +41,17 @@ fn movement_held(holding: &Holding) -> Held {
 // ---- The kernels ---------------------------------------------------------------------------------
 
 /// `independent_queues_required` of a configs dict, for Python. A world's own configs are read
-/// through their section (`movement_geometry::independent_queues`).
+/// through their section (`geometry::independent_queues`).
 #[pyfunction]
 fn independent_queues_required(configs: &Bound<'_, PyAny>) -> PyResult<bool> {
-    movement_geometry::independent_queues_of_configs(configs)
+    geometry::independent_queues_of_configs(configs)
 }
 
 /// `is_legacy_queue_checkpoint`.
 #[pyfunction]
 fn is_legacy_queue_checkpoint(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = world.py();
-    if !movement_geometry::independent_queues(world)? {
+    if !geometry::independent_queues(world)? {
         return Ok(false);
     }
     let table = attribute(world, intern!(py, "model_state"))?;
@@ -78,7 +78,7 @@ fn facility_has_independent_queues(world: &Bound<'_, PyAny>, facility_id: &Bound
 /// `create_facility_queue_state`.
 #[pyfunction]
 fn create_facility_queue_state<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>> {
-    if !movement_geometry::independent_queues(world)? {
+    if !geometry::independent_queues(world)? {
         return Err(errors::value_error("facility_queues_v1 requires independent explicit service points"));
     }
     let state = core::create_state(&*Geo::of(world)?).or_py()?;
@@ -245,7 +245,7 @@ fn record_queue_transition(
 #[pyfunction]
 fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = world.py();
-    let required = movement_geometry::independent_queues(world)?;
+    let required = geometry::independent_queues(world)?;
     let table = attribute(world, intern!(py, "model_state"))?;
     let table_dict = exact_dict(&table)?;
     if held_mirror(world)?.is_none() {

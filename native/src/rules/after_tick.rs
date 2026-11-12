@@ -120,7 +120,7 @@ pub struct TickMemo {
     memo: Memo,
     /// `geometry_overlay._CONFIG_SCOPE` across ticks while the configs are unchanged: the geometry
     /// configs the Python rules of the check parsed (`_parsed_config`). The kernels read the
-    /// configs' section `geometry` instead (`rules/movement_geometry.rs`).
+    /// configs' section `geometry` instead (`core/geometry.rs`).
     #[pyo3(get)]
     geometry_scope: Py<PyDict>,
 }

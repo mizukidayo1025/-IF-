@@ -212,7 +212,7 @@ fn sheltersim_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(core::census::census_take_errors, module)?)?;
     module.add_function(wrap_pyfunction!(core::configs::watch_config_writes, module)?)?;
     module.add_function(wrap_pyfunction!(core::configs::config_writes_in_tick, module)?)?;
-    module.add_function(wrap_pyfunction!(rules::movement_geometry::stale_geometry_hits, module)?)?;
+    module.add_function(wrap_pyfunction!(crate::core::geometry::stale_geometry_hits, module)?)?;
     module.add_function(wrap_pyfunction!(core::configs::config_section, module)?)?;
     module.add_function(wrap_pyfunction!(core::configs::config_parses, module)?)?;
     module.add_function(wrap_pyfunction!(core::parallel::parallel_state, module)?)?;

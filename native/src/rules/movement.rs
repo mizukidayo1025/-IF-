@@ -31,7 +31,7 @@ use crate::core::errors::OrPy;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_list, exact_str, unsupported, PyField};
 use crate::core::world_core::{core_of, with_world, PyWorldCell};
 use crate::host::PyHost;
-use crate::rules::movement_geometry::{usable, Geo, GeoPy, Pt};
+use crate::core::geometry::{usable, Geo, GeoPy, Pt};
 use crate::state::movement::{Journey, Point};
 use crate::Unsupported;
 
