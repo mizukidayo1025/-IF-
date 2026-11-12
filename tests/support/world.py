@@ -164,21 +164,22 @@ NATIVE_OUTCOME = "_sheltersim_native_outcome"
 
 
 def kernel_says_python_s_text(
-    handler: Any, world: Any, event: Any, expected: tuple[type, str] | None = None
+    handler: Any, world: Any, event: Any, expected: tuple[type, str]
 ) -> tuple[str, str]:
     """The handler's kernel raises its Python rule's outcome itself, with the same class and text.
 
-    `handler.apply` is the kernel; the outcome must be the kernel's own (not a refusal) and the
-    world must be as it was. The handler has no Python rule left (`kernel_only`), so `expected` is
-    the Python rule's outcome, written down from it: (EventSuppressed or EventApplicationError,
-    text). The class name and text, for the caller. (docs/rust-port/lanes/l8-texts-events.md)
+    `handler.apply` is the kernel's PyO3 entry; the outcome must be the kernel's own (not a
+    refusal) and the world must be as it was. The handler has no Python rule left (`kernel_only`),
+    so `expected` is the Python rule's outcome, written down from it: (EventSuppressed or
+    EventApplicationError, text). The class name and text, for the caller. The core's tests check
+    the texts themselves (`native/core/tests/support/cases.rs`, #225); a pytest keeps this for the
+    entries. (docs/rust-port/lanes/l8-texts-events.md)
     """
     from sheltersim.events.models import EventApplicationError, EventSuppressed
 
     def text(state: Any) -> str:
         return state._canonical_text(state._canonical_data())
 
-    assert expected is not None, "a handler with no Python rule needs the outcome it raised"
     before = text(world)
     with pytest.raises((EventSuppressed, EventApplicationError)) as made:
         handler.apply(world, event)
