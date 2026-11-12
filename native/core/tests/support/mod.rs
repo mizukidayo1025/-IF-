@@ -18,6 +18,7 @@ pub mod cases;
 pub mod dumps;
 pub mod load;
 pub mod sections;
+pub mod texts;
 pub mod typed;
 
 use std::sync::Arc;
