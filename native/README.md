@@ -323,8 +323,8 @@ Checkpoint document) and times them.
 - `src/rules/population_lifecycle.rs`: the glue of `core/src/rules/population_lifecycle.rs`
   (`domain/population_lifecycle.py`, each `kernel_only`; lane c7): it reads what Python holds and
   the EventLog's records of a command's program, parses the command with its contract, runs the
-  command in the transaction of lane 6-3 (`RuleTxn`) with the world's validation through the
-  native host, and validates a world from its Python values (policy E6). The core archives and
+  command as the body of the core's rule transaction (`txn::rule`, lane P9-1b) with the world's
+  validation through the native host, and validates a world from its Python values (policy E6). The core archives and
   restores a person as values and rows; a restored person is a new row at the end of `agents`.
 - `src/core/row.rs`: typed rows. The core's `state_row!` (`core/src/row.rs`) writes a record's
   struct, `write_json` and mirrored setters from its list of fields, and any `Field` is a `Row`;
@@ -448,15 +448,13 @@ are correctly rounded everywhere, and not `**` with a float.
   (`core/src/rules/staff_order.rs`), for the `staff_task_order` structure change (the Python
   validator stays for `validate_effect_program`).
   `state/effect_program.rs` is the row of `effect_program_v1`.
-- `rules/transaction.rs`: the transaction of a rule that changes the world and keeps the change only
-  if the changed world passes its checks (the effect handlers, the operational handlers' transaction,
-  population, `apply_presence_command`). `RuleTxn` opens a transaction of the world's core
-  (`core/txn.rs`, lane 6-2) and the rule writes `RuleTxn::world`; `finish`, `commit`, `rollback`
-  and `keep` end it. A world the transaction refuses takes the old copy (`from_dict(to_dict())`,
-  `_effect_candidate`), which a commit swaps in. A rule called inside another's open transaction
-  validates the world as a start does and writes it as it is (the delivery delays of a supply
-  route's interruption do this in the core through `Host::validate_candidate`, lane P8 d2).
-  `counts()` says what ran, for the gate.
+- `rules/transaction.rs`: `counts()` of the rule transactions, for the gate. A rule that changes the
+  world and keeps the change only if the changed world passes its checks (the effect handlers, the
+  operational handlers, population, `apply_presence_command`) runs in the core's rule transaction
+  (`core/src/txn.rs` `rule`, lane P9-1b, policy E16): the host's check of its views
+  (`Host::txn_check`, `_txn_check`; a refusal is the handler's `KernelRefusal`), `Txn::begin`, the
+  body, and the commit or the rollback. There is no copy of the world any more. A rule called inside
+  another's open transaction validates the world as a start does and writes it as it is.
 
 - `rules/tick.rs`: `run_tick(controller, world, minute, rng, observer)`, one tick's phases in order,
   through `controller.run_tick` (`experiments/phases/driver.py`). Unsupported before anything changes
