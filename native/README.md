@@ -301,7 +301,14 @@ split PR by PR; its last section sums up what is where.
   `tests/resource_service_texts.rs`, `tests/effect_program_texts.rs` and `tests/population_texts.rs`
   check the texts the service's, the EffectProgram handlers' and the population's rules save, on
   the worlds of the pytest files of the same names, with the world unchanged where a check comes
-  before any write; `tests/staff_rules.rs` checks the staff's rules of a tick and the shared
+  before any write;
+  `tests/handler_rules.rs` checks the handlers' kernels and the steps around them (the toilet's
+  queue and service, the care receipts, a seek, a request's and a support's end, the walk home,
+  the care formulas, the social events, the draws of a claim) on the worlds of
+  `tests/data/handler_rules.json`, calling each kernel as its PyO3 entry does
+  (`dispatch::apply_alone_made` for a handler's records, `tick::propose::apply_alone` for
+  `_apply_effect`).
+  `tests/staff_rules.rs` checks the staff's rules of a tick and the shared
   operations' receipts on the worlds of `tests/data/staff_rules.json`.
   The files
   of the same names in

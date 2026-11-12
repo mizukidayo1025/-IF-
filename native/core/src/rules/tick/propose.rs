@@ -382,26 +382,26 @@ fn apply_effect<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>,
         return Err(Error::unsupported("an action unknown here").into());
     };
     let agent_id = data.agents[proposed.index].id.clone();
+    let target_id = if action.is_social() { outcome.target.map(|target| data.agents[target].id.clone()) } else { None };
+    let observed_state_hash = if action.seeks() { Some(proposed.common.state_hash.clone()) } else { None };
+    apply_alone(tick, Proposal { action, agent_id, next_decision_at: outcome.next_decision_at, target_id, observed_state_hash })
+}
+
+/// `_apply_effect` of one proposal, as the PyO3 entry `proposals.apply_effect` runs it: what the
+/// action reads, then its effect (also for the core's tests, Issue #225). A seek's proposal has its
+/// observed state hash.
+pub fn apply_alone<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>, proposal: Proposal) -> std::result::Result<Applied, H::Error> {
     let holding = tick.holding()?;
     if !holding.table {
         return Err(Error::unsupported(super::read::NOT_PLAIN).into());
     }
-    let read = read_effect(tick, &holding, action)?;
-    let target_id = if action.is_social() { outcome.target.map(|target| data.agents[target].id.clone()) } else { None };
-    if !action.seeks() {
-        let proposal = Proposal { action, agent_id, next_decision_at: outcome.next_decision_at, target_id, observed_state_hash: None };
+    let read = read_effect(tick, &holding, proposal.action)?;
+    if !proposal.action.seeks() {
         let inputs = read.inputs();
         let applied = tick.cell.with(|world| proposals::apply(world, &inputs, &proposal)).map_err(H::Error::from)?;
         let applied = tick.written(applied);
         return read_again(tick, read.take_plan(), applied);
     }
-    let proposal = Proposal {
-        action,
-        agent_id,
-        next_decision_at: outcome.next_decision_at,
-        target_id,
-        observed_state_hash: Some(proposed.common.state_hash.clone()),
-    };
     let inputs = read.inputs();
     let sought = tick.cell.with(|world| proposals::seek_write(world, &inputs, &proposal)).map_err(H::Error::from)?;
     let sought = tick.written(sought);
