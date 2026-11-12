@@ -54,8 +54,8 @@ py_row! { DistressRow { schema_version, last_updated_minute, agents } }
 窓口の crate の中だけで使う行（`rules/action_lifecycle.rs`、`state/sample_namespace.rs`）は、窓口の `state_row!` で書きます。中核の `state_row!` と `py_row!` を一度に書くマクロです。
 
 - **項目は木と同じ順に並べます。** `to_py` がこの順で作ります。`write_json` はバイト順に並べ直すので、順序を気にしません。
-- 使える型は `f64`、`i64`、`bool`、`Arc<str>`、`Option<T>`、`IdMap<T>`、`Vec<T>`、`V`（自由な形の部分）と、別の `state_row!` の構造体です。足りなければ、中核の `Field`（`write_json` など）と窓口の `PyField`（`from_py`、`to_py`、`apply`）を実装します。
-- 中核のマクロが作るもの：`NAMES`、`write_json`、setter。`py_row!` が作るもの：`from_py`（項目がちょうどこれだけで、それぞれ厳密な型のとき）、`to_py`、転送された書き込みの `apply`。
+- 使える型は `f64`、`i64`、`bool`、`Arc<str>`、`Option<T>`、`IdMap<T>`、`Vec<T>`、`V`（自由な形の部分）と、別の `state_row!` の構造体です。足りなければ、中核の `Field`（`write_json`、`from_value` など）と窓口の `PyField`（`from_py`、`to_py`、`apply`）を実装します。`from_value` は JSON から読んだ `V` を、`from_py` と同じ確かめで読みます（#225）。
+- 中核のマクロが作るもの：`NAMES`、`write_json`、`from_value`（JSON の `V` から。`from_py` と同じ確かめ）、setter。`py_row!` が作るもの：`from_py`（項目がちょうどこれだけで、それぞれ厳密な型のとき）、`to_py`、転送された書き込みの `apply`。
 - setter は `Scalar`（入れ物でない値）の項目にだけ付けられます。入れ物を入れる書き込みは節点の表を変えるので、`write_through` を使います（`rules/psychology.rs` の新しい人の記録が例です）。
 - 根が辞書だけなら `pub type MetricRow = IdMap<f64>;` で足ります。
 - 登録は1行です。`m.add("ROW", Py::new(py, RowType::of::<DistressRow>("<name>"))?)?`
