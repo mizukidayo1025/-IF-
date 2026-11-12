@@ -1,9 +1,10 @@
 """movement_v1 owned by Rust (docs/rust-port/lanes/i-movement.md, m4-movement.md).
 
 The row against the tree at every tick of the gate is benchmarks/rule_shadow/movement_shadow.py;
-here, the shapes of its records, what taints it, and the steps that hold the tree. The kernels are
-tests/integration/test_movement_rules.py; what depends on the order of the walk,
-tests/integration/test_movement_walk_order.py.
+here, the shapes of its records, what taints it, and the steps that hold the tree. The kernels'
+entries are tests/integration/test_movement_rules.py; their rules, and what depends on the order
+of the walk, are native/core/tests/movement_rules.rs and movement_walk_order.rs, and the random
+walks tests/integration/test_movement_walk_order.py.
 """
 
 from __future__ import annotations
