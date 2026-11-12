@@ -57,7 +57,6 @@ from sheltersim.domain.environment import (
 )
 from sheltersim.events.models import (
     EventKind,
-    EventSuppressed,
     ScheduledEvent,
 )
 from sheltersim.events.queue import EventsById
@@ -2073,10 +2072,10 @@ class EffectProgramGeometryHandler:
 
         EventApplicationError when the payload fields or the operator are not a geometry effect's,
         or the effect and modifier ID are not its approved program's; then the guard
-        (`effect_event_guard_or_suppress`). An expiry of a partition, route modifier or temporary
-        room that is not active (a room: not this start's or end) is EventSuppressed. The
-        ValueError, KeyError or TypeError of `apply_geometry_change` or of the copy's validation is
-        the EventApplicationError's text.
+        (`should_apply_effect_guard`; false is EventSuppressed). An expiry of a partition, route
+        modifier or temporary room that is not active (a room: not this start's or end) is
+        EventSuppressed. The ValueError, KeyError or TypeError of `apply_geometry_change` or of the
+        copy's validation is the EventApplicationError's text.
         """
 
 
@@ -2466,12 +2465,6 @@ def validate_effect_program_state(
         facility = world.facilities[facility_id]
         if facility.working_units != min(baseline, *target_units):
             raise ValueError("facility working availability does not match its modifier stack")
-
-
-def effect_event_guard_or_suppress(world: WorldState, event: ScheduledEvent) -> None:
-    """Raise a normal suppressed outcome when an optional program guard is false."""
-    if not should_apply_effect_guard(world, event):
-        raise EventSuppressed("EffectProgram guard evaluated false")
 
 
 # No source text is persisted in WorldState. Runtime state stores only a digest and
