@@ -234,28 +234,19 @@ def test_transactions_do_not_nest_and_unsupported_worlds_are_refused(
 # ---- The rules of a tick in transactions (lane 6-3) ----------------------------------------------
 
 
-def _documents(world: WorldState) -> tuple[str, list[Any]]:
-    return world.canonical_json(), [record.to_dict() for record in world.event_log.records]
-
-
-def test_the_rules_of_a_tick_leave_what_their_copy_left(add_toilets_program: Any) -> None:
-    """The effect handlers, the operational transaction and population run in place; a world the
-    transaction refuses takes the copy, and both end where the copy-and-swap ended."""
+def test_the_rules_of_a_tick_run_in_place(add_toilets_program: Any) -> None:
+    """The effect handlers, the operational transaction and population run in the core's rule
+    transaction, in place (policy E16: there is no copy of the world any more), and the world's
+    objects follow their rows after them. That they end where the copy-and-swap ended is the gate's
+    hashes (fixtures/gate-all-paths.json, taken when both paths ran)."""
     counts = native.rules("transaction").counts
     before = counts()
+    assert "copy" not in before
     in_place = gate_runs(add_toilets_program)["generated-operations"].to(160)
-    between = counts()
-    assert between["in_place"] > before["in_place"]
-    assert between["copy"] == before["copy"]
-    txn_checks.refuse_transactions(True)
-    try:
-        on_copy = gate_runs(add_toilets_program)["generated-operations"].to(160)
-    finally:
-        txn_checks.refuse_transactions(False)
     after = counts()
-    assert after["copy"] - between["copy"] == between["in_place"] - before["in_place"]
-    assert after["in_place"] == between["in_place"]
-    assert _documents(in_place) == _documents(on_copy)
+    assert after["in_place"] > before["in_place"]
+    ended = after["committed"] + after["rolled_back"] - before["committed"] - before["rolled_back"]
+    assert ended == after["in_place"] - before["in_place"]
     check_rows(in_place)
 
 

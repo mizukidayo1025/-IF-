@@ -347,6 +347,14 @@ impl<'py> Host for PyHost<'py> {
         self.state_mirror("_txn_committed", None)
     }
 
+    /// `_txn_check(world)` of `core/state_mirror.py`: Unsupported, with its reason, for a world whose
+    /// Python views a transaction does not give back.
+    fn txn_check(&mut self) -> Result<(), HostError> {
+        let py = self.py();
+        py.import(intern!(py, "sheltersim.core.state_mirror"))?.getattr(intern!(py, "_txn_check"))?.call1((&self.world,))?;
+        Ok(())
+    }
+
     /// `world.validate()`.
     fn validate_world(&mut self) -> Result<(), HostError> {
         self.world.call_method0(intern!(self.py(), "validate"))?;
@@ -642,6 +650,18 @@ impl<'py> Host for PyHost<'py> {
         self.holding_reads += 1;
         self.holding = Some(holding.clone());
         Ok(Some(holding))
+    }
+
+    /// `isinstance(model_state[name], dict)`, read past the table's own methods; a table the kernels
+    /// do not read keeps the key's refusal (true).
+    fn other_is_dict(&mut self, name: &str) -> Result<bool, HostError> {
+        let py = self.py();
+        let table = attribute(&self.world, intern!(py, "model_state"))?;
+        let Some(table) = crate::core::tracked::as_readable_dict(&table) else {
+            return Ok(true);
+        };
+        let value = crate::core::world_core::raw_dict_get(&table, PyString::new(py, name).as_any())?;
+        Ok(value.is_some_and(|value| value.is_instance_of::<PyDict>()))
     }
 
     /// Today's parse of the section (H2), by the read site's own accessor, so it parses at the same

@@ -6,8 +6,9 @@
 //!
 //! A handler's Python rule made a copy of the world, changed the copy, checked it and swapped it in.
 //! Here a handler is two steps: its checks on the world (`plan_*`, `check_*`), and its writes on the
-//! world of the transaction that stands for the copy (`write_*`; lane 6-3's `RuleTxn`, which stays in
-//! the PyO3 crate with its copy for a world the transaction refuses). A write step ends with the
+//! world of the transaction that stands for the copy (`write_*`, in the core's `txn::rule` since lane
+//! P9-1b: the `*_event` entries at the end read their inputs through the host and open it). A write
+//! step ends with the
 //! whole world's validation through the host (`Host::validate_world`, policy E6), and an error rolls
 //! the transaction back.
 //!
@@ -2459,4 +2460,250 @@ fn check_history(world: &World, program: &Held, events: &[EventRow], found: &Ind
         }
     }
     Ok(())
+}
+
+// ---- The handlers with their inputs, in a rule transaction (lane P9-1b) -------------------------
+//
+// Each reads what the world's outside holds through the host (`Host::holding`, the sections of the
+// configs, the floor plan: H1 and H2 of design-p9.md), runs the checks on the world, then the
+// writes in the core's rule transaction (`txn::rule`, policy E16), whose start makes the host read
+// the holding again: what the writes read is read of the world in canonical order, as the copy was.
+// A read the Python rule made and the core could not (the zone environment's config, the staff
+// operations formula) is refused with its `*_UNREAD` reason where the rule reads it, for the PyO3
+// crate to raise what the read raised.
+
+/// The refusal of a world that holds another `effect_program_v1`.
+const PROGRAM_OTHER: &str = "the world holds another effect_program_v1";
+const INFRASTRUCTURE_OTHER: &str = "the world holds another infrastructure state";
+/// `SHARED_OPERATIONS_KEY` of `domain/shared_operations.py`.
+const SHARED_OPERATIONS: &str = "shared_operations_v1";
+
+/// What a guard reads of the world's outside.
+struct Guarded {
+    program: Held,
+    ledger: Held,
+}
+
+impl Guarded {
+    fn of(holding: &crate::host::Holding) -> Self {
+        Self { program: holding.held(MARKER, PROGRAM_OTHER), ledger: holding.held(LEDGER, "the world holds another ledger") }
+    }
+
+    fn ins(&self) -> GuardIn<'_> {
+        GuardIn { program: &self.program, ledger: &self.ledger }
+    }
+}
+
+/// What the structure's rules read of the world's outside.
+struct Structured {
+    guarded: Guarded,
+    shared: bool,
+    infrastructure: Held,
+}
+
+impl Structured {
+    fn of<C: WorldCell, H: Host>(cell: &C, host: &mut H) -> std::result::Result<Self, H::Error> {
+        let holding = kit::holding(cell, host)?;
+        Ok(Self {
+            guarded: Guarded::of(&holding),
+            shared: kit::in_model_state(&holding, SHARED_OPERATIONS)?,
+            infrastructure: holding.held(INFRASTRUCTURE, INFRASTRUCTURE_OTHER),
+        })
+    }
+}
+
+/// `EffectProgramFacilityHandler.apply`: its checks, then its writes in a rule transaction.
+pub fn facility_event<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &EventRow, expire: bool) -> std::result::Result<(), H::Error> {
+    let holding = kit::holding(cell, host)?;
+    let (program, infrastructure) = (holding.held(MARKER, PROGRAM_OTHER), holding.held(INFRASTRUCTURE, INFRASTRUCTURE_OTHER));
+    let plan = cell.with(|world| plan_facility(world, &program, &infrastructure, row, expire))??;
+    crate::txn::rule_kept(cell, host, crate::txn::TxnKind::Effect, |cell, host| write_facility(cell, host, &plan))
+}
+
+/// `EffectProgramEnvironmentHandler.apply`. The rows of the pending events are read first (the
+/// expiry events are read as rows). A config whose read raised is `CONFIG_UNREAD` where the rule
+/// reads it.
+pub fn environment_event<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &EventRow, expire: bool) -> std::result::Result<(), H::Error> {
+    let holding = kit::holding(cell, host)?;
+    let program = holding.held(MARKER, PROGRAM_OTHER);
+    let environment = holding.held(ENVIRONMENT, "the world holds another zone environment state");
+    let config = kit::kept_section(cell, host, &holding, crate::config::SectionId::ZoneEnvironment, |configs| &configs.zone_environment)?;
+    let ins = EnvironmentIn {
+        program: &program,
+        environment: &environment,
+        service_present: kit::in_model_state(&holding, "resource_service_v1")?,
+        config: config.as_ref().ok().map(|config| &**config),
+    };
+    let plan = plan_environment(cell, host, &ins, row, expire)?;
+    crate::txn::rule_kept(cell, host, crate::txn::TxnKind::Effect, |cell, host| write_environment(cell, host, &plan))
+}
+
+/// `EffectProgramTemporarySpaceHandler.apply`.
+pub fn temporary_space_event<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &EventRow, expire: bool) -> std::result::Result<(), H::Error> {
+    const SPACES_OTHER: &str = "the world holds another temporary spaces state";
+    let holding = kit::holding(cell, host)?;
+    let guarded = Guarded::of(&holding);
+    let spaces = holding.held(overlay::SPACES_KEY, SPACES_OTHER);
+    let guard = guarded.ins();
+    let plan = plan_temporary_space(cell, host, &SpaceIn { guard: &guard, spaces: &spaces }, row, expire)?;
+    crate::txn::rule_kept(cell, host, crate::txn::TxnKind::Effect, |cell, host| {
+        let spaces = kit::holding(cell, host)?.held(overlay::SPACES_KEY, SPACES_OTHER);
+        write_temporary_space(cell, host, &spaces, row, &plan)
+    })
+}
+
+/// `EffectProgramGeometryHandler.apply`. What `apply_geometry_change` read first, in its own call,
+/// fails the event as that call's error did; a floor plan it could not read is what that read
+/// raised, where the change reads the plan.
+pub fn geometry_event<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &EventRow, expire: bool) -> std::result::Result<(), H::Error> {
+    let holding = kit::holding(cell, host)?;
+    let guarded = Guarded::of(&holding);
+    let overlay_state = holding.held(overlay::OVERLAY_KEY, "the world holds another overlay state");
+    let guard = guarded.ins();
+    check_geometry(cell, host, &GeometryIn { guard: &guard, overlay: &overlay_state }, row, expire)?;
+    crate::txn::rule_kept(cell, host, crate::txn::TxnKind::Effect, |cell, host| {
+        let read = |error: H::Error| by_name(APPLY_GEOMETRY, error, Some(Catch::ValueKeyOrType));
+        let holding = kit::holding(cell, host).map_err(read)?;
+        let overlay_state = holding.held(overlay::OVERLAY_KEY, "the world holds another overlay state");
+        let mut plan = if matches!(overlay_state, Held::Absent) { None } else { Some(host.floor_plan()) };
+        let service = kit::kept_section_value(
+            cell,
+            host,
+            &holding,
+            crate::config::SectionId::ResourceService,
+            |configs| &configs.resource_service,
+            crate::config::service::ResourceService::parse,
+        )
+        .map_err(read)?;
+        let (movement_state, staff_operations, resource_service) = (
+            holding.held(movement::KEY, "the world holds another movement state"),
+            holding.held(STAFF_OPERATIONS, "the world holds another staff operations state"),
+            holding.held("resource_service_v1", "the world holds another resource service state"),
+        );
+        let change = overlay::Change {
+            overlay: &overlay_state,
+            movement: &movement_state,
+            staff_operations: &staff_operations,
+            resource_service: &resource_service,
+            service: &service,
+            geo: plan.as_ref().and_then(|plan| plan.as_ref().ok()).map(|geo| &**geo),
+        };
+        match write_geometry(cell, host, &change, row, expire) {
+            Err(error) if error.class() == ErrorClass::Refused && error.text() == GEOMETRY_PLAN_UNREAD => match plan.take() {
+                Some(Err(read_error)) => Err(read(read_error)),
+                _ => Err(error),
+            },
+            other => other,
+        }
+    })
+}
+
+/// `staff_task_order` of `EffectProgramStructureHandler.apply`: its checks raise the rule's text
+/// before any change, and the transaction rolls back.
+pub fn task_order_event<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &EventRow) -> std::result::Result<(), H::Error>
+where
+    H::Error: From<WriteError>,
+{
+    let read = Structured::of(cell, host)?;
+    let guard = read.guarded.ins();
+    let ins = StructureIn { guard: &guard, shared: read.shared, infrastructure: &read.infrastructure };
+    let order = plan_task_order(cell, host, &ins, row)?;
+    crate::txn::rule_kept(cell, host, crate::txn::TxnKind::Effect, |cell, host| {
+        let mut gathered = kit::StaffRead::of(cell, host, true, true)?;
+        let result = write_task_order(cell, host, &gathered.inputs(), &order);
+        gathered.finish(result)
+    })
+}
+
+/// `staff_handoff` of `EffectProgramStructureHandler.apply`, and its continuity receipt, made once
+/// the world has changed (what fails there fails as the Python rule's does).
+pub fn handoff_event<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &EventRow) -> std::result::Result<Option<Made>, H::Error> {
+    let read = Structured::of(cell, host)?;
+    let guard = read.guarded.ins();
+    let ins = StructureIn { guard: &guard, shared: read.shared, infrastructure: &read.infrastructure };
+    let plan = plan_handoff(cell, host, &ins, row)?;
+    let sources = crate::txn::rule_kept(cell, host, crate::txn::TxnKind::Effect, |cell, host| {
+        let holding = kit::holding(cell, host)?;
+        let operations = kit::staff_held(host, &holding)?;
+        let mut taken = Vec::new();
+        write_handoff(cell, host, &HandoffIn { operations: &operations }, &plan, row, &mut taken)
+    })?;
+    let shared = kit::in_model_state(&*kit::holding(cell, host)?, SHARED_OPERATIONS)?;
+    Ok(cell.with(|world| handoff_receipt(world, shared, &plan, sources))??)
+}
+
+/// `facility_repair` of `EffectProgramStructureHandler.apply`, which writes in place.
+pub fn repair_event<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &EventRow) -> std::result::Result<Option<Made>, H::Error> {
+    let read = Structured::of(cell, host)?;
+    let guard = read.guarded.ins();
+    let ins = StructureIn { guard: &guard, shared: read.shared, infrastructure: &read.infrastructure };
+    facility_repair(cell, host, &ins, row)
+}
+
+/// `set_staff_role` of `EffectProgramStructureHandler.apply`.
+pub fn role_event<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &EventRow) -> std::result::Result<(), H::Error> {
+    let read = Structured::of(cell, host)?;
+    let guard = read.guarded.ins();
+    let ins = StructureIn { guard: &guard, shared: read.shared, infrastructure: &read.infrastructure };
+    let plan = plan_role(cell, host, &ins, row)?;
+    crate::txn::rule_kept(cell, host, crate::txn::TxnKind::Effect, |cell, host| {
+        let holding = kit::holding(cell, host)?;
+        let operations = kit::staff_held(host, &holding)?;
+        write_role(cell, host, &operations, &plan)
+    })
+}
+
+/// `add_staff` and `add_toilets` of `EffectProgramStructureHandler.apply`: the label of the branch.
+/// The staff positions read the plan, then the staff's operations, in their own call: what either
+/// read gave is that call's refusal where the additions need the positions.
+pub fn add_event<C: WorldCell, H: Host>(cell: &C, host: &mut H, row: &EventRow) -> std::result::Result<&'static str, H::Error> {
+    let program = kit::holding(cell, host)?.held(MARKER, PROGRAM_OTHER);
+    let plan = cell.with(|world| plan_add(world, &program, row))??;
+    crate::txn::rule_kept(cell, host, crate::txn::TxnKind::Effect, |cell, host| {
+        let holding = kit::holding(cell, host)?;
+        let operational = holding.held(OPERATIONAL, "the world holds another operational state");
+        let dynamics = holding.held("staff_dynamics_v1", "the world holds another staff dynamics state");
+        let operations = kit::staff_held(host, &holding)?;
+        let movement_state = holding.held(movement::KEY, "the world holds another movement state");
+        let overlay_state = holding.held(overlay::OVERLAY_KEY, "the world holds another overlay state");
+        let overlay_schema = kit::kept_section_value(
+            cell,
+            host,
+            &holding,
+            crate::config::SectionId::OverlaySchema,
+            |configs| &configs.overlay_schema,
+            crate::config::overlay::overlay_schema,
+        )?;
+        let policy = kit::kept_section_value(
+            cell,
+            host,
+            &holding,
+            crate::config::SectionId::AgentDynamicsPolicy,
+            |configs| &configs.agent_dynamics_policy,
+            crate::config::agent_dynamics::policy,
+        )?;
+        let mut plan_read = Some(host.floor_plan());
+        let mut staff_ops = Some(kit::staff_ops(host, &holding)?);
+        let ins = AddIn {
+            operational: &operational,
+            dynamics: &dynamics,
+            operations: &operations,
+            movement: &movement_state,
+            overlay: &overlay_state,
+            overlay_schema: &overlay_schema,
+            policy: &policy,
+            geo: plan_read.as_ref().and_then(|read| read.as_ref().ok()).map(|geo| &**geo),
+            staff_ops: staff_ops.as_ref().and_then(|read| read.as_ref().ok()),
+        };
+        match write_add(cell, host, &ins, &plan) {
+            Err(error) if error.class() == ErrorClass::Refused && error.text() == SNAPSHOT_UNREAD => {
+                match (plan_read.take(), staff_ops.take()) {
+                    (Some(Err(read)), _) => Err(by_name(SNAPSHOTS, read, None)),
+                    (_, Some(Err(read))) => Err(by_name(SNAPSHOTS, H::Error::from(read), None)),
+                    _ => Err(error),
+                }
+            }
+            other => other,
+        }
+    })
 }

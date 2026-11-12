@@ -8,7 +8,9 @@
 //! the world is given back.
 //!
 //! What stays here: the command's contract (`PopulationPresenceCommand`, read back as the core's
-//! `Command`), the transaction that stands for the Python rule's copy (`RuleTxn`, lane 6-3) and
+//! `Command`), the command's body in the core's rule transaction that stands for the Python rule's
+//! copy (`sheltersim_core::txn::rule`, lane P9-1b; the body reaches the world through `with_world`
+//! and its own hosts, with nothing of the world borrowed across a Python call) and
 //! the validation of the world it changed through the native host (`Host::validate_world`,
 //! `Host::validate_extensions`), the retry of a deferred command, and letting go the Python objects
 //! of the events an archive settled (`QueueStore::forget`). A world the core does not hold (a
@@ -32,13 +34,12 @@ use crate::core::configs;
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str};
 use crate::core::value::VPy;
-use crate::core::world_core::{state_value, with_world};
+use crate::core::world_core::{state_value, with_world, PyWorldCell};
 use crate::host::PyHost;
 use crate::rules::population::{as_refusal, event_row, get_map, held, optional_text, plan_read, planning, schedule_population_retry, text, PopulationIn};
-use crate::rules::transaction::RuleTxn;
 use crate::state::events::{EventRow, EventRowPy, EventWriter, QueueStore};
 use crate::Unsupported;
-use sheltersim_core::txn::TxnKind;
+use sheltersim_core::txn::{TxnEnd, TxnKind};
 
 const EFFECT_PROGRAM: &str = "effect_program_v1";
 
@@ -269,42 +270,59 @@ pub(crate) fn apply_presence_command<'py>(world: &Bound<'py, PyAny>, event: &Bou
         }
         Ok((event_row(event)?, command_of(&typed, &ids)?))
     })())?;
-    let txn = RuleTxn::begin(world, TxnKind::Full)?;
-    let checked = planning(with_world(txn.world(), |cell| core::check_command(cell, &row, command.expected_return)).and_then(OrPy::or_py));
-    let (txn, dropped) = txn.keep(checked)?;
-    if dropped {
-        txn.rollback()?;
-        return errors::suppressed(py, core::DROPPED);
-    }
-    let acted = act(txn.world(), txn.world(), &row, &command);
-    let (txn, acted) = txn.keep(acted)?;
-    let done = match acted {
-        Acted::Done(done) => done,
-        Acted::Deferred(reason) => {
-            txn.rollback()?;
+    // The command's rule, in the core's rule transaction (lane P9-1b): a dropped exit, a deferral
+    // and a world that fails its checks roll it back, and their outcome is raised after.
+    let mut host = PyHost::of_world(world, PyDict::new(py));
+    let ended = sheltersim_core::txn::rule(&PyWorldCell(world), &mut host, TxnKind::Full, |_, _| {
+        (|| -> PyResult<TxnEnd<Step<'py>>> {
+            let checked = planning(with_world(world, |cell| core::check_command(cell, &row, command.expected_return)).and_then(OrPy::or_py))?;
+            if checked {
+                return Ok(TxnEnd::Rollback(Step::Dropped));
+            }
+            let done = match act(world, world, &row, &command)? {
+                Acted::Done(done) => done,
+                Acted::Deferred(reason) => return Ok(TxnEnd::Rollback(Step::Deferred(reason))),
+            };
+            let receipt = written(world, done)?;
+            let checked = (|| -> PyResult<()> {
+                validate_population_lifecycle_state(world)?;
+                let mut host = PyHost::of_world(world, PyDict::new(py));
+                host.validate_world().map_err(|error| error.0)?;
+                host.validate_extensions().map_err(|error| error.0)?;
+                Ok(())
+            })();
+            Ok(match checked {
+                Ok(()) => TxnEnd::Commit(Step::Done(receipt)),
+                Err(error) => TxnEnd::Rollback(Step::Invalid(error)),
+            })
+        })()
+        .map_err(crate::host::HostError)
+    });
+    match ended.map_err(|error| error.0)? {
+        Step::Done(receipt) => Ok(receipt),
+        Step::Dropped => errors::suppressed(py, core::DROPPED),
+        Step::Deferred(reason) => {
             schedule_population_retry(world, event, "presence-retry", "population exit")?;
-            return errors::suppressed(py, core::deferred_text(&reason));
+            errors::suppressed(py, core::deferred_text(&reason))
         }
-    };
-    let candidate = txn.world().clone();
-    let receipt = written(&candidate, done);
-    let (txn, receipt) = txn.keep(receipt)?;
-    let checked = (|| -> PyResult<()> {
-        validate_population_lifecycle_state(&candidate)?;
-        let mut host = PyHost::of_world(&candidate, PyDict::new(py));
-        host.validate_world().map_err(|error| error.0)?;
-        host.validate_extensions().map_err(|error| error.0)?;
-        Ok(())
-    })();
-    if let Err(error) = checked {
-        txn.rollback()?;
-        if error.is_instance_of::<PyTypeError>(py) || error.is_instance_of::<PyKeyError>(py) || error.is_instance_of::<PyValueError>(py) {
-            return errors::failed(py, format!("population command failed validation: {}", error.value(py).str()?));
+        Step::Invalid(error) => {
+            if error.is_instance_of::<PyTypeError>(py) || error.is_instance_of::<PyKeyError>(py) || error.is_instance_of::<PyValueError>(py) {
+                return errors::failed(py, format!("population command failed validation: {}", error.value(py).str()?));
+            }
+            Err(error)
         }
-        return Err(error);
     }
-    txn.commit()?;
-    Ok(receipt)
+}
+
+/// How a presence command's transaction ended.
+enum Step<'py> {
+    Done(Bound<'py, PyAny>),
+    /// The exit was dropped: the person was not free before the expected return.
+    Dropped,
+    /// The command waits: its retry is scheduled on the world as it was.
+    Deferred(String),
+    /// The world it left failed its checks.
+    Invalid(PyErr),
 }
 
 /// `admit_pending_returns`: nothing is read past the namespace while no one waits.

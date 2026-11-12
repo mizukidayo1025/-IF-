@@ -5,11 +5,11 @@
 //! slots the core took out or replaced, and makes the Python values of what it returns: the records
 //! the dispatcher appends, and the world's new `resources` dict of a ledger's operation.
 //!
-//! A handler whose Python rule copied the world runs the core in the transaction that stands for the
-//! copy (`RuleTxn`, lane 6-3, with its copy for a world the transaction refuses); the core ends the
-//! transaction's work (`settle`) with the native host of the transaction's world, which validates it
-//! (policy E6), looks up the EventLog's records and gives the contracts (policy E15). The population
-//! primitives' rules are the population lanes' glue, called in the transaction as before.
+//! A handler whose Python rule copied the world is the core's (`core::*_event`, lane P9-1b): it reads
+//! what the world's outside holds through the native host and runs in the core's rule transaction
+//! (`txn::rule`, policy E16), whose end (`settle`) validates the world (policy E6), looks up the
+//! EventLog's records and gives the contracts (policy E15). The population primitives' rules are the
+//! population lanes' glue, run as the body of the core's rule transaction.
 //!
 //! The helpers at the start (`counted`, `get`, `get_is`, `status_member`) are for the kernels still in
 //! this crate.
@@ -23,28 +23,26 @@ use pyo3::types::{PyDict, PyString, PyTuple};
 
 use sheltersim_core::config::environment::Infrastructure;
 use sheltersim_core::config::proximity::Proximity;
-use sheltersim_core::rules::care_receipts::Made;
 use sheltersim_core::rules::handlers::{
-    self as core, FacilityIn, Followed, Infra, InfraIn, LedgerIn, PopulationOp, StaffIn, Unread, COOLDOWN_UNREAD, COUNTS, INFRASTRUCTURE, OPERATIONAL, SERVICE_UNREAD,
+    self as core, FacilityIn, Followed, Infra, LedgerIn, PopulationOp, COOLDOWN_UNREAD, COUNTS, INFRASTRUCTURE, OPERATIONAL,
 };
 use sheltersim_core::rules::kit::Held;
+use sheltersim_core::rules::staff_operation_events::FORMULA_UNREAD;
 use sheltersim_core::txn::TxnKind;
 
 use crate::core::configs;
 use crate::core::errors::{self, to_py_err, OrPy};
 use crate::core::row::{attribute, exact_int, exact_str, str_value};
 use crate::core::value::{VPy, V};
-use crate::core::world_core::{field_held, namespace_held, with_world, PyWorldCell};
+use crate::core::world_core::{namespace_held, with_world, PyWorldCell};
 use crate::host::PyHost;
 use crate::rules::care_receipts::made_record;
 use crate::rules::information_events::event_row;
 use crate::rules::population as population_rules;
 use crate::rules::resources::{raised, replace_resources};
-use crate::rules::staff_operation_events::Gathered;
-use crate::rules::transaction::RuleTxn;
 use crate::rules::travel::{movement_held, read_queue_rows};
 use crate::rules::{population_lifecycle, service};
-use crate::state::events::{EventRow, EventRowPy, EventWriter};
+use crate::state::events::EventRowPy;
 use crate::Unsupported;
 
 const SHARED_OPERATIONS: &str = "shared_operations_v1";
@@ -197,14 +195,6 @@ fn shared_absent(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     Ok(!attribute(world, intern!(py, "model_state"))?.contains(intern!(py, SHARED_OPERATIONS))?)
 }
 
-/// Let go the objects of the queue's slots the core took out or gave a new row.
-fn forget(world: &Bound<'_, PyAny>, taken: &[u64]) -> PyResult<()> {
-    if taken.is_empty() {
-        return Ok(());
-    }
-    EventWriter::of(world)?.queue().get().forget(taken)
-}
-
 /// `EventLogRecord(event=..., realized_minute=..., status=EventStatus.APPLIED, detail=...)`.
 fn followed_record<'py>(py: Python<'py>, followed: &Followed) -> PyResult<Bound<'py, PyAny>> {
     let kwargs = PyDict::new(py);
@@ -224,38 +214,34 @@ fn records_tuple<'py>(py: Python<'py>, records: &[Followed]) -> PyResult<Option<
     Ok(Some(PyTuple::new(py, records)?))
 }
 
-// ---- The transaction ------------------------------------------------------------------------------
+// ---- The rule transactions ------------------------------------------------------------------------
 
-/// `_apply_operational_transaction`: the rule (`body`, on the transaction's world, with the slots it
-/// took out) and the core's end of it (`core::settle`), in a transaction that stands for the Python
-/// rule's copy through canonical JSON, the EventLog included: the APPLIED record and the follow-ups
-/// go to the world's log, and a rollback takes them out again.
-fn operational<'py, T>(
-    world: &Bound<'py, PyAny>,
-    event: &Bound<'py, PyAny>,
-    row: &EventRow,
-    body: impl FnOnce(&Bound<'py, PyAny>, &mut Vec<u64>) -> PyResult<(Vec<Made>, T)>,
-) -> PyResult<(Vec<Made>, T)> {
-    let py = world.py();
-    // The rows of the pending events Python scheduled, read before the transaction copies the queue.
+/// The core's handler of an operational event (`core::*_event`, lane P9-1b), which runs its rule
+/// and the end of it in the core's rule transaction with the native host. The rows of the pending
+/// events Python scheduled are read first, before the transaction puts the queue in canonical order;
+/// the host is given the handler's own object of the event, which the validation with the event in
+/// flight hands Python as the rule did.
+fn operational_handled<T>(
+    world: &Bound<'_, PyAny>,
+    event: &Bound<'_, PyAny>,
+    run: impl FnOnce(&PyWorldCell<'_, '_>, &mut PyHost<'_>) -> Result<T, crate::host::HostError>,
+) -> PyResult<T> {
     read_queue_rows(world)?;
-    let txn = RuleTxn::begin(world, TxnKind::Full)?;
-    let candidate = txn.world().clone();
-    let written = (|| {
-        read_queue_rows(&candidate)?;
-        let mut taken = Vec::new();
-        let done = body(&candidate, &mut taken);
-        forget(&candidate, &taken)?;
-        let (records, value) = done?;
-        let shared = held(&candidate, SHARED_OPERATIONS, "the world holds another document than the row's")?;
-        let mut host = PyHost::of_world(&candidate, PyDict::new(py)).with_in_flight(event);
-        let mut taken = Vec::new();
-        let settled = core::settle(&PyWorldCell(&candidate), &mut host, &shared, row, &records, &mut taken).map_err(|error| error.0);
-        forget(&candidate, &taken)?;
-        settled?;
-        Ok((records, value))
-    })();
-    txn.finish(written)
+    let mut host = PyHost::of_world(world, PyDict::new(world.py())).with_in_flight(event);
+    run(&PyWorldCell(world), &mut host).map_err(|error| error.0)
+}
+
+/// A refusal the core said where the rule reads what only a Python read gives (`reason`): what that
+/// read raises, read again now (the configs are the same; a read that does not raise leaves the
+/// refusal).
+fn read_again<T>(py: Python<'_>, result: PyResult<T>, reason: &str, read: impl FnOnce() -> PyResult<()>) -> PyResult<T> {
+    match result {
+        Err(error) if error.is_instance_of::<Unsupported>(py) && error.value(py).to_string() == reason => match read() {
+            Err(read) => Err(read),
+            Ok(()) => Err(error),
+        },
+        result => result,
+    }
 }
 
 // ---- ProximityContactHandler -----------------------------------------------------------------------
@@ -330,94 +316,40 @@ fn facility_recovery<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny
 
 // ---- Deliveries, water and staff ------------------------------------------------------------------------
 
-/// An operational event whose rule reads only `operational_events_v1`, in its transaction.
-fn simple_operational(
-    world: &Bound<'_, PyAny>,
-    event: &Bound<'_, PyAny>,
-    rule: impl FnOnce(&sheltersim_core::world::World, &Held, &EventRow, &mut Vec<u64>) -> sheltersim_core::error::Result<()>,
-) -> PyResult<()> {
-    let row = event_row(event)?;
-    operational(world, event, &row, |candidate, taken| {
-        let operational = operational_held(candidate)?;
-        with_world(candidate, |cell| rule(cell, &operational, &row, taken))?.or_py()?;
-        Ok((Vec::new(), ()))
-    })
-    .map(drop)
-}
-
 #[pyfunction]
 fn delivery_delay(_handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
-    let result = simple_operational(world, event, core::delivery_delay);
+    let result = event_row(event).and_then(|row| operational_handled(world, event, |cell, host| core::delivery_delay_event(cell, host, &row)));
     counted(world.py(), "delivery_delay", result)
 }
 
 #[pyfunction]
 fn water_outage(_handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
-    let result = simple_operational(world, event, |cell, held, row, _| core::water_outage(cell, held, row));
+    let result = event_row(event).and_then(|row| operational_handled(world, event, |cell, host| core::water_outage_event(cell, host, &row)));
     counted(world.py(), "water_outage", result)
 }
 
 #[pyfunction]
 fn water_restoration(_handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
-    let result = simple_operational(world, event, |cell, held, row, _| core::water_restoration(cell, held, row));
+    let result = event_row(event).and_then(|row| operational_handled(world, event, |cell, host| core::water_restoration_event(cell, host, &row)));
     counted(world.py(), "water_restoration", result)
 }
 
 #[pyfunction]
 fn staff_restoration(_handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
-    let result = simple_operational(world, event, |cell, held, row, _| core::staff_restoration(cell, held, row));
+    let result = event_row(event).and_then(|row| operational_handled(world, event, |cell, host| core::staff_restoration_event(cell, host, &row)));
     counted(world.py(), "staff_restoration", result)
 }
 
-/// The rule of a staff member's unavailability on the transaction's world: what it reads, the
-/// core's call, and the new `resources` dict of a service it stopped. A read that raised is raised
-/// where the core reached it.
-fn staff_unavailable_on<'py>(candidate: &Bound<'py, PyAny>, row: &EventRow, taken: &mut Vec<u64>) -> PyResult<Vec<Made>> {
-    let py = candidate.py();
-    let operational = operational_held(candidate)?;
-    let gathered = Gathered::of(candidate, true, false)?;
-    let service_inputs = service::Inputs::of_world(candidate);
-    let manager = service_inputs.as_ref().ok().map(service::Inputs::manager);
-    let service = match (&manager, &service_inputs) {
-        (Some(manager), _) => Ok(manager),
-        (None, Err(error)) if error.is_instance_of::<Unsupported>(py) => Err(Unread::Refused(error.value(py).to_string().into())),
-        (None, _) => Err(Unread::Raised),
-    };
-    let cooldown = support_cooldown_minutes(candidate);
-    let ops = gathered.inputs();
-    let inputs = StaffIn {
-        operational: &operational,
-        ops: &ops,
-        service,
-        cooldown: cooldown.as_ref().ok().map(|minutes| **minutes),
-        metric_state_held: field_held(candidate, intern!(py, "metric_state"))?,
-    };
-    let result = with_world(candidate, |cell| core::staff_unavailable(cell, &inputs, row, taken))?;
-    let done = match result {
-        Ok(done) => done,
-        Err(failure) => {
-            let error = service::failed(py, failure);
-            let text = if error.is_instance_of::<Unsupported>(py) { error.value(py).to_string() } else { String::new() };
-            return match (&*text, &service_inputs, &cooldown) {
-                (SERVICE_UNREAD, Err(read), _) => Err(read.clone_ref(py)),
-                (COOLDOWN_UNREAD, _, Err(read)) => Err(read.clone_ref(py)),
-                _ => gathered.finish(py, Err(error)),
-            };
-        }
-    };
-    if let Some(applied) = done.applied {
-        replace_resources(candidate, applied)?;
-    }
-    Ok(done.records)
-}
-
-/// `StaffUnavailabilityHandler.apply`, which returns a tuple even when empty.
+/// `StaffUnavailabilityHandler.apply`, which returns a tuple even when empty. A cooldown or a formula
+/// whose read raised raises where the rule reads it.
 #[pyfunction]
 fn staff_unavailable<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyTuple>> {
     let py = world.py();
     let result = (|| {
         let row = event_row(event)?;
-        operational(world, event, &row, |candidate, taken| Ok((staff_unavailable_on(candidate, &row, taken)?, ()))).map(|(records, ())| records)
+        let result = operational_handled(world, event, |cell, host| core::staff_unavailable_event(cell, host, &row));
+        let result = read_again(py, result, COOLDOWN_UNREAD, || support_cooldown_minutes(world).map(drop));
+        read_again(py, result, FORMULA_UNREAD, || crate::rules::staff::staff_operations(world).map(drop))
     })();
     let records = counted(py, "staff_unavailable", result)?;
     PyTuple::new(py, records.into_iter().map(|made| made_record(py, made)).collect::<PyResult<Vec<_>>>()?)
@@ -496,11 +428,14 @@ fn population<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, even
         let kernel = population_lifecycle::apply_presence_command(world, event, &command).map(|_| ());
         return population_rule(py, kernel, "population_lifecycle.apply_presence_command");
     }
-    // A deferral: the transaction with its retry commits, and the event is suppressed.
+    // A deferral: the transaction with its retry commits, and the event is suppressed. The rules
+    // are the population lanes' glue, in the core's rule transaction (lane P9-1b).
     let changed = (|| -> PyResult<Option<PyErr>> {
-        let txn = RuleTxn::begin(world, TxnKind::Full)?;
-        let written = population_writes(txn.world(), event, &payload, op);
-        txn.finish(written)
+        let mut host = PyHost::of_world(world, PyDict::new(py));
+        let written = sheltersim_core::txn::rule_kept(&PyWorldCell(world), &mut host, TxnKind::Full, |_, _| {
+            population_writes(world, event, &payload, op).map_err(crate::host::HostError)
+        });
+        written.map_err(|error| error.0)
     })();
     // Past the checks a call's exception is the Python rule's own: it made the same calls.
     match counted(py, "population.copy", changed)? {
@@ -566,24 +501,11 @@ fn infrastructure<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, 
         Ok(found) => found,
         Err(error) => return counted(py, "infrastructure", Err(to_py_err(error))),
     };
-    let applied = (|| {
-        let previous = with_world(world, |cell| core::working_units(cell))?.or_py()?;
-        let (_, followed) = operational(world, event, &row, |candidate, taken| {
-            let infrastructure = infrastructure_held(candidate)?;
-            let operational = operational_held(candidate)?;
-            let program = program_held(candidate)?;
-            let inputs = InfraIn { infrastructure: &infrastructure, operational: &operational, program: &program };
-            let mut host = PyHost::of_world(candidate, PyDict::new(py)).with_in_flight(event);
-            let followed = core::infrastructure(&PyWorldCell(candidate), &mut host, &inputs, &row, kind, taken).map_err(|error| error.0)?;
-            Ok((Vec::new(), followed))
-        })?;
-        Ok((previous, followed))
-    })();
+    let applied = operational_handled(world, event, |cell, host| core::infrastructure_event(cell, host, &row, kind));
     let (previous, mut followed) = counted(py, label, applied)?;
-
     // The world has changed: what fails from here fails in Python too.
-    let shared_absent = shared_absent(world)?;
-    let receipts = with_world(world, |cell| core::infrastructure_receipts(cell, shared_absent, &previous, &row))?.or_py()?;
+    let mut host = PyHost::of_world(world, PyDict::new(py));
+    let receipts = core::infrastructure_after(&PyWorldCell(world), &mut host, &previous, &row).map_err(|error| error.0)?;
     followed.extend(receipts.into_iter().map(Followed::from));
     records_tuple(py, &followed)
 }

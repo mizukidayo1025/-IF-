@@ -397,6 +397,14 @@ pub trait Host {
     fn committed(&mut self, _kind: TxnKind) -> Result<(), Self::Error> {
         Ok(())
     }
+    /// Whether this host's views of the world are all ones a transaction gives back, asked before a
+    /// rule's transaction opens (`txn::rule`, lane P9-1b): Unsupported with the reason otherwise
+    /// (the native host's `_txn_check` of `core/state_mirror.py`: a tainted entity store, a map of
+    /// entities that is not the rows', a queue held in Python, ...), with nothing changed. A host
+    /// with no views of its own has nothing to refuse.
+    fn txn_check(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
     /// `world.validate()` in place, where a rule validates the world it changed (`validate_state`).
     fn validate_world(&mut self) -> Result<(), Self::Error>;
     /// `validate_simulator_extensions(world)` of `domain/simulator_state.py`.
@@ -495,6 +503,13 @@ pub trait Host {
     /// call of its own runs Python.
     fn holding(&mut self) -> Result<Option<Arc<Holding>>, Self::Error> {
         Ok(None)
+    }
+
+    /// Whether `model_state[name]` is a dict, for a key the holding says holds another value than
+    /// its slot's tree (lane P9-1b): a rule that reads a state with `isinstance(state, dict)` takes
+    /// one that is not as no state (`kit::staff_held`). A host without Python views has no such key.
+    fn other_is_dict(&mut self, _name: &str) -> Result<bool, Self::Error> {
+        Ok(true)
     }
 
     /// Fill the section `which` of `configs`, the configs of the world now, which a rule found

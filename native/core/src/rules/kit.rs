@@ -303,6 +303,160 @@ pub fn section_value<C: WorldCell, H: Host, T>(
     }
 }
 
+/// A section as the PyO3 crate's `configs::kept` gave it to a rule (lane P9-1b): its value, its
+/// fault, or the refusal of configs without it.
+pub fn kept_of<T>(section: Section<T>) -> Kept<T> {
+    match section {
+        Section::Ok(value) => Ok(value),
+        Section::Fault(fault) => Err(fault),
+        Section::Absent => Err(crate::config::Fault::refused("the configs have no such section")),
+    }
+}
+
+/// `section`, as a `Kept` value (`kept_of`).
+pub fn kept_section<C: WorldCell, H: Host, T>(
+    cell: &C,
+    host: &mut H,
+    holding: &Holding,
+    which: SectionId,
+    get: fn(&Configs) -> &Lazy<T>,
+) -> std::result::Result<Kept<T>, H::Error> {
+    Ok(kept_of(section(cell, host, holding, which, get)?))
+}
+
+/// `section_value`, as a `Kept` value (`kept_of`).
+pub fn kept_section_value<C: WorldCell, H: Host, T>(
+    cell: &C,
+    host: &mut H,
+    holding: &Holding,
+    which: SectionId,
+    get: fn(&Configs) -> &Lazy<T>,
+    parse: fn(&V) -> Read<T>,
+) -> std::result::Result<Kept<T>, H::Error> {
+    Ok(kept_of(section_value(cell, host, holding, which, get, parse)?))
+}
+
+/// `name in world.model_state`, of the holding (lane P9-1b). Refused for a `model_state` the
+/// kernels do not read, as each namespace of it is.
+#[track_caller]
+pub fn in_model_state(holding: &Holding, name: &str) -> Result<bool> {
+    if !holding.table {
+        return Err(Error::unsupported(crate::host::TABLE_MAPPING));
+    }
+    Ok(holding.keys.contains_key(name))
+}
+
+/// `staff_operations_v1` as the staff's rules take it (the PyO3 crate's `staff_held`, lane
+/// P9-1b): a value that is not a dict is no state (`Absent`), as the rules read it with
+/// `isinstance(state, dict)`; another dict than the row's is refused where a rule reads it.
+pub fn staff_held<H: Host>(host: &mut H, holding: &Holding) -> std::result::Result<Held, H::Error> {
+    const NAME: &str = crate::state::staff_operations::NAME;
+    let held = holding.held(NAME, "the world holds another document than the row's");
+    if matches!(held, Held::Other(_)) && holding.table && !host.other_is_dict(NAME)? {
+        return Ok(Held::Absent);
+    }
+    Ok(held)
+}
+
+/// `staff_operations_v1` as the staff positions read it (the PyO3 crate's `movement::staff_ops`,
+/// lane P9-1b): its row where the world holds it, none where it holds something that is not a dict,
+/// and the refusal of another dict.
+pub fn staff_ops<H: Host>(host: &mut H, holding: &Holding) -> std::result::Result<Result<crate::rules::movement::StaffOps>, H::Error> {
+    use crate::rules::movement::StaffOps;
+    const NAME: &str = crate::state::staff_operations::NAME;
+    Ok(match holding.held(NAME, "the world holds another staff state") {
+        Held::Absent => Ok(StaffOps::None),
+        Held::Held => Ok(StaffOps::Row),
+        Held::Other(reason) => {
+            if holding.table && host.other_is_dict(NAME)? {
+                Err(Error::unsupported(reason))
+            } else {
+                Ok(StaffOps::None)
+            }
+        }
+    })
+}
+
+/// What the rules of the staff's operations read of the world's outside (the PyO3 crate's
+/// `Gathered`, lane P9-1b), with the floor plan where `geo` and the formula where `formula`, each kept with
+/// what its read gave.
+pub struct StaffRead<E> {
+    staff: Held,
+    movement: Held,
+    body: Held,
+    program: Held,
+    shared_absent: bool,
+    plan: Option<std::result::Result<Arc<crate::geometry::Geo>, E>>,
+    formula: Option<Kept<crate::config::staff::StaffOperations>>,
+}
+
+impl<E: From<Error> + crate::host::HostFailure> StaffRead<E> {
+    pub fn of<C: WorldCell, H: Host<Error = E>>(cell: &C, host: &mut H, geo: bool, formula: bool) -> std::result::Result<Self, E> {
+        let holding = holding(cell, host)?;
+        let staff = staff_held(host, &holding)?;
+        let plan = if geo { Some(host.floor_plan()) } else { None };
+        let formula = if formula {
+            Some(kept_section(cell, host, &holding, crate::config::SectionId::StaffOperations, |configs| &configs.staff_operations)?)
+        } else {
+            None
+        };
+        Ok(Self {
+            staff,
+            movement: holding.held(crate::rules::movement::KEY, "the world holds another movement state"),
+            body: holding.held("body_state_v1", "the world holds another body state"),
+            program: holding.held(crate::state::effect_program::NAME, "the world holds another effect_program_v1"),
+            shared_absent: !in_model_state(&holding, "shared_operations_v1")?,
+            plan,
+            formula,
+        })
+    }
+
+    pub fn inputs(&self) -> crate::rules::staff_operation_events::Inputs<'_> {
+        crate::rules::staff_operation_events::Inputs {
+            staff: &self.staff,
+            movement: &self.movement,
+            body: &self.body,
+            program: &self.program,
+            shared_absent: self.shared_absent,
+            geo: self.plan.as_ref().and_then(|plan| plan.as_ref().ok()),
+            formula: self.formula.as_ref().and_then(|formula| formula.as_ref().ok()).map(|formula| &**formula),
+        }
+    }
+
+    /// The core's result, with what reading the floor plan gave where the rule read the plan and
+    /// could not. A formula that could not be read stays `FORMULA_UNREAD`, for the PyO3 crate.
+    pub fn finish<T>(&mut self, result: std::result::Result<T, E>) -> std::result::Result<T, E> {
+        let Err(error) = result else {
+            return result;
+        };
+        if error.class() != crate::host::ErrorClass::Refused {
+            return Err(error);
+        }
+        let text = error.text();
+        let mut plan_error = || match self.plan.take() {
+            Some(Err(read)) => Some(read),
+            other => {
+                self.plan = other;
+                None
+            }
+        };
+        if text == crate::rules::overlay::PLAN_UNREAD {
+            if let Some(read) = plan_error() {
+                return Err(read);
+            }
+        } else if text == crate::rules::staff_operation_events::SNAPSHOT_PLAN_UNREAD {
+            if let Some(read) = plan_error() {
+                // The positions' refusal is their `KernelRefusal`; any other error goes on as it is.
+                if read.class() == crate::host::ErrorClass::Refused {
+                    return Err(E::from(Error::Refused { label: crate::rules::staff_operation_events::SNAPSHOTS.to_owned(), reason: read.text().into() }));
+                }
+                return Err(read);
+            }
+        }
+        Err(error)
+    }
+}
+
 fn filled<H: Host, T>(host: &mut H, configs: Arc<Configs>, which: SectionId, get: fn(&Configs) -> &Lazy<T>) -> std::result::Result<Section<T>, H::Error> {
     let from = match host.fill_section(&configs, which)? {
         Filled::Kept => configs,

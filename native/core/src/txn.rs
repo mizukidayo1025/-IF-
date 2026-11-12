@@ -14,6 +14,8 @@
 //! validation of the whole world, which stays in Python in Issue #152 (policy E6). No borrow of the
 //! world is held while the host runs (rule R6).
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use crate::error::Error;
 pub use crate::host::Host;
 use crate::world::{Snapshot, WorldCell};
@@ -23,9 +25,25 @@ pub const NESTED: &str = "a transaction is open on the world already";
 
 /// How many rules ran inside another rule's open transaction in this process (a rule's own start
 /// validates the world and writes it as it is; the outer transaction commits or rolls back): the
-/// PyO3 crate's `RuleTxn` and the delivery delays of a supply route's interruption
-/// (`rules::handlers`). For the gate's counts.
-pub static NESTED_RULES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+/// rules of `rule` and the delivery delays of a supply route's interruption (`rules::handlers`).
+/// For the gate's counts.
+pub static NESTED_RULES: AtomicU64 = AtomicU64::new(0);
+/// How many rule transactions (`rule`) opened in place, committed and rolled back in this process
+/// (lane P9-1b; the PyO3 crate's `RuleTxn` counted them before).
+pub static IN_PLACE: AtomicU64 = AtomicU64::new(0);
+pub static COMMITTED: AtomicU64 = AtomicU64::new(0);
+pub static ROLLED_BACK: AtomicU64 = AtomicU64::new(0);
+
+/// What the rule transactions did in this process, by name: how many ran in place and inside
+/// another, how many committed and rolled back.
+pub fn counts() -> [(&'static str, u64); 4] {
+    [
+        ("in_place", IN_PLACE.load(Ordering::Relaxed)),
+        ("nested", NESTED_RULES.load(Ordering::Relaxed)),
+        ("committed", COMMITTED.load(Ordering::Relaxed)),
+        ("rolled_back", ROLLED_BACK.load(Ordering::Relaxed)),
+    ]
+}
 
 /// Which copy a transaction stands for, which says how its candidate is validated.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -140,4 +158,64 @@ impl Txn {
             }
         }
     }
+}
+
+/// The transaction of a rule that changes the world and keeps the change only if the changed world
+/// passes its checks (lane 6-3; in the core since lane P9-1b, policy E16): a rule's handler used to
+/// copy the whole world through canonical JSON, change the copy, validate it and swap it in.
+///
+/// Where no transaction is open, the host first says whether its views of the world are all ones a
+/// transaction gives back (`Host::txn_check`: its refusal passes on, nothing changed), then `begin`,
+/// the body, and `commit` or `rollback` as the body says; an error of the body rolls back and passes
+/// on.
+///
+/// Inside another open transaction (a rule a Branch's command or another rule runs), the rule
+/// validates the world as a start does, with the same errors, and the body writes the world as it
+/// is: the outer transaction commits or rolls it back, so the body's own rollback leaves what it
+/// wrote to the outer one. The world is not put in canonical order again (the copy did that once
+/// more: the order of what the outer rule wrote is the one difference, which no hash reads).
+pub fn rule<C: WorldCell, H: Host, T>(
+    cell: &C,
+    host: &mut H,
+    kind: TxnKind,
+    body: impl FnOnce(&C, &mut H) -> Result<TxnEnd<T>, H::Error>,
+) -> Result<T, H::Error> {
+    if cell.with(|world| world.txn_open)? {
+        host.validate_candidate(kind, Stage::World)?;
+        host.validate_candidate(kind, Stage::Candidate)?;
+        NESTED_RULES.fetch_add(1, Ordering::Relaxed);
+        return match body(cell, host)? {
+            TxnEnd::Commit(value) | TxnEnd::Rollback(value) => Ok(value),
+        };
+    }
+    host.txn_check()?;
+    let txn = Txn::begin(cell, host, kind)?;
+    IN_PLACE.fetch_add(1, Ordering::Relaxed);
+    match body(cell, host) {
+        Ok(TxnEnd::Commit(value)) => {
+            COMMITTED.fetch_add(1, Ordering::Relaxed);
+            txn.commit(cell, host)?;
+            Ok(value)
+        }
+        Ok(TxnEnd::Rollback(value)) => {
+            ROLLED_BACK.fetch_add(1, Ordering::Relaxed);
+            txn.rollback(cell, host)?;
+            Ok(value)
+        }
+        Err(error) => {
+            ROLLED_BACK.fetch_add(1, Ordering::Relaxed);
+            txn.rollback(cell, host)?;
+            Err(error)
+        }
+    }
+}
+
+/// `rule` of a body that keeps what it wrote unless it fails: an error rolls back and passes on.
+pub fn rule_kept<C: WorldCell, H: Host, T>(
+    cell: &C,
+    host: &mut H,
+    kind: TxnKind,
+    body: impl FnOnce(&C, &mut H) -> Result<T, H::Error>,
+) -> Result<T, H::Error> {
+    rule(cell, host, kind, |cell, host| body(cell, host).map(TxnEnd::Commit))
 }
