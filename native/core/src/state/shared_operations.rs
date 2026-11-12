@@ -14,9 +14,10 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use crate::error::Result;
+use crate::error::{Misfit, Result};
 use crate::json::Encoder;
-use crate::row::{Field, IdMap, Items};
+use crate::row::{value_bytes, Field, IdMap, Items};
+use crate::value::V;
 use crate::{state_row, str_enum};
 
 pub const NAME: &str = "shared_operations_v1";
@@ -142,6 +143,10 @@ impl Field for Heads {
         self.map.write_json(encoder)
     }
 
+    fn from_value(value: &V) -> std::result::Result<Self, Misfit> {
+        Ok(Self::unchecked(Field::from_value(value)?))
+    }
+
     /// The keys sorted; heads that passed stay passed.
     fn canonicalize(&mut self) {
         self.map.canonicalize();
@@ -220,6 +225,28 @@ impl Receipts {
     }
 }
 
+impl Receipt {
+    /// A receipt read from its value: its bytes, and what a tick's checks read of it if it is a
+    /// record that has them (an int minute, a str event ID, a str event type), as the PyO3 crate
+    /// reads one from Python. A new receipt is not verified.
+    pub fn from_value(value: &V) -> std::result::Result<Self, Misfit> {
+        let mut receipt =
+            Receipt { minute: None, event_id: None, verified: false, reads_staff_history: true, bytes: value_bytes(value)? };
+        if let V::Map(record) = value {
+            if let Some(V::Int(minute)) = record.get("minute") {
+                receipt.minute = Some(*minute);
+            }
+            if let Some(V::Str(event_id)) = record.get("event_id") {
+                receipt.event_id = Some(event_id.clone());
+            }
+            if let Some(V::Str(event_type)) = record.get("event_type") {
+                receipt.reads_staff_history = &**event_type == "staff_operation_transition";
+            }
+        }
+        Ok(receipt)
+    }
+}
+
 impl Items for Receipts {
     fn count(&self) -> usize {
         self.items.len()
@@ -237,6 +264,13 @@ impl Field for Receipts {
 
     /// Each receipt is its canonical JSON already, and a list keeps its order.
     fn canonicalize(&mut self) {}
+
+    fn from_value(value: &V) -> std::result::Result<Self, Misfit> {
+        let V::List(items) = value else {
+            return Err(Misfit::new("not a list"));
+        };
+        Ok(Self { items: items.iter().map(Receipt::from_value).collect::<std::result::Result<_, _>>()? })
+    }
 
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         encoder.out.push(b'[');

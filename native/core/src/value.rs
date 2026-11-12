@@ -10,6 +10,11 @@ use indexmap::IndexMap;
 use crate::error::Result;
 use crate::json::Encoder;
 
+/// How deep a value read from Python or JSON may nest: the PyO3 crate's readers (`V`'s, a row
+/// field's, `canonical_json`) refuse a deeper one, and so does `Field::from_value`. Deeper values
+/// are left to the json module, which raises RecursionError itself.
+pub const MAX_DEPTH: usize = 512;
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum V {
     Null,
@@ -42,6 +47,22 @@ impl V {
             V::List(items) => !items.is_empty(),
             V::Map(items) => !items.is_empty(),
         }
+    }
+
+    /// Whether no container in the value is deeper than `MAX_DEPTH`, the value itself at depth 0:
+    /// what the PyO3 crate's readers take of a Python value.
+    pub fn depth_fits(&self) -> bool {
+        fn fits(value: &V, depth: usize) -> bool {
+            if depth > MAX_DEPTH {
+                return false;
+            }
+            match value {
+                V::List(items) => items.iter().all(|item| fits(item, depth + 1)),
+                V::Map(map) => map.values().all(|item| fits(item, depth + 1)),
+                _ => true,
+            }
+        }
+        fits(self, 0)
     }
 
     /// The canonical JSON of the value (`canonical_json` of the PyO3 crate), keys sorted by bytes.

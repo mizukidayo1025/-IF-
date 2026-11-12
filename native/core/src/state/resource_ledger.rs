@@ -18,6 +18,7 @@ use crate::error::{Misfit, Result};
 use crate::json::Encoder;
 use crate::row::{Field, IdMap, Items};
 use crate::state_row;
+use crate::value::V;
 
 pub const NAME: &str = "resource_ledger_v1";
 pub const RESOURCE_IDS: [&str; 2] = ["water_ml", "food_meal_units"];
@@ -201,6 +202,18 @@ impl Field for Audit {
     /// Each record is its canonical JSON already, and has no map inside.
     fn canonicalize(&mut self) {}
 
+    /// Each record as `take` takes it.
+    fn from_value(value: &V) -> std::result::Result<Self, Misfit> {
+        let V::List(items) = value else {
+            return Err(Misfit::new("not a list"));
+        };
+        let mut audit = Self::with_capacity(items.len());
+        for item in items {
+            audit.take(AuditRecord::from_value(item)?)?;
+        }
+        Ok(audit)
+    }
+
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         encoder.out.push(b'[');
         for (index, item) in self.items.iter().enumerate() {
@@ -261,6 +274,10 @@ impl UsedIds {
 impl Field for UsedIds {
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         Field::write_json(&self.ids, encoder)
+    }
+
+    fn from_value(value: &V) -> std::result::Result<Self, Misfit> {
+        Ok(Self::new(Field::from_value(value)?))
     }
 
     /// A list keeps its order.

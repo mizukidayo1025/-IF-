@@ -88,6 +88,12 @@ split PR by PR; its last section sums up what is where.
   World from `core/tests/data/tick_core.json` (`core/tests/support/load.rs`, test code only,
   decision 4) and runs 1,440 ticks with a `TestHost` (no LLM; the whole-world validation answers
   Ok, E6). Its digests are the native path's (`tests/integration/test_core_tick.py`).
+- **Typed rows from JSON** (#225): every `Field` reads itself from the `V` of its canonical JSON
+  (`Field::from_value`, written by `state_row!` and `str_enum!`, by hand for the leaf types and
+  the hand-written fields), with the checks of the PyO3 crate's `from_py`. No tick uses it; the
+  test loader reads each typed namespace of `model_state` with it (`core/tests/support/typed.rs`,
+  the namespace's row), and `cargo test -p sheltersim_core --test typed_rows` reads the worlds of
+  `core/tests/data/typed_rows.json` and writes them back to the same bytes.
 - **Out of the core** (decision 4): building a world from a Scenario and restoring a Checkpoint
   stay in Python and the wrapper. The whole-world validation texts (E6) and the pydantic
   contracts (E15) stay Python behind `Host` until stage 4.
@@ -261,7 +267,11 @@ split PR by PR; its last section sums up what is where.
   runs with what it reads of the handler, or foreign, lane P9-0). `tests/support/` holds
   `TestHost`, the host of a build without Python, which fills every section of the configs from
   outside the crate, and `load.rs`, a test-only loader of a World and a Run's `Policies` from
-  JSON (lane P10-1b; not part of the crate). `tests/tick_core.rs` runs 1,440 ticks of a small
+  JSON (lane P10-1b; not part of the crate), which puts each typed namespace of `model_state` in
+  its slot as the row `typed.rs` names for it. `tests/typed_rows.rs` reads every typed namespace
+  of `tests/data/typed_rows.json` (written by `benchmarks/core_typed_rows_fixture.py`; the Python
+  side is `tests/integration/test_core_typed_rows.py`) and writes it back to the same bytes, and
+  refuses what `from_py` refuses. `tests/tick_core.rs` runs 1,440 ticks of a small
   world with `TestHost` alone and reaches the digests the native path gives on the same world
   (`tests/data/tick_core.json`, written by `benchmarks/core_tick_fixture.py`; the native side is
   `tests/integration/test_core_tick.py`).
@@ -417,7 +427,8 @@ split PR by PR; its last section sums up what is where.
   validation through the native host, and validates a world from its Python values (policy E6). The core archives and
   restores a person as values and rows; a restored person is a new row at the end of `agents`.
 - `src/core/row.rs`: typed rows. The core's `state_row!` (`core/src/row.rs`) writes a record's
-  struct, `write_json` and mirrored setters from its list of fields, and any `Field` is a `Row`;
+  struct, `write_json`, `from_value` (the record read from JSON as a `V`, with the checks of
+  `from_py` here) and mirrored setters from its list of fields, and any `Field` is a `Row`;
   a setter writes the tree through `TreeSink`, which `Tree` implements. Here, `py_row!` writes
   the Python side of such a struct from the same names (`PyField`: `from_py`, `to_py`, the handling
   of forwarded writes), and any `PyField` is a `PyRow`, which the slot of a `NamespaceMirror` holds. This

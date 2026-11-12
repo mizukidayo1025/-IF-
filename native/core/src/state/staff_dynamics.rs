@@ -3,9 +3,10 @@
 //! and of a saved namespace (docs/rust-port/lanes/s-staff-dynamics.md). The PyO3 crate's
 //! `state/staff_dynamics.rs` reads it from Python and holds its validator.
 
-use crate::error::Result;
+use crate::error::{Misfit, Result};
 use crate::json::Encoder;
 use crate::row::{Field, IdMap, Maybe};
+use crate::value::V;
 use crate::{state_row, str_enum};
 
 pub const NAME: &str = "staff_dynamics_v1";
@@ -68,6 +69,17 @@ impl Recovery {
 
 impl Field for Recovery {
     fn canonicalize(&mut self) {}
+
+    /// A float, or an int that a float holds exactly.
+    fn from_value(value: &V) -> std::result::Result<Self, Misfit> {
+        match value {
+            V::Float(number) => Ok(Self::float(*number)),
+            V::Int(number) if number.unsigned_abs() > 1 << 53 => Err(Misfit::new("an int a float can't hold")),
+            V::Int(number) => Ok(Self::int(*number)),
+            V::Big(_) => Err(Misfit::new("an int a float can't hold")),
+            _ => Err(Misfit::new("not a float or an int")),
+        }
+    }
 
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         if self.int {

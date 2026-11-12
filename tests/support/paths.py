@@ -28,3 +28,5 @@ SAVED_RUN_ENGINE_V1 = FIXTURES / "saved_runs" / "engine-v1-small"
 BENCHMARKS = FIXTURES.parent / "benchmarks"
 # The small world of the core's tick test without Python (native/core/tests/tick_core.rs, #152).
 CORE_TICK_FIXTURE = FIXTURES.parent / "native" / "core" / "tests" / "data" / "tick_core.json"
+# Worlds with every typed namespace, for the core's typed rows (native/core/tests/typed_rows.rs).
+CORE_TYPED_ROWS_FIXTURE = FIXTURES.parent / "native" / "core" / "tests" / "data" / "typed_rows.json"

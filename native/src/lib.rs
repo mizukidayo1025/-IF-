@@ -66,8 +66,9 @@ unsafe impl pyo3::PyTypeInfo for Unsupported {
     }
 }
 
-// Deeper values are left to the json module, which raises RecursionError itself.
-pub(crate) const MAX_DEPTH: usize = 512;
+// Deeper values are left to the json module, which raises RecursionError itself. The core's
+// constant, which its `Field::from_value` takes too.
+pub(crate) use sheltersim_core::value::MAX_DEPTH;
 
 pub(crate) use sheltersim_core::json::Encoder;
 

@@ -7,10 +7,9 @@
 //! controller (`RunCore.policies_document`). `world` builds the World the PyO3 crate's core holds for
 //! that document: the scalars, the entity rows, one slot per owned name (the four fields with their
 //! rows, each namespace with the row its document has), the queue's events and the log's records.
-//! It reads only what a world of that fixture has: a namespace of `model_state` becomes a
-//! `ValueRow` slot, which fits the namespaces whose rows are `ValueRow`s (the population's, the
-//! temporary spaces', the overlay's, and keys no lane owns); a namespace with a typed row needs that
-//! row's loader, which this one does not have (the fixture's `model_state` is empty).
+//! A namespace of `model_state` becomes its typed row where it has one (`support/typed.rs`, each
+//! read with `Field::from_value`), and a `ValueRow` otherwise (the population's, the temporary
+//! spaces', the overlay's, and keys no lane owns).
 //!
 //! `policies` makes the Run's `Policies` again from the document of what was read: the objects, the
 //! values, the faults and the dispatch table, as the PyO3 crate read them.
@@ -249,25 +248,6 @@ fn put_row<T: sheltersim_core::row::Row>(world: &mut World, name: &str, row: T) 
     slot.try_borrow_mut().unwrap().row = Some(Box::new(row));
 }
 
-/// The owned namespaces whose rows are typed (`OWNED_NAMESPACES` of `core/state_mirror.py` but the
-/// population's, the temporary spaces' and the overlay's, which are `ValueRow`s).
-const TYPED: [&str; 14] = [
-    "psychological_distress_v1",
-    "staff_dynamics_v1",
-    "information_spread_v1",
-    "social_propagation_v1",
-    "movement_v1",
-    "body_state_v1",
-    "social_network_v1",
-    "agent_dynamics_v1",
-    "staff_operations_v1",
-    "shared_operations_v1",
-    "resource_ledger_v1",
-    "resource_service_v1",
-    "effect_program_v1",
-    "facility_queues_v1",
-];
-
 /// The World of a canonical document, with a slot for each owned name (`[name, is_field]`).
 pub fn world(document: &Value, slots: &Value) -> World {
     let mut world = World::default();
@@ -313,12 +293,18 @@ pub fn world(document: &Value, slots: &Value) -> World {
     put_row(&mut world, world::METRIC_STATE, metrics);
     put_row(&mut world, world::MODEL_CONFIGS, ValueRow(v(&document["model_configs"])));
     for (name, value) in document["model_state"].as_object().unwrap() {
-        // Only a namespace whose row is a `ValueRow` fits here (see the module's note).
-        assert!(!TYPED.contains(&name.as_str()), "{name} needs the loader of its typed row");
+        let value = v(value);
+        if let Some(row) = super::typed::typed_row(name, &value) {
+            // An owned namespace: its slot is one of `slots`.
+            let row = row.unwrap_or_else(|misfit| panic!("{name} does not fit its row: {}", misfit.0));
+            let slot = world.slots.get(name).unwrap_or_else(|| panic!("{name} has no slot"));
+            slot.try_borrow_mut().unwrap().row = Some(row);
+            continue;
+        }
         if world.slots.get(name.as_str()).is_none() {
             world.slots.add(text(name), Place::Value).unwrap();
         }
-        put_row(&mut world, name, ValueRow(v(value)));
+        put_row(&mut world, name, ValueRow(value));
     }
     let mut queue = Queue::new();
     for item in document["event_queue"].as_array().unwrap() {

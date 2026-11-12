@@ -14,6 +14,7 @@
 #![allow(dead_code)]
 
 pub mod load;
+pub mod typed;
 
 use std::sync::Arc;
 
