@@ -539,8 +539,9 @@ def _contract(model: Any, value: Any) -> dict[str, Any]:
 
 
 def _arrival_contracts() -> list[dict[str, Any]]:
-    """The contracts `queue_arrivals` asks of the arguments of test_an_arrival_the_rule_refuses:
-    `PersonTraits` of a language that is no identifier (the rule's own fields around it), and
+    """The contracts `queue_arrivals` asks of the arguments of
+    `an_arrival_the_rule_refuses_says_its_text` (population_texts.rs): `PersonTraits` of a
+    language that is no identifier (the rule's own fields around it), and
     `DynamicArrivalPersonContext` of each person's context."""
     from sheltersim.contracts.extensions import PersonTraits
     from sheltersim.contracts.population import DynamicArrivalPersonContext
