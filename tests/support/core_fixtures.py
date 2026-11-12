@@ -50,6 +50,7 @@ FIXTURES: dict[str, str] = {
     "resource_service_texts": "support.core_fixtures_texts:resource_service_texts_fixture",
     "generated_texts": "support.core_fixtures_texts:generated_texts_fixture",
     "handoff_texts": "support.core_fixtures_texts:handoff_texts_fixture",
+    "people_rows": "support.core_people_rows:people_rows_fixture",
     "population_rules": "support.core_fixtures_population:population_rules_fixture",
 }
 
