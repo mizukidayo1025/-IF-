@@ -105,13 +105,15 @@ fn record_started_step<'py>(_controller: &Bound<'py, PyAny>, world: &Bound<'py, 
     record_started(world, EventRef::Object(event))
 }
 
-/// `_assign_staff_support`: the service's assignment, then the receipts of what it assigned.
+/// `_assign_staff_support`: the service's assignment (`staff_service.assign_pending(minute,
+/// validate_state=False)`, whose `kernel_only` entry is `staff.assign_pending`, called here directly
+/// with its refusal as that entry's `KernelRefusal`), then the receipts of what it assigned.
 #[pyfunction]
 fn assign_staff_support<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<()> {
     let py = world.py();
-    let kwargs = PyDict::new(py);
-    kwargs.set_item("validate_state", false)?;
-    let assigned = attribute(controller, intern!(py, "staff_service"))?.call_method(intern!(py, "assign_pending"), (minute,), Some(&kwargs))?;
+    let service = attribute(controller, intern!(py, "staff_service"))?;
+    let assigned = crate::rules::staff::assign_pending(&service, minute, false).map_err(|error| errors::kernel_refusal(py, "staff.assign_pending", error))?;
+    let assigned = assigned.into_any();
     if assigned.is_empty().unwrap_or(false) {
         return Ok(());
     }
