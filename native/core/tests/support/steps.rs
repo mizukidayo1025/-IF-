@@ -8,8 +8,9 @@
 //! `Tick` of the world's minute. A test reads the world as its canonical document
 //! (`canonical::canonical_json`, as `WorldState.canonical_json()` writes it) and edits it as the
 //! pytest edited the Python world: `edit` changes that document and loads it again, with the same
-//! Run's policies. `digest` is the first 16 hex digits of the sha256 of the canonical text, the
-//! value a test records of a world a step left (decision 1 of #225).
+//! Run's policies. Each step's answer and the world after it go to the case's `Answers`
+//! (`answered`; `apply` and `route` add theirs), whose digest a test records again from the core
+//! (decision 1 of #225).
 
 use std::rc::Rc;
 
@@ -25,6 +26,7 @@ use sheltersim_core::rules::tick::{propose, Tick};
 use sheltersim_core::rules::travel::{self, Routing};
 use sheltersim_core::world::WorldCell;
 
+use super::answers::Answers;
 use super::load::{self, Loaded};
 use super::{canonical, cases, TestHost};
 
@@ -32,6 +34,8 @@ pub struct Case {
     pub entry: Value,
     pub loaded: Rc<Loaded>,
     pub host: TestHost,
+    /// The answers of the steps so far, each with the world after it.
+    pub answers: Answers,
 }
 
 impl Case {
@@ -43,7 +47,7 @@ impl Case {
     pub fn new(entry: Value) -> Self {
         let loaded = Rc::new(load::loaded(&entry));
         let host = load::following_host(&entry, &loaded);
-        Self { entry, loaded, host }
+        Self { entry, loaded, host, answers: Answers::default() }
     }
 
     /// `f` with the `Tick` of the world's minute.
@@ -71,13 +75,27 @@ impl Case {
     /// state hash): the next decision 7 minutes on (`propose::apply_alone`).
     pub fn apply(&mut self, action: Action, agent: &str, target: Option<&str>) -> Result<Applied, Error> {
         let proposal = Proposal { action, agent_id: Arc::from(agent), next_decision_at: self.minute() + 7, target_id: target.map(Arc::from), observed_state_hash: None };
-        self.tick(|tick| propose::apply_alone(tick, proposal))
+        let applied = self.tick(|tick| propose::apply_alone(tick, proposal));
+        self.answered(&applied);
+        applied
+    }
+
+    /// A step's answer (its `Debug` text) and the world after it, added to the case's answers.
+    pub fn answered<T: std::fmt::Debug>(&mut self, result: &T) {
+        let text = format!("{result:?}");
+        let answers = &mut self.answers;
+        self.loaded.cell.with(|world| answers.add(&text, world)).unwrap();
+    }
+
+    /// The digest of the answers so far.
+    pub fn hex(&self) -> String {
+        self.answers.hex()
     }
 
     /// The controller's `_route`, on the Run's people's graph (its capacities, and the floor plan
     /// and movement section of the world now).
     pub fn route(&mut self, origin: &str, destination: &str, agent: &str) -> Option<Route> {
-        self.tick(|tick| {
+        let route = self.tick(|tick| {
             let graph = propose::graph(tick).unwrap();
             let holding = tick.holding().unwrap();
             let section = tick.value_section(&holding, SectionId::Movement, |configs| &configs.movement, Movement::parse).unwrap();
@@ -88,7 +106,9 @@ impl Case {
                 Ok(route) => route,
                 Err(error) => panic!("{error:?}"),
             }
-        })
+        });
+        self.answered(&route);
+        route
     }
 
     /// `WorldState.canonical_json()` of the world now.
@@ -102,11 +122,6 @@ impl Case {
         serde_json::from_str(&self.bytes()).unwrap()
     }
 
-    /// The first 16 hex digits of the sha256 of the canonical text now.
-    pub fn digest(&self) -> String {
-        super::texts::sha(&self.bytes())[..16].to_owned()
-    }
-
     /// The world with its canonical document changed by `f`, loaded again with the same Run's
     /// policies, as the pytest changed the Python world between two steps.
     pub fn edit(&mut self, f: impl FnOnce(&mut Value)) {
@@ -114,7 +129,9 @@ impl Case {
         let mut doc = self.doc();
         f(&mut doc);
         entry["world"] = doc;
+        let answers = std::mem::take(&mut self.answers);
         *self = Self::new(entry);
+        self.answers = answers;
     }
 }
 
@@ -154,11 +171,6 @@ pub fn inputs(file: &str, name: &str) -> Value {
 /// `(target_id, next_decision_at, committed)` of `_apply_effect`.
 pub fn applied(target: Option<&str>, next_decision_at: i64, committed: bool) -> Applied {
     Applied { target: target.map(Arc::from), next_decision_at, committed }
-}
-
-/// The digests of a test's steps, a line each, as one digest.
-pub fn chained(lines: &[String]) -> String {
-    super::texts::sha(&lines.join("\n"))[..16].to_owned()
 }
 
 /// A str of a JSON value.

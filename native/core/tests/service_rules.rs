@@ -11,10 +11,11 @@
 //!
 //! The pytest compared the world a step left with a digest of what the deleted Python rule left,
 //! taken from Python's `repr` of the events (`world_digest`, `_is_python_s`). The core's World
-//! does not write that `repr`, so the digests here are the first 16 hex digits of the sha256 of
-//! the world's canonical text (`steps::Case::digest`), recorded from the core in #225 lane M6
-//! (decision 1): on the same kernel, each pytest named in a test's doc comment passed with the
-//! digests it had, and the PyO3 entry left the same canonical text as the core does here.
+//! does not write that `repr`, so the digests here are of each step's answer and the world's
+//! canonical parts after it (`steps::Case::answered`, `support/answers.rs`), recorded from the core
+//! in #225 lane M6 (decision 1): on the same kernel, each pytest named in a test's doc comment
+//! passed with the digests it had, and the PyO3 entry left the same canonical text as the core does
+//! here.
 
 mod support;
 
@@ -33,7 +34,7 @@ use sheltersim_core::rules::travel::{self, Trip, Walking};
 use sheltersim_core::state::resource_service::RequestRecord;
 use sheltersim_core::world::WorldCell;
 
-use support::steps::{self, applied, chained, row, row_mut, s, Case};
+use support::steps::{self, applied, row, row_mut, s, Case};
 use support::TestHost;
 
 const FILE: &str = "service_rules";
@@ -61,7 +62,7 @@ fn schedule(case: &mut Case, agent: &str, route: &Route, purpose: &str) -> Resul
         support_request_id: None,
         support_staff_id: None,
     };
-    case.tick(|tick| {
+    let result = case.tick(|tick| {
         let holding = tick.holding().unwrap();
         let movement = holding.held("movement_v1", "the world holds another movement state");
         let plan = tick.plan();
@@ -71,13 +72,15 @@ fn schedule(case: &mut Case, agent: &str, route: &Route, purpose: &str) -> Resul
             Err(WriteError::Error(error)) => Err(error),
             Err(other) => panic!("{other:?}"),
         }
-    })
+    });
+    case.answered(&result);
+    result
 }
 
 /// One pass of `arbitrate`'s loop at a facility's shared queue (`serve_head`): the started
 /// event's ID, or None.
 fn serve(case: &mut Case, facility: &str, resource: &str) -> Result<Option<Arc<str>>, Error> {
-    case.tick(|tick| {
+    let result = case.tick(|tick| {
         let manager = service::manager_in(tick)?;
         let minute = tick.minute;
         tick.host.read_queue_rows()?;
@@ -93,7 +96,9 @@ fn serve(case: &mut Case, facility: &str, resource: &str) -> Result<Option<Arc<s
             Ok(Served::Stopped(_)) => Ok(None),
             Err(failure) => Err(service::failure_of::<TestHost>(failure)),
         }
-    })
+    });
+    case.answered(&result);
+    result
 }
 
 /// `ResourceServiceManager(world).complete(event)` of the pending event with this ID.
@@ -101,25 +106,29 @@ fn complete(case: &mut Case, event_id: &str) -> Result<(), Error> {
     let doc = case.doc();
     let event = doc["event_queue"].as_array().unwrap().iter().find(|event| event["event_id"] == event_id).unwrap().clone();
     let row = support::texts::row(&event);
-    case.tick(|tick| {
+    let result = case.tick(|tick| {
         let manager = service::manager_in(tick)?;
         match tick.cell.with(|world| service::complete(world, &manager.manager(), &row))? {
             Ok(balance) => tick.host.resources_changed(balance.index, balance.remaining),
             Err(failure) => Err(service::failure_of::<TestHost>(failure)),
         }
-    })
+    });
+    case.answered(&result);
+    result
 }
 
 /// `ResourceServiceManager(world).request(agent, facility, validate_state=False)`.
 fn request(case: &mut Case, agent: &str, facility: &str) -> Result<Requested, Error> {
-    case.tick(|tick| {
+    let result = case.tick(|tick| {
         let manager = service::manager_in(tick)?;
         let holding = tick.holding()?;
         let needs = tick.value_section(&holding, SectionId::AccessibilityNeeds, |configs| &configs.accessibility_needs, AccessibilityNeeds::parse)?;
         let pending = tick.cell.with(|world| service::reserves_of(world))??;
         let asked = Request { agent_id: agent, facility_id: facility, minute: Minute::Absent, queue_id: None, needs: &needs };
         service::request(tick.cell, tick.host, &manager.manager(), &asked, &pending, false)
-    })
+    });
+    case.answered(&result);
+    result
 }
 
 /// The resource manager's config value, as the Run read it.
@@ -142,10 +151,10 @@ fn pending_count(doc: &Value) -> usize {
 #[test]
 fn a_still_action_gives_up_the_target_and_waits() {
     let given = inputs("still_action");
-    for (action, digest) in [(Action::Wait, "0be94bc83cc6e479"), (Action::Rest, "3ac2f1a446076bcd"), (Action::Sleep, "7b8bc81ba8da2bcf")] {
+    for (action, digest) in [(Action::Wait, "2aabc4432833cddd2decbfa67e22dea7cea4a9d10ac834507226a4d2e19c8959"), (Action::Rest, "2f640708922958b147f98ce95dc100513b742872253bc6d4ffc7e1f3cac85285"), (Action::Sleep, "f1612734281eddc62b77ecc4b471fd46443dfc89037c5872d99435d3b20e3403")] {
         let mut case = Case::of(FILE, s(&given["world"]));
         assert_eq!(case.apply(action, s(&given["agent"]), None).unwrap(), applied(None, 12, true), "{action:?}");
-        assert_eq!(case.digest(), digest, "{action:?}");
+        assert_eq!(case.hex(), digest);
     }
 }
 
@@ -154,12 +163,12 @@ fn a_still_action_gives_up_the_target_and_waits() {
 #[test]
 fn a_social_action_schedules_its_event() {
     let pair = &inputs("social_action")["pair"];
-    for (action, digest) in [(Action::Socialize, "50a49d86a19143b2"), (Action::CareFamily, "f856f5147a71a969"), (Action::HelpOthers, "fa5a6ecdfe69df94")] {
+    for (action, digest) in [(Action::Socialize, "0f840912889d248c1daf81382232e0e6f4566dc915951dd4be7b2c77699f9605"), (Action::CareFamily, "e66ebeaed3dca3eb80bb179988defb4dd5aa2ec4895faf30021aae4d3772ddbd"), (Action::HelpOthers, "870a61152f47e033f1024982cd08cf4b872ff0a5a5e6304a1287a6c1c722788f")] {
         let mut case = Case::of(FILE, "minute_5");
         let pending = pending_count(&case.doc());
         assert_eq!(case.apply(action, s(&pair[0]), Some(s(&pair[1]))).unwrap(), applied(Some(s(&pair[1])), 10, true), "{action:?}");
         assert_eq!(pending_count(&case.doc()), pending + 1);
-        assert_eq!(case.digest(), digest, "{action:?}");
+        assert_eq!(case.hex(), digest);
     }
 }
 
@@ -171,11 +180,11 @@ fn the_config_s_minutes_and_their_end_of_the_run() {
     let pairs = &given["pairs"];
     let mut case = Case::of(FILE, s(&given["world"]));
     assert_eq!(case.apply(Action::Socialize, s(&pairs[0][0]), Some(s(&pairs[0][1]))).unwrap(), applied(Some(s(&pairs[0][1])), 16, true));
-    assert_eq!(case.digest(), "d35a5ea7795919d4");
+    assert_eq!(case.hex(), "48cf36d95b5b9d61557c1f42e85bb44c764df6afcd04783fe2b4289a5821dfb2");
     // Past the last minute there is no event, and the planned decision stands.
     case.edit(|doc| doc["model_configs"]["body_dynamics"]["social_interaction_minutes"] = doc["duration_minutes"].clone());
     assert_eq!(case.apply(Action::Socialize, s(&pairs[1][0]), Some(s(&pairs[1][1]))).unwrap(), applied(None, 12, false));
-    assert_eq!(case.digest(), "55124a984f06b0af");
+    assert_eq!(case.hex(), "266999a76d3940df6696597cac5dd34e2c42e7b10d8dc0f84b7c1e314a78807a");
 }
 
 /// `test_without_a_config_the_default_minutes_are_python_s` (pytest digest `50325313983b94ac`).
@@ -184,7 +193,7 @@ fn without_a_config_the_default_minutes() {
     let pair = &inputs("social_action")["pair"];
     let mut case = Case::of(FILE, s(&inputs("default_minutes")["world"]));
     assert_eq!(case.apply(Action::Socialize, s(&pair[0]), Some(s(&pair[1]))).unwrap(), applied(Some(s(&pair[1])), 10, true));
-    assert_eq!(case.digest(), "b77a301f9e574d89");
+    assert_eq!(case.hex(), "9a814903ab4bb08eb1111cc58e67f93e5498d580a868e636f7b47541c69ac17a");
 }
 
 /// `test_a_social_action_needs_someone_else_in_the_zone` (pytest digest `a8a42ffe67df1a3a` after
@@ -193,10 +202,14 @@ fn without_a_config_the_default_minutes() {
 fn a_social_action_needs_someone_else_in_the_zone() {
     let given = inputs("needs_someone_else");
     let mut case = Case::of(FILE, "minute_5");
+    let mut worlds = Vec::new();
     for target in given["targets"].as_array().unwrap() {
         assert_eq!(case.apply(Action::HelpOthers, s(&given["agent"]), target.as_str()).unwrap(), applied(None, 12, false), "{target}");
-        assert_eq!(case.digest(), "4686d507aa38a03a");
+        worlds.push(case.bytes());
     }
+    // The pytest's digest was the same after each step.
+    assert!(worlds.iter().all(|world| *world == worlds[0]));
+    assert_eq!(case.hex(), "77061f57f81971c6be4cb2017bd3566d1dfe5d5e59ddc32c43aae064abbcbc37");
 }
 
 /// `test_a_held_bed_is_given_up_and_sleep_keeps_it`.
@@ -217,9 +230,9 @@ fn a_held_bed_is_given_up_and_sleep_keeps_it() {
 #[test]
 fn each_trip_action_from_each_zone() {
     let given = inputs("trip_action_from_each_zone");
-    for (action, name, digest) in [(Action::RequestToilet, "request_toilet", "71bfda8567bf854f"), (Action::FetchWater, "fetch_water", "3ba2effc6801e384"), (Action::CollectMeal, "collect_meal", "ed578770e8974d1d")] {
+    for (action, name, digest) in [(Action::RequestToilet, "request_toilet", "f9b6362f7a1ad46255bd75ae14084e640249387eb1c73cdce014788d7249fc6f"), (Action::FetchWater, "fetch_water", "c4cd33c4a84a3d2afc918beb6f933afd2792e714ddd6ebecdd02db038965b8b0"), (Action::CollectMeal, "collect_meal", "ebaebd1848e4b3796b381e32038f7c4a8fa43d031874cc00a03069c41c2cfb3b")] {
         let mut case = Case::of(FILE, "minute_5");
-        let mut lines = Vec::new();
+        let mut worlds = Vec::new();
         for step in given[name].as_array().unwrap() {
             let (agent, zone, target) = (s(&step[0]), s(&step[1]), s(&step[2]));
             case.edit(|doc| {
@@ -227,10 +240,10 @@ fn each_trip_action_from_each_zone() {
                 doc["model_state"]["movement_v1"]["positions"][agent]["zone_id"] = json!(zone);
             });
             assert_eq!(case.apply(action, agent, None).unwrap(), applied(Some(target), 12, true), "{step}");
-            lines.push(case.digest());
+            worlds.push(case.bytes());
         }
-        assert_eq!(lines.len(), 8);
-        assert_eq!(chained(&lines), digest, "{name}");
+        assert_eq!(worlds.len(), 8);
+        assert_eq!(case.hex(), digest);
     }
 }
 
@@ -240,14 +253,14 @@ fn each_trip_action_from_each_zone() {
 fn a_trip_past_the_end_of_the_run_is_refused() {
     let given = inputs("trip_past_the_end");
     let mut case = Case::of(FILE, s(&given["world"]));
-    let mut lines = Vec::new();
+    let mut worlds = Vec::new();
     for step in given["steps"].as_array().unwrap() {
         let action = Action::parse(s(&step[0])).unwrap();
         assert_eq!(case.apply(action, s(&step[1]), None).unwrap(), applied(None, 12, false), "{step}");
-        lines.push(case.digest());
+        worlds.push(case.bytes());
     }
-    assert_eq!(lines[0], lines[1]);
-    assert_eq!(chained(&lines), "8c00aa684b02cda8");
+    assert!(worlds[0] == worlds[1]);
+    assert_eq!(case.hex(), "3267bee81f34fa9ac6e083ce60f782c24344868c2b0b0da12b622db21d22d1af");
 }
 
 /// `test_no_known_facility_is_recorded_as_python_records` (pytest digests `de420a4402712c0d`,
@@ -257,13 +270,13 @@ fn no_known_facility_is_recorded() {
     let given = inputs("no_known_facility");
     let agent = s(&given["agent"]);
     let mut case = Case::of(FILE, s(&given["world"]));
-    let mut lines = Vec::new();
+    let mut worlds = Vec::new();
     for action in [Action::FetchWater, Action::CollectMeal, Action::RequestToilet] {
         assert_eq!(case.apply(action, agent, None).unwrap(), applied(None, 12, false), "{action:?}");
-        lines.push(case.digest());
+        worlds.push(case.bytes());
     }
-    assert_eq!(lines[1], lines[2]);
-    assert_eq!(chained(&lines), "ed72d0d4f5841f69");
+    assert!(worlds[1] == worlds[2]);
+    assert_eq!(case.hex(), "c6977b38bd0e346bf256cf3d88deb7957ba49cd3827a01fac46d65e77a1b87d8");
     let doc = case.doc();
     let history = doc["model_state"]["resource_service_v1"]["request_history"].as_array().unwrap();
     let reasons: Vec<&Value> = history[history.len() - 2..].iter().map(|record| &record["reason"]).collect();
@@ -289,7 +302,7 @@ fn a_toilet_kind_beyond_ascii_is_folded_as_python_folds_it() {
     let given = inputs("toilet_kind_beyond_ascii");
     let mut case = Case::of(FILE, s(&given["world"]));
     assert_eq!(case.apply(Action::RequestToilet, s(&given["agent"]), None).unwrap(), applied(Some("toilet_01"), 12, true));
-    assert_eq!(case.digest(), "3470b3fa1e87508e");
+    assert_eq!(case.hex(), "bbfb03e74247f80c4be1b3729d43b155e0ad8c892783bf3848b2c450d40f4587");
 }
 
 /// `test_a_request_of_the_run_s_last_minute_is_closed_at_once` (pytest digests
@@ -297,12 +310,12 @@ fn a_toilet_kind_beyond_ascii_is_folded_as_python_folds_it() {
 #[test]
 fn a_request_of_the_run_s_last_minute_is_closed_at_once() {
     let given = inputs("request_of_the_last_minute");
-    for (action, digest) in [(Action::SeekHelp, "7a316da76d11aba2"), (Action::SeekInformation, "e865309dcc2977f1")] {
+    for (action, digest) in [(Action::SeekHelp, "65ff571811ac5f4b1363743a8c24a0065e2688dd538cbaccc3b3385ff662867c"), (Action::SeekInformation, "40ae17d6a5f10f6374f1d26001a7e597d25385072830280090b0bd4010dc3145")] {
         let mut case = Case::of(FILE, s(&given["world"]));
         let request = "support-5d7322b2c209034dac8ce21e";
         assert_eq!(case.apply(action, s(&given["agent"]), None).unwrap(), applied(Some(request), 12, false), "{action:?}");
         assert_eq!(row(&case.doc(), "support_requests", request)["resolved_minute"], json!(5));
-        assert_eq!(case.digest(), digest, "{action:?}");
+        assert_eq!(case.hex(), digest);
     }
 }
 
@@ -334,7 +347,7 @@ fn every_route_for_every_mobility() {
         }
     }
     assert_eq!(found.len(), 192);
-    assert_eq!(chained(&found), "ab7ea936fa50fb1e");
+    assert_eq!(case.hex(), "bd51a5cd154ef7fbded4e091589fe23a0a760a7a45060eaeeaf6f7af93ecbd55");
 }
 
 /// `test_an_equal_time_goes_to_the_lower_edge_id`: the graph's own travel times equal, so only the
@@ -361,22 +374,18 @@ fn a_trip_and_each_limit() {
     let origin = s(&row(&case.doc(), "agents", agent)["zone_id"]).to_owned();
     let route = case.route(&origin, destination, agent).unwrap();
     let capacity = row(&case.doc(), "zones", destination)["capacity"].clone();
-    let mut lines = Vec::new();
     case.edit(|doc| row_mut(doc, "zones", destination)["capacity"] = json!(0));
     assert!(!schedule(&mut case, agent, &route, "return").unwrap());
-    lines.push(case.digest());
     let duration = case.doc()["duration_minutes"].clone();
     case.edit(|doc| {
         row_mut(doc, "zones", destination)["capacity"] = capacity;
         doc["duration_minutes"] = json!(5 + route.minutes);
     });
     assert!(!schedule(&mut case, agent, &route, "return").unwrap());
-    lines.push(case.digest());
     case.edit(|doc| doc["duration_minutes"] = duration);
     assert!(schedule(&mut case, agent, &route, "return").unwrap());
     assert_eq!(row(&case.doc(), "agents", agent)["activity"], json!("moving"));
-    lines.push(case.digest());
-    assert_eq!(chained(&lines), "2faa443c81665a5a");
+    assert_eq!(case.hex(), "640749a65940d7ead17f5f5f499a7c3913eb65b0b7216f96f42a4370b555b359");
 }
 
 /// `test_a_trip_refused_writes_nothing`: the Python rule's errors, raised before anything is
@@ -415,7 +424,7 @@ fn a_head_at_the_point_starts_its_service() {
     let event = doc["event_queue"].as_array().unwrap().iter().find(|event| event["event_id"] == *event_id).unwrap();
     assert_eq!(event["event_type"], json!("resource_service_complete"));
     assert!(metric(&doc, "water_service_wait_count") >= 1.0);
-    assert_eq!(case.digest(), "5580fab0f3edca36");
+    assert_eq!(case.hex(), "17e17f23640dcfd2de39337dc40ff7609a7042ddaec082b4aa371e5f69052749");
 }
 
 /// `test_each_wait_is_python_s_record` (pytest digests: `capacity` `bb6a050583414052`, `staff`
@@ -425,7 +434,7 @@ fn a_head_at_the_point_starts_its_service() {
 #[test]
 fn each_wait_is_recorded_once() {
     let given = inputs("each_wait");
-    for (reason, digest) in [("capacity", "f2c3675464ad178f"), ("staff", "d4ef7c11e9941a00"), ("stock", "9badb6cecc2af52e"), ("run_end", "52ef8003baf26ebc"), ("water_outage", "8aedb553e056afd8")] {
+    for (reason, digest) in [("capacity", "4cf6b5308dc1569901a5219327a2ba25c39b62fb7d7cff52ae90375f322ccc02"), ("staff", "a2a629b11053f6b0621c3b2dd2d574664f043a109ad2446d2defe9961a5d0bf7"), ("stock", "2ed219a62070ec04df55a4b2c004798d13e839ba7e40cca5792533285d1a298b"), ("run_end", "6c9018cc26e4bd2602acc48fb7510f9e53af660d74ecc3f3f85338c015062e3f"), ("water_outage", "ae75efe1a692ed6bd1503a75c6908801d064ddfd9c4a37020d8a4d91adc9560a")] {
         let case_inputs = &given[reason];
         let (agent, facility) = (s(&case_inputs["agent"]), s(&case_inputs["facility"]));
         let mut case = Case::of(FILE, s(&case_inputs["world"]));
@@ -438,7 +447,7 @@ fn each_wait_is_recorded_once() {
         let history = state["queue_stall_history"].as_array().unwrap();
         assert_eq!(history.last().unwrap(), &json!({"minute": 5, "facility_id": facility, "agent_id": agent, "reason": reason}));
         assert_eq!(metric(&doc, &counter), count + 1.0);
-        assert_eq!(case.digest(), digest, "{reason}");
+        assert_eq!(case.hex(), digest);
         let before = case.bytes();
         assert_eq!(serve(&mut case, facility, "water_ml").unwrap(), None);
         assert!(case.bytes() == before, "{reason}");
@@ -482,19 +491,19 @@ fn only_the_queues_with_people_are_served() {
 #[test]
 fn a_completion_relieves_the_need() {
     for (kind, resource, need, relief, started, completed) in [
-        ("at_water_station", "water_ml", "hydration_need", "hydration_relief", "5580fab0f3edca36", "8bd033243e885d37"),
-        ("at_meal_distribution", "food_meal_units", "hunger", "hunger_relief", "7b9a213c72a5295d", "3cbd3713deb4e8b9"),
+        ("at_water_station", "water_ml", "hydration_need", "hydration_relief", "17e17f23640dcfd2de39337dc40ff7609a7042ddaec082b4aa371e5f69052749", "70102a3d5cf9c3df1e5551cc231f44db8cd80e23ff13669a28c54dabb025ef83"),
+        ("at_meal_distribution", "food_meal_units", "hunger", "hunger_relief", "513652304385c620a39031c3c6936e6f18dffaf2f09ccf17c756a9bb64acd657", "fdd94d2612c3af532866c861a61cfd4b2fa8e7d97c955cf4074b65f20202c512"),
     ] {
         let given = inputs(kind);
         let (agent, facility) = (s(&given["agent"]), s(&given["facility"]));
         let mut case = Case::of(FILE, s(&given["world"]));
         let event_id = serve(&mut case, facility, resource).unwrap().unwrap();
-        assert_eq!(case.digest(), started, "{kind}");
+        assert_eq!(case.hex(), started);
         case.edit(|doc| row_mut(doc, "agents", agent)["needs"][need] = json!(0.812345));
         let doc = case.doc();
         let event = doc["event_queue"].as_array().unwrap().iter().find(|event| event["event_id"] == *event_id).unwrap().clone();
         complete(&mut case, &event_id).unwrap();
-        assert_eq!(case.digest(), completed, "{kind}");
+        assert_eq!(case.hex(), completed);
         let doc = case.doc();
         let person = row(&doc, "agents", agent);
         assert_eq!(person["needs"][need].as_f64().unwrap(), f64::max(0.0, 0.812345 - config(&case, relief)));
@@ -561,7 +570,7 @@ fn a_request_queues_the_person() {
     assert_eq!(receipt.queue_position as usize, row(&doc, "facilities", facility)["resource_queue_agent_ids"].as_array().unwrap().len());
     assert_eq!(row(&doc, "agents", agent)["activity"], json!("queued"));
     assert_eq!(row(&doc, "active_tasks", &task_id)["kind"], json!("resource_service_queue"));
-    assert_eq!(case.digest(), "e1dd052071d134fe");
+    assert_eq!(case.hex(), "814ce54aa76fce5c77e6818ada19e7488eb8072ac8511bb262650e6d23606958");
 }
 
 /// `test_a_request_refused_has_python_s_text`: the kernel's text of the Python rule's ValueError,

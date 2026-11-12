@@ -11,9 +11,10 @@
 //! after its edits.
 //!
 //! The pytest compared the world with the `world_digest` of what the deleted Python rule left,
-//! written with Python's `repr` of the events; the digests here are of the world's canonical text
-//! (`steps::Case::digest`), recorded from the core in #225 lane M6 (decision 1): on the same kernel
-//! each pytest named in a test's doc comment passed with the digests it had.
+//! written with Python's `repr` of the events; the digests here are of each step's answer and the
+//! world's canonical parts after it (`steps::Case::answered`, `support/answers.rs`), recorded from
+//! the core in #225 lane M6 (decision 1): on the same kernel each pytest named in a test's doc
+//! comment passed with the digests it had, and the PyO3 entry left the same canonical text.
 
 mod support;
 
@@ -55,7 +56,7 @@ fn a_toilet_at_an_independent_queue() {
     assert_eq!(row(&doc, "facilities", "accessible_toilet_01")["zone_id"], row(&doc, "facilities", "toilet_01")["zone_id"]);
     assert_eq!(row(&doc, "agents", "A001")["activity"], json!("queued"));
     assert!(listed(&doc, "facilities", "accessible_toilet_01", "queue_agent_ids", "A001"));
-    assert_eq!(case.digest(), "19c176fe0cb139ae");
+    assert_eq!(case.hex(), "e82ebd9608f89764802c704540cd1f285d32877a98f486eae3c4b4e8ce45a8fe");
 }
 
 /// `test_a_service_at_an_independent_queue` (pytest digest `2ef942f400f86948`).
@@ -66,7 +67,7 @@ fn a_service_at_an_independent_queue() {
     let mut case = Case::of(GENERATED, s(&given["world"]));
     assert_eq!(case.apply(Action::FetchWater, "A001", None).unwrap(), applied(Some(facility), 7, true));
     assert!(listed(&case.doc(), "facilities", facility, "resource_queue_agent_ids", "A001"));
-    assert_eq!(case.digest(), "f558a6965b5d9401");
+    assert_eq!(case.hex(), "0acca3262ab0ba5249c09de37979ebbb34f8b72db1448eab6593126c8a64e5ca");
 }
 
 /// `test_someone_at_the_point_of_the_facility_asks_at_once` (pytest digests `438170f6746a69b5`,
@@ -75,12 +76,12 @@ fn a_service_at_an_independent_queue() {
 #[test]
 fn someone_at_the_point_of_the_facility_asks_at_once() {
     let given = inputs("at_the_point_asks_at_once");
-    for (action, word, digest) in [(Action::RequestToilet, "toilet", "19896b2caf2d81b9"), (Action::FetchWater, "water", "25676ea0742f0a53"), (Action::CollectMeal, "meal", "db2449c6f4e5016f")] {
+    for (action, word, digest) in [(Action::RequestToilet, "toilet", "d47a9e285a0f8ca07a6f1469c211772bbfc5933ad5a0efd12a54ed07417f80e6"), (Action::FetchWater, "water", "4e1ee0dedc334dfa7636b4b365aa47ed76d5c2bbeb8cef322c3eee60342b2aed"), (Action::CollectMeal, "meal", "c0cc2715e0e32d5be44abb9a32ac8d9af0c31425a217a24dd42ad394736b7138")] {
         let facility = s(&given[word]["facility"]);
         let mut case = Case::of(GENERATED, s(&given[word]["world"]));
         assert_eq!(case.apply(action, "A001", None).unwrap(), applied(Some(facility), 7, true), "{word}");
         assert_eq!(row(&case.doc(), "agents", "A001")["activity"], json!("queued"));
-        assert_eq!(case.digest(), digest, "{word}");
+        assert_eq!(case.hex(), digest);
     }
 }
 
@@ -92,7 +93,7 @@ fn without_a_floor_plan_someone_in_the_zone_asks_at_once() {
     let facility = s(&given["facility"]);
     let mut case = Case::of(PLAIN, s(&given["world"]));
     assert_eq!(case.apply(Action::RequestToilet, s(&given["agent"]), None).unwrap(), applied(Some(facility), 7, true));
-    assert_eq!(case.digest(), "42d234cb72a81129");
+    assert_eq!(case.hex(), "d934382a1c2c7c015ee6b3c4568df1918096b97d21f403b3263599c1d07891a8");
 }
 
 /// `test_a_person_the_service_turns_down_is_recorded_with_python_s_text` (pytest digest
@@ -105,7 +106,7 @@ fn a_person_the_service_turns_down_is_recorded_with_python_s_text() {
     let record = doc["model_state"]["resource_service_v1"]["request_history"].as_array().unwrap().last().unwrap().clone();
     assert_eq!(record["reason"], json!("request_rejected"));
     assert_eq!(record["detail"], json!("Agent 'A001' cannot request resource service while active"));
-    assert_eq!(case.digest(), "3d5457ab114548d3");
+    assert_eq!(case.hex(), "b790e8745919c178b430652666b0d4e5aba4944ffe2cd84ad53b0e7635e5ceef");
 }
 
 /// `test_a_request_at_once_the_queue_turns_down_keeps_python_s_text` of
@@ -116,9 +117,9 @@ fn a_person_the_service_turns_down_is_recorded_with_python_s_text() {
 fn a_request_at_once_the_queue_turns_down_keeps_python_s_text() {
     let given = inputs("queue_turns_down");
     for (why, text, digest) in [
-        ("queue", "no accessible independent resource service queue is available", "234cfa69b6b2ab49"),
-        ("active", "Agent 'A001' cannot request resource service while active", "178707a4daef47e8"),
-        ("exclusive", "Agent 'A001' already has an exclusive task", "5824849b16d2e047"),
+        ("queue", "no accessible independent resource service queue is available", "6273ef3f8a937cd3282634ed0677fbe8c846712ce53e14ea393430846ab7dbe2"),
+        ("active", "Agent 'A001' cannot request resource service while active", "cb34fca4b367a7f3c9ee5d2591c6aaeb1417f5dea0cdcabc6e52ba79c21bea49"),
+        ("exclusive", "Agent 'A001' already has an exclusive task", "20903a3acfac4339784cd18591225719e3380aaade971008edd283a78aded7f3"),
     ] {
         let mut case = Case::of(GENERATED, s(&given[why]));
         assert_eq!(case.apply(Action::FetchWater, "A001", None).unwrap(), applied(None, 7, false), "{why}");
@@ -126,7 +127,7 @@ fn a_request_at_once_the_queue_turns_down_keeps_python_s_text() {
         let record = doc["model_state"]["resource_service_v1"]["request_history"].as_array().unwrap().last().unwrap().clone();
         assert_eq!((&record["outcome"], &record["reason"], &record["detail"]), (&json!("rejected"), &json!("request_rejected"), &json!(text)), "{why}");
         assert_eq!(metric(&doc, "resource_service_request_rejected_count"), 1.0);
-        assert_eq!(case.digest(), digest, "{why}");
+        assert_eq!(case.hex(), digest);
     }
 }
 
@@ -137,7 +138,7 @@ fn a_service_action_with_no_service_is_rejected() {
     let mut case = Case::of(GENERATED, s(&inputs("no_service")["world"]));
     assert_eq!(case.apply(Action::FetchWater, "A001", None).unwrap(), applied(None, 7, false));
     assert_eq!(metric(&case.doc(), "resource_service_request_rejected_count"), 1.0);
-    assert_eq!(case.digest(), "38290800e3395685");
+    assert_eq!(case.hex(), "fc2d35e6f3f32be55728bda4cd028daf41a005fa7e2490835190d91d73b92c3b");
 }
 
 /// `test_a_capacity_wait_comes_before_a_request_at_once` (pytest digest `2cc71f44ef0c8a6b`):
@@ -163,7 +164,7 @@ fn a_capacity_wait_comes_before_a_request_at_once() {
         .collect();
     assert_eq!(waits, [(json!("zone-edge-capacity-wait-1"), json!(1), json!("toilet_corridor"))]);
     assert_eq!(doc["id_counters"], json!({"agent": 100, "event": 2}));
-    assert_eq!(case.digest(), "eeae79f7bcec7a96");
+    assert_eq!(case.hex(), "d20abfaee9811d4af94caca6cc0dc724cdb544298fad64cde7cf3ec00b9204da");
 }
 
 // ---- A request closed at once ---------------------------------------------------------------------
@@ -173,7 +174,7 @@ fn a_capacity_wait_comes_before_a_request_at_once() {
 #[test]
 fn a_request_of_the_last_minute_is_closed_at_once() {
     let name = s(&inputs("last_minute")["world"]).to_owned();
-    for (action, receipts, digest) in [(Action::SeekHelp, 2, "6b6b9fd2d3bc32ac"), (Action::SeekInformation, 0, "4db38fa81ec23bee")] {
+    for (action, receipts, digest) in [(Action::SeekHelp, 2, "b21b50cb27a2820e89da7b87983e8a346aeab96ea17bb826b6ac24789569044a"), (Action::SeekInformation, 0, "5ddccba0535486c9afe7eb8df00e50575baa0c73b6f90f5cb3501ab1dba12f42")] {
         let mut case = Case::of(GENERATED, &name);
         let before = case.doc();
         let events = before["id_counters"].get("event").and_then(Value::as_i64).unwrap_or(0);
@@ -190,7 +191,7 @@ fn a_request_of_the_last_minute_is_closed_at_once() {
         assert_eq!(metric(&doc, "support_unresolved_count"), 1.0);
         assert!(!doc["event_queue"].as_array().unwrap().iter().any(|event| event["event_type"] == "support_request_timeout"));
         assert_eq!(doc["id_counters"].get("event").and_then(Value::as_i64).unwrap_or(0), events + receipts, "{action:?}");
-        assert_eq!(case.digest(), digest, "{action:?}");
+        assert_eq!(case.hex(), digest);
     }
 }
 
@@ -201,7 +202,7 @@ fn a_person_in_a_cooldown_is_turned_down_in_the_last_minute_too() {
     let mut case = Case::of(GENERATED, s(&inputs("last_minute")["cooldown"]));
     assert_eq!(case.apply(Action::SeekHelp, "A001", None).unwrap(), applied(None, 366, false));
     assert_eq!(metric(&case.doc(), "support_request_rejected_count"), 1.0);
-    assert_eq!(case.digest(), "457fe1557532d575");
+    assert_eq!(case.hex(), "3b8d61d7557fa529cb3e5d761d67f8e23e74a75d95843d4e75acfb09d62554cf");
 }
 
 // ---- Having arrived -------------------------------------------------------------------------------
@@ -282,4 +283,3 @@ fn having_arrived_with_an_independent_queue() {
     assert_eq!(arrived(&mut case, "A001", "toilet_01", Some(queue), Some(point)), (false, false));
     assert!(!arrived(&mut case, "A001", "toilet_01", Some(queue), Some("no_such_point")).1);
 }
-
