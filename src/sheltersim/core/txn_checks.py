@@ -1,13 +1,11 @@
 """Debug checks of the transactions of a tick (lane 6-3 of Issue #152).
 
-refuse_transactions makes every transaction refuse the world (core/state_mirror.py, _txn_check), so
-that the rules of a tick take the copy they made before transactions in place
-(native/src/rules/transaction.rs). poison_replaced gives every object a transaction takes out of the
-world (the old maps of entities, the old trees, the old model_state table), and every object of a
-world that a rule's copy replaces, a class that raises on any use and counts it: code that kept such
-an object across the transaction, expecting it to stay as it was or to be the world's, is found. A
-rollback, or a copy that is dropped, gives the objects their classes back. The all-path gate turns
-these on with --refuse-transactions and --poison.
+poison_replaced gives every object a transaction takes out of the world (the old maps of entities,
+the old trees, the old model_state table) a class that raises on any use and counts it: code that
+kept such an object across the transaction, expecting it to stay as it was or to be the world's, is
+found. A rollback gives the objects their classes back. The all-path gate turns it on with --poison.
+The rules' transactions run in the core only since lane P9-1b (policy E16): there is no copy of the
+world to refuse into any more.
 
 Not poisoned: objects of sheltersim.events (the events, which the dispatcher's snapshot of due
 events keeps on purpose, the queue and the log), builtin containers (which can't change class), the
@@ -24,7 +22,6 @@ from typing import Any
 
 
 class _TxnDebug:
-    refuse = False
     poison = False
     poisoned = 0
     uses = 0
@@ -32,21 +29,12 @@ class _TxnDebug:
     classes: dict[type, type] = {}
 
 
-def refuse_transactions(on: bool) -> None:
-    """While on, every transaction says Unsupported, so the rules take their copy (tests, gate)."""
-    _TxnDebug.refuse = on
-
-
 def poison_replaced(on: bool) -> None:
-    """While on, objects a transaction or a rule's copy takes out of the world raise on any use."""
+    """While on, objects a transaction takes out of the world raise on any use."""
     _TxnDebug.poison = on
     _TxnDebug.poisoned = 0
     _TxnDebug.uses = 0
     _TxnDebug.first = None
-
-
-def refused() -> bool:
-    return _TxnDebug.refuse
 
 
 def poisoning() -> bool:
@@ -187,10 +175,3 @@ def poison(old: Mapping[str, Any], new: Mapping[str, Any]) -> list[tuple[Any, ty
 def unpoison(done: list[tuple[Any, type]] | None) -> None:
     for value, cls in done or ():
         object.__setattr__(value, "__class__", cls)
-
-
-def poison_copied(world: Any, copy: Any) -> list[tuple[Any, type]] | None:
-    """For a rule's copy of a world the transaction refused: poison what the copy replaces."""
-    if not _TxnDebug.poison:
-        return None
-    return poison(world.__dict__, copy.__dict__)

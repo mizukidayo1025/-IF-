@@ -7,19 +7,17 @@ to model_configs in place inside a tick phase is a problem too (native/src/core/
 With --verify-rows, each tick's end also checks that every entity object holds what its row holds,
 and that every attached tree of a slot holds what its row holds (core/state_mirror.py,
 watch_entity_rows); a tick where they differ is a problem.
-With --poison, every object a rule's transaction (or the copy it stands for) takes out of the world
-gets a class that raises on any use (core/txn_checks.py); a use is a problem.
-With --refuse-transactions, the rules take the copy they made before transactions in place
-(txn_checks.refuse_transactions). Each result.json also holds the dispatcher's counts (how many
-due events went to the Python dispatcher because a copy or a transaction replaced them) and how many
-rule transactions ran in place or on a copy.
+With --poison, every object a rule's transaction takes out of the world gets a class that raises on
+any use (core/txn_checks.py); a use is a problem. Each result.json also holds the dispatcher's
+counts (how many due events went to the Python dispatcher because a transaction replaced them) and
+how many rule transactions ran in place and inside another (in the core only: policy E16).
 
     python benchmarks/gate_all_paths.py --output DIR --expect fixtures/gate-all-paths.json
     python benchmarks/gate_all_paths.py --output DIR --determinism
     python benchmarks/gate_all_paths.py --output DIR --reversed-order
     python benchmarks/gate_all_paths.py --output DIR --coverage
     python benchmarks/gate_all_paths.py --output DIR --verify-rows
-    python benchmarks/gate_all_paths.py --output DIR --poison [--refuse-transactions]
+    python benchmarks/gate_all_paths.py --output DIR --poison
     python benchmarks/gate_all_paths.py --output DIR --write-expected fixtures/gate-all-paths.json
 
 Run from the repository root with src on PYTHONPATH. Output belongs outside the repository.
@@ -81,9 +79,8 @@ ORDER_VARIABLE = "SHELTERSIM_GATE_REVERSE"
 ORDER_VARIANTS = (Variant("reversed_order", {"PYTHONHASHSEED": "1", ORDER_VARIABLE: "phase"}),)
 # Set by --verify-rows for the scenarios' processes.
 VERIFY_ROWS_VARIABLE = "SHELTERSIM_GATE_VERIFY_ROWS"
-# Set by --poison and --refuse-transactions.
+# Set by --poison.
 POISON_VARIABLE = "SHELTERSIM_GATE_POISON"
-REFUSE_VARIABLE = "SHELTERSIM_GATE_REFUSE_TRANSACTIONS"
 
 
 def run_one(name: str, output: Path, chosen: Any = None) -> None:
@@ -130,10 +127,6 @@ def run_one(name: str, output: Path, chosen: Any = None) -> None:
         from sheltersim.core.txn_checks import poison_replaced
 
         poison_replaced(True)
-    if os.environ.get(REFUSE_VARIABLE):
-        from sheltersim.core.txn_checks import refuse_transactions
-
-        refuse_transactions(True)
     order = os.environ.get(ORDER_VARIABLE)
     if order:
         from tick_probe import ReversedOrder, install
@@ -401,11 +394,6 @@ def main() -> int:
         action="store_true",
         help="make every object a rule's transaction takes out of the world raise on any use",
     )
-    parser.add_argument(
-        "--refuse-transactions",
-        action="store_true",
-        help="make the rules take their copy instead of a transaction in place",
-    )
     parser.add_argument("--only", action="append", help="scenarios whose name starts with this")
     parser.add_argument("--jobs", type=int, default=min(os.cpu_count() or 1, 12))
     parser.add_argument("--run-one", help=argparse.SUPPRESS)
@@ -419,8 +407,6 @@ def main() -> int:
         os.environ[VERIFY_ROWS_VARIABLE] = "1"
     if args.poison:
         os.environ[POISON_VARIABLE] = "1"
-    if args.refuse_transactions:
-        os.environ[REFUSE_VARIABLE] = "1"
     started = time.perf_counter()
     names = _scenario_names(args.only)
     coverage_dir = args.output / "coverage" if args.coverage else None
@@ -512,8 +498,8 @@ def main() -> int:
         "events to the Python dispatcher: "
         f"{sum(row.get('events_python', 0) for row in dispatch)}, of which replaced: "
         f"{sum(row.get('events_replaced', 0) for row in dispatch)}; rule transactions in place: "
-        f"{sum(row.get('in_place', 0) for row in transactions)}, on a copy: "
-        f"{sum(row.get('copy', 0) for row in transactions)}"
+        f"{sum(row.get('in_place', 0) for row in transactions)}, inside another: "
+        f"{sum(row.get('nested', 0) for row in transactions)}"
     )
     for problem in problems:
         print(f"PROBLEM {problem}")

@@ -1703,8 +1703,6 @@ def transaction_or_copy(world: Any, kind: str, make_copy: Callable[[Any], Any]) 
 
 def _txn_check(world: Any) -> None:
     """Unsupported unless the world's core holds every part a transaction gives back."""
-    if txn_checks.refused():
-        raise native.Unsupported("transactions are refused (txn_checks.refuse_transactions)")
     state = world.__dict__
     core = state["_core"]
     table = state.get("model_state")
