@@ -308,7 +308,7 @@ split PR by PR; its last section sums up what is where.
   `tests/data/handler_rules.json`, calling each kernel as its PyO3 entry does
   (`dispatch::apply_alone_made` for a handler's records, `tick::propose::apply_alone` for
   `_apply_effect`).
-  before any write; `tests/resource_ledger_ops.rs`, `tests/proximity_sampling.rs`,
+  `tests/resource_ledger_ops.rs`, `tests/proximity_sampling.rs`,
   `tests/dispatch_rows.rs` and `tests/behavior_rows.rs` check the ledger's operations, the
   proximity sampling and its step, the dispatch phase and the travel completion's texts, and the
   proposals and observed states (a Run's too, read before each propose phase through
