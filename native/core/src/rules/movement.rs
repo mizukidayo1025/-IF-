@@ -1428,7 +1428,7 @@ pub fn advance_through<C: WorldCell, H: Host>(cell: &C, host: &mut H, minute: i6
             // The old events are read as rows from the world's queue, and settled there.
             host.read_queue_rows()?;
             let written = cell.with(|world| write_walk(world, plan, minute))?;
-            let (replans, taken) = written.map_err(|error| host.write_error(error))?;
+            let (replans, taken) = written.map_err(<H::Error as From<crate::events::writer::WriteError>>::from)?;
             host.slots_changed(&taken)?;
             Ok(replans)
         }

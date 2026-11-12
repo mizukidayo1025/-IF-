@@ -31,7 +31,7 @@ impl From<Error> for WriteError {
 }
 
 /// A write's error as a core error, for a host whose error is the core's (a host without Python,
-/// lane P9-1c): `Host::write_error`'s default, a duplicate as a `RuntimeError` of its text, which a
+/// lane P9-1c): a duplicate as a `RuntimeError` of its text, which a
 /// world the checks let through never has.
 impl From<WriteError> for Error {
     fn from(error: WriteError) -> Self {

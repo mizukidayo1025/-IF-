@@ -451,7 +451,9 @@ pub enum MetricSink {
 
 /// The outside of the world. Each call runs with nothing of the world borrowed (rule R6).
 pub trait Host {
-    type Error: From<Error> + HostFailure;
+    /// A write's error is the host's as `From<WriteError>` makes it: the native host's
+    /// `DuplicateEventError` for a duplicate (lane P9-3b; P9-2a's `write_error`).
+    type Error: From<Error> + From<WriteError> + HostFailure;
 
     // ---- The whole world's validation and a transaction's views (policy E6, lane 6-2) ----------
 
@@ -638,16 +640,6 @@ pub trait Host {
     /// (H6 of design-p9.md). A host without Python has nothing to read.
     fn read_queue_rows(&mut self) -> Result<(), Self::Error> {
         Ok(())
-    }
-
-    /// A write's error as the host raises it: the core's error, or a duplicate event (the native
-    /// host's `DuplicateEventError`; a `RuntimeError` here, which a world the checks let through
-    /// never has).
-    fn write_error(&self, error: WriteError) -> Self::Error {
-        match error {
-            WriteError::Error(error) => error.into(),
-            WriteError::Duplicate(text) => Error::Runtime(text).into(),
-        }
     }
 
     /// `world.model_configs` as a value while it is a dict the world's slot does not hold (assigned

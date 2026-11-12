@@ -133,7 +133,7 @@ impl<C: WorldCell, H: Host, R: RunCell> Tick<'_, C, H, R> {
 
     /// A write's result as the host's.
     pub fn written<T>(&self, result: WriteResult<T>) -> std::result::Result<T, H::Error> {
-        result.map_err(|error| self.host.write_error(error))
+        result.map_err(<H::Error as From<WriteError>>::from)
     }
 
     /// Run f on the world.

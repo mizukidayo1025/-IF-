@@ -765,7 +765,7 @@ where
             let done = tick.cell.with(|world| service::complete(world, &manager.manager(), row)).map_err(core_err::<H::Error>)?;
             match done {
                 Ok(balance) => tick.host.resources_changed(balance.index, balance.remaining)?,
-                Err(failure) => return Err(service::failure_of(tick.host, failure)),
+                Err(failure) => return Err(service::failure_of::<H>(failure)),
             }
             Ok(Handled::applied())
         }
@@ -773,7 +773,7 @@ where
             tick.world(|world| handlers::service_cancellation(world))?;
             let manager = service::manager_in(tick)?;
             let done = tick.cell.with(|world| service::cancel(world, &manager.manager(), row)).map_err(core_err::<H::Error>)?;
-            let done = counted(&handlers::COUNTS, "resource_service_cancel", done.map_err(|failure| service::failure_of(tick.host, failure)));
+            let done = counted(&handlers::COUNTS, "resource_service_cancel", done.map_err(|failure| service::failure_of::<H>(failure)));
             if let Some(balance) = done? {
                 tick.host.resources_changed(balance.index, balance.remaining)?;
             }
@@ -1194,7 +1194,7 @@ impl<C: WorldCell, H: Host> travel_completion::Managers<H> for CoreManagers<'_, 
         let needs = kit::kept_section_value(self.cell, host, &holding, SectionId::AccessibilityNeeds, |configs| &configs.accessibility_needs, AccessibilityNeeds::parse)?;
         let request = toilet::Request { agent_id, facility_id, queue_id: None, queues: &queues, geo: &geo, needs: &needs };
         let written = self.cell.with(|world| toilet::queue_up(world, &request).map(drop))?;
-        written.map_err(|error| host.write_error(error))
+        written.map_err(<H::Error as From<crate::events::writer::WriteError>>::from)
     }
 
     fn resource(&mut self, host: &mut H, agent_id: &str, facility_id: &str) -> std::result::Result<Option<String>, H::Error> {
@@ -1308,7 +1308,7 @@ fn admit<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>, return
     let holding = tick.holding()?;
     let nothing = if returns {
         let lifecycle = holding.held(population_lifecycle::KEY, "the world holds another lifecycle state");
-        tick.cell.with(|world| population_lifecycle::nothing_to_admit(world, &lifecycle)).and_then(|done| done).map_err(planning)?
+        tick.cell.with(|world| population_lifecycle::nothing_to_admit(world, &lifecycle)).and_then(|done| done).map_err(planning::<H::Error>)?
     } else {
         let dynamics = holding.held(population::DYNAMICS, "the world holds another population dynamics state");
         tick.world(|world| population::nothing_waiting(world, &dynamics))?
