@@ -275,6 +275,55 @@ pub(crate) fn read_object(object: &Bound<'_, PyAny>, spec: &'static Spec, root: 
     found
 }
 
+/// A map of these entries.
+fn document(entries: &[(&str, V)]) -> V {
+    V::Map(entries.iter().map(|(key, value)| (Arc::from(*key), value.clone())).collect())
+}
+
+/// `{"fault": [class, text]}` (`RunCore.policies_document`).
+fn fault_document(fault: &sheltersim_core::config::Fault) -> V {
+    use sheltersim_core::config::FaultClass;
+    let class = match &fault.class {
+        FaultClass::Value => "Value",
+        FaultClass::Type => "Type",
+        FaultClass::Key => "Key",
+        FaultClass::Validation => "Validation",
+        FaultClass::Refused => "Refused",
+        FaultClass::Other(name) => name,
+    };
+    document(&[("fault", V::List(vec![V::Str(Arc::from(class)), V::Str(fault.text.clone())]))])
+}
+
+/// A value as read (`RunCore.policies_document`).
+fn held_document(held: &Held) -> V {
+    match held {
+        Held::Value(value) => document(&[("value", value.clone())]),
+        Held::Text(text) => document(&[("text", V::Str(text.clone()))]),
+        Held::Object(object) => document(&[("object", obj_document(object))]),
+        Held::Opaque { callable } => document(&[("opaque", V::Bool(*callable))]),
+        Held::Method(name) => document(&[("method", V::Str(name.clone()))]),
+    }
+}
+
+/// An object as read (`RunCore.policies_document`).
+fn obj_document(object: &Obj) -> V {
+    let text = |value: &Option<Arc<str>>| value.clone().map_or(V::Null, V::Str);
+    let class = V::List(vec![text(&object.class.module), text(&object.class.qualname), V::Bool(object.class.resolves)]);
+    let attrs = object
+        .attrs
+        .iter()
+        .map(|(name, read)| {
+            let item = match read {
+                Ok(held) => held_document(held),
+                Err(fault) => fault_document(fault),
+            };
+            (name.clone(), item)
+        })
+        .collect();
+    let named = |map: &IndexMap<Arc<str>, Held>| V::Map(map.iter().map(|(name, held)| (name.clone(), held_document(held))).collect());
+    document(&[("class", class), ("attrs", V::Map(attrs)), ("class_own", named(&object.class_own)), ("own", named(&object.own))])
+}
+
 /// The policies of a controller, read now, with its dispatcher (lane P9-0).
 fn read_policies(controller: &Bound<'_, PyAny>) -> Policies {
     let mut policies = Policies::of(Arc::new(read_object(controller, &CONTROLLER, controller)));
@@ -514,6 +563,48 @@ impl RunCore {
         }
         summary.set_item("dispatch", (said(&policies.dispatch.handlers.clone().map(|table| table.len())), handlers))?;
         Ok(summary)
+    }
+
+    /// What the Run read of the controller and its dispatcher, as plain JSON values: for the core's
+    /// tick test without Python (lane P10-1b, `native/core/tests/support/load.rs` reads it back). An
+    /// object is `{"class": [module, qualname, resolves], "attrs": {...}, "class_own": {...},
+    /// "own": {...}}`; a value as read is `{"value": v}`, `{"text": t}`, `{"object": o}`,
+    /// `{"opaque": callable}` or `{"method": name}`, and a fault `{"fault": [class, text]}`.
+    fn policies_document<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let policies = self.policies()?;
+        let controller = match &policies.controller {
+            Ok(object) => obj_document(object),
+            Err(fault) => fault_document(fault),
+        };
+        let known = match &policies.dispatch.known {
+            Ok(known) => document(&[("value", V::Bool(*known))]),
+            Err(fault) => fault_document(fault),
+        };
+        let handlers = match &policies.dispatch.handlers {
+            Ok(table) => {
+                use sheltersim_core::run::dispatch::Handler;
+                let mut map = IndexMap::with_capacity(table.len());
+                for (event_type, handler) in table.iter() {
+                    let item = match handler {
+                        Handler::Foreign => V::Str(Arc::from("foreign")),
+                        Handler::Native(native) => {
+                            let (module, qualname) = native.kind.class();
+                            document(&[
+                                ("class", V::List(vec![V::Str(Arc::from(module)), V::Str(Arc::from(qualname))])),
+                                ("handler", obj_document(&native.handler)),
+                                ("own_managers", V::Bool(native.own_managers)),
+                                ("after_arrival_as_defined", V::Bool(native.after_arrival_as_defined)),
+                            ])
+                        }
+                    };
+                    map.insert(event_type.clone(), item);
+                }
+                document(&[("value", V::Map(map))])
+            }
+            Err(fault) => fault_document(fault),
+        };
+        let dispatch = document(&[("known", known), ("handlers", handlers)]);
+        crate::core::value::VPy::to_py(&document(&[("controller", controller), ("dispatch", dispatch)]), py)
     }
 
     /// `_refresh_space`: a new epoch, whose routers are built from the world's zone and edge tables
