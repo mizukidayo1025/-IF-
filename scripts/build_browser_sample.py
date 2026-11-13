@@ -27,6 +27,7 @@ The bundle is generated: keep it out of the repository.
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import os
 import shutil
@@ -112,19 +113,24 @@ def export_inputs(
     (directory / "scenario.json").write_bytes(scenario_bytes)
     (directory / "evidence.json").write_bytes(_canonical_bytes(evidence))
 
-    with tempfile.TemporaryDirectory(prefix="sheltersim-browser-sample-world-") as scratch:
-        # run_world's artifact directory stays in the temporary directory.
+    # run_world's artifact directory stays in the temporary directory. Its trace spool (SQLite)
+    # stays open while the controller lives, which Windows does not let a cleanup remove.
+    with tempfile.TemporaryDirectory(
+        prefix="sheltersim-browser-sample-world-", ignore_cleanup_errors=True
+    ) as scratch:
         previous, tempfile.tempdir = tempfile.tempdir, scratch
         try:
-            world, controller, _ = run_world(scenario)
+            world, controller, engine = run_world(scenario)
             entry = export_world(world, controller)
         finally:
             tempfile.tempdir = previous
+        del world, controller, engine
+        gc.collect()
     (directory / "export.json").write_text(
         json.dumps(entry, sort_keys=True, ensure_ascii=False, separators=(",", ":")),
         encoding="utf-8",
     )
-    del entry, world, controller
+    del entry
 
     inputs = {
         "schema_version": 1,
