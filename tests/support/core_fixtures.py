@@ -59,6 +59,7 @@ FIXTURES: dict[str, str] = {
     "frames": "support.core_frames:frames_fixture",
     "api_answers": "support.core_api_answers:api_answers_fixture",
     "summaries": "support.core_summaries:summaries_fixture",
+    "research_cases": "support.core_research:research_cases_fixture",
     "programs": "support.core_programs:programs_fixture",
 }
 

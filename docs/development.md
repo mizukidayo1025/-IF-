@@ -157,7 +157,7 @@ cargo build --manifest-path native/Cargo.toml -p sheltersim_wasm --target wasm32
 wasm-bindgen --target nodejs --out-dir wasm-pkg native/target/wasm32-unknown-unknown/release/sheltersim_wasm.wasm
 wasm-bindgen --target web --out-dir wasm-web native/target/wasm32-unknown-unknown/release/sheltersim_wasm.wasm
 SHELTERSIM_LLM_MODE=offline python scripts/build_browser_sample.py sample.shelterproj --pkg wasm-pkg
-python scripts/build_static_site.py ../hinanjo-if-site --pkg wasm-web --bundle sample.shelterproj
+python scripts/build_static_site.py ../hinanjo-if-site --pkg wasm-web --bundle sample.shelterproj --fetch-shelters
 python scripts/serve_static_site.py ../hinanjo-if-site --port 8000
 ~~~
 
@@ -171,9 +171,11 @@ python scripts/serve_static_site.py ../hinanjo-if-site --port 8000
 | `/demo-v2` | `demo-v2.html` |
 | `/demo-v2.css`、`/demo-v2*.js`、`/demo-v2-logo.jpg` | 画面のファイル（変えずに写す） |
 | `/LICENSE.txt` | リポジトリーの`LICENSE`（MIT） |
-| `/browser/` | `api_fetch.js`、`api_worker.mjs`、それが読むmodule、`pkg/`（WASM） |
+| `/browser/` | `api_fetch.js`、`api_worker.mjs`、それが読むmodule、`pkg/`（WASM）、`gsi-shelter-index.json`（下の段落） |
 | `/sample/sample.json`、`/sample/sample.shelterproj.000`… | 例の目録と、`--part-mib`（既定16 MiB）以下に分けた部分 |
 | ないファイルの道 | `404.html`（status 404） |
+
+シナリオのプレビューの地域の調べ（`native/wasm/js/research.mjs`、#300）は、国土地理院の住所検索をブラウザーから問い合わせます（VMと同じ。CORSは`*`）。全国の指定避難所のCSV（約11.7 MB、CORSなし）は取り寄せず、サイトを作るときに読んだsha256、HTTPの情報、読めない行の数、自治体コードごとの名前（`providers.gsi_shelter_index`）を`/browser/gsi-shelter-index.json`に置きます。`--fetch-shelters`はCSVをその場で取り寄せ、`--shelter-csv PATH`は手元の写しを読みます。どちらもないと索引を置かず、プレビューは「未対応」になります。避難所の行そのものが要る照合（自治体コードの指定、名前がひとつの自治体コードに決まるとき）は、今週は「未対応」にします（#285）。e-Stat、地域のデータ、気象はVMと同じ「設定なし」です。`node native/wasm/tests/node_research.mjs wasm-pkg`が、`native/core/tests/data/research_cases.json`（`tests/support/core_research.py`：記録した住所検索の答え、合成の避難所CSV、止めた時計）でPythonの調べと同じbytesになることを確かめます。
 
 公開するときは、ディレクトリーをそのまま、ドメインの最上位で配るhostに置きます。画面は`/demo-v2.css`などを最上位からの道で読み、`/demo-v2?…`へ`history.replaceState`するので、`https://example.org/repo/`のような下の道では動きません。
 

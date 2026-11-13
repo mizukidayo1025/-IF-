@@ -800,3 +800,54 @@ def _class_label_maps(class_info: Any) -> tuple[dict[str, str], dict[str, dict[s
         elif dimension_id:
             category_labels[dimension_id] = labels
     return area_labels, category_labels
+
+
+# The format of `gsi_shelter_index`, which the browser reads (native/wasm/js/research.mjs).
+GSI_SHELTER_INDEX_FORMAT = "sheltersim-gsi-shelter-index"
+GSI_SHELTER_INDEX_VERSION = 1
+
+
+def gsi_shelter_index(snapshot: GsiCsvSnapshot) -> dict[str, Any]:
+    """What the browser's research reads of a snapshot of the national shelter CSV, which it does
+    not download (no CORS, 11.7 MB; #300): the snapshot's sha256, retrieval time and HTTP
+    metadata, the count of rows `search_municipality` sets aside, and each municipality code's
+    names as `search_municipality` gathers them (`[normalized, name]`, the last name of each
+    normalized one). Lookups by name answer from it as here; the rows themselves are not in it."""
+    _validate_gsi_shelter_csv(snapshot.text)
+    reader = csv.DictReader(io.StringIO(snapshot.text, newline=""), strict=True)
+    names_by_code: dict[str, dict[str, str]] = {}
+    invalid_records = 0
+    seen_common_ids: set[str] = set()
+    for row in reader:
+        common_id = (row.get("共通ID") or "").strip()
+        parsed_id = _parse_gsi_common_id(common_id)
+        municipality_name = (row.get("都道府県名及び市町村名") or "").strip()
+        if (
+            parsed_id is None
+            or not municipality_name
+            or not (row.get("施設・場所名") or "").strip()
+        ):
+            invalid_records += 1
+            continue
+        if common_id in seen_common_ids:
+            continue
+        seen_common_ids.add(common_id)
+        if parsed_id[1] != "1":
+            invalid_records += 1
+            continue
+        normalized = _normalize_municipality(municipality_name)
+        names_by_code.setdefault(parsed_id[0], {})[normalized] = municipality_name
+    return {
+        "format": GSI_SHELTER_INDEX_FORMAT,
+        "version": GSI_SHELTER_INDEX_VERSION,
+        "url": _GSI_SHELTER_CSV_URL,
+        "sha256": snapshot.sha256,
+        "retrieved_at": snapshot.retrieved_at.isoformat().replace("+00:00", "Z"),
+        "etag": snapshot.etag,
+        "last_modified": snapshot.last_modified,
+        "invalid_record_count": invalid_records,
+        "codes": {
+            code: [[normalized, name] for normalized, name in names.items()]
+            for code, names in sorted(names_by_code.items())
+        },
+    }

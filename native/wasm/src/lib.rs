@@ -495,6 +495,13 @@ pub fn world_part_digests(bytes: &[u8]) -> Result<String, JsError> {
     String::from_utf8(encoder.out).map_err(|error| JsError::new(&error.to_string()))
 }
 
+/// Python's `str.casefold` (`sheltersim_core::text::casefold`): what the regional research compares
+/// names with (`js/research.mjs`, #300).
+#[wasm_bindgen]
+pub fn casefold(text: &str) -> String {
+    sheltersim_core::text::casefold(text).into_owned()
+}
+
 /// `hashlib.sha256(bytes).hexdigest()`: what the page's journal checks its lines and pieces by.
 #[wasm_bindgen(js_name = sha256Hex)]
 pub fn sha256_hex(bytes: &[u8]) -> String {
