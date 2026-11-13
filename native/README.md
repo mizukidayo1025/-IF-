@@ -137,6 +137,13 @@ split PR by PR; its last section sums up what is where.
   `compare`); `PlainRun::frame` and `PlainRun::state_digest` serve the browser
   (`Simulation.frame`, `Simulation.stateDigest`). `core/tests/frames.rs` and
   `wasm/tests/node_frames.mjs` check the worlds of `core/tests/data/frames.json`.
+- **A Scenario made in the browser** (#291, under #285): `scenario/` holds the pieces of
+  `InitialScenarioBuilder` that the browser runs without Python, each a function with typed input
+  and output giving what Python gives. `scenario::request` (#295) is `InitialScenarioRequest`:
+  `InitialScenarioRequest::of_json` / `of_value` validate a request as pydantic's lax mode does and
+  `dump` / `dump_json` / `input_sha256` give its `model_dump(mode="json")`; a field the screen never
+  sends, at a value other than its default, is `Refusal::Unsupported` (`browser_unsupported`).
+  `core/tests/scenario_request.rs` checks the cases of `core/tests/data/scenario_request.json`.
 - **Scenario summary** (#302): `summary::scenario_summary` makes, from the World alone, the
   canonical JSON of `scenario_summary_from_world(world).model_dump(mode="json")`
   (`llm/natural_language.py`), the summary the reading of an intervention's text is given, as

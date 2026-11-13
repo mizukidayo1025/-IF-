@@ -33,6 +33,7 @@ pub mod routes;
 pub mod row;
 pub mod rules;
 pub mod run;
+pub mod scenario;
 pub mod stamp;
 pub mod summary;
 pub mod text;
