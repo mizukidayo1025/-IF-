@@ -74,10 +74,11 @@ Pythonの欄のうち、ブラウザーで意味が変わるもの：
 
 | 欄 | ブラウザーで入るもの |
 |---|---|
-| Branchの`checkpoint_hash` | 先頭（`computed_until`の世界）を記録した目録の行のsha256。保存したRunの最後の`end`の行で、分とdigestを持つ。計算前は`null`。画面は先頭が変わったかどうかにだけ使う |
+| Branchの`checkpoint_hash` | 先頭（`computed_until`の世界）を記録した目録の行のsha256。保存したRunの最後の`end`の行で、分とdigestを持つ。ブラウザーで途中まで計算したBranch（#267）では、その分の途中の点の`saved`の行（0分なら`export`の行）。計算前は`null`。画面は先頭が変わったかどうかにだけ使う |
 | Runの`status` | `run.json`に持つ（Pythonは`status.json`に分ける） |
 | Projectの一覧の`storage` | `bytes`と`files`は置き場のファイルの合計、`limit_bytes`は呼ぶ側が渡す値（ページでは`navigator.storage.estimate()`の`quota`） |
 | Runの`last_fork` | 返さない（分岐は#267） |
+| Branchの`status` | いつも持つ（Pythonは計算したことのあるBranchだけ）。ブラウザーで作った計算前のRun（#267）は、RunもBranchも`queued` |
 
 誤りは`ProjectStoreError`で、`message`はPythonの`StorageError`と同じ文（あれば）、`code`はその符号です。
 
@@ -93,6 +94,14 @@ Pythonの欄のうち、ブラウザーで意味が変わるもの：
 | `exportProject`、`importProject`、`readBundle`、`packBundle` | 1つのファイル |
 
 計算済みの例は`scripts/build_browser_sample.py`で作ります（[development.md](development.md#ブラウザー向けのwasm試作)）。
+
+### ブラウザーで計算するBranchの先頭（#267）
+
+ブラウザーで計算する（`POST runs/{run}/resume`、`native/wasm/js/compute.mjs`）Branchの記録は、保存したRunの目録の「先頭にできる行」を指します。先頭にできるのは、`export`の行（0分）、その前にログと標本の塊がすべて保存された`saved`の行、`end`の行です。目録の行を書いて書き込みを終えて（flush）から記録を書くので、記録が計算の確定点です。記録の先頭より後の行は、次の先頭まで届かなかった計算で、続けるときに切り落とします（目録を先に、続けて`data.pack`の、どの行も指さないbytesを切ります）。
+
+途中の点を先頭にできるよう、ブラウザーの計算は、点を保存する前にログと標本の塊を閉じます（中核の`Blocks::seal`、WASMの`Simulation.seal_blocks`）。閉じた後の記録は新しい塊に入るので、点の前に保存した塊だけで点に戻せ、戻したRunはそのまま後ろへ塊を足していけます（#251の`Restore`は、戻したRunの塊をすべて閉じたものとして持ちます）。塊の区切りが変わるだけで、記録、標本、digestは変わりません。保存したRunの形（`sheltersim-browser-run-v3`）も同じで、`runAndStore`は今までどおり閉じずに保存します。続けるときは、先頭の点に戻したRunの表と塊の数が、目録のその点までの表と塊の行と合うことを確かめ、合わなければ続けずに`failed`にします。
+
+ブラウザーでの`resume`・`cancel`の答えは、Pythonのserverと同じstatus、JSON、誤りの文と符号です。違う所：`target_minute`の`60.0`のようなJSONの小数は、JSでは整数と区別できないので受け付けます（Pythonは断ります）。PythonのRunのモデル版の確かめ（古いモデル版のRunは閲覧のみ）はありません（ブラウザーのRunはこのWASMのモデルで作ります）。`measure_performance`は真偽値か確かめるだけで、計測は記録しません。`400`の誤り（JSONでない本文）は`"code": null`を持ちます（#266の`POST /api/v1/projects`と同じ。Pythonは`code`を持ちません）。
 
 ## ブラウザーの時系列・レポート・LLMの状態（#266）
 

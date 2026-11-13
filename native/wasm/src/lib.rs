@@ -279,6 +279,13 @@ impl Simulation {
         Ok(self.run.saved_point().map_err(js_error)?.to_bytes())
     }
 
+    /// Seals the log's and the samples' blocks (`PlainRun::seal_stores`): call it between calls to
+    /// `advance`, before a saved point a stored Run goes on from (#267). The blocks there are then
+    /// all sealed, so the page stores them before the point.
+    pub fn seal_blocks(&mut self) -> Result<(), JsError> {
+        self.run.seal_stores().map_err(js_error)
+    }
+
     /// The Run at the saved point `restore` was made of, which has read the stored log and samples
     /// up to its counts, with the exported entry the Run started from (its JSON bytes). `restore`
     /// is used up: it cannot restore again.

@@ -8,6 +8,12 @@
 // `data-sample` the sample's manifest (/sample/sample.json). While the sample is fetched and
 // imported on the first visit, the screen's notice (#notice) says how far it is.
 // `window.HinanjoBrowserApi` has `ready` (a Promise of { installed, ms }) and `stats()` for checks.
+//
+// The first time the screen starts a computation (`POST …/runs/{run}/resume`, #267) the page asks
+// the browser to keep the store (`navigator.storage.persist()`, the decision on #265: once, when
+// the user starts keeping Runs of their own, never on opening the page). It asks once per browser
+// (a key in localStorage) and goes on whatever the answer; `persist` is the page's, not a
+// Worker's.
 (() => {
   "use strict";
   const script = document.currentScript;
@@ -65,6 +71,24 @@
   };
   worker.postMessage({ type: "start", sampleUrl });
 
+  const ASKED = "sheltersim-storage-persist-asked";
+  function askToKeep() {
+    try {
+      if (localStorage.getItem(ASKED)) return;
+      localStorage.setItem(ASKED, new Date().toISOString());
+    } catch {
+      // Without localStorage the page asks each time; the browser remembers the user's answer.
+    }
+    try {
+      navigator.storage
+        ?.persisted?.()
+        .then((kept) => (kept ? true : navigator.storage.persist()))
+        .catch(() => false);
+    } catch {
+      // A browser without the Storage API keeps the store as it does.
+    }
+  }
+
   function ask(message) {
     const id = next++;
     return new Promise((resolve) => {
@@ -82,6 +106,7 @@
     }
     const url = new URL(request.url);
     if (url.origin !== location.origin || !url.pathname.startsWith("/api/v1/")) return realFetch(input, init);
+    if (request.method === "POST" && /\/runs\/[^/]+\/resume$/.test(url.pathname)) askToKeep();
     return (async () => {
       const body = request.method === "GET" || request.method === "HEAD" ? null : await request.text();
       const answer = await ask({ type: "request", method: request.method, path: url.pathname, search: url.search, body });

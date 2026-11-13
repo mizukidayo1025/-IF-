@@ -141,14 +141,17 @@ export class RunWriter {
     return new RunWriter(wasm, data, journal);
   }
 
-  /// Appends a journal line and flushes it.
+  /// Appends a journal line and flushes it. Returns the sha256 the line holds (a branch's head is
+  /// one, #267).
   line(entry) {
     const json = JSON.stringify(entry);
-    const bytes = encoder.encode(`${json}\t${this.wasm.sha256Hex(encoder.encode(json))}\n`);
+    const sha = this.wasm.sha256Hex(encoder.encode(json));
+    const bytes = encoder.encode(`${json}\t${sha}\n`);
     const started = performance.now();
     this.journal.write(bytes, this.journal.size());
     this.journal.flush();
     this.writeMs += performance.now() - started;
+    return sha;
   }
 
   /// Appends a piece to data.pack, compressed, flushes it, then writes its journal line.
@@ -165,7 +168,7 @@ export class RunWriter {
     size.pieces += 1;
     size.raw += raw.length;
     size.stored += compressed.length;
-    this.line({ kind, offset, length: compressed.length, raw_length: raw.length, sha256: this.wasm.sha256Hex(raw), ...extra });
+    return this.line({ kind, offset, length: compressed.length, raw_length: raw.length, sha256: this.wasm.sha256Hex(raw), ...extra });
   }
 
   /// The tables' new entries and the newly sealed blocks (every block when `last`) of the log and
@@ -192,7 +195,11 @@ export class RunWriter {
 
   /// A saved point of `simulation` now (#251), after the tables and blocks sealed so far. Call it
   /// between calls to `advance`. `saveMs` counts its time, its compression and writing included.
-  async save(simulation) {
+  /// With `seal` (#267) the blocks are sealed first (`Simulation.seal_blocks`), so every block the
+  /// point needs is stored before its line and it can be restored, and gone on from, at once.
+  /// Returns its line's sha256.
+  async save(simulation, { seal = false } = {}) {
+    if (seal) simulation.seal_blocks();
     await this.take(simulation, false);
     const started = performance.now();
     const point = simulation.saved_point();
@@ -204,9 +211,10 @@ export class RunWriter {
       log_blocks: simulation.log_block_counts()[0],
       sample_blocks: simulation.sample_block_counts()[0],
     };
-    await this.piece("saved", point, line);
+    const sha = await this.piece("saved", point, line);
     this.saveMs += performance.now() - started;
     this.saved.push(line);
+    return sha;
   }
 
   close() {
@@ -243,18 +251,7 @@ export async function runAndStore({ wasm, exportBytes, world = null, backend, ti
     }
     await writer.take(simulation, true);
     if (saveEvery > 0) await writer.save(simulation);
-    await writer.piece("world", simulation.world_parts());
-    if (!simulation.log_all_packed()) throw new Error("a record of the log is not packed");
-    const parts = JSON.parse(simulation.part_digests_json());
-    const end = {
-      kind: "end",
-      minute: simulation.minute(),
-      records: simulation.log_records(),
-      samples: simulation.metric_count(),
-      parts,
-      metrics: simulation.metrics_digest(),
-    };
-    writer.line(end);
+    const { end } = await writeEnd(writer, simulation);
     return {
       end,
       digests: JSON.parse(simulation.digests_json()),
@@ -270,6 +267,24 @@ export async function runAndStore({ wasm, exportBytes, world = null, backend, ti
     simulation.free();
     writer.close();
   }
+}
+
+/// The last pieces of a Run stored to its end: the world at its last minute without its log, and
+/// the "end" line with the digests the Run gave. Call it after every block is stored. Returns the
+/// "end" line and its sha256.
+export async function writeEnd(writer, simulation) {
+  await writer.piece("world", simulation.world_parts());
+  if (!simulation.log_all_packed()) throw new Error("a record of the log is not packed");
+  const parts = JSON.parse(simulation.part_digests_json());
+  const end = {
+    kind: "end",
+    minute: simulation.minute(),
+    records: simulation.log_records(),
+    samples: simulation.metric_count(),
+    parts,
+    metrics: simulation.metrics_digest(),
+  };
+  return { end, sha: writer.line(end) };
 }
 
 /// The journal's lines up to the first that is cut short or does not match its sha256.

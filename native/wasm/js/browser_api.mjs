@@ -14,7 +14,8 @@
 //   GET runs/{run}/replay-frames?branch_ids=&start=&end=   the frames of 1 to 8 minutes of one branch
 //   GET runs/{run}/branches/{branch}/history, report, llm-status   js/api_answers.mjs (or the
 //                                            functions the caller gives, `extra`)
-//   anything else (scenario-*, resume, cancel, compare, intervention-*, questions, pdf-report,
+//   POST runs/{run}/resume, POST runs/{run}/cancel   computing in the Worker (js/compute.mjs, #267)
+//   anything else (scenario-*, compare, intervention-*, questions, pdf-report,
 //   replay of two branches, the routes outside projects)   409 {"error": "ブラウザー版では未対応です…",
 //                                            "code": "browser_unsupported"}
 //
@@ -32,6 +33,7 @@
 // Projects, so a site with another sample replaces it once.
 
 import { ApiError, errorAnswer, historyCache, historyResponse, llmStatusResponse, reportResponse } from "./api_answers.mjs";
+import { CHUNK_TICKS, Computing, postDocument } from "./compute.mjs";
 import * as store from "./project_store.mjs";
 import { RunReader, SAVE_EVERY } from "./run_store.mjs";
 
@@ -76,9 +78,11 @@ function integer(text, message) {
 /// the store may hold (the Project list's `storage.limit_bytes`), `extra` the routes another module
 /// answers: `{ history, report, llmStatus }`, each `({ wasm, tree, projectId, runId, branchId,
 /// query }) => JSON text`, `query` the request's query string as it came. By default they are
-/// api_answers.mjs's (the history with a cache of the branches' samples).
+/// api_answers.mjs's (the history with a cache of the branches' samples). `locked(task)` runs each
+/// task of the queue (a request or a chunk of a computation) holding the store's lock (the page:
+/// a Web Lock), and `branchLock`, `chunkTicks` and `pause` are js/compute.mjs's `Computing`'s.
 export class BrowserApi {
-  constructor({ wasm, tree, quota = async () => null, extra = null, keep = 2 }) {
+  constructor({ wasm, tree, quota = async () => null, extra = null, keep = 2, locked = (task) => task(), branchLock, chunkTicks = CHUNK_TICKS, pause }) {
     this.wasm = wasm;
     this.tree = tree;
     this.quota = quota;
@@ -98,16 +102,23 @@ export class BrowserApi {
     // "project/run/branch" -> { simulation, head, savedMinutes, used }
     this.live = new Map();
     this.used = 0;
-    this.stats = { seeks: 0, steps: 0, restoreMs: 0, recomputeMs: 0, stepMs: 0, frameMs: 0 };
+    this.stats = { seeks: 0, steps: 0, restoreMs: 0, recomputeMs: 0, stepMs: 0, frameMs: 0, headFrames: 0 };
     this.queue = Promise.resolve();
+    this.locked = locked;
+    this.computing = new Computing({ api: this, branchLock, chunkTicks, pause });
   }
 
   /// Answers a request: `{ method, path, search, body }` (body the text of a POST) to `{ status,
   /// type, body }`. Requests are answered one at a time, in the order they came.
   answer(request) {
-    const answered = this.queue.then(() => this.route(request));
-    this.queue = answered.catch(() => {});
-    return answered;
+    return this.enqueue(() => this.route(request));
+  }
+
+  /// Runs `task` after the requests and tasks queued before it, holding the store's lock.
+  enqueue(task) {
+    const done = this.queue.then(() => this.locked(task));
+    this.queue = done.catch(() => {});
+    return done;
   }
 
   async route({ method, path, search = "", body = null }) {
@@ -144,6 +155,10 @@ export class BrowserApi {
       if (keys.length !== 1 || keys[0] !== "project_id") throw refused("request fields do not match this operation");
       if (typeof document.project_id !== "string") throw new ApiError(400, "invalid project request");
       return JSON.stringify(await store.createProject(this.tree, document.project_id));
+    }
+    if (parts.length === 4 && parts[1] === "runs" && (parts[3] === "resume" || parts[3] === "cancel")) {
+      const document = postDocument(body);
+      return parts[3] === "resume" ? this.computing.resume(parts[0], parts[2], document) : this.computing.cancel(parts[0], parts[2], document);
     }
     const route = parts.length >= 6 && parts[1] === "runs" ? parts.slice(3).join("/") : parts.slice(1).join("/");
     throw unsupported(route || "POST");
@@ -215,6 +230,11 @@ export class BrowserApi {
 
   /// The frame of a branch at a minute, as JSON text.
   async frameText(projectId, runId, record, minute) {
+    const kept = this.computing.frameAt(projectId, runId, record, minute);
+    if (kept !== null) {
+      this.stats.headFrames += 1;
+      return kept;
+    }
     const simulation = await this.simulationAt(projectId, runId, record, minute);
     const started = performance.now();
     const bytes = simulation.frame(runId, record.branch_id, record.computed_until, undefined);

@@ -524,6 +524,17 @@ impl Blocks {
         }
     }
 
+    /// Seals the last block: a piece pushed after goes into a new block, so the blocks there are
+    /// now never change (a Run in the browser seals them at its saved points, #267, so a saved
+    /// point can be restored from the blocks stored before it). The last block gives back the room
+    /// it kept for pieces.
+    pub fn seal(&mut self) {
+        if let Some(last) = self.blocks.last_mut() {
+            last.shrink_to_fit();
+        }
+        self.open_from = self.blocks.len();
+    }
+
     /// The bytes of the pieces held.
     pub fn size(&self) -> usize {
         self.size
