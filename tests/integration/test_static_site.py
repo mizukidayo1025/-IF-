@@ -135,6 +135,36 @@ def test_the_site_is_built_only_outside_the_repository_into_an_empty_directory(
     assert not (ROOT / "site-out").exists()
 
 
+def test_the_site_holds_the_shelter_index_the_browser_s_research_reads(
+    builder: dict[str, Any], site: tuple[Path, bytes, dict[str, Any]], tmp_path: Path
+) -> None:
+    """With a copy of the national shelter CSV, the site holds its `gsi_shelter_index` (#300);
+    without one it holds none."""
+    from support.core_research import EXTRA_CSV, shelter_index
+
+    output, _, summary = site
+    assert summary["shelter_index"] is None
+    assert not (output / "browser" / "gsi-shelter-index.json").exists()
+    csv_path = tmp_path / "mergeFromCity_1.csv"
+    csv_path.write_bytes(b"\xef\xbb\xbf" + EXTRA_CSV.encode("utf-8"))
+    made = builder["shelter_index"](csv_path=csv_path)
+    expected = shelter_index(EXTRA_CSV)
+    assert made["sha256"] == hashlib.sha256(csv_path.read_bytes()).hexdigest()
+    assert {key: value for key, value in made.items() if key not in ("sha256", "retrieved_at")} == {
+        key: value for key, value in expected.items() if key not in ("sha256", "retrieved_at")
+    }
+    arguments = {"pkg": output / "browser" / "pkg", "bundle": tmp_path / "sample.shelterproj"}
+    with_index = builder["build"](tmp_path / "with-index", shelters=made, **arguments)
+    written = tmp_path / "with-index" / "browser" / "gsi-shelter-index.json"
+    assert json.loads(written.read_text(encoding="utf-8")) == made
+    assert with_index["shelter_index"]["municipality_codes"] == len(made["codes"])
+    assert (tmp_path / "with-index" / "browser" / "research.mjs").is_file()
+    assert builder["shelter_index"]() is None
+    csv_path.write_bytes(b"not,a,shelter,csv\n")
+    with pytest.raises(ValueError, match="schema"):
+        builder["shelter_index"](csv_path=csv_path)
+
+
 def _get(url: str) -> tuple[int, str, bytes]:
     try:
         with urllib.request.urlopen(url, timeout=10) as response:

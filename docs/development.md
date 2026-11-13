@@ -54,7 +54,7 @@ node native/wasm/tests/node_digests.mjs wasm-pkg
 
 最後のcommandは、`native/core/tests/data/tick_core.json`の世界をWASMで進め、ネイティブの経路と同じdigestになることを確かめます。CIのlintのjobも同じことをします。
 
-Scenarioから0分の世界を作る処理も、中核にあります（`sheltersim_core::initial`、#249）。Scenarioの正準JSONを渡すと、Pythonの`export_world`がRunの始まりの世界について書き出すもの（`scripts/build_browser_sample.py`の`export.json`）と同じbytesを返します。WASMでは`initialEntry(scenarioBytes)`で、返したbytesを`new Simulation(entry)`に渡して進めます。行、予定イベント、在庫の台帳、名前空間の人・職員・区画ごとの記録、図面の節、区画のつながりは中核が作ります。Runの`policies_document`、Pythonの契約が読む節、名前空間の設定の部分は、Pythonが書く表（`native/core/src/initial/table.json`）から読みます。表は、Scenarioの画面の要求（`tests/support/core_initial.py`の`TABLE_REQUESTS`）から作り、図面と人のデータの設定（`DATA_CONFIGS`）の中身を除いた設定のfingerprintで引きます。表にない設定のScenarioや、画面の組み立てが作らないもの（基盤の設定、施設の認知、到着の経路、独立した列）は、`unsupported: `で始まる誤りで断ります。表は`python benchmarks/core_fixtures.py initial_table`で書き直し、`tests/integration/test_core_fixtures.py`が古くなっていないことを確かめます。`tests/unit/core/test_world_export.py`は画面の要求ごとにbytesが同じことを、`native/core/tests/initial.rs`と`node native/wasm/tests/node_initial.mjs wasm-pkg`は、20人と100人の世界がPythonと同じbytesになり、進めるとネイティブの経路と同じdigestになることを確かめます。
+Scenarioから0分の世界を作る処理も、中核にあります（`sheltersim_core::initial`、#249）。Scenarioの正準JSONを渡すと、Pythonの`export_world`がRunの始まりの世界について書き出すもの（`scripts/build_browser_sample.py`の`export.json`）と同じbytesを返します。WASMでは`initialEntry(scenarioBytes)`で、返したbytesを`new Simulation(entry)`に渡して進めます。行、予定イベント、在庫の台帳、名前空間の人・職員・区画ごとの記録、図面の節、区画のつながりは中核が作ります。Runの`policies_document`、Pythonの契約が読む節、名前空間の設定の部分は、Pythonが書く表（`native/core/src/initial/table.json`）から読みます。表は、Scenarioの画面の要求（`tests/support/core_initial.py`の`TABLE_REQUESTS`）から作り、図面と人のデータの設定（`DATA_CONFIGS`）の中身を除いた設定のfingerprintで引きます。表にない設定のScenarioや、画面の組み立てが作らないもの（基盤の設定、施設の認知、到着の経路、独立した列）は、`unsupported: `で始まる誤りで断ります。新しいRunの記録のうち、`model_versions`（`model_signatures`）とevidenceの答えも、同じ表の型から作ります（`modelVersions`、`runEvidence`、#301）。床の図のサービスの点の署名と、Scenarioの出典・仮定・地域の調べの限界は中核が入れます。表は`python benchmarks/core_fixtures.py initial_table`で書き直し、`tests/integration/test_core_fixtures.py`が古くなっていないことを確かめます。`tests/unit/core/test_world_export.py`は画面の要求ごとにbytesが同じことを、`native/core/tests/initial.rs`と`node native/wasm/tests/node_initial.mjs wasm-pkg`は、20人と100人の世界がPythonと同じbytesになり、進めるとネイティブの経路と同じdigestになることを確かめます。
 
 ある分の地図と指標（frame、APIの`TimelineFrame`）は、中核が作ります（`sheltersim_core::frame`、#264）。WASMでは`Simulation.frame(runId, branchId, computedUntil, stateHash)`が、frameの正準JSONのbytesを返します。`stateHash`を渡さないときは、世界のdigest（`Simulation.stateDigest()`、Pythonの`world.state_digest()`と同じ値）を入れます。digestは、ログを1件ずつhashに流して求め、世界全体のJSONは作りません。ログは追記だけなので、Run（`PlainRun`）はログの128件ごとの塊のhashと途中の塊のhashの状態を持ち続け、次のdigestでは増えた記録だけを流します（`canonical::state_digest_with`、#266）。最初のdigest（作った直後や途中の点から戻した直後）だけがログ全体を読みます。値は変わりません。計った時間は#266に記録しています。`node native/wasm/tests/node_frames.mjs wasm-pkg`は、`native/core/tests/data/frames.json`の世界と分で、WASMのframeがネイティブの経路のframeと同じbytesになることを確かめます。CIのlintのjobも実行します。
 
@@ -169,7 +169,7 @@ cargo build --manifest-path native/Cargo.toml -p sheltersim_wasm --target wasm32
 wasm-bindgen --target nodejs --out-dir wasm-pkg native/target/wasm32-unknown-unknown/release/sheltersim_wasm.wasm
 wasm-bindgen --target web --out-dir wasm-web native/target/wasm32-unknown-unknown/release/sheltersim_wasm.wasm
 SHELTERSIM_LLM_MODE=offline python scripts/build_browser_sample.py sample.shelterproj --pkg wasm-pkg
-python scripts/build_static_site.py ../hinanjo-if-site --pkg wasm-web --bundle sample.shelterproj
+python scripts/build_static_site.py ../hinanjo-if-site --pkg wasm-web --bundle sample.shelterproj --fetch-shelters
 python scripts/serve_static_site.py ../hinanjo-if-site --port 8000
 ~~~
 
@@ -183,9 +183,11 @@ python scripts/serve_static_site.py ../hinanjo-if-site --port 8000
 | `/demo-v2` | `demo-v2.html` |
 | `/demo-v2.css`、`/demo-v2*.js`、`/demo-v2-logo.jpg` | 画面のファイル（変えずに写す） |
 | `/LICENSE.txt` | リポジトリーの`LICENSE`（MIT） |
-| `/browser/` | `api_fetch.js`、`api_worker.mjs`、それが読むmodule、`pkg/`（WASM） |
+| `/browser/` | `api_fetch.js`、`api_worker.mjs`、それが読むmodule、`pkg/`（WASM）、`gsi-shelter-index.json`（下の段落） |
 | `/sample/sample.json`、`/sample/sample.shelterproj.000`… | 例の目録と、`--part-mib`（既定16 MiB）以下に分けた部分 |
 | ないファイルの道 | `404.html`（status 404） |
+
+シナリオのプレビューの地域の調べ（`native/wasm/js/research.mjs`、#300）は、国土地理院の住所検索をブラウザーから問い合わせます（VMと同じ。CORSは`*`）。全国の指定避難所のCSV（約11.7 MB、CORSなし）は取り寄せず、サイトを作るときに読んだsha256、HTTPの情報、読めない行の数、自治体コードごとの名前（`providers.gsi_shelter_index`）を`/browser/gsi-shelter-index.json`に置きます。`--fetch-shelters`はCSVをその場で取り寄せ、`--shelter-csv PATH`は手元の写しを読みます。どちらもないと索引を置かず、プレビューは「未対応」になります。避難所の行そのものが要る照合（自治体コードの指定、名前がひとつの自治体コードに決まるとき）は、今週は「未対応」にします（#285）。e-Stat、地域のデータ、気象はVMと同じ「設定なし」です。`node native/wasm/tests/node_research.mjs wasm-pkg`が、`native/core/tests/data/research_cases.json`（`tests/support/core_research.py`：記録した住所検索の答え、合成の避難所CSV、止めた時計）でPythonの調べと同じbytesになることを確かめます。
 
 公開するときは、ディレクトリーをそのまま、ドメインの最上位で配るhostに置きます。画面は`/demo-v2.css`などを最上位からの道で読み、`/demo-v2?…`へ`history.replaceState`するので、`https://example.org/repo/`のような下の道では動きません。
 
@@ -203,6 +205,25 @@ python scripts/serve_static_site.py ../hinanjo-if-site --port 8000
 SHELTERSIM_LLM_MODE=offline python scripts/build_project_sample.py sample-projects
 python benchmarks/static_site_check.py --site ../hinanjo-if-site --python-projects sample-projects --output site-check.json
 python benchmarks/static_site_check.py --site ../hinanjo-if-site --compute pieces full --output compute-check.json
+~~~
+
+画面の操作を最初から最後まで通し、APIキーのないPythonのserverと比べるのは、`benchmarks/static_site_e2e.py`です（#311）。PlaywrightのChromiumとFirefoxで、それぞれ空のOPFSから、次の5つの段を人と同じように画面で行います。
+
+1. シナリオ（scenario）：`/demo-v2?project=e2e#scenario`で「例文を使う」→プレビュー→承認（Run）、条件の入力の1例→プレビュー→承認（2つ目のRun）。続けて、1つ目のScenarioを別のIDで`POST runs`し、そのIDへ別のScenarioを`POST runs`します（409 `run_id_conflict`）。
+2. 計算（compute）：1つ目のRunを画面で最後まで計算します。1つ目のbrowserは一度に、2つ目は1日で止め、続けて最後までです（`--modes`）。
+3. 介入（intervention）：4日目14:00（5160分）で、offlineの読み取りが作る作用（職員の追加と、画面のZoneの選択肢での選び直し、トイレの追加、断水、施設の停止）と読めない文をプレビューし、「Day 4 14:00 toilet_01 outage」を適用して、子の分岐を最後まで計算します。
+4. 比較（compare）：画面の比較と、いくつかの分の`compare`、2つの分岐の再生の窓です。
+5. 振り返り（report）：レポートの頁（report、evidence、llm-status、指標の時系列）、質問（APIキーなしの決まった答え）、PDF（offlineのVMと同じ409 `pdf_analysis_offline`）です。
+
+各段で、ブラウザーの答え（画面の要求は`fetch`を包んで捕まえ、確かめの要求はページから送ります）を、同じ操作へのPythonのserverの答え（同じプロセスの`ProjectAPI`、`--work`の下の自分のProjectStore、`server.py`と同じ直列化）と、値の型まで比べます。Python側は同じ操作を同じ順に一度だけ行い、その答えを2つのbrowserで使います。比べられるように固定するもの：画面の`crypto.randomUUID`（RunとBranchのID）、地域の調べの時刻（Pythonの`datetime.now`と、ブラウザーのAPIのWorkerの`Date`）、国土地理院の住所検索（両方ともシナリオのコーパス`tests/support/scenario_corpus.py`の記録した答え）。避難所のCSVは、サイトを作ったときと同じファイルを`--shelter-csv`で渡します（なければコーパスの合成のもの）。違って当然の項目（previewとdraftのID、`checkpoint_hash`、質問の`context_id`の乱数の部分、`static_site_check.py`の除く項目）と理由は、結果に書きます。
+
+ブラウザーが`browser_unsupported`（409）で答える段は「まだない（not_available）」として止め、それを要る段を飛ばします。1の段がまだないときは、2〜5の段をサイトの例で行います（`--python-projects`に`scripts/build_project_sample.py`のProjectStoreを渡します）。比べて違う所があれば終了コードは1です。`--require-all`を付けると、すべての段がすべてのbrowserで通ったときだけ0です。`--work`はPython側の置き場で、Pythonのコード、native拡張、操作の入力と確かめる道（`PYTHON_SIDE_VERSION`を含む）が同じ間は答えを使い回します（`--fresh`でやり直します）。`--url`は公開したサイトを画面だけで確かめます（Pythonと比べず、固定もしません）。
+
+~~~shell
+systemd-run --user --scope -q -p MemoryMax=8G -p MemorySwapMax=0 \
+  python benchmarks/static_site_e2e.py --site ../hinanjo-if-site --work e2e-work \
+  --python-projects sample-projects --output e2e.json --screenshots e2e-shots
+python benchmarks/static_site_e2e.py --url https://hinanjo-if.water7.workers.dev --output e2e-url.json
 ~~~
 
 ## 設定
