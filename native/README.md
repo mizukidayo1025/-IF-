@@ -144,6 +144,11 @@ split PR by PR; its last section sums up what is where.
   `dump` / `dump_json` / `input_sha256` give its `model_dump(mode="json")`; a field the screen never
   sends, at a value other than its default, is `Refusal::Unsupported` (`browser_unsupported`).
   `core/tests/scenario_request.rs` checks the cases of `core/tests/data/scenario_request.json`.
+  `scenario::population::generate_population` (#297) is `SyntheticPopulationGenerator.generate`
+  as the builder calls it (`PopulationInput::for_request`), with `scenario::profiles::generate_profiles`
+  (`SyntheticProfileGenerator.generate`), drawing with `rng::KeyedDraws`; `GeneratedPopulation`
+  gives each part's dump (`dump`, `population_dump`, `ProfileSet::dump`, ...).
+  `core/tests/scenario_population.rs` checks `core/tests/data/scenario_population.json`.
 - **Saved points** (#251, for the browser only; not Python's Checkpoints): `PlainRun::saved_point`
   writes the Run at a minute as `archive::SavedPoint`, a versioned binary of the world without its
   log (`archive::world_parts`), the counts of the log's records and the metric samples, and the

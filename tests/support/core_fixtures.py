@@ -59,6 +59,7 @@ FIXTURES: dict[str, str] = {
     "frames": "support.core_frames:frames_fixture",
     "api_answers": "support.core_api_answers:api_answers_fixture",
     "scenario_request": "support.core_scenario_request:scenario_request_fixture",
+    "scenario_population": "support.core_scenario_population:scenario_population_fixture",
 }
 
 # ---- The registry ------------------------------------------------------------------------------

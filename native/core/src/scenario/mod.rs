@@ -3,4 +3,6 @@
 //! function with typed input and output that gives what the Python code gives for the same input.
 //! The builder (#299) joins them.
 
+pub mod population;
+pub mod profiles;
 pub mod request;
