@@ -509,6 +509,12 @@ impl PlainRun {
         crate::frame::frame(&self.loaded.cell, &mut self.host, &request, &self.rng_state)
     }
 
+    /// The summary of the world now that the reading of an intervention's text is given
+    /// (`summary::scenario_summary`, #302): its canonical JSON. It changes nothing.
+    pub fn scenario_summary(&self) -> Result<Vec<u8>> {
+        self.loaded.cell.with(|world| crate::summary::scenario_summary(world))?
+    }
+
     /// `world.state_digest()` (`canonical::state_digest`) of the world now. The log's node is kept
     /// between calls, so a call reads only the records added since the last
     /// (`canonical::state_digest_with`).

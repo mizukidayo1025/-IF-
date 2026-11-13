@@ -149,6 +149,12 @@ split PR by PR; its last section sums up what is where.
   (`SyntheticProfileGenerator.generate`), drawing with `rng::KeyedDraws`; `GeneratedPopulation`
   gives each part's dump (`dump`, `population_dump`, `ProfileSet::dump`, ...).
   `core/tests/scenario_population.rs` checks `core/tests/data/scenario_population.json`.
+- **Scenario summary** (#302): `summary::scenario_summary` makes, from the World alone, the
+  canonical JSON of `scenario_summary_from_world(world).model_dump(mode="json")`
+  (`llm/natural_language.py`), the summary the reading of an intervention's text is given, as
+  the server's `intervention-preview` makes it. `PlainRun::scenario_summary` serves the browser
+  (`Simulation.scenarioSummary`). `core/tests/summaries.rs` and `wasm/tests/node_summaries.mjs`
+  check the worlds of `core/tests/data/summaries.json`.
 - **Saved points** (#251, for the browser only; not Python's Checkpoints): `PlainRun::saved_point`
   writes the Run at a minute as `archive::SavedPoint`, a versioned binary of the world without its
   log (`archive::world_parts`), the counts of the log's records and the metric samples, and the
