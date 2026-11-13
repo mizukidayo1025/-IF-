@@ -129,7 +129,7 @@ const unsupported = [
   await get("/p1/runs/r1/replay-frames", "?branch_ids=main,child&start=0&end=1"),
   await get("/p1/runs/r1/compare", "?branch_ids=main,child&minute=1"),
   await post("/p1/scenario-preview", { text: "x" }),
-  await post("/p1/runs/r1/resume", { branch_id: "main", target_minute: 10 }),
+  await post("/p1/runs/r1/branches/main/intervention-apply", { preview_id: "x", approved_program_hash: "x", approved: true, child_id: "c" }),
   await post("/p1/runs/r1/pdf-report", { branch_ids: ["main"], minute: 1 }),
   await post("/p1/runs/r1/branches/main/intervention-preview", { text: "x" }),
   await browser.answer({ method: "GET", path: "/api/v1/demo", search: "" }),

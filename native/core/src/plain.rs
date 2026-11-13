@@ -219,6 +219,11 @@ impl MetricSamples {
         Ok(Some((unpacked.sample, unpacked.minute, unpacked.balances)))
     }
 
+    /// Seals the samples' blocks (`Blocks::seal`).
+    pub fn seal(&mut self) {
+        self.blocks.seal();
+    }
+
     /// The packer and the blocks of the samples: what a Run in the browser stores (`archive`).
     pub fn store(&self) -> (&Packer, &Blocks) {
         (&self.packer, &self.blocks)
@@ -510,6 +515,16 @@ impl PlainRun {
     pub fn state_digest(&self) -> Result<String> {
         let mut log = self.log_node.try_borrow_mut().map_err(|_| Error::unsupported("the log's node is borrowed"))?;
         self.loaded.cell.with(|world| crate::canonical::state_digest_with(world, &self.rng_state, &mut log))?
+    }
+
+    /// Seals the blocks of the packed log and of the samples (`Blocks::seal`), between two ticks:
+    /// the records and samples taken so far are then all in sealed blocks, which a Run in the
+    /// browser stores before a saved point, so that the point can be restored from what is stored
+    /// up to it (#267). The records, the samples and every digest stay as they were.
+    pub fn seal_stores(&mut self) -> Result<()> {
+        self.loaded.cell.with(|world| world.log_mut().map(|mut log| log.seal_packed()))??;
+        self.host.samples.seal();
+        Ok(())
     }
 
     /// The Run now as a saved point (`archive::SavedPoint`, #251), between two ticks.

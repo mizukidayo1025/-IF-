@@ -104,7 +104,7 @@ python benchmarks/wasm_trial_measure.py --bundle sample.shelterproj --pkg wasm-w
 
 ### ブラウザー版のAPI（#266）
 
-ブラウザー版では、画面（`/demo-v2`、`demo-v2*.js`）を変えずに、同じAPIにページの中で答えます（#263）。ブラウザー版の`demo-v2.html`は、画面のscriptより先に`native/wasm/js/api_fetch.js`を読みます。このscriptは`window.fetch`を包み、そのサイトの`/api/v1/...`への要求（画面の`api()`とPDFの`fetch`）を専用のWorker（`native/wasm/js/api_worker.mjs`）へ渡します。ほかの要求は元の`fetch`へ渡します。Workerは、サイト専用の保存（OPFSの`projects/`）とWASMから、Pythonのserverと同じstatusとJSON（誤りは`{"error", "code"}`）で答えます（`native/wasm/js/browser_api.mjs`）。要求は1つずつ順に答え、どの要求もWeb Lock（`sheltersim-browser-store`）の中で答えるので、2つのタブが同じファイルを同時に開くことはありません。
+ブラウザー版では、画面（`/demo-v2`、`demo-v2*.js`）を変えずに、同じAPIにページの中で答えます（#263）。ブラウザー版の`demo-v2.html`は、画面のscriptより先に`native/wasm/js/api_fetch.js`を読みます。このscriptは`window.fetch`を包み、そのサイトの`/api/v1/...`への要求（画面の`api()`とPDFの`fetch`）を専用のWorker（`native/wasm/js/api_worker.mjs`）へ渡します。ほかの要求は元の`fetch`へ渡します。Workerは、サイト専用の保存（OPFSの`projects/`）とWASMから、Pythonのserverと同じstatusとJSON（誤りは`{"error", "code"}`）で答えます（`native/wasm/js/browser_api.mjs`）。要求と計算のひと区切り（下）は1つずつ順に行い、どれもWeb Lock（`sheltersim-browser-store`）の中で行うので、2つのタブが同じファイルを同時に開くことはありません。
 
 | 道（`/api/v1/projects`から） | ブラウザー版の答え |
 |---|---|
@@ -112,7 +112,8 @@ python benchmarks/wasm_trial_measure.py --bundle sample.shelterproj --pkg wasm-w
 | `GET …/branches/{branch}/timeline?minute=` | その分のframe（中核、#264）。`state_hash`は世界のdigest |
 | `GET runs/{run}/replay-frames`（1つの分岐） | 1〜8分のframe |
 | `GET …/history?kind=kpis`、`report`、`llm-status` | `native/wasm/js/api_answers.mjs`（上の段落）。`history`の`kpis`以外の`kind`は「未対応」 |
-| `POST runs/{run}/pdf-report`、`scenario-*`、`resume`、`cancel`、`compare`、2つの分岐の`replay-frames`、`intervention-*`、`questions`、`/api/v1/projects`以外の道 | 409 `{"error": "ブラウザー版では未対応です（…）", "code": "browser_unsupported"}` |
+| `POST runs/{run}/resume`、`POST runs/{run}/cancel` | Workerで計算する・止める（`native/wasm/js/compute.mjs`、#267、下） |
+| `POST runs/{run}/pdf-report`、`scenario-*`、`compare`、2つの分岐の`replay-frames`、`intervention-*`、`questions`、`/api/v1/projects`以外の道 | 409 `{"error": "ブラウザー版では未対応です（…）", "code": "browser_unsupported"}` |
 
 分ごとのframeは、分岐ごとに1つ手元に置いたSimulationから作ります。後の分は、手元のSimulationを進めるほうが途中の点から戻すより安いとき（手元の分がその分以前の一番近い点以後か、差が360分以内）は進め、それ以外は`RunReader.seek`で途中の点に戻してから計算します（#251）。再生（`replay-frames`）は手元のSimulationを進めるだけで、戻しません。手元に置くSimulationは2つまでで、置き換えるものは先に解放します（WASMのメモリーは縮まないため）。digestは、Runが持つログのhashの途中の状態に増えた記録だけを足して求めます（上の段落）。
 
@@ -120,6 +121,28 @@ python benchmarks/wasm_trial_measure.py --bundle sample.shelterproj --pkg wasm-w
 
 ~~~shell
 node native/wasm/tests/node_browser_api.mjs wasm-pkg
+~~~
+
+#### ブラウザーで計算する（#267の段階B）
+
+ブラウザーはScenarioから世界を作りません（#249はまだです）。#263で決めたとおり、Pythonが作った0分の世界から計算します。Workerは例を読み込んだ後、Project `sample`に、例のRunと同じScenarioの、計算していないRun（`run-browser-compute`、`compute.mjs`の`COMPUTE_RUN`）を作ります。記録は例のRunのものにそのRunのIDを付け、状態をPythonの作ったばかりのRunと同じ`queued`にします。保存したRunには、例の保存したRunの`run`の行と`export`の部分（縮めたbytesをそのまま写し、JSONとして読み直しません）だけを置き、mainの分岐は0分まで計算済み（先頭は`export`の行）です。サイトの最初の頁（`/`）は、例のRunと、このRunへのリンクを並べます。画面では、このRunを開き（Runの選択欄にも出ます）、「終了まで計算」（`#compute-end`）か、分を決めて「この時刻まで計算」を押します。
+
+| 道 | 答え |
+|---|---|
+| `POST runs/{run}/resume` `{branch_id, target_minute}` | Pythonの`submit`と同じ順に確かめ、同じ誤りで断ります（項目の過不足、`measure_performance`が真偽値でない、計算中の分岐、ほかの計算がある（1つずつ）、ないBranch、計算済みの先から終わりまでにない分、ほかのタブが計算中の分岐は`run_worker_busy`）。受けると分岐とRunを`running`にし、`{"branch_id", "run_id", "status": "running", "target_minute"}`を返して、Workerで計算を始めます |
+| `POST runs/{run}/cancel` `{}`または`{branch_id}` | そのRunの計算に止まるよう伝え、その時のRunの記録を返します（Pythonと同じく、まだ`running`のことがあります）。何も計算していないのにRunが`running`なら（ほかのタブの計算）、Pythonと同じ`run_worker_busy`で断ります |
+
+計算は、分岐の保存したRunを先頭（下）まで切り戻し、そこへ戻して（`RunReader.seek`、#251。0分は書き出した世界から）、`CHUNK_TICKS`（60）tickずつのひと区切りで進めます。ひと区切りは要求と同じ列に並ぶので、Workerは区切りの間にtimeline、history、記録の要求に答えます。360分ごと（Runの`save_every`）、目標の分、止められた分では、ログと標本の塊を閉じて（`Simulation.seal_blocks`）途中の点を保存し、分岐の記録の`computed_until`と`checkpoint_hash`をそこへ進めます。その分のframeも作って残し、画面が続けて求めるその分のtimelineに使います。終わったら、時計の終わりなら`completed`（保存したRunは`runAndStore`と同じく、最後の点、`world`、`end`の行で終わります）、目標の分か止めたときは`paused`、誤りなら`failed`を分岐とRunの記録に書きます。OPFSのファイルは区切りごとに開いて閉じます（1つのファイルを同時に開けるのは1つのsync access handleなので、区切りの間の読み取りが自分で開けるように）。計算中の分岐はWeb Lock（`sheltersim-compute/{project}/{run}/{branch}`）を持ち続けます。画面は、Runの先頭の分を見ているときだけ時計が先頭に付いて進みます（Pythonの画面と同じ）。
+
+初めて計算を始めるとき、ページは`navigator.storage.persist()`を1回だけ求めます（#265の決定。ページを開いただけでは求めません）。求めたことはlocalStorageに残し、断られても計算は続けます。`persist`はWorkerにはないので、`api_fetch.js`が`resume`の要求を見て呼びます。
+
+計算の途中でページを閉じると、Workerも止まります。分岐の記録は最後に進めた先頭のままで、保存したRunにはその後の行（や、途中で切れた行）が残ることがあります。次に開いたとき、Workerは、`running`のままでWeb Lockを誰も持っていない分岐とRunを`interrupted`にします（Pythonのserverの起動時と同じ）。先頭の分までは読め、「計算」で先頭から続けられます。記録のファイルが書きかけで読めないときは、保存したRunの最後の先頭で書き直します（Runの記録なら、計算するRunを作り直します）。
+
+`native/wasm/tests/node_compute.mjs`は、メモリーの置き場（OPFSと同じく、1つのファイルを同時に1つしか開けない）で、計算するRunの作り方、Pythonと同じ誤りとJSON、区切りの間の答えと先頭のframe、止める、ページを閉じた後の`interrupted`と続き、記録が書きかけのときの直し方を確かめ、こうして何回にも分けて計算したRunの世界・ログ・標本のdigestとframeと時系列が、止めずに計算した例のRunと同じになることを確かめます。CIのlintのjobも動かします。2つ目の引数に例のファイル（`build_browser_sample.py`）を渡すと、100人・7日の例で同じことを確かめます。
+
+~~~shell
+node native/wasm/tests/node_compute.mjs wasm-pkg
+node native/wasm/tests/node_compute.mjs wasm-pkg sample.shelterproj
 ~~~
 
 ### ブラウザー版の静的サイト（#266）
@@ -135,13 +158,13 @@ python scripts/build_static_site.py ../hinanjo-if-site --pkg wasm-web --bundle s
 python scripts/serve_static_site.py ../hinanjo-if-site --port 8000
 ~~~
 
-最後のcommandは、手元で確かめるためのserverです（127.0.0.1だけ）。`http://127.0.0.1:8000/`を開くと、`/demo-v2?project=sample&run=run-sample-toilet-outage&branch=main#simulation`へ移ります。標準ライブラリーの`http.server`は`/demo-v2`を`demo-v2.html`で答えないので、このscriptを使います。
+最後のcommandは、手元で確かめるためのserverです（127.0.0.1だけ）。`http://127.0.0.1:8000/`を開くと、例のRun（`/demo-v2?project=sample&run=run-sample-toilet-outage&branch=main#simulation`）と、ブラウザーで計算するRun（`run=run-browser-compute`）へのリンクが出ます。標準ライブラリーの`http.server`は`/demo-v2`を`demo-v2.html`で答えないので、このscriptを使います。
 
 サイトの中身：
 
 | 道 | ファイル |
 |---|---|
-| `/` | `index.html`。例のRunを開く`/demo-v2?…`へ移る |
+| `/` | `index.html`。例のRunと、ブラウザーで計算するRunを開く`/demo-v2?…`へのリンク |
 | `/demo-v2` | `demo-v2.html` |
 | `/demo-v2.css`、`/demo-v2*.js`、`/demo-v2-logo.jpg` | 画面のファイル（変えずに写す） |
 | `/LICENSE.txt` | リポジトリーの`LICENSE`（MIT） |
@@ -157,11 +180,14 @@ python scripts/serve_static_site.py ../hinanjo-if-site --port 8000
 - サーバーの機能（認証、PDF、LLMの中継）はありません。画面の「従来のデモ」（`/demo`）はサイトに含めず、ブラウザー版の`demo-v2.html`はそのリンクをstyleで隠します。`vendor/`（PDFの表示に使うpdf.js）も、`/demo-v2`が読まないので含めません。
 - 初めて開くと、例のファイル全体を取り寄せてブラウザーのOPFSに保存します（大きさと時間は#266）。OPFSを使えないブラウザー（設定やprivateの窓によっては）では、お知らせ欄に誤りを出します。
 
-サイトが画面の道に正しく答えるかは、`benchmarks/static_site_check.py`で確かめます。サイトを上のserverで配り、PlaywrightのChromiumとFirefoxで、それぞれ空のOPFSから開きます。`/`から`/demo-v2`へ移り、例を読み込み、時刻の帯で分へ飛び、240×で数秒再生し、レポートの頁の時系列のグラフが出ること、ページの誤り・consoleの誤り・お知らせ欄の誤りがないことを確かめます。`--python-projects`に、`scripts/build_project_sample.py`で作ったProjectStore（例のmainと同じScenarioをPythonのProjectの経路で計算したもの）を渡すと、記録、保存した点とその間の分のtimeline、飛んだ後と続く再生の窓、いくつかの`step`とページ送りの時系列、report、llm-statusについて、ブラウザーの答えのJSONとPythonのserverの答え（同じプロセスの`ProjectAPI`）を、値の型まで比べます。違って当然の項目（置き場の大きさ、Branchの`checkpoint_hash`と時系列の`anchor_hash`・cursorの中のanchor、0分の`state_hash`）は除き、除いた項目と理由を結果に書きます。0分の`state_hash`は、PythonのProjectの経路が最初のtickの前の世界を`rng_state`がnullのまま残し、ブラウザーが始める書き出した世界は乱数の初めの状態を持つために違います。世界のほかの部分は同じで、1分からは同じです。PlaywrightとそのbrowserはProjectの依存ではないので、確かめる環境に入れます。計った時間は#266に記録しています。
+サイトが画面の道に正しく答えるかは、`benchmarks/static_site_check.py`で確かめます。サイトを上のserverで配り、PlaywrightのChromiumとFirefoxで、それぞれ空のOPFSから開きます。`/`のリンクから`/demo-v2`を開き、例を読み込み、時刻の帯で分へ飛び、240×で数秒再生し、レポートの頁の時系列のグラフが出ること、ページの誤り・consoleの誤り・お知らせ欄の誤りがないことを確かめます。`--python-projects`に、`scripts/build_project_sample.py`で作ったProjectStore（例のmainと同じScenarioをPythonのProjectの経路で計算したもの）を渡すと、記録、保存した点とその間の分のtimeline、飛んだ後と続く再生の窓、いくつかの`step`とページ送りの時系列、report、llm-statusについて、ブラウザーの答えのJSONとPythonのserverの答え（同じプロセスの`ProjectAPI`）を、値の型まで比べます。違って当然の項目（置き場の大きさ、Branchの`checkpoint_hash`と時系列の`anchor_hash`・cursorの中のanchor、0分の`state_hash`）は除き、除いた項目と理由を結果に書きます。0分の`state_hash`は、PythonのProjectの経路が最初のtickの前の世界を`rng_state`がnullのまま残し、ブラウザーが始める書き出した世界は乱数の初めの状態を持つために違います。世界のほかの部分は同じで、1分からは同じです。PlaywrightとそのbrowserはProjectの依存ではないので、確かめる環境に入れます。計った時間は#266に記録しています。
+
+`--compute pieces full`を付けると、ブラウザーで計算するRunも確かめます（#267）。どちらも空のOPFSから始めます。`pieces`は、「終了まで計算」を押し、1日を過ぎたら止め、続け、3日を過ぎたらページを閉じ、開き直して`interrupted`と先頭の分を確かめ、最後まで続けます。`full`は7日を一度に計算して時間を計ります。計算中に画面の時計が進むこと、計算したRunで分へ飛ぶ・再生する・時系列のグラフが出ること、1分・4321分・10080分のframeとKPIの時系列が例のRunとRunのID以外同じ（同じScenarioとseedから同じ世界になる）ことを確かめます。計った時間は#267に記録しています。
 
 ~~~shell
 SHELTERSIM_LLM_MODE=offline python scripts/build_project_sample.py sample-projects
 python benchmarks/static_site_check.py --site ../hinanjo-if-site --python-projects sample-projects --output site-check.json
+python benchmarks/static_site_check.py --site ../hinanjo-if-site --compute pieces full --output compute-check.json
 ~~~
 
 ## 設定

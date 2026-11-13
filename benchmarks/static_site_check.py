@@ -1,12 +1,13 @@
 """Check the browser version's static site against the Python server (#266, stage A of #263).
 
     python benchmarks/static_site_check.py --site SITE_DIR [--python-projects DIR]
-        [--browsers chromium firefox] [--output result.json] [--screenshots DIR]
+        [--browsers chromium firefox] [--compute pieces full] [--output result.json]
+        [--screenshots DIR]
 
 SITE_DIR is the output of scripts/build_static_site.py; it is served as a static host would
 (scripts/serve_static_site.py). In each browser, on a fresh profile (an empty OPFS):
 
-1. The screen: `/` goes to `/demo-v2?…`, the sample is fetched and imported, the simulation page
+1. The screen: `/` links to `/demo-v2?…`, the sample is fetched and imported, the simulation page
    shows the sample's Run; seeking to a minute (the time slider), playing for a few seconds and
    the report page's history graph work, and the page reports no error (page errors, console
    errors, the notice's error state).
@@ -18,6 +19,13 @@ SITE_DIR is the output of scripts/build_static_site.py; it is served as a static
    history of the KPIs at several steps and pages, report and llm-status. Values are compared with
    their types (1 and 1.0 differ). The fields EXCLUDED lists differ by design; any other
    difference fails the check. The times of the browser's answers are recorded.
+3. With --compute (#267), the Run the browser computes itself (`/` links to it), each mode in a
+   fresh profile: `pieces` starts computing to the end, cancels after a day, resumes, closes the
+   page after three days and opens it again (the Run shows `interrupted` and its last head), and
+   resumes to the end; `full` computes the 7 days at once and times it. While it computes, the
+   screen's clock must move. Then seeking, playing and the history graph work on the computed Run,
+   and its frames (1, 4321 and 10080 minutes) and KPI history are the sample's but for the Run's
+   id: the same Scenario and seed computed in the browser reach the same worlds.
 
 Playwright and its browsers are not dependencies of the project: install them where you check
 (`python -m playwright install chromium firefox`). The result's figures go to the Issue, not to
@@ -43,6 +51,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import serve_static_site  # noqa: E402 - the local server of the site, a script
 
 PROJECT, RUN, BRANCH = "sample", "run-sample-toilet-outage", "main"
+COMPUTE_RUN = "run-browser-compute"
+COMPUTE_PATH = f"/api/v1/projects/{PROJECT}/runs/{COMPUTE_RUN}"
 RUN_PATH = f"/api/v1/projects/{PROJECT}/runs/{RUN}"
 BRANCH_PATH = f"{RUN_PATH}/branches/{BRANCH}"
 TIMEOUT_MS = 600_000
@@ -259,24 +269,43 @@ SCREEN_STATE = """() => ({
 })"""
 
 
-def screen(page: Any, base: str, screenshots: Path | None, name: str) -> dict[str, Any]:
-    """Open `/`, then seek, play and look at the history graph, as a person would."""
-    problems: list[str] = []
-    steps: dict[str, Any] = {}
-    started = time.perf_counter()
-    page.goto(base + "/")
+def _open(page: Any, base: str, link: str | None, url: str | None = None) -> dict[str, Any]:
+    """Open `/` and follow the link `link` (or open `url`), until the simulation page shows."""
+    if url is None:
+        page.goto(base + "/")
+        page.click(f"text={link}")
+    else:
+        page.goto(base + url)
     page.wait_for_url(re.compile(r"/demo-v2\?project="), timeout=TIMEOUT_MS)
-    steps["ready"] = page.evaluate("window.HinanjoBrowserApi.ready")
+    ready = page.evaluate("window.HinanjoBrowserApi.ready")
     page.wait_for_function(
         "() => document.body.dataset.view === 'simulation'"
         " && !document.getElementById('seek').disabled",
         timeout=TIMEOUT_MS,
     )
+    return ready
+
+
+def screen(page: Any, base: str, screenshots: Path | None, name: str) -> dict[str, Any]:
+    """Open `/`, then seek, play and look at the history graph, as a person would."""
+    problems: list[str] = []
+    steps: dict[str, Any] = {}
+    started = time.perf_counter()
+    steps["ready"] = _open(page, base, "計算済みの例を見る")
     steps["open_s"] = round(time.perf_counter() - started, 2)
     state = page.evaluate(SCREEN_STATE)
     steps["opened"] = state
     if state["seekMax"] != 10080:
         problems.append(f"the Run is not shown computed to 10080: {state['seekMax']}")
+    browse(page, screenshots, name, steps, problems)
+    steps["stats"] = page.evaluate("window.HinanjoBrowserApi.stats()")
+    return {"steps": steps, "problems": problems}
+
+
+def browse(
+    page: Any, screenshots: Path | None, name: str, steps: dict[str, Any], problems: list[str]
+) -> None:
+    """Seek, play and look at the history graph of the Run shown, computed to 10080."""
     # Seek: the slider's change asks for the frame of the minute.
     started = time.perf_counter()
     page.evaluate(
@@ -320,12 +349,154 @@ def screen(page: Any, base: str, screenshots: Path | None, name: str) -> dict[st
     for key in ("opened", "sought", "played", "report"):
         if steps[key]["noticeError"]:
             problems.append(f"{key}: the notice shows an error: {steps[key]['notice']}")
+
+
+COMPUTED = """() => {
+  const label = document.getElementById("computed-label").textContent;
+  const match = /([0-9]+)分まで計算済み/.exec(label);
+  return {
+    computed: match ? Number(match[1]) : null,
+    clock: document.getElementById("clock").textContent,
+    status: document.getElementById("compute-status").textContent,
+    cancel: !document.getElementById("cancel").disabled,
+    computeEnd: !document.getElementById("compute-end").disabled,
+    noticeError: document.getElementById("notice").classList.contains("error")
+      && !document.getElementById("notice").hidden,
+    notice: document.getElementById("notice").textContent,
+  };
+}"""
+
+
+def _record(page: Any) -> dict[str, Any]:
+    """The compute Run's record, as the API answers it."""
+    return json.loads(page.evaluate(FETCH, COMPUTE_PATH)["text"])
+
+
+def _watch(
+    page: Any, until: Any, watched: list[dict[str, Any]], problems: list[str], what: str
+) -> dict[str, Any]:
+    """Polls the screen every 0.5 s (its clock and the minutes computed) until `until(state)`."""
+    started = time.perf_counter()
+    while True:
+        state = page.evaluate(COMPUTED)
+        state["s"] = round(time.perf_counter() - started, 2)
+        watched.append(state)
+        if state["noticeError"]:
+            problems.append(f"{what}: the notice shows an error: {state['notice']}")
+            return state
+        if until(state):
+            return state
+        if state["s"] > TIMEOUT_MS / 1000:
+            problems.append(f"{what}: timed out at {state}")
+            return state
+        page.wait_for_timeout(500)
+
+
+def _same_as_sample(page: Any, problems: list[str]) -> dict[str, Any]:
+    """The compute Run's frames and KPI history are the sample's but for the Run's id."""
+    compared = {}
+    for minute in (1, 4321, 10080):
+        ours = page.evaluate(FETCH, f"{COMPUTE_PATH}/branches/main/timeline?minute={minute}")
+        theirs = page.evaluate(FETCH, f"{BRANCH_PATH}/timeline?minute={minute}")
+        same = (
+            ours["status"] == theirs["status"] == 200
+            and ours["text"].replace(COMPUTE_RUN, RUN) == theirs["text"]
+        )
+        compared[f"timeline {minute}"] = same
+        if not same:
+            problems.append(f"the computed Run's frame at {minute} is not the sample's")
+    query = "kind=kpis&start=0&end=10080&step=112&limit=100"
+    ours = page.evaluate(FETCH, f"{COMPUTE_PATH}/branches/main/history?{query}")
+    theirs = page.evaluate(FETCH, f"{BRANCH_PATH}/history?{query}")
+    items = [json.dumps(json.loads(answer["text"])["items"]) for answer in (ours, theirs)]
+    same = items[0].replace(COMPUTE_RUN, RUN) == items[1]
+    compared["history"] = same
+    if not same:
+        problems.append("the computed Run's KPI history is not the sample's")
+    return compared
+
+
+def computing(
+    page: Any, base: str, screenshots: Path | None, name: str, mode: str, context: Any
+) -> dict[str, Any]:
+    """Compute the compute Run to its end on the screen (`mode` pieces or full), then browse it."""
+    problems: list[str] = []
+    steps: dict[str, Any] = {}
+    watched: list[dict[str, Any]] = []
+    started = time.perf_counter()
+    steps["ready"] = _open(page, base, "このブラウザーで計算する")
+    steps["open_s"] = round(time.perf_counter() - started, 2)
+    steps["created"] = _record(page)
+    if steps["created"]["status"] != "queued" or steps["created"]["branches"][0]["computed_until"]:
+        problems.append(f"the compute Run is not new: {steps['created']['status']}")
+    done = lambda state: state["computed"] == 10080 and not state["cancel"]  # noqa: E731
+    started = time.perf_counter()
+    page.click("#compute-end")
+    if mode == "pieces":
+        _watch(page, lambda state: (state["computed"] or 0) >= 1440, watched, problems, "a day")
+        page.click("#cancel")
+        _watch(page, lambda state: not state["cancel"], watched, problems, "cancel")
+        steps["cancelled"] = _record(page)
+        if steps["cancelled"]["status"] != "paused":
+            problems.append(f"cancelled: the Run is {steps['cancelled']['status']}")
+        page.click("#compute-end")
+        _watch(page, lambda state: (state["computed"] or 0) >= 4320, watched, problems, "3 days")
+        if screenshots:
+            page.screenshot(path=str(screenshots / f"{name}-{mode}-computing.png"))
+        # Close the page in the middle; a new page opens the Run.
+        page.close()
+        page = context.new_page()
+        page.set_default_timeout(TIMEOUT_MS)
+        _attach(page, steps.setdefault("errors_after_reopen", []))
+        url = f"/demo-v2?project={PROJECT}&run={COMPUTE_RUN}&branch=main#simulation"
+        steps["reopen_ready"] = _open(page, base, None, url)
+        steps["reopened"] = _record(page)
+        reopened = steps["reopened"]
+        if reopened["status"] != "interrupted" or reopened["branches"][0]["computed_until"] < 4320:
+            problems.append(
+                f"reopened: {reopened['status']} at {reopened['branches'][0]['computed_until']}"
+            )
+        page.click("#compute-end")
+    final = _watch(page, done, watched, problems, "the end")
+    steps["compute_s"] = round(time.perf_counter() - started, 2)
+    steps["finished"] = _record(page)
+    if steps["finished"]["status"] != "completed":
+        problems.append(f"at the end: the Run is {steps['finished']['status']}")
+    clocks = sorted({state["clock"] for state in watched})
+    steps["clocks"] = len(clocks)
+    if len(clocks) < 5:
+        problems.append(f"the clock did not move while computing: {clocks}")
+    steps["watched"] = watched[:: max(1, len(watched) // 40)] + [final]
+    if screenshots:
+        page.screenshot(path=str(screenshots / f"{name}-{mode}-computed.png"))
+    page.wait_for_function(
+        "() => !document.getElementById('seek').disabled"
+        " && Number(document.getElementById('seek').max) === 10080",
+        timeout=TIMEOUT_MS,
+    )
+    steps["opened"] = page.evaluate(SCREEN_STATE)
+    browse(page, screenshots, f"{name}-{mode}", steps, problems)
+    steps["same_as_sample"] = _same_as_sample(page, problems)
     steps["stats"] = page.evaluate("window.HinanjoBrowserApi.stats()")
-    return {"steps": steps, "problems": problems}
+    return {"steps": steps, "problems": problems, "page": page}
+
+
+def _attach(page: Any, errors: list[str]) -> None:
+    page.on("pageerror", lambda error: errors.append(f"page: {error}"))
+    page.on(
+        "console",
+        lambda message: errors.append(f"console: {message.text}")
+        if message.type == "error"
+        else None,
+    )
 
 
 def check(
-    site: Path, browsers: list[str], projects: Path | None, screenshots: Path | None
+    site: Path,
+    browsers: list[str],
+    projects: Path | None,
+    screenshots: Path | None,
+    modes: list[str] | None = None,
 ) -> dict[str, Any]:
     from playwright.sync_api import sync_playwright
 
@@ -343,16 +514,19 @@ def check(
                 try:
                     page = browser.new_context().new_page()
                     page.set_default_timeout(TIMEOUT_MS)
-                    page.on("pageerror", lambda error: errors.append(f"page: {error}"))
-                    page.on(
-                        "console",
-                        lambda message: errors.append(f"console: {message.text}")
-                        if message.type == "error"
-                        else None,
-                    )
+                    _attach(page, errors)
                     result["screen"] = screen(page, base, screenshots, name)
                     if python is not None:
                         result["compare"] = compare(page, python)
+                    for mode in modes or []:
+                        print(f"  compute: {mode}", flush=True)
+                        context = browser.new_context()
+                        page = context.new_page()
+                        page.set_default_timeout(TIMEOUT_MS)
+                        _attach(page, errors)
+                        computed = computing(page, base, screenshots, name, mode, context)
+                        computed.pop("page").context.close()
+                        result.setdefault("compute", {})[mode] = computed
                 finally:
                     browser.close()
                 result["errors"] = errors
@@ -363,7 +537,13 @@ def check(
         server.shutdown()
         server.server_close()
     results["passed"] = all(
-        not r["errors"] and not r["screen"]["problems"] and not r.get("compare", {}).get("failed")
+        not r["errors"]
+        and not r["screen"]["problems"]
+        and not r.get("compare", {}).get("failed")
+        and not any(
+            c["problems"] or c["steps"].get("errors_after_reopen")
+            for c in r.get("compute", {}).values()
+        )
         for name, r in results.items()
     )
     results["excluded"] = [
@@ -382,6 +562,13 @@ def main() -> int:
     parser.add_argument("--browsers", nargs="+", default=["chromium", "firefox"])
     parser.add_argument("--output", type=Path)
     parser.add_argument("--screenshots", type=Path)
+    parser.add_argument(
+        "--compute",
+        nargs="*",
+        choices=["pieces", "full"],
+        default=[],
+        help="compute the Run (#267)",
+    )
     arguments = parser.parse_args()
     if arguments.screenshots:
         arguments.screenshots.mkdir(parents=True, exist_ok=True)
@@ -390,6 +577,7 @@ def main() -> int:
         arguments.browsers,
         arguments.python_projects.resolve() if arguments.python_projects else None,
         arguments.screenshots,
+        arguments.compute,
     )
     text = json.dumps(results, ensure_ascii=False, indent=1)
     if arguments.output:
@@ -401,6 +589,12 @@ def main() -> int:
             f"{result['screen']['problems']}, routes failing "
             f"{result.get('compare', {}).get('failed')}"
         )
+        for mode, computed in result.get("compute", {}).items():
+            print(
+                f"  compute {mode}: {computed['steps'].get('compute_s')} s, problems "
+                f"{computed['problems']}, after reopening "
+                f"{computed['steps'].get('errors_after_reopen')}"
+            )
     print("passed" if results["passed"] else "FAILED")
     return 0 if results["passed"] else 1
 

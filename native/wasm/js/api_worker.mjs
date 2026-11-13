@@ -6,8 +6,11 @@
 // Where things are (relative to this file): the WASM (`wasm-bindgen --target web`) in pkg/, the
 // sample's manifest at `sampleUrl` (the page's `data-sample` on the script, see api_fetch.js;
 // /sample/sample.json by default). The store is OPFS's folder projects/; the marker of the sample
-// it holds (browser_api.mjs) is beside it. Every request, and the sample's install, holds the Web
-// Lock "sheltersim-browser-store", so two tabs never open the same files at once.
+// it holds (browser_api.mjs) is beside it. Every request, each chunk of a computation and the
+// sample's install hold the Web Lock "sheltersim-browser-store", so two tabs never open the same
+// files at once. After the sample's install, the Project gets the Run the site offers to compute
+// and a computation a closed page left becomes `interrupted` (js/compute.mjs, #267); a branch that
+// computes holds the Web Lock of its name (`lockName`) until its computation ends.
 //
 // Messages in:  { type: "start", sampleUrl } once, then { type: "request", id, method, path,
 //               search, body } or { type: "stats", id }
@@ -17,10 +20,27 @@
 //               { type: "stats", id, stats } for { type: "stats", id } (checks).
 
 import { BrowserApi, installSample, SAMPLE_MARKER } from "./browser_api.mjs";
+import { ensureComputeRun, recoverInterrupted } from "./compute.mjs";
 import { opfsTree } from "./project_store.mjs";
 
 const LOCK = "sheltersim-browser-store";
 const locked = (task) => (navigator.locks ? navigator.locks.request(LOCK, task) : task());
+
+/// Holds the Web Lock `name` when no one else does: a function that lets it go, or null.
+function branchLock(name) {
+  if (!navigator.locks) return Promise.resolve(() => {});
+  return new Promise((resolve, reject) => {
+    navigator.locks
+      .request(name, { ifAvailable: true }, (lock) => {
+        if (!lock) {
+          resolve(null);
+          return null;
+        }
+        return new Promise((release) => resolve(() => release()));
+      })
+      .catch(reject);
+  });
+}
 
 async function readFile(folder, name) {
   try {
@@ -55,8 +75,8 @@ async function start(sampleUrl) {
   const response = await fetch(manifestUrl, { cache: "no-cache" });
   if (!response.ok) throw new Error(`計算済みの例の目録を読めません（HTTP ${response.status}）`);
   const manifest = await response.json();
-  const installed = await locked(() =>
-    installSample({
+  const installed = await locked(async () => {
+    const sample = await installSample({
       wasm,
       tree,
       manifest,
@@ -75,12 +95,22 @@ async function start(sampleUrl) {
       },
       writeMarker: (bytes) => writeFile(root, SAMPLE_MARKER, bytes),
       progress: (state) => self.postMessage({ type: "progress", ...state }),
-    }),
-  );
+    });
+    // The Run to compute, and what a page closed in the middle of a computation left.
+    try {
+      sample.compute = await ensureComputeRun({ wasm, tree, projectId: manifest.project_id });
+      sample.recovered = await recoverInterrupted({ tree, branchLock });
+    } catch (error) {
+      console.warn("the Run to compute is not ready:", error);
+    }
+    return sample;
+  });
   const api = new BrowserApi({
     wasm,
     tree,
     quota: async () => (await navigator.storage.estimate()).quota ?? null,
+    locked,
+    branchLock,
   });
   return { api, wasm, installed };
 }
@@ -99,14 +129,14 @@ self.onmessage = async ({ data }) => {
   if (data.type === "stats") {
     // What the answers cost so far, for checks: seeks, ticks stepped, their times, WASM's memory.
     const { api, wasm } = await ready;
-    self.postMessage({ type: "stats", id: data.id, stats: { ...api.stats, memoryBytes: wasm.memoryBytes() } });
+    self.postMessage({ type: "stats", id: data.id, stats: { ...api.stats, computed: api.computing.done, memoryBytes: wasm.memoryBytes() } });
     return;
   }
   if (data.type !== "request") return;
   let answer;
   try {
     const { api } = await ready;
-    answer = await locked(() => api.answer(data));
+    answer = await api.answer(data);
   } catch (error) {
     answer = {
       status: 503,

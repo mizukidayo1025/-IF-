@@ -278,6 +278,76 @@ fn a_run_restored_at_a_saved_point_goes_on_as_the_run_did() {
     }
 }
 
+/// A Run that seals its blocks at each saved point and stores them before it (#267): every saved
+/// point is restored from the pieces stored before it alone. Restored there, the Run stores its
+/// own pieces after them, as the Run went on: the store then reads back to the end digests of the
+/// Run that never stopped, and so does a store that goes on from several points in turn. Sealing
+/// changes no digest.
+#[test]
+fn a_run_sealed_at_its_saved_points_goes_on_storing_after_a_restore() {
+    for (name, every) in [("small_replay", 360), ("generated", 60)] {
+        let fixture = load::entry("tick_core", name);
+        let ticks = fixture["expected"]["ticks"].as_i64().unwrap();
+        let mut plain = PlainRun::of_entry(&fixture).unwrap();
+        for _ in 0..ticks {
+            plain.step().unwrap();
+        }
+        let end = digests_of(&plain);
+        // The Run sealed and saved every `every` minutes, its pieces stored every 25 ticks.
+        let mut run = PlainRun::of_entry(&fixture).unwrap();
+        let mut stored = Stored::default();
+        let mut points = Vec::new();
+        for at in 1..=ticks {
+            run.step().unwrap();
+            if at % 25 == 0 {
+                flush(&run, &mut stored, false);
+            }
+            if at % every == 0 && at < ticks {
+                run.seal_stores().unwrap();
+                flush(&run, &mut stored, false);
+                points.push((at, run.saved_point().unwrap().to_bytes(), stored.pieces.len(), stored.log, stored.samples, digests_of(&run)));
+            }
+        }
+        flush(&run, &mut stored, true);
+        assert_eq!(digests_of(&run), end, "{name}: sealing changed a digest");
+        assert!(points.len() >= 3, "{name}: {} saved points", points.len());
+        // Each point from the pieces stored before it, then on to the end storing after them.
+        for (minute, point, pieces, log, samples, digests) in &points {
+            let mut again = restored(&fixture, point, &stored.pieces[..*pieces]).unwrap();
+            assert_eq!(&digests_of(&again), digests, "{name} at {minute}");
+            let mut going = Stored { pieces: stored.pieces[..*pieces].to_vec(), log: *log, samples: *samples };
+            for at in *minute + 1..=ticks {
+                again.step().unwrap();
+                if at % 25 == 0 {
+                    flush(&again, &mut going, false);
+                }
+            }
+            flush(&again, &mut going, true);
+            assert_eq!(digests_of(&again), end, "{name} from {minute}");
+            let (log_back, samples_back) = read_back(&going.pieces);
+            assert_eq!(log_back.digest(), end.0.iter().find(|(part, _)| *part == "event_log").unwrap().1, "{name} from {minute}: the stored log");
+            assert_eq!(samples_back.digest(), end.1, "{name} from {minute}: the stored samples");
+        }
+        // Stopped and restored at every point in turn, each time from what the last one stored.
+        let mut going = Stored::default();
+        let mut again = PlainRun::of_entry(&fixture).unwrap();
+        for at in 1..=ticks {
+            again.step().unwrap();
+            if at % every == 0 && at < ticks {
+                again.seal_stores().unwrap();
+                flush(&again, &mut going, false);
+                let point = again.saved_point().unwrap().to_bytes();
+                again = restored(&fixture, &point, &going.pieces).unwrap();
+            }
+        }
+        flush(&again, &mut going, true);
+        assert_eq!(digests_of(&again), end, "{name}: restored at every point");
+        let (log_back, samples_back) = read_back(&going.pieces);
+        assert_eq!(log_back.records(), again.loaded.cell.with(|world| world.log().unwrap().len()).unwrap() as u64, "{name}");
+        assert_eq!(samples_back.digest(), end.1, "{name}: restored at every point, the stored samples");
+    }
+}
+
 /// The world's digest without the log's node a Run keeps (#266): every record read again.
 fn uncached_digest(run: &PlainRun) -> String {
     run.loaded.cell.with(|world| state_digest(world, &run.rng_state)).unwrap().unwrap()

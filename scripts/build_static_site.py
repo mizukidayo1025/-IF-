@@ -12,7 +12,9 @@ and a style that hides the link to the old screen (/demo), which the site does n
 The site is served at the root of its domain, as the screen loads `/demo-v2.css` and the like and
 `history.replaceState`s to `/demo-v2?…`:
 
-    /                       index.html: goes to /demo-v2?project=…&run=…&branch=main#simulation
+    /                       index.html: links to the sample's Run computed by the site's tool
+                            (/demo-v2?project=…&run=…&branch=main#simulation) and to the Run the
+                            browser computes itself (the same with run=COMPUTE_RUN, #267)
     (a missing path)        404.html, with status 404
     /demo-v2                demo-v2.html (a host serving `/demo-v2` from `demo-v2.html`, as
                             Cloudflare Pages, GitHub Pages and Netlify do; for others see the docs)
@@ -59,10 +61,13 @@ BROWSER_FILES = (
     "api_worker.mjs",
     "api_answers.mjs",
     "browser_api.mjs",
+    "compute.mjs",
     "project_store.mjs",
     "run_store.mjs",
 )
 PKG_FILES = ("sheltersim_wasm.js", "sheltersim_wasm_bg.wasm")
+# The Run the browser makes beside the sample's, to compute itself (compute.mjs's COMPUTE_RUN).
+COMPUTE_RUN = "run-browser-compute"
 SAMPLE_FORMAT = "sheltersim-site-sample"
 SAMPLE_VERSION = 1
 # The lines the browser build adds to demo-v2.html, before the screen's first script: the script
@@ -114,17 +119,52 @@ NOT_FOUND = (
 )
 
 
-def index_html(target: str) -> str:
-    """A page that goes to `target` at once (and says where, without JS)."""
-    quoted = target.replace("&", "&amp;")
+def index_html(sample: str, compute: str) -> str:
+    """The site's first page: links to the sample's Run (`sample`) and to the Run the browser
+    computes itself (`compute`)."""
+
+    def link(target: str, title: str, note: str) -> str:
+        return (
+            f'<a class="choice" href="{target.replace("&", "&amp;")}">'
+            f"<strong>{title}</strong><span>{note}</span></a>\n"
+        )
+
     return (
         "<!doctype html>\n"
         '<html lang="ja">\n<head>\n<meta charset="utf-8" />\n'
-        f'<meta http-equiv="refresh" content="0; url={quoted}" />\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1" />\n'
         "<title>避難所IF！</title>\n"
-        f"<script>location.replace({json.dumps(target)});</script>\n"
-        "</head>\n"
-        f'<body><p><a href="{quoted}">避難所IF！の計算済みの例を開く</a></p></body>\n</html>\n'
+        "<style>\n"
+        ":root { color-scheme: light dark; --ink: #1d2733; --paper: #f6f7f9; --card: #fff;"
+        " --line: #cfd6de; --accent: #0b5cad; }\n"
+        "@media (prefers-color-scheme: dark) { :root { --ink: #e6ebf0; --paper: #14191f;"
+        " --card: #1d242c; --line: #3a4652; --accent: #7db7ff; } }\n"
+        "body { margin: 0; padding: 32px 16px; background: var(--paper); color: var(--ink);"
+        " font-family: system-ui, sans-serif; line-height: 1.6; }\n"
+        "main { max-width: 640px; margin: 0 auto; }\n"
+        "h1 { font-size: 1.6rem; margin: 0 0 4px; }\n"
+        ".choice { display: block; margin: 16px 0; padding: 16px; border: 1px solid var(--line);"
+        " border-radius: 8px; background: var(--card); color: inherit; text-decoration: none; }\n"
+        ".choice:hover, .choice:focus { border-color: var(--accent); }\n"
+        ".choice strong { display: block; color: var(--accent); font-size: 1.1rem; }\n"
+        "small { display: block; margin-top: 24px; opacity: 0.8; }\n"
+        "</style>\n"
+        "</head>\n<body>\n<main>\n<h1>避難所IF！</h1>\n"
+        "<p>合成の避難所（100人・7日間）のシミュレーションです。計算も表示も、このブラウザーの中で動きます。</p>\n"
+        + link(
+            sample,
+            "計算済みの例を見る",
+            "あらかじめ計算した7日分を、地図と指標で再生します。",
+        )
+        + link(
+            compute,
+            "このブラウザーで計算する",
+            "同じシナリオを0分から計算します。「終了まで計算」を押すと、"
+            "時計が進むのを見ながら7日分を計算できます（数十秒）。",
+        )
+        + "<small>初めて開くときは、例のデータ（約47 MB）を読み込んで、このブラウザーに保存します。"
+        "実在の避難所や人の記録ではありません。</small>\n"
+        "</main>\n</body>\n</html>\n"
     )
 
 
@@ -194,7 +234,9 @@ def build(
     manifest = split_bundle(bundle, output / "sample", part_mib * 2**20)
     query = urlencode({"project": project_id, "run": run_id, "branch": branch_id})
     target = f"/demo-v2?{query}#simulation"
-    (output / "index.html").write_text(index_html(target), encoding="utf-8")
+    compute_query = urlencode({"project": project_id, "run": COMPUTE_RUN, "branch": "main"})
+    compute = f"/demo-v2?{compute_query}#simulation"
+    (output / "index.html").write_text(index_html(target, compute), encoding="utf-8")
     # A missing file is a 404 (Cloudflare Pages without a 404.html answers every path with the
     # root's index.html, as for a single-page app).
     (output / "404.html").write_text(NOT_FOUND, encoding="utf-8")
@@ -209,6 +251,7 @@ def build(
     return {
         "output": str(output),
         "open": target,
+        "compute": compute,
         "files": len(files),
         "bytes": sum(path.stat().st_size for path in files),
         "largest": {

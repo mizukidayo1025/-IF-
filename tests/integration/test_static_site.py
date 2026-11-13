@@ -87,7 +87,7 @@ def test_the_site_holds_the_screen_the_browser_api_and_the_sample_in_parts(
     assert '<a href="/demo">' in server_html
     assert (output / "LICENSE.txt").read_bytes() == (STATIC.parents[3] / "LICENSE").read_bytes()
     assert browser_html.index("/browser/api_fetch.js") < browser_html.index("/demo-v2-scene.js")
-    for name in ("api_fetch.js", "api_worker.mjs", "browser_api.mjs", "project_store.mjs"):
+    for name in ("api_fetch.js", "api_worker.mjs", "browser_api.mjs", "compute.mjs"):
         assert (output / "browser" / name).is_file()
     assert (output / "browser" / "pkg" / "sheltersim_wasm_bg.wasm").is_file()
 
@@ -102,9 +102,15 @@ def test_the_site_holds_the_screen_the_browser_api_and_the_sample_in_parts(
         part["sha256"] for part in manifest["parts"]
     ]
     assert summary["open"] == "/demo-v2?project=sample&run=run-x&branch=main#simulation"
-    assert "location.replace(" + json.dumps(summary["open"]) in (output / "index.html").read_text(
-        encoding="utf-8"
+    assert summary["compute"] == (
+        "/demo-v2?project=sample&run=run-browser-compute&branch=main#simulation"
     )
+    index = (output / "index.html").read_text(encoding="utf-8")
+    for target in (summary["open"], summary["compute"]):
+        assert f'href="{target.replace("&", "&amp;")}"' in index
+    # The Run the browser computes is the one compute.mjs makes.
+    compute_js = (STATIC.parents[3] / "native" / "wasm" / "js" / "compute.mjs").read_text("utf-8")
+    assert 'export const COMPUTE_RUN = "run-browser-compute";' in compute_js
     assert summary["largest"]["bytes"] <= 2**20
 
 

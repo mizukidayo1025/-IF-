@@ -366,6 +366,14 @@ impl EventLog {
         self.packed.as_ref().map(|packed| (&packed.packer, &packed.blocks))
     }
 
+    /// Seals the blocks of the records in the binary form (`Blocks::seal`); nothing for a log not
+    /// packed.
+    pub fn seal_packed(&mut self) {
+        if let Some(packed) = self.packed.as_mut() {
+            packed.blocks.seal();
+        }
+    }
+
     /// Whether every record is in the blocks: none kept its bytes instead.
     pub fn all_packed(&self) -> bool {
         self.packed.as_ref().is_some_and(|packed| packed.starts.iter().all(|start| *start != NOT_PACKED))
