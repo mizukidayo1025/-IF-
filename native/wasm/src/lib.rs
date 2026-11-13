@@ -164,7 +164,9 @@ impl Simulation {
         self.run.frame(&request).map_err(js_error)
     }
 
-    /// `world.state_digest()` of the world now: the `state_hash` of a frame without one.
+    /// `world.state_digest()` of the world now: the `state_hash` of a frame without one. The
+    /// Simulation keeps the node of its log between calls (#266), so a call after `advance` reads
+    /// only the records added since; the first call (after `new` or a restore) reads them all.
     #[wasm_bindgen(js_name = stateDigest)]
     pub fn state_digest(&self) -> Result<String, JsError> {
         self.run.state_digest().map_err(js_error)
