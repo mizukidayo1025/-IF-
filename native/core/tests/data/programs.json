@@ -36,6 +36,51 @@
     "support_mode": "native"
    },
    "program_text": "{\"compiler_provenance\":{\"compiler_kind\":\"offline_rule\",\"compiler_version\":\"h06-offline-v1\"},\"effects\":[{\"effect_id\":\"effect-1-facility_outage\",\"op\":\"facility_outage\",\"parameters\":{\"units\":1},\"policy_dependencies\":[\"facility_capacity\"],\"source_id\":\"offline-parser-h06\",\"start_minute\":120,\"target_selector\":{\"kind\":\"facility\",\"target_id\":\"toilet_01\"},\"units\":\"facility_unit\"}],\"narrative\":\"Offline parser proposal; validate the selected mechanism and target before approval.\",\"program_id\":\"nl-h06-fixture\",\"simulation_start_minute\":120,\"source_text\":\"Day 1 02:00 toilet_01 outage\",\"support_mode\":\"native\"}",
+   "scheduled": {
+    "command": {
+     "command": "effect_program",
+     "event_ids": [
+      "effect-event-4"
+     ],
+     "minute": 0,
+     "program_hash": "b2e306d0b3fb97cafcb901c55b231eb8a70e377fb5734979e9f7159e6adf2eaf",
+     "program_id": "nl-h06-fixture"
+    },
+    "digests": {
+     "active_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "agents": "ccc73fc169d2c88dffa8d94ae9ed55b7d57dcb22969f55c1992083f833b5cdfa",
+     "event_log": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "event_queue": "4b95af202dc8b3ca5872ad5e5332608d533cdb158b8fa59f0e11a5eacc715b56",
+     "facilities": "0c810593e282486ee5c03ceed21f762ee874789b1e9ee2970a564fd57f73d32b",
+     "id_counters": "a1294b75cc0f288df167bf0cb8f6fd555933fdbb8ebec103a0a0575343a32c18",
+     "metric_state": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+     "model_configs": "f27cb6beef1ed053d2e781562c61d27d86dedb91a7106a41a4497bc92a783b07",
+     "model_state": "949f9c437800991044e0f6f0df3bceabb79cfaeb44d67fbc26ca36a468b3cb25",
+     "resources": "9c45f0ad03933191a56d7c7b41d81086c45489543f2b2b680c2d03dd9a797d27",
+     "scalars": "4267b6ff44f3979a9d95faaf61be22b1cd57f57f8fdc6a9be53c2c567bbed4d5",
+     "staff": "3b76e03ab27a33d487b448413a957065cb75e0ed3986ba18c36b1fa739a31294",
+     "support_requests": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "zone_edges": "3b27b26d7eb90c53375a989fd2a869b1d31e97a6e582f03b207b7c56e04c2cc1",
+     "zones": "47cb31f8e17f77165b870453c259e1a2aa30a3bc8919883c0fff948997109816"
+    },
+    "end_digests": {
+     "active_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "agents": "fb22495e3da8adb0af47d804b2a110e131a10d98eb1adb570af7a4822457bf58",
+     "event_log": "2705e1813f6b033ad86af27d17335f5a143136fce0d9531e8e7596627b3bd908",
+     "event_queue": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "facilities": "f5c7bdce2d5cfd1f4c7322f2f1a606bc40cbb039cdac2b015f0203c6cf0aa6e8",
+     "id_counters": "62d3dc888d1da1bc46da0601e5257f41a8f7c51767db3b49205736864e25957e",
+     "metric_state": "9ce1d752a812e8ee7b2c3cbfb463094c727029da1a03d21449dfcfb5611bb03d",
+     "model_configs": "f27cb6beef1ed053d2e781562c61d27d86dedb91a7106a41a4497bc92a783b07",
+     "model_state": "e725f1b92d5f687be74c8a2004388e3b2960a111618fcad96d19b6383c42cf42",
+     "resources": "c9529f638e209585a760e8b6b857c6ac7e40bd0489739317ab6a1267d38c2c0b",
+     "scalars": "b5fc612cbb82f16e3c12c0d4a39249731e798f9a866ec95bbda1f0d3f8fbeb19",
+     "staff": "3b76e03ab27a33d487b448413a957065cb75e0ed3986ba18c36b1fa739a31294",
+     "support_requests": "177b26995de4b65d6f9c92b3788e8ba694ec1a0187d8fab6c563f3bc55b4c382",
+     "zone_edges": "3b27b26d7eb90c53375a989fd2a869b1d31e97a6e582f03b207b7c56e04c2cc1",
+     "zones": "47cb31f8e17f77165b870453c259e1a2aa30a3bc8919883c0fff948997109816"
+    }
+   },
    "world": "generated"
   },
   {
@@ -87,6 +132,52 @@
     "support_mode": "native"
    },
    "program_text": "{\"assumptions\":[{\"assumption_id\":\"a1\",\"description\":\"仮定\",\"source_id\":\"S1\",\"units\":\"minute\",\"value\":1.0}],\"compiler_provenance\":{\"compiler_kind\":\"offline_rule\",\"compiler_version\":\"h06-offline-v1\"},\"effects\":[{\"effect_id\":\"effect-1-facility_outage\",\"end_minute\":90,\"guard\":null,\"op\":\"facility_outage\",\"parameters\":{\"units\":1},\"policy_dependencies\":[\"facility_capacity\"],\"reversible\":true,\"source_id\":\"offline-parser-h06\",\"start_minute\":30,\"target_selector\":{\"kind\":\"facility\",\"target_id\":\"toilet_01\"},\"units\":\"facility_unit\"}],\"narrative\":\"Offline parser proposal; validate the selected mechanism and target before approval.\",\"program_id\":\"nl-h06-fixture\",\"schema_version\":1,\"simulation_start_minute\":30,\"source_text\":\"Day 1 02:00 toilet_01 outage\",\"support_mode\":\"native\"}",
+   "scheduled": {
+    "command": {
+     "command": "effect_program",
+     "event_ids": [
+      "effect-event-4",
+      "effect-event-5"
+     ],
+     "minute": 0,
+     "program_hash": "e5f57548808cf8b3cdc32dc8d066818d282efde9ba186b72fcd34cb89415c1d0",
+     "program_id": "nl-h06-fixture"
+    },
+    "digests": {
+     "active_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "agents": "ccc73fc169d2c88dffa8d94ae9ed55b7d57dcb22969f55c1992083f833b5cdfa",
+     "event_log": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "event_queue": "c1561f8f2ff824627a8b67922125694c81b8a9e7df76e7970f6a1ee819f4cd09",
+     "facilities": "0c810593e282486ee5c03ceed21f762ee874789b1e9ee2970a564fd57f73d32b",
+     "id_counters": "9d8cfca6e92786c0f6d76678aeddbb68eca9fba1d8b8eb2d358baf5223061057",
+     "metric_state": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+     "model_configs": "f27cb6beef1ed053d2e781562c61d27d86dedb91a7106a41a4497bc92a783b07",
+     "model_state": "a0ecc118a6a9fdad763cbd17e69538b98a3b011e1453e8260b4b72e52b5f179b",
+     "resources": "9c45f0ad03933191a56d7c7b41d81086c45489543f2b2b680c2d03dd9a797d27",
+     "scalars": "4267b6ff44f3979a9d95faaf61be22b1cd57f57f8fdc6a9be53c2c567bbed4d5",
+     "staff": "3b76e03ab27a33d487b448413a957065cb75e0ed3986ba18c36b1fa739a31294",
+     "support_requests": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "zone_edges": "3b27b26d7eb90c53375a989fd2a869b1d31e97a6e582f03b207b7c56e04c2cc1",
+     "zones": "47cb31f8e17f77165b870453c259e1a2aa30a3bc8919883c0fff948997109816"
+    },
+    "end_digests": {
+     "active_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "agents": "fb22495e3da8adb0af47d804b2a110e131a10d98eb1adb570af7a4822457bf58",
+     "event_log": "cd307c30ceb0b5fbef729634dc4d42f8c04bd11464b1dcfa4f2af006cb848933",
+     "event_queue": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "facilities": "0c810593e282486ee5c03ceed21f762ee874789b1e9ee2970a564fd57f73d32b",
+     "id_counters": "ddce8baff0684fc370912c959d96669cb27182c2129b34cc17b9cf2019c8af89",
+     "metric_state": "9ce1d752a812e8ee7b2c3cbfb463094c727029da1a03d21449dfcfb5611bb03d",
+     "model_configs": "f27cb6beef1ed053d2e781562c61d27d86dedb91a7106a41a4497bc92a783b07",
+     "model_state": "bf22425c3ec273043629ca90baacfaa8da3c37b025bd28d90e2842f7fe62e19d",
+     "resources": "c9529f638e209585a760e8b6b857c6ac7e40bd0489739317ab6a1267d38c2c0b",
+     "scalars": "b5fc612cbb82f16e3c12c0d4a39249731e798f9a866ec95bbda1f0d3f8fbeb19",
+     "staff": "3b76e03ab27a33d487b448413a957065cb75e0ed3986ba18c36b1fa739a31294",
+     "support_requests": "114fc30ad065c5053a64bc74b6387802b24842e209f84cbc7b8908dd739b748a",
+     "zone_edges": "3b27b26d7eb90c53375a989fd2a869b1d31e97a6e582f03b207b7c56e04c2cc1",
+     "zones": "47cb31f8e17f77165b870453c259e1a2aa30a3bc8919883c0fff948997109816"
+    }
+   },
    "world": "generated"
   },
   {
@@ -224,6 +315,54 @@
     "support_mode": "native"
    },
    "program_text": "{\"compiler_provenance\":{\"compiler_kind\":\"offline_rule\",\"compiler_version\":\"h06-offline-v1\"},\"effects\":[{\"effect_id\":\"effect-1-facility_outage\",\"end_minute\":100,\"op\":\"facility_outage\",\"parameters\":{\"units\":1},\"policy_dependencies\":[\"facility_capacity\"],\"source_id\":\"offline-parser-h06\",\"start_minute\":10,\"target_selector\":{\"kind\":\"facility\",\"target_id\":\"toilet_01\"},\"units\":\"facility_unit\"},{\"effect_id\":\"effect-2-facility_outage\",\"end_minute\":120,\"op\":\"facility_outage\",\"parameters\":{\"units\":1},\"policy_dependencies\":[\"facility_capacity\"],\"source_id\":\"offline-parser-h06\",\"start_minute\":50,\"target_selector\":{\"kind\":\"facility\",\"target_id\":\"toilet_01\"},\"units\":\"facility_unit\"}],\"narrative\":\"Offline parser proposal; validate the selected mechanism and target before approval.\",\"program_id\":\"nl-h06-fixture\",\"simulation_start_minute\":10,\"source_text\":\"Day 1 02:00 toilet_01 outage\",\"support_mode\":\"native\"}",
+   "scheduled": {
+    "command": {
+     "command": "effect_program",
+     "event_ids": [
+      "effect-event-4",
+      "effect-event-5",
+      "effect-event-6",
+      "effect-event-7"
+     ],
+     "minute": 0,
+     "program_hash": "b391f6c62aaf6fd4b17dd345932f0e6a4cb5a5525498f73f580f73f2c9e82ee7",
+     "program_id": "nl-h06-fixture"
+    },
+    "digests": {
+     "active_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "agents": "ccc73fc169d2c88dffa8d94ae9ed55b7d57dcb22969f55c1992083f833b5cdfa",
+     "event_log": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "event_queue": "7d78c8aeb79979d07fe1f20cdd7ae7bf7ce849d4907c3afa905f6363a15f6fe2",
+     "facilities": "0c810593e282486ee5c03ceed21f762ee874789b1e9ee2970a564fd57f73d32b",
+     "id_counters": "a3d47839b118901dd60247d0300a04a354728117ad62e092551622c2780fee1a",
+     "metric_state": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+     "model_configs": "f27cb6beef1ed053d2e781562c61d27d86dedb91a7106a41a4497bc92a783b07",
+     "model_state": "a709afe9511ba6f90dffe60b45f00d3c19d21e5bc4f323145fe13885f219d1ee",
+     "resources": "9c45f0ad03933191a56d7c7b41d81086c45489543f2b2b680c2d03dd9a797d27",
+     "scalars": "4267b6ff44f3979a9d95faaf61be22b1cd57f57f8fdc6a9be53c2c567bbed4d5",
+     "staff": "3b76e03ab27a33d487b448413a957065cb75e0ed3986ba18c36b1fa739a31294",
+     "support_requests": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "zone_edges": "3b27b26d7eb90c53375a989fd2a869b1d31e97a6e582f03b207b7c56e04c2cc1",
+     "zones": "47cb31f8e17f77165b870453c259e1a2aa30a3bc8919883c0fff948997109816"
+    },
+    "end_digests": {
+     "active_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "agents": "fb22495e3da8adb0af47d804b2a110e131a10d98eb1adb570af7a4822457bf58",
+     "event_log": "61992d2b704f7bd4cda2686b61ba0f9410f1045006ee8736144cf5cf06fd2de5",
+     "event_queue": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "facilities": "0c810593e282486ee5c03ceed21f762ee874789b1e9ee2970a564fd57f73d32b",
+     "id_counters": "f7afbbec5496dcddb927311646332cea97cff8bb3e1a180838d3a67eb2e1f09b",
+     "metric_state": "9ce1d752a812e8ee7b2c3cbfb463094c727029da1a03d21449dfcfb5611bb03d",
+     "model_configs": "f27cb6beef1ed053d2e781562c61d27d86dedb91a7106a41a4497bc92a783b07",
+     "model_state": "e305b57877bf2bf0cd0c10f2f83d3e8744aba41e019654d69faf6c1de05919e7",
+     "resources": "c9529f638e209585a760e8b6b857c6ac7e40bd0489739317ab6a1267d38c2c0b",
+     "scalars": "b5fc612cbb82f16e3c12c0d4a39249731e798f9a866ec95bbda1f0d3f8fbeb19",
+     "staff": "3b76e03ab27a33d487b448413a957065cb75e0ed3986ba18c36b1fa739a31294",
+     "support_requests": "cd41ff5d54ee7ce8730fb4ba84a38d486a75c2c9ae0c973597f6b314fa39ce54",
+     "zone_edges": "3b27b26d7eb90c53375a989fd2a869b1d31e97a6e582f03b207b7c56e04c2cc1",
+     "zones": "47cb31f8e17f77165b870453c259e1a2aa30a3bc8919883c0fff948997109816"
+    }
+   },
    "world": "generated"
   },
   {
@@ -262,6 +401,51 @@
     "support_mode": "native"
    },
    "program_text": "{\"compiler_provenance\":{\"compiler_kind\":\"offline_rule\",\"compiler_version\":\"h06-offline-v1\"},\"effects\":[{\"effect_id\":\"effect-1-add_toilet\",\"op\":\"add_toilet\",\"parameters\":{\"count\":3},\"policy_dependencies\":[\"facility_capacity\"],\"source_id\":\"offline-parser-h06\",\"start_minute\":30,\"target_selector\":{\"kind\":\"zone\",\"target_id\":\"toilet\"},\"units\":\"toilet_stall\"}],\"narrative\":\"Offline parser proposal; validate the selected mechanism and target before approval.\",\"program_id\":\"nl-h06-fixture\",\"simulation_start_minute\":30,\"source_text\":\"Day 1 02:00 toilet_01 outage\",\"support_mode\":\"native\"}",
+   "scheduled": {
+    "command": {
+     "command": "effect_program",
+     "event_ids": [
+      "effect-event-4"
+     ],
+     "minute": 0,
+     "program_hash": "06c21158cbdb34904a7d83861306abf01983f180eed11d2b3f06c30ef1ed5073",
+     "program_id": "nl-h06-fixture"
+    },
+    "digests": {
+     "active_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "agents": "ccc73fc169d2c88dffa8d94ae9ed55b7d57dcb22969f55c1992083f833b5cdfa",
+     "event_log": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "event_queue": "328c09e42c903719bed899d4a5c9aeee88c25fec623c376646d6f6ac7e391fe1",
+     "facilities": "0c810593e282486ee5c03ceed21f762ee874789b1e9ee2970a564fd57f73d32b",
+     "id_counters": "a1294b75cc0f288df167bf0cb8f6fd555933fdbb8ebec103a0a0575343a32c18",
+     "metric_state": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+     "model_configs": "f27cb6beef1ed053d2e781562c61d27d86dedb91a7106a41a4497bc92a783b07",
+     "model_state": "041982dc77facec0e2a823442fcbe888ec388844500726d60973ab4fd30b3c63",
+     "resources": "9c45f0ad03933191a56d7c7b41d81086c45489543f2b2b680c2d03dd9a797d27",
+     "scalars": "4267b6ff44f3979a9d95faaf61be22b1cd57f57f8fdc6a9be53c2c567bbed4d5",
+     "staff": "3b76e03ab27a33d487b448413a957065cb75e0ed3986ba18c36b1fa739a31294",
+     "support_requests": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "zone_edges": "3b27b26d7eb90c53375a989fd2a869b1d31e97a6e582f03b207b7c56e04c2cc1",
+     "zones": "47cb31f8e17f77165b870453c259e1a2aa30a3bc8919883c0fff948997109816"
+    },
+    "end_digests": {
+     "active_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "agents": "27f802dff7ff14ace9be1a121847080c9bf94b3dd293fc6089d661ab954b7f18",
+     "event_log": "63bea01e303bb753564e18c64f81313282707fc5d24db0650d19dd8acd4572e0",
+     "event_queue": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "facilities": "5f07ef5f1c3ceaef12361c58631503e0ba438bcf46346f9a49adf1cadcdb1139",
+     "id_counters": "4611b4a16321200940b81f24447d5090dae29f3f28c5fa6d3997c6ae5918a77b",
+     "metric_state": "433c836e0f0f79a66754afee552d9f4ad84c823b6a5f92d6d3661bf13596215e",
+     "model_configs": "f27cb6beef1ed053d2e781562c61d27d86dedb91a7106a41a4497bc92a783b07",
+     "model_state": "77102059ef4969df8a0f539be24e2b2a9e5eb4bb925e7d51faf8b96277724e09",
+     "resources": "c9529f638e209585a760e8b6b857c6ac7e40bd0489739317ab6a1267d38c2c0b",
+     "scalars": "b5fc612cbb82f16e3c12c0d4a39249731e798f9a866ec95bbda1f0d3f8fbeb19",
+     "staff": "3b76e03ab27a33d487b448413a957065cb75e0ed3986ba18c36b1fa739a31294",
+     "support_requests": "46eda525987e5495df4b7ed5038fd285b56b1730c9946a2414a63eb7c3319275",
+     "zone_edges": "3b27b26d7eb90c53375a989fd2a869b1d31e97a6e582f03b207b7c56e04c2cc1",
+     "zones": "47cb31f8e17f77165b870453c259e1a2aa30a3bc8919883c0fff948997109816"
+    }
+   },
    "world": "generated"
   },
   {
@@ -438,6 +622,52 @@
     "support_mode": "native"
    },
    "program_text": "{\"compiler_provenance\":{\"compiler_kind\":\"offline_rule\",\"compiler_version\":\"h06-offline-v1\"},\"effects\":[{\"effect_id\":\"effect-1-add_toilet\",\"op\":\"add_toilet\",\"parameters\":{\"count\":2},\"policy_dependencies\":[\"facility_capacity\"],\"source_id\":\"offline-parser-h06\",\"start_minute\":30,\"target_selector\":{\"kind\":\"zone\",\"target_id\":\"sleeping\"},\"units\":\"toilet_stall\"},{\"effect_id\":\"effect-2-add_toilet\",\"op\":\"add_toilet\",\"parameters\":{\"count\":2},\"policy_dependencies\":[\"facility_capacity\"],\"source_id\":\"offline-parser-h06\",\"start_minute\":40,\"target_selector\":{\"kind\":\"zone\",\"target_id\":\"corridor\"},\"units\":\"toilet_stall\"}],\"narrative\":\"Offline parser proposal; validate the selected mechanism and target before approval.\",\"program_id\":\"nl-h06-fixture\",\"simulation_start_minute\":30,\"source_text\":\"Day 1 02:00 toilet_01 outage\",\"support_mode\":\"native\"}",
+   "scheduled": {
+    "command": {
+     "command": "effect_program",
+     "event_ids": [
+      "effect-event-12",
+      "effect-event-13"
+     ],
+     "minute": 0,
+     "program_hash": "43872780b32fcd24d01536505c4e20e51a5432617f17aaba5ad4ce37e819d610",
+     "program_id": "nl-h06-fixture"
+    },
+    "digests": {
+     "active_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "agents": "0d27a8dd0dfbd15206372e62a907bd7c8c1f63d8dcce0bb0086d0e34bff84ac8",
+     "event_log": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "event_queue": "e0412bf49d85e1272a293a13a2d7453121aa7c848c1ae9869648438b56e15b5b",
+     "facilities": "702e48e6caa0f2fe19a59d087cabd19d3bfecc7ec066053f359202579e000b62",
+     "id_counters": "972fac80b27ec871531fbb8593bf9d0b213e58d5d702865578e6485ad2d02ddd",
+     "metric_state": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+     "model_configs": "22bbf27a11bac8463208075da28dc088e76db3bbdd9948829d963f7a7306819f",
+     "model_state": "d43e82ebd5791eb85fff798518a3867fc8ff73dbd80ca9e2550d5a1dddfb1e41",
+     "resources": "1f03cd3fc4c3812cec9715ffe558d8c0e1326e6c8abd11f9b5889d46a4db71f7",
+     "scalars": "5fb88b491336e00382ff5bc1921f6366e537cfda4eaa24536bdd29ea5bcf36e1",
+     "staff": "8f2812ddfb45f153ed9f9f8ee11ecd6dcc32e33b05008a185cd08bc52134a81c",
+     "support_requests": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "zone_edges": "3b27b26d7eb90c53375a989fd2a869b1d31e97a6e582f03b207b7c56e04c2cc1",
+     "zones": "f9cf83cd6c9ebe8110e0ec7f16e1e815592b8677851e1102be03c80cd0c38857"
+    },
+    "end_digests": {
+     "active_tasks": "d75b78ef08de68c5e03131821e26f9dc976bbcea87fa0fa4e60b2acc3d54883f",
+     "agents": "1ebb8ab5f738bcae8c2e8f99804d9c1d1136603c8b12b5171c289d507c3af609",
+     "event_log": "5e0dd9a61597d34452bd90d626a075ba0a11f24dead4a4596c0c80279ee57271",
+     "event_queue": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "facilities": "b67fd3ad69f3054d353ff70523442f58b9ee9695097b83ba6884756f659d4d16",
+     "id_counters": "4bddc3aeef7c3682770d85c06247714efbf4b71171b843aae233936789051ada",
+     "metric_state": "058b52e39173b71d51c48803077cbac7a46b4020af663dfd7086a262215ac7ba",
+     "model_configs": "22bbf27a11bac8463208075da28dc088e76db3bbdd9948829d963f7a7306819f",
+     "model_state": "7c3ef658cd4eca0def96540091fd0e530d6c00bef68eda701a0ea03a529d130b",
+     "resources": "ee9732eda67b04855e986dd6253bab27fd08f439cde753e5a5506f3fc63b1b20",
+     "scalars": "b70aa8a7e4579e5cf1581b537c0c0a6287f6bc4911780ab790d4026cf4b45c6c",
+     "staff": "8f2812ddfb45f153ed9f9f8ee11ecd6dcc32e33b05008a185cd08bc52134a81c",
+     "support_requests": "42bab353f3d0c45cc5fa46ae8429599114ba8abeb7af4fc0874eee0009c2431b",
+     "zone_edges": "3b27b26d7eb90c53375a989fd2a869b1d31e97a6e582f03b207b7c56e04c2cc1",
+     "zones": "f9cf83cd6c9ebe8110e0ec7f16e1e815592b8677851e1102be03c80cd0c38857"
+    }
+   },
    "world": "operations"
   },
   {
@@ -1353,6 +1583,51 @@
     "support_mode": "native"
    },
    "program_text": "{\"compiler_provenance\":{\"compiler_kind\":\"offline_rule\",\"compiler_version\":\"h06-offline-v1\"},\"effects\":[{\"effect_id\":\"effect-1-add_staff\",\"op\":\"add_staff\",\"parameters\":{\"count\":2},\"policy_dependencies\":[\"staff_operations\"],\"source_id\":\"offline-parser-h06\",\"start_minute\":20,\"target_selector\":{\"kind\":\"zone\",\"target_id\":\"sleeping\"},\"units\":\"staff_member\"}],\"narrative\":\"Offline parser proposal; validate the selected mechanism and target before approval.\",\"program_id\":\"nl-h06-fixture\",\"simulation_start_minute\":20,\"source_text\":\"Day 1 02:00 toilet_01 outage\",\"support_mode\":\"native\"}",
+   "scheduled": {
+    "command": {
+     "command": "effect_program",
+     "event_ids": [
+      "effect-event-126"
+     ],
+     "minute": 10,
+     "program_hash": "4e045cd3299738840dcfe92ebba6c1458d5b87987b7325b996f82c027c23d9ad",
+     "program_id": "nl-h06-fixture"
+    },
+    "digests": {
+     "active_tasks": "1550e6baed931cd3127952249057780cbc9fdb46aa0c90a87e18ef8ae0a082b4",
+     "agents": "d3e9f683e88c8aaf9dba8385dda907e0f6b9f4ffeda129595d4fc0b5f5334fc2",
+     "event_log": "6fc415d051761af38db70c3a5474f21a6efb5b559f7f39db164f7423ae1d306b",
+     "event_queue": "1501d89ef8cba1368456fd1a738c0e9d5a72420e80fe84d6a804a04e1a67eaba",
+     "facilities": "7aeaf7c3943466f8618ab823b35b8522a8970900d2c8b6bfb4f7fb3383fa5c6c",
+     "id_counters": "877525ff222a3f420ce3738a66b2985812a01560c0a55ae8edfa24d134f0bdd3",
+     "metric_state": "f5de7997d13d9753e32e06eea8c9c753de913fd208a9de0e12bb354d7fcaea5d",
+     "model_configs": "22bbf27a11bac8463208075da28dc088e76db3bbdd9948829d963f7a7306819f",
+     "model_state": "4aa2f3f1d920a35f8d8c270bf465afc476d495de18de1af57c76b339c7a15984",
+     "resources": "1f03cd3fc4c3812cec9715ffe558d8c0e1326e6c8abd11f9b5889d46a4db71f7",
+     "scalars": "1ea4169888badd8c3a704ebd5fad0209bd00e5878dd89f9ac6e14b651845cd55",
+     "staff": "b51fd110741dbc258897b5ca247cbe5fc4053f6e09e85bfccdad15320d4c37c7",
+     "support_requests": "89d51811d0580770e7ad52bd0ddea8427b058720966bfb735440e54780e0ada7",
+     "zone_edges": "3b27b26d7eb90c53375a989fd2a869b1d31e97a6e582f03b207b7c56e04c2cc1",
+     "zones": "f9cf83cd6c9ebe8110e0ec7f16e1e815592b8677851e1102be03c80cd0c38857"
+    },
+    "end_digests": {
+     "active_tasks": "d1f849fb0aabc6befb79cd17538292487dcd48441d440f023ec68dbb8e48b1f8",
+     "agents": "ac7bab2462ede24f46fe4f6baf18916a6d569ab3dd1ee88d125194918a0b502e",
+     "event_log": "8322d4a61c3d1c2ab1259ef8a42bf29797db32e21bbdeddf45cb3a9c7692e22b",
+     "event_queue": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "facilities": "9e9952fe6055a7fb970fd0856512cfc6df6be4b32d5a84187d3452c7860e4756",
+     "id_counters": "889a2f1c9a1b25a2e493f4e39ba814de9b0ff9df93dc25d9da23df304438dcf0",
+     "metric_state": "97e93c14ac3e67592b217130c931117be29e85d0fdf33cdfe86ab805fe8eea3b",
+     "model_configs": "22bbf27a11bac8463208075da28dc088e76db3bbdd9948829d963f7a7306819f",
+     "model_state": "a4f8dfa8407c4e6adedc963b2d357ced1cf5d754f8a6572d362f3abd4bbc6394",
+     "resources": "ee9732eda67b04855e986dd6253bab27fd08f439cde753e5a5506f3fc63b1b20",
+     "scalars": "b70aa8a7e4579e5cf1581b537c0c0a6287f6bc4911780ab790d4026cf4b45c6c",
+     "staff": "9e8e5079c9f12d334a1c4375762738ab6bf555aca11ef6ef947543beaa0a42e3",
+     "support_requests": "75ec6c139d38dc454bd2d16950866d7eea8484f5876992c41abac7faf919f189",
+     "zone_edges": "3b27b26d7eb90c53375a989fd2a869b1d31e97a6e582f03b207b7c56e04c2cc1",
+     "zones": "f9cf83cd6c9ebe8110e0ec7f16e1e815592b8677851e1102be03c80cd0c38857"
+    }
+   },
    "world": "operations"
   },
   {
@@ -1512,6 +1787,52 @@
     "support_mode": "native"
    },
    "program_text": "{\"compiler_provenance\":{\"compiler_kind\":\"offline_rule\",\"compiler_version\":\"h06-offline-v1\"},\"effects\":[{\"effect_id\":\"effect-1-water_outage\",\"end_minute\":80,\"op\":\"water_outage\",\"parameters\":{},\"policy_dependencies\":[\"operational_events_v1\",\"resource_service_v1\"],\"source_id\":\"offline-parser-h06\",\"start_minute\":20,\"target_selector\":{\"kind\":\"facility\",\"target_id\":\"water_station_02\"},\"units\":\"water_supply\"}],\"narrative\":\"Offline parser proposal; validate the selected mechanism and target before approval.\",\"program_id\":\"nl-h06-fixture\",\"simulation_start_minute\":20,\"source_text\":\"Day 1 02:00 toilet_01 outage\",\"support_mode\":\"native\"}",
+   "scheduled": {
+    "command": {
+     "command": "effect_program",
+     "event_ids": [
+      "effect-event-126",
+      "effect-event-127"
+     ],
+     "minute": 10,
+     "program_hash": "7be553a776fd9381dea71a193d2e1a4b24818304149e8fc6430cd339837c782c",
+     "program_id": "nl-h06-fixture"
+    },
+    "digests": {
+     "active_tasks": "1550e6baed931cd3127952249057780cbc9fdb46aa0c90a87e18ef8ae0a082b4",
+     "agents": "d3e9f683e88c8aaf9dba8385dda907e0f6b9f4ffeda129595d4fc0b5f5334fc2",
+     "event_log": "6fc415d051761af38db70c3a5474f21a6efb5b559f7f39db164f7423ae1d306b",
+     "event_queue": "28bc75be09d847429a522071133a0386150a66448bff16ba21d41555e8923b6c",
+     "facilities": "7aeaf7c3943466f8618ab823b35b8522a8970900d2c8b6bfb4f7fb3383fa5c6c",
+     "id_counters": "a06aa53f0675fda77ac455f9320b65908d5f20fd24959c1f78664fdaa1158f02",
+     "metric_state": "f5de7997d13d9753e32e06eea8c9c753de913fd208a9de0e12bb354d7fcaea5d",
+     "model_configs": "22bbf27a11bac8463208075da28dc088e76db3bbdd9948829d963f7a7306819f",
+     "model_state": "f03803baf7192b8536d8183406d253fffed2123cf6588e02763da944e636ecec",
+     "resources": "1f03cd3fc4c3812cec9715ffe558d8c0e1326e6c8abd11f9b5889d46a4db71f7",
+     "scalars": "1ea4169888badd8c3a704ebd5fad0209bd00e5878dd89f9ac6e14b651845cd55",
+     "staff": "b51fd110741dbc258897b5ca247cbe5fc4053f6e09e85bfccdad15320d4c37c7",
+     "support_requests": "89d51811d0580770e7ad52bd0ddea8427b058720966bfb735440e54780e0ada7",
+     "zone_edges": "3b27b26d7eb90c53375a989fd2a869b1d31e97a6e582f03b207b7c56e04c2cc1",
+     "zones": "f9cf83cd6c9ebe8110e0ec7f16e1e815592b8677851e1102be03c80cd0c38857"
+    },
+    "end_digests": {
+     "active_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "agents": "24ebab60cc5cb6626fe0237182bf1e76710896cce63237535cb850d4224a7c5e",
+     "event_log": "d078b32c2f718a351b2d3ee5ef48b5849714b74a3f18d76eecb97fadba455898",
+     "event_queue": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "facilities": "702e48e6caa0f2fe19a59d087cabd19d3bfecc7ec066053f359202579e000b62",
+     "id_counters": "61cd6d986239f2915674cf62a8711e5debd0686772dfb83641d0decf11715200",
+     "metric_state": "d4eea2e59506784defb9926f63f26f8286e56c8fe8da87cab71813fc90fac75d",
+     "model_configs": "22bbf27a11bac8463208075da28dc088e76db3bbdd9948829d963f7a7306819f",
+     "model_state": "d9703567049a6c34f39bcd58cbce22b3fc31d54257f7ebe000861fb23cd31c6e",
+     "resources": "c21c119dc63121daa7f0da795b36c6242b33f20a2fd7819855a460821a2a6fc0",
+     "scalars": "b70aa8a7e4579e5cf1581b537c0c0a6287f6bc4911780ab790d4026cf4b45c6c",
+     "staff": "8f2812ddfb45f153ed9f9f8ee11ecd6dcc32e33b05008a185cd08bc52134a81c",
+     "support_requests": "6695e6f6a650c6ff8a2aa67246a3ef6e022a32de4af9ddd30af66f921bbf9a68",
+     "zone_edges": "3b27b26d7eb90c53375a989fd2a869b1d31e97a6e582f03b207b7c56e04c2cc1",
+     "zones": "f9cf83cd6c9ebe8110e0ec7f16e1e815592b8677851e1102be03c80cd0c38857"
+    }
+   },
    "world": "operations"
   },
   {
@@ -1629,6 +1950,52 @@
     "support_mode": "native"
    },
    "program_text": "{\"compiler_provenance\":{\"compiler_kind\":\"offline_rule\",\"compiler_version\":\"h06-offline-v1\"},\"effects\":[{\"effect_id\":\"effect-1-water_outage\",\"end_minute\":80,\"op\":\"water_outage\",\"parameters\":{},\"policy_dependencies\":[\"operational_events_v1\",\"resource_service_v1\"],\"source_id\":\"offline-parser-h06\",\"start_minute\":20,\"target_selector\":{\"kind\":\"zone\",\"target_id\":\"food\"},\"units\":\"water_supply\"}],\"narrative\":\"Offline parser proposal; validate the selected mechanism and target before approval.\",\"program_id\":\"nl-h06-fixture\",\"simulation_start_minute\":20,\"source_text\":\"Day 1 02:00 toilet_01 outage\",\"support_mode\":\"native\"}",
+   "scheduled": {
+    "command": {
+     "command": "effect_program",
+     "event_ids": [
+      "effect-event-126",
+      "effect-event-127"
+     ],
+     "minute": 10,
+     "program_hash": "ada69122479e2e26d4a4ff5e6b1c9c40353008201579aee641c696abd95ea2bb",
+     "program_id": "nl-h06-fixture"
+    },
+    "digests": {
+     "active_tasks": "1550e6baed931cd3127952249057780cbc9fdb46aa0c90a87e18ef8ae0a082b4",
+     "agents": "d3e9f683e88c8aaf9dba8385dda907e0f6b9f4ffeda129595d4fc0b5f5334fc2",
+     "event_log": "6fc415d051761af38db70c3a5474f21a6efb5b559f7f39db164f7423ae1d306b",
+     "event_queue": "9e54cd7594b70896e149441e2463a2ea6480c15726135805722e00bc53496812",
+     "facilities": "7aeaf7c3943466f8618ab823b35b8522a8970900d2c8b6bfb4f7fb3383fa5c6c",
+     "id_counters": "a06aa53f0675fda77ac455f9320b65908d5f20fd24959c1f78664fdaa1158f02",
+     "metric_state": "f5de7997d13d9753e32e06eea8c9c753de913fd208a9de0e12bb354d7fcaea5d",
+     "model_configs": "22bbf27a11bac8463208075da28dc088e76db3bbdd9948829d963f7a7306819f",
+     "model_state": "1f06b4e698394f50d66db95ca28092e6e15e40872fc2d9b492c3157207cc9fe7",
+     "resources": "1f03cd3fc4c3812cec9715ffe558d8c0e1326e6c8abd11f9b5889d46a4db71f7",
+     "scalars": "1ea4169888badd8c3a704ebd5fad0209bd00e5878dd89f9ac6e14b651845cd55",
+     "staff": "b51fd110741dbc258897b5ca247cbe5fc4053f6e09e85bfccdad15320d4c37c7",
+     "support_requests": "89d51811d0580770e7ad52bd0ddea8427b058720966bfb735440e54780e0ada7",
+     "zone_edges": "3b27b26d7eb90c53375a989fd2a869b1d31e97a6e582f03b207b7c56e04c2cc1",
+     "zones": "f9cf83cd6c9ebe8110e0ec7f16e1e815592b8677851e1102be03c80cd0c38857"
+    },
+    "end_digests": {
+     "active_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "agents": "24ebab60cc5cb6626fe0237182bf1e76710896cce63237535cb850d4224a7c5e",
+     "event_log": "7ab612e5b1344e1bdf9f1269cb4954379f8d895eaf5172497dff7e11d9d074b0",
+     "event_queue": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "facilities": "702e48e6caa0f2fe19a59d087cabd19d3bfecc7ec066053f359202579e000b62",
+     "id_counters": "61cd6d986239f2915674cf62a8711e5debd0686772dfb83641d0decf11715200",
+     "metric_state": "d4eea2e59506784defb9926f63f26f8286e56c8fe8da87cab71813fc90fac75d",
+     "model_configs": "22bbf27a11bac8463208075da28dc088e76db3bbdd9948829d963f7a7306819f",
+     "model_state": "77ab586f6131cfd127a50f71bb873dec24f679cdf54f60bd2e8ac75baf0871c7",
+     "resources": "c21c119dc63121daa7f0da795b36c6242b33f20a2fd7819855a460821a2a6fc0",
+     "scalars": "b70aa8a7e4579e5cf1581b537c0c0a6287f6bc4911780ab790d4026cf4b45c6c",
+     "staff": "8f2812ddfb45f153ed9f9f8ee11ecd6dcc32e33b05008a185cd08bc52134a81c",
+     "support_requests": "6695e6f6a650c6ff8a2aa67246a3ef6e022a32de4af9ddd30af66f921bbf9a68",
+     "zone_edges": "3b27b26d7eb90c53375a989fd2a869b1d31e97a6e582f03b207b7c56e04c2cc1",
+     "zones": "f9cf83cd6c9ebe8110e0ec7f16e1e815592b8677851e1102be03c80cd0c38857"
+    }
+   },
    "world": "operations"
   },
   {
@@ -1707,6 +2074,51 @@
     "support_mode": "native"
    },
    "program_text": "{\"compiler_provenance\":{\"compiler_kind\":\"offline_rule\",\"compiler_version\":\"h06-offline-v1\"},\"effects\":[{\"effect_id\":\"effect-1-add_evacuees\",\"op\":\"add_evacuees\",\"parameters\":{\"count\":5},\"policy_dependencies\":[\"population_dynamics_v1\"],\"source_id\":\"offline-parser-h06\",\"start_minute\":30,\"target_selector\":{\"kind\":\"zone\",\"target_id\":\"sleeping\"},\"units\":\"evacuee\"}],\"narrative\":\"Offline parser proposal; validate the selected mechanism and target before approval.\",\"program_id\":\"nl-h06-fixture\",\"simulation_start_minute\":30,\"source_text\":\"Day 1 02:00 toilet_01 outage\",\"support_mode\":\"native\"}",
+   "scheduled": {
+    "command": {
+     "command": "effect_program",
+     "event_ids": [
+      "effect-event-126"
+     ],
+     "minute": 10,
+     "program_hash": "6fc7b8e20dadb0aed5420edb416a1f00854785c8cff3f9b58253f866416429d0",
+     "program_id": "nl-h06-fixture"
+    },
+    "digests": {
+     "active_tasks": "1550e6baed931cd3127952249057780cbc9fdb46aa0c90a87e18ef8ae0a082b4",
+     "agents": "d3e9f683e88c8aaf9dba8385dda907e0f6b9f4ffeda129595d4fc0b5f5334fc2",
+     "event_log": "6fc415d051761af38db70c3a5474f21a6efb5b559f7f39db164f7423ae1d306b",
+     "event_queue": "193b408cf5dcc26a50f9ca79967a2573bf2b064a26c99b400d16addd429a4471",
+     "facilities": "7aeaf7c3943466f8618ab823b35b8522a8970900d2c8b6bfb4f7fb3383fa5c6c",
+     "id_counters": "877525ff222a3f420ce3738a66b2985812a01560c0a55ae8edfa24d134f0bdd3",
+     "metric_state": "f5de7997d13d9753e32e06eea8c9c753de913fd208a9de0e12bb354d7fcaea5d",
+     "model_configs": "22bbf27a11bac8463208075da28dc088e76db3bbdd9948829d963f7a7306819f",
+     "model_state": "5de860a03c8d2945264ce1efd1417957720e389fb98a62ec158011fecb031ae1",
+     "resources": "1f03cd3fc4c3812cec9715ffe558d8c0e1326e6c8abd11f9b5889d46a4db71f7",
+     "scalars": "1ea4169888badd8c3a704ebd5fad0209bd00e5878dd89f9ac6e14b651845cd55",
+     "staff": "b51fd110741dbc258897b5ca247cbe5fc4053f6e09e85bfccdad15320d4c37c7",
+     "support_requests": "89d51811d0580770e7ad52bd0ddea8427b058720966bfb735440e54780e0ada7",
+     "zone_edges": "3b27b26d7eb90c53375a989fd2a869b1d31e97a6e582f03b207b7c56e04c2cc1",
+     "zones": "f9cf83cd6c9ebe8110e0ec7f16e1e815592b8677851e1102be03c80cd0c38857"
+    },
+    "end_digests": {
+     "active_tasks": "6513986bc65ffe891c92e3cfa00a0b6cafa7aeb1b4c40dad7da84f175bb7252e",
+     "agents": "d346bbad0f45c849be2aba174d8221e064fbc8d21d9bf811bb328cc39e7faa57",
+     "event_log": "352d789c7b4375d750efb6aa4f209a0b77c0d4c2abfee63c9c14aea5b0ad5e85",
+     "event_queue": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "facilities": "d4bc046b1ec68a9a8d0763cae0d6e18b90fcdfc9b69085a9abe5c266d43c7b65",
+     "id_counters": "56e8c49da496932a1a8f154f2011e4babcbe63e04bf4b56b3d9df8713e464dbb",
+     "metric_state": "05331d57643c138b5963c2507698960fa06ab73398d112797b55da926eb3db01",
+     "model_configs": "22bbf27a11bac8463208075da28dc088e76db3bbdd9948829d963f7a7306819f",
+     "model_state": "ff038a19e163eecb6b26171229e9c4ddab7d9aede3b7c54832e0052b409198b4",
+     "resources": "9596634072a523726590235679e669c0c81c24f711b1a6ed90a20b27580c6dbe",
+     "scalars": "b70aa8a7e4579e5cf1581b537c0c0a6287f6bc4911780ab790d4026cf4b45c6c",
+     "staff": "8f2812ddfb45f153ed9f9f8ee11ecd6dcc32e33b05008a185cd08bc52134a81c",
+     "support_requests": "9203deece6dee2898021373a69eabe76929e0f60a2344b9be69bd92e119b7c6d",
+     "zone_edges": "3b27b26d7eb90c53375a989fd2a869b1d31e97a6e582f03b207b7c56e04c2cc1",
+     "zones": "f9cf83cd6c9ebe8110e0ec7f16e1e815592b8677851e1102be03c80cd0c38857"
+    }
+   },
    "world": "operations"
   },
   {
@@ -2027,6 +2439,51 @@
     "support_mode": "native"
    },
    "program_text": "{\"compiler_provenance\":{\"compiler_kind\":\"offline_rule\",\"compiler_version\":\"h06-offline-v1\"},\"effects\":[{\"effect_id\":\"effect-1-depart_evacuees\",\"op\":\"depart_evacuees\",\"parameters\":{\"count\":3},\"policy_dependencies\":[\"population_dynamics_v1\"],\"source_id\":\"offline-parser-h06\",\"start_minute\":30,\"target_selector\":{\"kind\":\"zone\",\"target_id\":\"sleeping\"},\"units\":\"evacuee\"}],\"narrative\":\"Offline parser proposal; validate the selected mechanism and target before approval.\",\"program_id\":\"nl-h06-fixture\",\"simulation_start_minute\":30,\"source_text\":\"Day 1 02:00 toilet_01 outage\",\"support_mode\":\"native\"}",
+   "scheduled": {
+    "command": {
+     "command": "effect_program",
+     "event_ids": [
+      "effect-event-126"
+     ],
+     "minute": 10,
+     "program_hash": "821ae1cb194855a7503e9cdeda8a105322fb067b60fd0640f3b6497f2cc7038f",
+     "program_id": "nl-h06-fixture"
+    },
+    "digests": {
+     "active_tasks": "1550e6baed931cd3127952249057780cbc9fdb46aa0c90a87e18ef8ae0a082b4",
+     "agents": "d3e9f683e88c8aaf9dba8385dda907e0f6b9f4ffeda129595d4fc0b5f5334fc2",
+     "event_log": "6fc415d051761af38db70c3a5474f21a6efb5b559f7f39db164f7423ae1d306b",
+     "event_queue": "e38819f6bb28bdc866fb02e816610c581558ff83e19a282b4c8b0aaf941ee9aa",
+     "facilities": "7aeaf7c3943466f8618ab823b35b8522a8970900d2c8b6bfb4f7fb3383fa5c6c",
+     "id_counters": "877525ff222a3f420ce3738a66b2985812a01560c0a55ae8edfa24d134f0bdd3",
+     "metric_state": "f5de7997d13d9753e32e06eea8c9c753de913fd208a9de0e12bb354d7fcaea5d",
+     "model_configs": "22bbf27a11bac8463208075da28dc088e76db3bbdd9948829d963f7a7306819f",
+     "model_state": "cce52b9b845c48360a891ab81d3c8478c0d7a850ce6dcaaa85b1e5e54d24f797",
+     "resources": "1f03cd3fc4c3812cec9715ffe558d8c0e1326e6c8abd11f9b5889d46a4db71f7",
+     "scalars": "1ea4169888badd8c3a704ebd5fad0209bd00e5878dd89f9ac6e14b651845cd55",
+     "staff": "b51fd110741dbc258897b5ca247cbe5fc4053f6e09e85bfccdad15320d4c37c7",
+     "support_requests": "89d51811d0580770e7ad52bd0ddea8427b058720966bfb735440e54780e0ada7",
+     "zone_edges": "3b27b26d7eb90c53375a989fd2a869b1d31e97a6e582f03b207b7c56e04c2cc1",
+     "zones": "f9cf83cd6c9ebe8110e0ec7f16e1e815592b8677851e1102be03c80cd0c38857"
+    },
+    "end_digests": {
+     "active_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "agents": "24ebab60cc5cb6626fe0237182bf1e76710896cce63237535cb850d4224a7c5e",
+     "event_log": "df2511f233b404d12d9d423a82062123e67da44ea401ea15d0a278f380583706",
+     "event_queue": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "facilities": "702e48e6caa0f2fe19a59d087cabd19d3bfecc7ec066053f359202579e000b62",
+     "id_counters": "914ed4301dccc79008d2300b237b3603b105398d86f21f73029e9a6bde1d5835",
+     "metric_state": "d4eea2e59506784defb9926f63f26f8286e56c8fe8da87cab71813fc90fac75d",
+     "model_configs": "22bbf27a11bac8463208075da28dc088e76db3bbdd9948829d963f7a7306819f",
+     "model_state": "3d4724e4d293d3c21a01f9e772c975de5e259369690e6a2a67011f7af01f0848",
+     "resources": "c21c119dc63121daa7f0da795b36c6242b33f20a2fd7819855a460821a2a6fc0",
+     "scalars": "b70aa8a7e4579e5cf1581b537c0c0a6287f6bc4911780ab790d4026cf4b45c6c",
+     "staff": "8f2812ddfb45f153ed9f9f8ee11ecd6dcc32e33b05008a185cd08bc52134a81c",
+     "support_requests": "e6022ac93bb771060047e202ef324f0f2e95d2e4778bee70087db2f5f51573ae",
+     "zone_edges": "3b27b26d7eb90c53375a989fd2a869b1d31e97a6e582f03b207b7c56e04c2cc1",
+     "zones": "f9cf83cd6c9ebe8110e0ec7f16e1e815592b8677851e1102be03c80cd0c38857"
+    }
+   },
    "world": "operations"
   },
   {
@@ -2065,6 +2522,51 @@
     "support_mode": "native"
    },
    "program_text": "{\"compiler_provenance\":{\"compiler_kind\":\"offline_rule\",\"compiler_version\":\"h06-offline-v1\"},\"effects\":[{\"effect_id\":\"effect-1-add_toilet\",\"op\":\"add_toilet\",\"parameters\":{\"count\":1},\"policy_dependencies\":[\"facility_capacity\"],\"source_id\":\"offline-parser-h06\",\"start_minute\":30,\"target_selector\":{\"kind\":\"zone\",\"target_id\":\"toilet\"},\"units\":\"toilet_stall\"}],\"narrative\":\"Offline parser proposal; validate the selected mechanism and target before approval.\",\"program_id\":\"nl-h06-fixture\",\"simulation_start_minute\":30,\"source_text\":\"Day 1 02:00 toilet_01 outage\",\"support_mode\":\"native\"}",
+   "scheduled": {
+    "command": {
+     "command": "effect_program",
+     "event_ids": [
+      "effect-event-2"
+     ],
+     "minute": 0,
+     "program_hash": "a2d48640353212529a3d4e367dd51d5cd9c6a3042b4619bb88b145a98aab945a",
+     "program_id": "nl-h06-fixture"
+    },
+    "digests": {
+     "active_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "agents": "020c341748b97ef90951a1b41aab77de1cdbc34555103036f4ddd4921c67832b",
+     "event_log": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "event_queue": "519573c9e875e82c3fe16202bd245e434c8776c6bb0b958360355979bbafc5b4",
+     "facilities": "db5004bcc560243f853d507b4a4efeab93808adf24bbabf4d3997eb31dc4a723",
+     "id_counters": "d3789b33051a698ca8070b17fce72e64e847d2cdbe670bb7651a87855c4f85fe",
+     "metric_state": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+     "model_configs": "22db4320a1feccbadfcccc7d61d6c2796bc89daad73a2744b8a8785d8718ee99",
+     "model_state": "6d5ffef737cd0ea18f61d09f40150c4be3a43f91b103743be75a96bd0bdbe722",
+     "resources": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+     "scalars": "067da303bb606bca9989776de2288b37c0f4a504e9da6844eec45a05faea5e73",
+     "staff": "36b86baab8bef79b77916dea098363d77ac162d090c9254235ade33b7b72ee71",
+     "support_requests": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "zone_edges": "f592860c80278b8f62184504b6640c4815ccef9aaf03797af5f2e4dbd2ee0b68",
+     "zones": "a3c90aead3db2458cd48b2962779308dbf2c2b8a07aa566f908045e7f2ff1f5f"
+    },
+    "end_digests": {
+     "active_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "agents": "fb15dc1cc87e2c7676d1b0cce44be576d1dc896b1f42ffe647d67af47f1b9b60",
+     "event_log": "a4abfaccb4e98c04a034cc597bd5c0c7f0283bac08d814b38a997ad5fb3f3da9",
+     "event_queue": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "facilities": "5ba44630b80b2a7a0532c19558172f9f273a461326d5889edf08552c938751e5",
+     "id_counters": "d0157fa6f342e3786032b8f1cd2b58e5a55e10529d694ef7d4e6be2d57f818f4",
+     "metric_state": "cac4f43ea0bf523512a8f3758080f63c4e36b1dcfaaed1ae1368e37e3e8d4c98",
+     "model_configs": "22db4320a1feccbadfcccc7d61d6c2796bc89daad73a2744b8a8785d8718ee99",
+     "model_state": "6d5ffef737cd0ea18f61d09f40150c4be3a43f91b103743be75a96bd0bdbe722",
+     "resources": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+     "scalars": "ffa3ef383fe2e3a05f97d74bba147a05a159b43d14113b2fea85ceae0d3fe18c",
+     "staff": "36b86baab8bef79b77916dea098363d77ac162d090c9254235ade33b7b72ee71",
+     "support_requests": "d01b7b4b5abbf0d36126ddf1a3cbf41c2634685f8b630d8f235b020170c096ad",
+     "zone_edges": "f592860c80278b8f62184504b6640c4815ccef9aaf03797af5f2e4dbd2ee0b68",
+     "zones": "a3c90aead3db2458cd48b2962779308dbf2c2b8a07aa566f908045e7f2ff1f5f"
+    }
+   },
    "world": "small_replay"
   },
   {

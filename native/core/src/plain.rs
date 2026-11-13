@@ -519,6 +519,32 @@ impl PlainRun {
     /// issues, in Python's order and texts. It changes nothing: the toilets an addition would place
     /// are placed on a copy of the world, on the floor plan of that copy.
     pub fn validate_effect_program(&mut self, program: &crate::program::EffectProgram) -> Result<Vec<String>> {
+        let enabled = self.placement_enabled()?;
+        let host = &mut self.host;
+        let mut plan = |world: &crate::world::World| -> Result<Arc<Geo>> {
+            let overlay = load::overlay(world)?;
+            host.plans.plan(&host.sections, overlay.as_ref())
+        };
+        let mut placement = crate::program::Placement { enabled, plan: &mut plan };
+        self.loaded.cell.with(|world| crate::program::validate(world, program, &mut placement))?
+    }
+
+    /// `schedule_effect_program(world, program)` on the world now, as a fork's
+    /// `BranchRuntime.apply_effect_program` calls it (`program::schedule`, #305): the program's
+    /// record and events are written, all or none, and the receipt says what was scheduled.
+    pub fn apply_effect_program(&mut self, program: &crate::program::EffectProgram) -> Result<crate::program::Receipt> {
+        let enabled = self.placement_enabled()?;
+        let host = &mut self.host;
+        let mut plan = |world: &crate::world::World| -> Result<Arc<Geo>> {
+            let overlay = load::overlay(world)?;
+            host.plans.plan(&host.sections, overlay.as_ref())
+        };
+        let mut placement = crate::program::Placement { enabled, plan: &mut plan };
+        self.loaded.cell.with(|world| crate::program::schedule(world, program, &mut placement))?
+    }
+
+    /// `installed_facility_placement_enabled(world)`.
+    fn placement_enabled(&mut self) -> Result<bool> {
         let holding = crate::rules::kit::holding(&self.loaded.cell, &mut self.host)?;
         let schema = crate::rules::kit::kept_section_value(
             &self.loaded.cell,
@@ -529,14 +555,7 @@ impl PlainRun {
             crate::config::overlay::overlay_schema,
         )?;
         let overlay = holding.held(crate::rules::overlay::OVERLAY_KEY, "the overlay is not held as its row");
-        let enabled = crate::rules::overlay::placement_enabled(&schema, &overlay)?;
-        let host = &mut self.host;
-        let mut plan = |world: &crate::world::World| -> Result<Arc<Geo>> {
-            let overlay = load::overlay(world)?;
-            host.plans.plan(&host.sections, overlay.as_ref())
-        };
-        let mut placement = crate::program::Placement { enabled, plan: &mut plan };
-        self.loaded.cell.with(|world| crate::program::validate(world, program, &mut placement))?
+        crate::rules::overlay::placement_enabled(&schema, &overlay)
     }
 
     /// `world.state_digest()` (`canonical::state_digest`) of the world now. The log's node is kept
