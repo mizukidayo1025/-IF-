@@ -5,10 +5,15 @@ the new UI calls (scenario-preview and scenario-approve of a generated Scenario,
 intervention-preview and intervention-apply), with the structured form the Scenario
 screen sends for 20 people and 0.1 days instead of the 7-day example text, and an
 earlier fork. The 7-day sample itself is built on the judges' VM (docs/vm-deploy.md).
+
+The browser's form of the sample (scripts/build_browser_sample.py, #265) starts from the inputs
+Python writes for it: they are the records and answers the server gives for the same Scenario and
+Run. Its Node half (the WASM Run and the bundle) is checked by native/wasm/tests.
 """
 
 from __future__ import annotations
 
+import hashlib
 import html
 import json
 import runpy
@@ -28,6 +33,7 @@ from sheltersim.web.projects import ProjectAPI
 
 BUILDER = Path(__file__).parents[2] / "scripts" / "build_project_sample.py"
 LANDING = Path(__file__).parents[2] / "deploy" / "vm" / "render_landing.py"
+BROWSER = Path(__file__).parents[2] / "scripts" / "build_browser_sample.py"
 END = 144
 FORK = 60
 
@@ -221,3 +227,58 @@ def test_the_check_command_answers_setup_sh_with_its_first_line_and_status(
     path.unlink()
     assert builder["main"]() == 3
     assert capsys.readouterr().out.startswith("rebuild: no readable summary")
+
+
+def test_the_browser_sample_starts_from_the_records_and_answers_of_the_server(
+    builder: dict[str, Any],
+    generated_request: Callable[..., dict[str, Any]],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#265: the inputs of the browser's bundle are what the server answers for the same text.
+
+    The world at minute 0 is the one a Run of the Scenario ticks from: after some ticks it is the
+    world the Project's route computed.
+    """
+    from support.core_fixtures import run_world
+    from support.core_tick import world_digests
+
+    monkeypatch.setenv("SHELTERSIM_LLM_MODE", "offline")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    request = generated_request(duration_days=FORK / 1440)
+    inputs_dir = tmp_path / "inputs"
+    inputs = runpy.run_path(str(BROWSER))["export_inputs"](inputs_dir, text="", request=request)
+
+    run_id = builder["RUN_ID"]
+    api = ProjectAPI(ProjectStore(tmp_path / "projects"), recover=False)
+    api.workspace.research.research = builder["_no_research"]
+    try:
+        draft, _ = builder["_preview"](api, "", request)
+        body = {"approved": True, "approved_hash": draft["approved_hash"], "run_id": run_id}
+        api.post(["sample", "scenario-approve"], {**body, "preview_id": draft["preview_id"]})
+        project = api.get(["sample"], {})
+        run = api.get(["sample", "runs", run_id], {})
+        evidence = api.get(["sample", "runs", run_id, "evidence"], {})
+        api.post(["sample", "runs", run_id, "resume"], {"branch_id": "main", "target_minute": FORK})
+        api.wait_idle(timeout=120)
+        computed = TimelineStore(api.store, "sample", run_id).seek("main", FORK).world
+    finally:
+        api.close()
+
+    record = ("schema_version", "project_id", "archived")
+    assert inputs["project"] == {key: project[key] for key in record}
+    scenario_bytes = (inputs_dir / "scenario.json").read_bytes()
+    [scenario] = project["scenarios"]
+    assert {**inputs["scenario_record"], "scenario": json.loads(scenario_bytes)} == scenario
+    assert hashlib.sha256(scenario_bytes).hexdigest() == scenario["scenario_hash"]
+    assert inputs["run"] == {key: value for key, value in run.items() if key != "branches"}
+    assert json.loads((inputs_dir / "evidence.json").read_bytes()) == json.loads(
+        json.dumps(evidence)
+    )
+    assert inputs["source"]["agent_count"] == len(scenario["scenario"]["profiles"])
+
+    entry = json.loads((inputs_dir / "export.json").read_bytes())
+    assert entry["world"]["minute_index"] == 0
+    stored = api.store.scenario("sample", scenario["scenario_id"], scenario["scenario_version"])
+    world, _, _ = run_world(stored, FORK)
+    assert world_digests(world) == world_digests(computed)

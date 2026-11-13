@@ -75,6 +75,25 @@ python benchmarks/wasm_trial_measure.py --worlds wasm-trial --pkg wasm-web --sto
 
 `--store`は、計測のページの代わりに保存のページ（`benchmarks/wasm_trial/store.html`）を開きます。世界ごとに1回、WorkerのWASMで進めながらOPFSに残し、読み戻してdigestを確かめ、時間（tick、圧縮、書き込み、読み戻し）、WASMのメモリ、保存の大きさを書きます。
 
+ブラウザーは、Project・Run・Branchの記録を、各Branchの保存したRunの隣に置き（`native/wasm/js/project_store.mjs`、#265）、Projectを1つのファイル（`sheltersim-project-bundle`の版1、拡張子`.shelterproj`）に書き出し、読み込みます。記録の形とファイルの形は[project-persistence.md](project-persistence.md#ブラウザーのproject記録と1つのファイル265)にあります。`native/wasm/tests/node_project_store.mjs`は、メモリーの置き場で、記録を作り、書き出して空の置き場に読み込むと答えとdigestが同じになること、壊れたファイルを断ることを確かめます。CIのlintのjobも動かします。
+
+~~~shell
+node native/wasm/tests/node_project_store.mjs wasm-pkg
+~~~
+
+計算済みの例をブラウザーの形で作るには、`scripts/build_browser_sample.py`を使います。VMの計算済みの例（`scripts/build_project_sample.py`）のmainと同じScenario（例文、100人、7日、seed 2026）を、Pythonがofflineの読み取りで作り、記録とevidenceと0分の世界を書き出します。続けてNodeが同じWASMと`run_store.mjs`で7日を計算し、記録を作って1つのファイルにします（`native/wasm/tools/build_project_bundle.mjs`）。ファイルは生成物なので、リポジトリーの外に置きます。`--inputs`を付けると、Pythonの書き出しをそのディレクトリーに残します。
+
+~~~shell
+SHELTERSIM_LLM_MODE=offline python scripts/build_browser_sample.py sample.shelterproj --pkg wasm-pkg
+~~~
+
+ブラウザーでの書き出しと読み込みは、`benchmarks/wasm_trial/project.html`で確かめます。`--project`は、試しの世界ごとにOPFSのProjectへ計算し、書き出し、OPFSを消してから読み込み、digestとProjectの道の答えが同じかを確かめます。`--bundle`は、道具が作ったファイルを空のOPFSに読み込み、各Branchのdigestを確かめます。
+
+~~~shell
+python benchmarks/wasm_trial_measure.py --worlds wasm-trial --pkg wasm-web --project
+python benchmarks/wasm_trial_measure.py --bundle sample.shelterproj --pkg wasm-web
+~~~
+
 ## 設定
 
 packageは環境変数から設定を読み込み、.envを自動読込しません。.env.exampleは変数名と安全な例の一覧です。実keyはshellのsecret managerまたはローカル環境に置き、commitしないでください。
