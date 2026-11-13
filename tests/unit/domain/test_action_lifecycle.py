@@ -287,7 +287,7 @@ def test_a_restored_event_log_gives_the_active_actions_without_reading_every_rec
 
 
 _PLAIN_RECEIPT = {
-    "schema_version": 1,
+    "schema_version": 2,
     "action_id": "action-1",
     "agent_id": "A001",
     "action": "rest",
@@ -351,6 +351,76 @@ def test_needs_the_model_would_convert_are_floats_in_its_dump() -> None:
     """The kernels' needs are floats already: an int need is the model's float."""
     from sheltersim.contracts.operations import ActionLifecycleReceipt
 
-    payload = {**_PLAIN_RECEIPT, "current_needs": {"hunger": 1}}
+    payload = {**_PLAIN_RECEIPT, "transition": "continued", "current_needs": {"hunger": 1}}
     dumped = ActionLifecycleReceipt.model_validate(payload).model_dump(mode="json")
     assert type(dumped["current_needs"]["hunger"]) is float
+
+
+@pytest.mark.parametrize(
+    ("transition", "start_needs", "current_needs", "accepted"),
+    [
+        ("started", {"hunger": 0.5}, {}, True),
+        ("started", {"hunger": 0.5}, {"hunger": 0.5}, False),
+        ("continued", {"hunger": 0.5}, {"hunger": 0.6}, True),
+        ("completed", {}, {"hunger": 0.6}, True),
+        ("completed", {"hunger": 0.5}, {"hunger": 0.6}, False),
+        ("interrupted", {"hunger": 0.5}, {}, False),
+        ("abandoned", {}, {"hunger": 0.6}, True),
+        ("censored", {}, {}, True),
+    ],
+)
+def test_a_receipt_of_schema_2_writes_each_needs_snapshot_once(
+    transition, start_needs, current_needs, accepted
+) -> None:
+    """#255: a started receipt keeps its needs as start_needs, a closing one as current_needs
+    (its start's are the started receipt's), a continued one both. Schema 1 had both on every
+    receipt, and the model reads those as they were."""
+    from pydantic import ValidationError
+
+    from sheltersim.contracts.operations import ActionLifecycleReceipt
+
+    payload = {
+        **_PLAIN_RECEIPT,
+        "transition": transition,
+        "start_needs": start_needs,
+        "current_needs": current_needs,
+    }
+    if accepted:
+        assert ActionLifecycleReceipt.model_validate(payload).model_dump(mode="json") == payload
+    else:
+        with pytest.raises(ValidationError, match="schema 2"):
+            ActionLifecycleReceipt.model_validate(payload)
+    old = {**payload, "schema_version": 1}
+    assert ActionLifecycleReceipt.model_validate(old).model_dump(mode="json") == old
+
+
+@pytest.mark.parametrize("schema_version", [1, 2])
+def test_the_action_history_gives_the_same_needs_for_either_schema(schema_version) -> None:
+    """#255: a started receipt of schema 2 has no current_needs; the history row gives its
+    start_needs there, the needs at that minute, as a schema 1 receipt wrote them twice."""
+    from sheltersim.inspection.action_history import applied_action_record
+
+    start = {"hunger": 0.5, "fatigue": 0.25}
+    now = {"hunger": 0.75, "fatigue": 0.125}
+    rows = {}
+    for transition, minute in (("started", 2), ("completed", 5)):
+        two = transition == "started"
+        payload = {
+            **_PLAIN_RECEIPT,
+            "schema_version": schema_version,
+            "transition": transition,
+            "transition_minute": minute,
+            "duration_minutes": minute - 2,
+            "start_needs": start if two or schema_version == 1 else {},
+            "current_needs": (start if two else now) if schema_version == 1 or not two else {},
+        }
+        event = {
+            "event_id": f"action-lifecycle-{minute}",
+            "event_type": "agent_action_lifecycle",
+            "causation_id": None,
+            "source_id": "model-1",
+            "payload": payload,
+        }
+        rows[transition] = applied_action_record(event, minute)
+    assert rows["started"]["current_needs"] == start
+    assert rows["completed"]["current_needs"] == now

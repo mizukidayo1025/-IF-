@@ -283,14 +283,22 @@ fn an_action_starts_continues_once_and_is_superseded_with_its_receipts_in_sequen
     let payload = payload_of(started);
     assert_eq!((payload["action_id"].clone(), payload["transition"].clone()), (json!("action-5"), json!("started")));
     assert_eq!(payload["start_activity"], json!("idle"));
+    // Schema 2 (#255): a started receipt keeps its needs once, as start_needs.
+    assert_eq!(payload["schema_version"], json!(2));
     assert_eq!(payload["start_needs"]["fatigue"], json!(0.25));
-    assert_eq!(payload["current_needs"]["sleep_debt_minutes"], json!(0.0));
+    assert_eq!(payload["start_needs"]["sleep_debt_minutes"], json!(0.0));
+    assert_eq!(payload["current_needs"], json!({}));
     assert!(active.contains("a1") && active.len() == 1);
 
     lifecycle::commit_action(&world, &mut active, &proposal("a1", "rest", None, 11)).unwrap();
     lifecycle::commit_action(&world, &mut active, &proposal("a1", "rest", None, 12)).unwrap();
     assert_eq!(records(&world).len(), 2);
-    assert_eq!(payload_of(&records(&world)[1])["transition"], json!("continued"));
+    let both = records(&world);
+    let continued = payload_of(&both[1]);
+    assert_eq!(continued["transition"], json!("continued"));
+    // It has both: the open action is made again from it on restore.
+    assert_eq!(continued["start_needs"]["fatigue"], json!(0.25));
+    assert_eq!(continued["current_needs"]["fatigue"], json!(0.25));
     assert!(active.rows["a1"].continued);
 
     // Another action: the old one closes "interrupted" (fatigue did not fall), then the new starts.
@@ -299,6 +307,9 @@ fn an_action_starts_continues_once_and_is_superseded_with_its_receipts_in_sequen
     assert_eq!(all.len(), 4);
     assert_eq!(payload_of(&all[2])["transition"], json!("interrupted"));
     assert_eq!(payload_of(&all[2])["reason_code"], json!("superseded_by_new_applied_action"));
+    // A closing receipt has the needs now; its start's are the started receipt's.
+    assert_eq!(payload_of(&all[2])["start_needs"], json!({}));
+    assert_eq!(payload_of(&all[2])["current_needs"]["fatigue"], json!(0.25));
     assert_eq!(payload_of(&all[3])["action_id"], json!("action-8"));
     assert_eq!(&*active.rows["a1"].action, "wait");
     // An agent not in the world: nothing.

@@ -9,6 +9,12 @@
 //! `EventRow`, with the sequence it will get. A receipt the receipts' model would refuse, or decide
 //! with its own text, is Unsupported with nothing changed. Then `commit` allocates the sequences and
 //! appends the records to the world's log (`kit::Events`).
+//!
+//! A receipt is of schema 2 (#255): it writes each needs snapshot once. "started" has the needs at
+//! the start as `start_needs` and `current_needs` empty; a closing receipt ("completed",
+//! "interrupted", "abandoned", "censored") has the needs now as `current_needs` and `start_needs`
+//! empty, as the "started" receipt of the same action holds them; "continued" has both. Schema 1
+//! receipts, in the logs of older Runs, had both on every receipt.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, LazyLock};
@@ -28,6 +34,8 @@ use crate::world::World;
 const SOURCE_ID: &str = "ASM-ACTION-LIFECYCLE-V1";
 const POLICY_VERSION: &str = "applied-action-lifecycle-v2";
 const EVENT_TYPE: &str = "agent_action_lifecycle";
+/// The receipts' schema (`ActionLifecycleReceipt`): 2 since #255, each needs snapshot written once.
+const RECEIPT_SCHEMA_VERSION: i64 = 2;
 const MAX_REASON_CHARS: usize = 120;
 const MAX_ACTIVITY_CHARS: usize = 80;
 const POPULATION_LIFECYCLE: &str = "population_lifecycle_v1";
@@ -255,9 +263,26 @@ fn receipt(
         return Err(Error::unsupported("a receipt the model has to decide"));
     }
     let words = &*WORDS;
-    let start_needs = action.start_needs.iter().map(|(name, value)| (name.clone(), V::Float(*value))).collect();
+    // A receipt of schema 2 writes each needs snapshot once (#255): "started" its needs as
+    // `start_needs` only, a closing receipt the needs now as `current_needs` only (its start's are
+    // the "started" receipt's of the same action), "continued" both, as the open action is made
+    // again from it on restore (`active_action_index`).
+    let (start_needs, current_needs) = match transition {
+        "started" => (true, false),
+        "continued" => (true, true),
+        _ => (false, true),
+    };
+    let start_needs = if start_needs {
+        action.start_needs.iter().map(|(name, value)| (name.clone(), V::Float(*value))).collect()
+    } else {
+        IndexMap::new()
+    };
+    let current_needs = match current {
+        Some(needs) if current_needs => needs_value(needs),
+        _ => V::Map(IndexMap::new()),
+    };
     let mut payload = IndexMap::with_capacity(16);
-    payload.insert(words.schema_version.clone(), V::Int(1));
+    payload.insert(words.schema_version.clone(), V::Int(RECEIPT_SCHEMA_VERSION));
     payload.insert(words.action_id.clone(), V::Str(action.action_id.clone()));
     payload.insert(words.agent_id.clone(), V::Str(action.agent_id.clone()));
     payload.insert(words.action.clone(), V::Str(action.action.clone()));
@@ -270,7 +295,7 @@ fn receipt(
     payload.insert(words.activity.clone(), activity.map_or(V::Null, |text| V::Str(Arc::from(text))));
     payload.insert(words.start_activity.clone(), optional_text(action.start_activity.as_ref()));
     payload.insert(words.start_needs.clone(), V::Map(start_needs));
-    payload.insert(words.current_needs.clone(), current.map_or_else(|| V::Map(IndexMap::new()), needs_value));
+    payload.insert(words.current_needs.clone(), current_needs);
     payload.insert(words.model_id.clone(), V::Str(action.model_id.clone()));
     payload.insert(words.model_source_id.clone(), V::Str(action.model_source_id.clone()));
     let mut provenance = IndexMap::with_capacity(3);

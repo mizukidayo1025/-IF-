@@ -34,9 +34,15 @@ class NumericStateChange(ExtensionModel):
 
 
 class ActionLifecycleReceipt(ExtensionModel):
-    """The existing event-log wire shape for one applied action transition."""
+    """The existing event-log wire shape for one applied action transition.
 
-    schema_version: Literal[1] = 1
+    Schema 2 (#255) writes each needs snapshot once: a "started" receipt has `start_needs` and an
+    empty `current_needs`; a closing receipt (completed, interrupted, abandoned, censored) has
+    `current_needs` and an empty `start_needs`, which the "started" receipt of the same action
+    holds; "continued" has both. Schema 1, in the logs of older Runs, had both on every receipt.
+    """
+
+    schema_version: Literal[1, 2] = 2
     action_id: Identifier
     agent_id: Identifier
     action: Identifier
@@ -59,6 +65,11 @@ class ActionLifecycleReceipt(ExtensionModel):
             raise ValueError("action transition cannot precede its start")
         if self.duration_minutes != self.transition_minute - self.start_minute:
             raise ValueError("action duration must equal transition_minute - start_minute")
+        if self.schema_version == 2:
+            if self.transition == "started" and self.current_needs:
+                raise ValueError("a started receipt of schema 2 keeps its needs as start_needs")
+            if self.transition not in {"started", "continued"} and self.start_needs:
+                raise ValueError("a closing receipt of schema 2 keeps no start_needs")
         return self
 
 
