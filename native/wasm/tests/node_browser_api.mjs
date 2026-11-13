@@ -128,9 +128,6 @@ assert.deepEqual(await status("/p1/runs/r1/replay-frames", `?branch_ids=main&sta
 const unsupported = [
   await get("/p1/runs/r1/replay-frames", "?branch_ids=main,child&start=0&end=1"),
   await get("/p1/runs/r1/compare", "?branch_ids=main,child&minute=1"),
-  await get("/p1/runs/r1/branches/main/history", "?kind=kpis"),
-  await get("/p1/runs/r1/branches/main/report"),
-  await get("/p1/runs/r1/branches/main/llm-status"),
   await post("/p1/scenario-preview", { text: "x" }),
   await post("/p1/runs/r1/resume", { branch_id: "main", target_minute: 10 }),
   await post("/p1/runs/r1/pdf-report", { branch_ids: ["main"], minute: 1 }),
@@ -140,6 +137,22 @@ const unsupported = [
 for (const answer of unsupported) {
   const error = JSON.parse(answer.body);
   check(answer.status === 409 && error.code === "browser_unsupported" && error.error.startsWith(api.UNSUPPORTED), `not refused as unsupported: ${answer.body}`);
+}
+// History of another kind than the KPIs: api_answers.mjs's refusal.
+const events = await get("/p1/runs/r1/branches/main/history", "?kind=events&start=0&end=10");
+check(events.status === 409 && JSON.parse(events.body).code === "browser_unsupported", `history of events: ${events.body}`);
+// The history, the report and the LLM status are api_answers.mjs's (node_api_answers.mjs checks
+// their JSON against the server's).
+{
+  const history = await get("/p1/runs/r1/branches/main/history", `?kind=kpis&start=0&end=${end}&step=60&limit=10`);
+  const page = JSON.parse(history.body);
+  check(history.status === 200 && page.items.length === 10 && typeof page.next_cursor === "string", `history: ${history.status} ${history.body.slice(0, 200)}`);
+  const next = await get("/p1/runs/r1/branches/main/history", `?kind=kpis&start=0&end=${end}&step=60&limit=10&cursor=${page.next_cursor}`);
+  check(next.status === 200 && JSON.parse(next.body).items[0].minute_index > page.items.at(-1).minute_index, `history's next page: ${next.status} ${next.body.slice(0, 200)}`);
+  const status = await get("/p1/runs/r1/branches/main/llm-status");
+  check(status.status === 200 && JSON.parse(status.body).branch_id === "main", `llm-status: ${status.status} ${status.body.slice(0, 200)}`);
+  const bad = await get("/p1/runs/r1/branches/main/history", "?kind=kpis&start=0&end=99999");
+  check(bad.status === 409, `history out of range: ${bad.status}`);
 }
 // A route another module answers is called with the request.
 const extra = new api.BrowserApi({ wasm, tree, extra: { report: async ({ projectId, runId, branchId }) => JSON.stringify({ projectId, runId, branchId }) } });

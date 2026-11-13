@@ -12,8 +12,8 @@
 //   GET runs/{run}/evidence                  the records (project_store.mjs's response functions)
 //   GET runs/{run}/branches/{branch}/timeline?minute=   the frame of the minute
 //   GET runs/{run}/replay-frames?branch_ids=&start=&end=   the frames of 1 to 8 minutes of one branch
-//   GET runs/{run}/branches/{branch}/history, report, llm-status   the functions the caller gives
-//                                            (`extra`), else "unsupported"
+//   GET runs/{run}/branches/{branch}/history, report, llm-status   js/api_answers.mjs (or the
+//                                            functions the caller gives, `extra`)
 //   anything else (scenario-*, resume, cancel, compare, intervention-*, questions, pdf-report,
 //   replay of two branches, the routes outside projects)   409 {"error": "ブラウザー版では未対応です…",
 //                                            "code": "browser_unsupported"}
@@ -31,6 +31,7 @@
 // whole checked, and imported (`importProject`). The store keeps the manifest's sha256 beside the
 // Projects, so a site with another sample replaces it once.
 
+import { ApiError, errorAnswer, historyCache, historyResponse, llmStatusResponse, reportResponse } from "./api_answers.mjs";
 import * as store from "./project_store.mjs";
 import { RunReader, SAVE_EVERY } from "./run_store.mjs";
 
@@ -44,16 +45,9 @@ export const UNSUPPORTED = "ブラウザー版では未対応です";
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 
-/// An error with the Python server's status: 409 for what its store refuses, 400 for a bad query.
-export class ApiError extends Error {
-  constructor(status, message, code = null) {
-    super(message);
-    this.status = status;
-    this.code = code;
-  }
-}
-
-const refused = (message, code = null) => new ApiError(409, message, code);
+// Errors are api_answers.mjs's: an `ApiError` with the server's status, or what the server's
+// store refuses (a StorageError: 409, its code the message's leading word or "storage_conflict").
+const refused = (message) => new store.ProjectStoreError(message);
 const unsupported = (what) => new ApiError(409, `${UNSUPPORTED}（${what}）`, "browser_unsupported");
 
 const json = (status, text) => ({ status, type: "application/json; charset=utf-8", body: text });
@@ -81,13 +75,25 @@ function integer(text, message) {
 /// The answers of one store. `wasm` is sheltersim_wasm, `tree` a project_store tree, `quota` what
 /// the store may hold (the Project list's `storage.limit_bytes`), `extra` the routes another module
 /// answers: `{ history, report, llmStatus }`, each `({ wasm, tree, projectId, runId, branchId,
-/// query }) => JSON text`, `query` the request's query string as it came.
+/// query }) => JSON text`, `query` the request's query string as it came. By default they are
+/// api_answers.mjs's (the history with a cache of the branches' samples).
 export class BrowserApi {
-  constructor({ wasm, tree, quota = async () => null, extra = {}, keep = 2 }) {
+  constructor({ wasm, tree, quota = async () => null, extra = null, keep = 2 }) {
     this.wasm = wasm;
     this.tree = tree;
     this.quota = quota;
-    this.extra = extra;
+    this.history = historyCache(2);
+    this.extra = extra ?? {
+      history: (asked) => historyResponse({ ...asked, cache: this.history }),
+      report: async (asked) => {
+        // A report not yet made is made from the Run at its end, in a Simulation of its own:
+        // free the kept ones first, as WASM's memory does not shrink.
+        const kept = await tree.read([asked.projectId, "runs", asked.runId, "branches", asked.branchId, "report.json"]);
+        if (kept === null) this.freeLive();
+        return reportResponse(asked);
+      },
+      llmStatus: llmStatusResponse,
+    };
     this.keep = keep;
     // "project/run/branch" -> { simulation, head, savedMinutes, used }
     this.live = new Map();
@@ -108,9 +114,9 @@ export class BrowserApi {
     try {
       return json(200, await this.dispatch(method, path, search, body));
     } catch (error) {
-      if (error instanceof ApiError) return json(error.status, JSON.stringify({ error: error.message, code: error.code }));
-      if (error instanceof store.ProjectStoreError) return json(409, JSON.stringify({ error: error.message, code: error.code ?? null }));
-      return json(500, JSON.stringify({ error: `browser request failed: ${error?.message ?? error}` }));
+      if (!(error instanceof ApiError) && !(error instanceof store.ProjectStoreError)) console.error(error);
+      const { status, body } = errorAnswer(error);
+      return json(status, body);
     }
   }
 
@@ -263,9 +269,15 @@ export class BrowserApi {
   }
 
   /// Frees every kept Simulation.
-  close() {
+  freeLive() {
     for (const { simulation } of this.live.values()) simulation.free();
     this.live.clear();
+  }
+
+  /// Frees every kept Simulation and sample table.
+  close() {
+    this.freeLive();
+    this.history.clear();
   }
 }
 

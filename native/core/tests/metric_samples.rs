@@ -51,8 +51,9 @@ fn each_sample_comes_back_and_writes_its_line() {
     for (minute, text) in texts.iter().enumerate() {
         let taken = sample(text, minute as f64);
         lines.push(metric_line(&taken, minute as i64).unwrap());
-        samples.push(&taken, minute as i64).unwrap();
-        let (again, at) = samples.sample(minute).unwrap().unwrap();
+        samples.push(&taken, minute as i64, None).unwrap();
+        let (again, at, balances) = samples.sample(minute).unwrap().unwrap();
+        assert_eq!(balances, None);
         assert_eq!(again, taken);
         assert_eq!(at, minute as i64);
         assert_eq!(again.toilet_wait_total_minutes.to_bits(), (-0.0f64).to_bits());
@@ -65,4 +66,39 @@ fn each_sample_comes_back_and_writes_its_line() {
     assert_eq!(samples.digest(), sha256_hex(&lines.join(&b'\n')));
     assert_eq!(MetricSamples::default().digest(), sha256_hex(b""));
     assert!(samples.size() < lines.iter().map(Vec::len).sum::<usize>());
+}
+
+/// The ledger's columns of a sample (#266) come back with it; its line and the digest are the ones
+/// without them, and a sample without them packs as before (its first byte, its minute's, is even).
+#[test]
+fn a_sample_keeps_the_ledger_columns_and_its_line() {
+    let balances = [[180_000, 0, 1_500, -3, 178_497, 250], [180, 7, 2, 0, 185, 1]];
+    let mut with = MetricSamples::default();
+    let mut without = MetricSamples::default();
+    for minute in 0..3 {
+        let taken = sample("{}", minute as f64);
+        with.push(&taken, minute, Some(&balances)).unwrap();
+        without.push(&taken, minute, None).unwrap();
+        assert_eq!(with.sample(minute as usize).unwrap().unwrap().2, Some(balances));
+        assert_eq!(without.sample(minute as usize).unwrap().unwrap().2, None);
+    }
+    assert_eq!(with.digest(), without.digest());
+    assert_eq!(with.line(2).unwrap(), without.line(2).unwrap());
+    let first = |samples: &MetricSamples| samples.store().1.blocks()[0][0];
+    assert_eq!(first(&with), 1);
+    assert_eq!(first(&without) % 2, 0);
+}
+
+/// A Run's samples all hold the ledger's columns or none do, as the native path's recorder
+/// requires; a minute is never negative.
+#[test]
+fn the_ledger_does_not_come_or_go_between_samples() {
+    let balances = [[1; 6]; 2];
+    let mut late = MetricSamples::default();
+    late.push(&sample("{}", 0.0), 0, None).unwrap();
+    assert!(late.push(&sample("{}", 0.0), 1, Some(&balances)).is_err());
+    let mut removed = MetricSamples::default();
+    removed.push(&sample("{}", 0.0), 0, Some(&balances)).unwrap();
+    assert!(removed.push(&sample("{}", 0.0), 1, None).is_err());
+    assert!(MetricSamples::default().push(&sample("{}", 0.0), -1, None).is_err());
 }

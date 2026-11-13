@@ -18,7 +18,7 @@
 //! minutes are far below 2^53.
 
 use sheltersim_core::events::packed::{Blocks, Packer};
-use sheltersim_core::{archive, canonical, checkpoint, frame};
+use sheltersim_core::{archive, canonical, checkpoint, frame, history};
 use sheltersim_core::engine::StepError;
 use sheltersim_core::error::Error;
 use sheltersim_core::json::Encoder;
@@ -164,7 +164,9 @@ impl Simulation {
         self.run.frame(&request).map_err(js_error)
     }
 
-    /// `world.state_digest()` of the world now: the `state_hash` of a frame without one.
+    /// `world.state_digest()` of the world now: the `state_hash` of a frame without one. The
+    /// Simulation keeps the node of its log between calls (#266), so a call after `advance` reads
+    /// only the records added since; the first call (after `new` or a restore) reads them all.
     #[wasm_bindgen(js_name = stateDigest)]
     pub fn state_digest(&self) -> Result<String, JsError> {
         self.run.state_digest().map_err(js_error)
@@ -464,5 +466,130 @@ pub fn memory_bytes() -> f64 {
     #[cfg(not(target_arch = "wasm32"))]
     {
         0.0
+    }
+}
+
+/// What the API's KPI history and offline report read (#266; `sheltersim_core::history`): a
+/// stored Run's metric samples read back and paged as the history index pages them, and, of a
+/// Run, its records and its samples' final metrics. The page's side is `js/api_answers.mjs`.
+#[wasm_bindgen]
+pub struct KpiHistory {
+    table: history::KpiTable,
+}
+
+#[wasm_bindgen]
+impl KpiHistory {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> KpiHistory {
+        KpiHistory { table: history::KpiTable::new() }
+    }
+
+    pub fn read_sample_tables(&mut self, bytes: &[u8]) -> Result<(), JsError> {
+        self.table.read_tables(bytes).map_err(js_error)
+    }
+
+    /// How many samples the block held.
+    pub fn read_sample_block(&mut self, bytes: &[u8]) -> Result<u32, JsError> {
+        self.table.read_block(bytes).map(|read| read as u32).map_err(js_error)
+    }
+
+    /// How many samples were read.
+    pub fn sample_count(&self) -> f64 {
+        self.table.len() as f64
+    }
+
+    /// The samples from `start` to `end`: `[count, first minute, last minute]`, or `[0]`.
+    pub fn coverage(&self, start: f64, end: f64) -> Result<Vec<f64>, JsError> {
+        Ok(match self.table.coverage(minute_of(start)?, minute_of(end)?) {
+            Some((count, first, last)) => vec![count as f64, first as f64, last as f64],
+            None => vec![0.0],
+        })
+    }
+
+    /// A page of rows (`history::KpiQuery`): `afterMinute` and `afterKey` are the cursor's row
+    /// (both or neither).
+    #[allow(clippy::too_many_arguments)]
+    pub fn page(
+        &self,
+        start: f64,
+        end: f64,
+        step: f64,
+        limit: u32,
+        after_minute: Option<f64>,
+        after_key: Option<String>,
+        filtered: bool,
+        run_id: &str,
+        branch_id: &str,
+    ) -> Result<KpiPage, JsError> {
+        let after = match (after_minute, after_key.as_deref()) {
+            (Some(minute), Some(key)) => Some((minute as i64, key)),
+            (None, None) => None,
+            _ => return Err(JsError::new("a cursor's row has a minute and a key")),
+        };
+        let query = history::KpiQuery { start: minute_of(start)?, end: minute_of(end)?, step: minute_of(step)?, limit: limit as usize, after, filtered, run_id, branch_id };
+        let page = self.table.page(&query).map_err(js_error)?;
+        Ok(KpiPage { items: String::from_utf8(page.items).map_err(|error| JsError::new(&error.to_string()))?, last: page.last, more: page.more })
+    }
+}
+
+impl Default for KpiHistory {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// A page of KPI rows (`KpiHistory.page`).
+#[wasm_bindgen]
+pub struct KpiPage {
+    items: String,
+    last: Option<i64>,
+    more: bool,
+}
+
+#[wasm_bindgen]
+impl KpiPage {
+    /// The rows, as a JSON list (canonical JSON, the floats as Python writes them).
+    pub fn items(&self) -> String {
+        self.items.clone()
+    }
+
+    /// The minute of the last row, or None for no rows.
+    pub fn last(&self) -> Option<f64> {
+        self.last.map(|minute| minute as f64)
+    }
+
+    /// Whether rows follow the page.
+    pub fn more(&self) -> bool {
+        self.more
+    }
+}
+
+#[wasm_bindgen]
+impl Simulation {
+    /// The record `index` of the log, as its canonical JSON (`EventRecord.to_dict()`), or None past
+    /// the last.
+    pub fn log_record(&self, index: f64) -> Result<Option<String>, JsError> {
+        let mut out = Vec::new();
+        let written = self
+            .run
+            .loaded
+            .cell
+            .with(|world| world.log().and_then(|log| if index >= 0.0 && index < log.len() as f64 { log.write_record(index as usize, &mut out) } else { Ok(false) }))
+            .and_then(|written| written)
+            .map_err(js_error)?;
+        if !written {
+            return Ok(None);
+        }
+        String::from_utf8(out).map(Some).map_err(|error| JsError::new(&error.to_string()))
+    }
+
+    /// The final metrics of the offline report's evidence (`history::review_metrics`) of the
+    /// sample `index`, as canonical JSON, or None past the last sample.
+    pub fn review_metrics(&self, index: u32) -> Result<Option<String>, JsError> {
+        let Some((sample, _, _)) = self.run.host.samples.sample(index as usize).map_err(js_error)? else {
+            return Ok(None);
+        };
+        let metrics = history::review_metrics(&sample).map_err(js_error)?;
+        String::from_utf8(metrics).map(Some).map_err(|error| JsError::new(&error.to_string()))
     }
 }

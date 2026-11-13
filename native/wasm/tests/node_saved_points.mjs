@@ -31,7 +31,9 @@ const fixture = JSON.parse(raw.toString("utf8"));
 const store = await import(join(here, "..", "js", "run_store.mjs"));
 const encoder = new TextEncoder();
 
-const digestsOf = (simulation) => ({ parts: simulation.part_digests_json(), metrics: simulation.metrics_digest(), contracts: simulation.contracts_json() });
+// `state` is the world's digest (`stateDigest`), which a Simulation reads with the node of its log it
+// keeps between calls (#266): a sought Simulation builds it once, the uninterrupted one adds to it.
+const digestsOf = (simulation) => ({ parts: simulation.part_digests_json(), metrics: simulation.metrics_digest(), contracts: simulation.contracts_json(), state: simulation.stateDigest() });
 
 let failures = 0;
 const check = (ok, message) => {

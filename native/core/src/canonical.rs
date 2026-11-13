@@ -330,7 +330,10 @@ fn object_node(mut nodes: Vec<(&str, String)>) -> String {
 }
 
 /// A list's node, its items given one at a time: its count and the hash of each run of
-/// `TREE_CHUNK_ITEMS` items (the canonical JSON of that slice of the list).
+/// `TREE_CHUNK_ITEMS` items (the canonical JSON of that slice of the list). A node can be read
+/// (`current`) and given more items after: a log is only appended to, so a Run keeps its log's
+/// node and gives it only the records added since (`state_digest_with`, #266).
+#[derive(Clone)]
 pub struct ListNode {
     hasher: Sha256,
     in_chunk: usize,
@@ -366,16 +369,29 @@ impl ListNode {
         self.in_chunk = 0;
     }
 
-    pub fn node(mut self) -> String {
-        if self.in_chunk > 0 {
-            self.seal();
-        }
-        let mut encoder = Encoder::with_capacity(TREE_LIST.len() + 70 * self.keys.len() + 24);
+    pub fn node(self) -> String {
+        self.current()
+    }
+
+    /// How many items the node has been given.
+    pub fn count(&self) -> usize {
+        self.count
+    }
+
+    /// The node of the items given so far; more may be given after.
+    pub fn current(&self) -> String {
+        // The run of items not yet sealed is sealed in a copy of its hasher.
+        let open = (self.in_chunk > 0).then(|| {
+            let mut hasher = self.hasher.clone();
+            hasher.update(b"]");
+            hex(&hasher.finalize())
+        });
+        let mut encoder = Encoder::with_capacity(TREE_LIST.len() + 70 * (self.keys.len() + 1) + 24);
         encoder.out.extend_from_slice(TREE_LIST);
         encoder.out.push(b'[');
         encoder.int(self.count as i64);
         encoder.out.extend_from_slice(b",[");
-        for (index, key) in self.keys.iter().enumerate() {
+        for (index, key) in self.keys.iter().chain(open.as_ref()).enumerate() {
             if index > 0 {
                 encoder.out.push(b',');
             }
@@ -384,6 +400,28 @@ impl ListNode {
         encoder.out.extend_from_slice(b"]]");
         sha256_hex(&encoder.out)
     }
+}
+
+/// `state_digest`, with the node of the log's first records kept by the caller between calls
+/// (`PlainRun`, #266): `log` is given the records it has not been given, and read. The log is only
+/// appended to between ticks (a rollback only drops records of the tick it began in), so the
+/// records `log` was given are the log's first ones; a log shorter than that starts it again.
+/// The digest is `state_digest`'s, while the cost of the log is that of its new records.
+pub fn state_digest_with(world: &World, rng_state: &V, log: &mut ListNode) -> Result<String> {
+    let records = world.log()?;
+    if records.len() < log.count() {
+        *log = ListNode::new();
+    }
+    let mut record = Vec::with_capacity(4096);
+    for index in log.count()..records.len() {
+        record.clear();
+        if !records.write_record(index, &mut record)? {
+            return Err(Error::unsupported("a record without its bytes"));
+        }
+        log.push(&record);
+    }
+    drop(records);
+    tree_digest(world, rng_state, log.current())
 }
 
 fn log_node(world: &World) -> Result<String> {
