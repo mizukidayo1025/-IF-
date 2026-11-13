@@ -163,3 +163,13 @@ serverと違うのは次のところです。
 `POST …/branches/{branch}/questions`は、APIキーのないVMと同じ答えを返します（`native/wasm/js/questions.mjs`）。serverと同じ順に、要求の欄、質問の長さ、分、人、比べる分岐（計算が終わった分岐か、その分のframeにその人がいるか、比較の確かめ）を確かめ、「Claude APIが利用できないため、結果に関する質問へ回答できません。…」と、質問の文脈（`context`）とそのid（`context_id`）を返します。idは、文脈の正規のJSONのsha256の先頭32桁と24桁の乱数で、要求が同じ文脈のidを渡したときはそれを使います。会話はBranchのフォルダーの`conversations.jsonl`に1行ずつ残し、質問はserverと同じく連絡先と人などの名前を伏せた文にします（中核の`questionText`）。serverと違うのは、`history_query`（画面は送りません）を、分の確かめの後に409の`browser_unsupported`で断ることです。
 
 `native/wasm/tests/node_interventions.mjs`が、同じRunで、比較と2つの分岐の再生（受領の`checkpoint_hash`は伏せます）と、質問の答え（`context_id`の乱数の部分は伏せます）と残した質問が、serverと同じになることを確かめます。
+
+## ブラウザーのPDFレポート（#309）
+
+`POST …/runs/{run}/pdf-report`には、APIキーのないVMと同じ答えを返します（`native/wasm/js/browser_api.mjs`の`pdfReport`）。serverと同じ順に、欄（`branch_ids`と`minute`だけ）、範囲（1つか2つの異なるBranchと0以上の整数分。違えば409の`pdf_invalid_scope`）、Run、各Branch、計算済みの範囲（外なら409の`pdf_uncomputed_range`）を確かめ、通れば409の`pdf_analysis_offline`（「Opusの記録応答またはAPI接続が必要です。」）を返します。APIキーのないVMも分析にOpusが要るのでPDFを作りません。ブラウザーはPDFを作りません。
+
+serverと違うのは、`minute`を`5.0`のように小数の形で書いたときだけです。serverは整数でないとして`pdf_invalid_scope`にしますが、JSのJSONは`5.0`と`5`を区別しないので、ブラウザーは5分として扱います。
+
+読めないJSONの本文には、serverと同じく400の`{"error":"invalid project request"}`を返します（`code`の欄はありません）。
+
+`native/wasm/tests/node_api_answers.mjs`が1つの分岐の確かめを、`node_interventions.mjs`が子と2つの分岐（共通の範囲の外を含む）の確かめを、serverの答えと比べます。

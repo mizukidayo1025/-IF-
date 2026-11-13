@@ -616,6 +616,69 @@
    "status": 409
   },
   {
+   "body": "{\"code\":\"pdf_analysis_offline\",\"error\":\"pdf_analysis_offline: Opusの記録応答またはAPI接続が必要です。\"}",
+   "document": {
+    "branch_ids": [
+     "main",
+     "c1"
+    ],
+    "minute": 420
+   },
+   "name": "pdf-report",
+   "route": "pdf-report",
+   "status": 409
+  },
+  {
+   "body": "{\"code\":\"pdf_analysis_offline\",\"error\":\"pdf_analysis_offline: Opusの記録応答またはAPI接続が必要です。\"}",
+   "document": {
+    "branch_ids": [
+     "c1",
+     "main"
+    ],
+    "minute": 480
+   },
+   "name": "pdf-report",
+   "route": "pdf-report",
+   "status": 409
+  },
+  {
+   "body": "{\"code\":\"pdf_uncomputed_range\",\"error\":\"pdf_uncomputed_range: 指定時刻は共通の計算済み範囲外です。\"}",
+   "document": {
+    "branch_ids": [
+     "main",
+     "c1"
+    ],
+    "minute": 399
+   },
+   "name": "pdf-report",
+   "route": "pdf-report",
+   "status": 409
+  },
+  {
+   "body": "{\"code\":\"pdf_uncomputed_range\",\"error\":\"pdf_uncomputed_range: 指定時刻は共通の計算済み範囲外です。\"}",
+   "document": {
+    "branch_ids": [
+     "c1"
+    ],
+    "minute": 399
+   },
+   "name": "pdf-report",
+   "route": "pdf-report",
+   "status": 409
+  },
+  {
+   "body": "{\"code\":\"pdf_analysis_offline\",\"error\":\"pdf_analysis_offline: Opusの記録応答またはAPI接続が必要です。\"}",
+   "document": {
+    "branch_ids": [
+     "c1"
+    ],
+    "minute": 400
+   },
+   "name": "pdf-report",
+   "route": "pdf-report",
+   "status": 409
+  },
+  {
    "length": 793898,
    "name": "compare branch_ids=main,c1&minute=400",
    "query": "branch_ids=main,c1&minute=400",

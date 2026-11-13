@@ -142,6 +142,8 @@ for (const item of fixture.cases) {
     const document = Object.fromEntries(Object.entries(item.document).map(([key, value]) => [key, value === "$AGENT" ? agent : value === "$CONTEXT" ? firstContext : value]));
     got = await post(`/branches/${item.branch}/questions`, JSON.stringify(document));
     if (firstContext === null && got.status === 200) firstContext = JSON.parse(got.body).context_id;
+  } else if (item.route === "pdf-report") {
+    got = await post("/pdf-report", JSON.stringify(item.document));
   } else if (item.route === "compare" || item.route === "replay-frames") {
     got = await get(`/${item.route}`, item.query);
   } else {

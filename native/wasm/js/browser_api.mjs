@@ -20,7 +20,9 @@
 //   POST runs/{run}/branches/{branch}/intervention-preview, intervention-apply   js/interventions.mjs
 //                                            (#306); GET runs/{run} then holds the fork's `last_fork`
 //   POST runs/{run}/branches/{branch}/questions   js/questions.mjs (#308): the answer without an API key
-//   anything else (scenario-*, pdf-report, the routes outside projects)   409 {"error": "ブラウザー版では未対応です…",
+//   POST runs/{run}/pdf-report               the server's checks, then its answer without an API key:
+//                                            409 pdf_analysis_offline (#309)
+//   anything else (scenario-*, the routes outside projects)   409 {"error": "ブラウザー版では未対応です…",
 //                                            "code": "browser_unsupported"}
 //
 // A frame is the core's (`Simulation.frame`, #264) with the world's digest as its `state_hash`, as
@@ -37,7 +39,7 @@
 // Projects, so a site with another sample replaces it once.
 
 import { ApiError, errorAnswer, historyCache, historyResponse, llmStatusResponse, reportResponse } from "./api_answers.mjs";
-import { CHUNK_TICKS, Computing, postDocument } from "./compute.mjs";
+import { CHUNK_TICKS, Computing, checkFields, postDocument } from "./compute.mjs";
 import * as store from "./project_store.mjs";
 import { compareResponse, replayPair } from "./comparison.mjs";
 import { interventionApply, interventionPreview } from "./interventions.mjs";
@@ -174,6 +176,7 @@ export class BrowserApi {
       return answer(this, parts[0], parts[2], parts[4], postDocument(body));
     }
     if (parts.length === 6 && parts[1] === "runs" && parts[3] === "branches" && parts[5] === "questions") return questionResponse(this, parts[0], parts[2], parts[4], postDocument(body));
+    if (parts.length === 4 && parts[1] === "runs" && parts[3] === "pdf-report") return this.pdfReport(parts[0], parts[2], postDocument(body));
     const route = parts.length >= 6 && parts[1] === "runs" ? parts.slice(3).join("/") : parts.slice(1).join("/");
     throw unsupported(route || "POST");
   }
@@ -216,6 +219,33 @@ export class BrowserApi {
     if (parts.length >= 2 && section !== "runs") throw unsupported(section);
     if (parts.length >= 4 && section === "runs") throw unsupported(action);
     throw refused("unknown project route or query");
+  }
+
+  /// `POST runs/{run}/pdf-report` (src/sheltersim/web/pdf_report.py `export`): the server's checks in
+  /// its order (the fields, the scope, the Run, each branch, the computed range), then what the
+  /// server answers without an API key: the analysis needs Opus, so no PDF is made. The server
+  /// takes `minute` only as an int; JSON gives JS no way to tell 5.0 from 5, so 5.0 is taken as 5.
+  async pdfReport(projectId, runId, document) {
+    checkFields(document, ["branch_ids", "minute"]);
+    const { branch_ids: ids, minute } = document;
+    if (
+      !Array.isArray(ids) ||
+      ids.length < 1 ||
+      ids.length > 2 ||
+      ids.some((id) => typeof id !== "string") ||
+      new Set(ids).size !== ids.length ||
+      !Number.isInteger(minute) ||
+      minute < 0
+    ) {
+      throw refused("pdf_invalid_scope: 単一BranchまたはA/Bの2分岐と整数分を指定してください。");
+    }
+    await store.runResponse(this.tree, projectId, runId);
+    const records = [];
+    for (const id of ids) records.push(await store.branchRecord(this.tree, projectId, runId, id));
+    if (records.some((record) => !(record.fork_minute <= minute && minute <= record.computed_until))) {
+      throw refused("pdf_uncomputed_range: 指定時刻は共通の計算済み範囲外です。");
+    }
+    throw refused("pdf_analysis_offline: Opusの記録応答またはAPI接続が必要です。");
   }
 
   /// The record of a branch; an error, as Python's, for one there is not.
