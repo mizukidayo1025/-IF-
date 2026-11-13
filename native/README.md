@@ -191,15 +191,6 @@ split PR by PR; its last section sums up what is where.
   `schedule_effect_program` (#305): the program's record and events written, all or none, and its
   receipt the `command_log` entry `BranchRuntime.apply_effect_program` appends
   (`PlainRun::apply_effect_program`, `Simulation.applyEffectProgram`).
-- **The Scenario builder** (#299, for #291): `scenario::builder::assemble` joins a screen
-  request's parts (the request's dump, the research, the standard shelter, the population's dump,
-  the compiled conditions, the generated context, the service-capacity warnings) as
-  `InitialScenarioBuilder.build` and `ProjectWorkspace.preview` do: the provenance, the model
-  configs, the Scenario's ID (`spaced_json`: `json.dumps` with its default separators), the address
-  removal, `scenario_input`, the canonical JSON (`builder::canonical_json`) and `approved_hash`.
-  What no screen request changes is in `scenario/constants.json`, which
-  `core/tools/scenario_constants.py` writes from Python. `core/tests/scenario_builder.rs` joins the
-  parts of `core/tests/data/scenario_builder.json` and compares with the scenario corpus (#293).
 - **Saved points** (#251, for the browser only; not Python's Checkpoints): `PlainRun::saved_point`
   writes the Run at a minute as `archive::SavedPoint`, a versioned binary of the world without its
   log (`archive::world_parts`), the counts of the log's records and the metric samples, and the
