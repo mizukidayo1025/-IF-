@@ -22,6 +22,7 @@ use std::sync::{Arc, LazyLock};
 use indexmap::IndexMap;
 
 use crate::error::{Error, Result};
+use crate::events::log::EventLog;
 use crate::events::writer::WriteError;
 use crate::events::{is_stable_id, EventKind, EventRow, EventStatus};
 use crate::row::IdMap;
@@ -144,6 +145,35 @@ impl ActiveActions {
 
     pub fn contains(&self, agent_id: &str) -> bool {
         self.rows.contains_key(agent_id)
+    }
+
+    /// `active_action_index`: the open actions the log's agent_action_lifecycle records leave, made
+    /// again after a restore (#251), in the order of the dict that function builds. An error for a
+    /// deciding record the log cannot read back or whose payload is not an action's.
+    pub fn of_log(log: &EventLog) -> Result<Self> {
+        let mut rows = IdMap::default();
+        for index in log.active_lifecycle_positions() {
+            let record = log.record(index)?.ok_or_else(|| Error::unsupported("the log does not hold an action's record"))?;
+            let V::Map(payload) = &record.event.payload else { continue };
+            let Some(V::Str(agent_id)) = payload.get("agent_id") else { continue };
+            let continued = match payload.get("transition") {
+                Some(V::Str(transition)) if matches!(&**transition, "completed" | "interrupted" | "abandoned" | "censored") => {
+                    rows.shift_remove(agent_id);
+                    continue;
+                }
+                Some(V::Str(transition)) if matches!(&**transition, "started" | "continued") => &**transition == "continued",
+                _ => continue,
+            };
+            let mut fields = IndexMap::with_capacity(ActiveAction::NAMES.len());
+            for key in ["action_id", "agent_id", "action", "target_id", "start_minute", "reason_code", "start_activity", "start_needs", "model_id", "model_source_id"] {
+                let value = payload.get(key).ok_or_else(|| Error::unsupported(format!("an action's record has no {key}")))?;
+                fields.insert(Arc::from(key), value.clone());
+            }
+            fields.insert(Arc::from("continued"), V::Bool(continued));
+            let row = <ActiveAction as crate::row::Field>::from_value(&V::Map(fields)).map_err(|misfit| Error::unsupported(format!("an action's record does not fit its row: {}", misfit.0)))?;
+            rows.insert(agent_id.clone(), row);
+        }
+        Self::from_rows(rows)
     }
 }
 

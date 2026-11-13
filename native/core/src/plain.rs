@@ -21,6 +21,8 @@
 //!   `tests/support/core_tick.py` writes of a Run's samples.
 //! - The core writes `world.resources` and the namespaces it starts itself (decision 2): the host
 //!   is only told.
+//! - A Run is saved at a minute and restored from there (`saved_point`, `restore`; #251, for the
+//!   browser only): see `archive::SavedPoint`.
 
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -30,6 +32,7 @@ use serde_json::Value;
 
 use sha2::{Digest, Sha256};
 
+use crate::archive::{self, Restore, SavedPoint};
 use crate::checkpoint::hex;
 use crate::config::{Configs, Filled, SectionId};
 use crate::engine::{self, StepError, Stepping};
@@ -40,6 +43,7 @@ use crate::json::Encoder;
 use crate::geometry::Geo;
 use crate::host::{Contract, Decision, DecisionSink, Foreign, Host, Llm, Phase, Stage, Trace, TraceLevel, TxnKind, NO_FOREIGN};
 use crate::load::{self, FloorPlans, Loaded, Sections};
+use crate::rules::action_lifecycle::ActiveActions;
 use crate::rules::common_operations::Logged;
 use crate::rules::metrics::MetricSample;
 use crate::value::V;
@@ -184,6 +188,12 @@ impl MetricSamples {
     /// The line of the sample `index` (`engine::metric_line`), or None past the last.
     pub fn line(&self, index: usize) -> Result<Option<Vec<u8>>> {
         self.sample(index)?.map(|(sample, minute)| engine::metric_line(&sample, minute)).transpose()
+    }
+
+    /// Samples already packed against `packer` in `blocks`, each at its start in `starts`, with
+    /// `digest` of their lines so far (a stored Run read back, `archive::Restore`, #251).
+    pub(crate) fn adopt(packer: Packer, blocks: Blocks, starts: Vec<u64>, digest: Sha256) -> Self {
+        Self { packer, blocks, starts, digest }
     }
 
     /// The sha256 of the lines so far joined by `\n`, in hex.
@@ -368,8 +378,7 @@ impl PlainRun {
 
     /// `of_entry` of the entry's JSON text.
     pub fn of_json(raw: &[u8]) -> Result<Self> {
-        let entry: Value = serde_json::from_slice(raw).map_err(|error| Error::Value(format!("not an exported world: {error}")))?;
-        Self::of_entry(&entry)
+        Self::of_entry(&Self::entry_of_json(raw)?)
     }
 
     /// `of_entry` of the world `name` of a file of named worlds (`{"worlds": {name: entry}}`, as
@@ -377,9 +386,7 @@ impl PlainRun {
     /// entry is read from the file's own bytes, its numbers as written (a JSON reader of another
     /// language may write `1.0` back as `1`).
     pub fn of_worlds_json(raw: &[u8], name: &str) -> Result<Self> {
-        let mut file: Value = serde_json::from_slice(raw).map_err(|error| Error::Value(format!("not a file of worlds: {error}")))?;
-        let entry = file.get_mut("worlds").and_then(|worlds| worlds.get_mut(name)).ok_or_else(|| Error::Value(format!("the file has no world {name}")))?;
-        Self::of_entry(&entry.take())
+        Self::of_entry(&Self::entry_of_worlds_json(raw, name)?)
     }
 
     /// The world's minute: the next tick's.
@@ -411,5 +418,50 @@ impl PlainRun {
     /// `world.state_digest()` (`canonical::state_digest`) of the world now.
     pub fn state_digest(&self) -> Result<String> {
         self.loaded.cell.with(|world| crate::canonical::state_digest(world, &self.rng_state))?
+    }
+
+    /// The Run now as a saved point (`archive::SavedPoint`, #251), between two ticks.
+    pub fn saved_point(&self) -> Result<SavedPoint> {
+        let (world, records) = self.loaded.cell.with(|world| -> Result<_> { Ok((archive::world_parts(world)?, world.log()?.len() as u64)) })??;
+        Ok(SavedPoint { minute: self.minute()?, records, samples: self.host.samples.len() as u64, contracts: self.host.contracts.clone(), world })
+    }
+
+    /// The Run at a saved point (#251): its world, the log and the samples `restore` took, and
+    /// the exported `entry` the Run started from, whose controller (`run`), slots and sections it
+    /// runs with (its world is not read). It goes on as the Run went on from the saved point. An
+    /// error where `restore` holds fewer records or samples than the saved point, or the world is
+    /// not of the saved point's minute.
+    pub fn restore(mut entry: Value, restore: Restore) -> Result<Self> {
+        let (point, log, samples) = restore.into_parts()?;
+        // The world document's `rng_state` is the Run's from its start (the algorithm and the seed).
+        let rng_state = load::value(&entry["world"]["rng_state"])?;
+        let entry_object = entry.as_object_mut().ok_or_else(|| Error::Value("not an exported world: the entry is not a dict".to_owned()))?;
+        entry_object.insert("world".to_owned(), Value::Object(archive::world_document(&point.world)?));
+        let loaded = Rc::new(load::loaded(&entry)?);
+        loaded.cell.with(|world| -> Result<()> {
+            if world.minute_index()? != point.minute {
+                return Err(Error::Value("not a saved point: its world is of another minute".to_owned()));
+            }
+            *world.log_mut()? = log;
+            Ok(())
+        })??;
+        let actions = loaded.cell.with(|world| world.log().and_then(|log| ActiveActions::of_log(&log)))??;
+        loaded.run.try_borrow_mut().map_err(|_| Error::unsupported("the Run is borrowed"))?.actions = actions;
+        let mut host = PlainHost::new(&entry, Rc::clone(&loaded))?;
+        host.samples = samples;
+        host.contracts = point.contracts;
+        Ok(Self { loaded, host, stepping: Stepping::default(), rng_state })
+    }
+
+    /// The exported entry of `of_json`'s JSON text, for `restore`.
+    pub fn entry_of_json(raw: &[u8]) -> Result<Value> {
+        serde_json::from_slice(raw).map_err(|error| Error::Value(format!("not an exported world: {error}")))
+    }
+
+    /// The entry `name` of `of_worlds_json`'s file of named worlds, for `restore`.
+    pub fn entry_of_worlds_json(raw: &[u8], name: &str) -> Result<Value> {
+        let mut file: Value = serde_json::from_slice(raw).map_err(|error| Error::Value(format!("not a file of worlds: {error}")))?;
+        let entry = file.get_mut("worlds").and_then(|worlds| worlds.get_mut(name)).ok_or_else(|| Error::Value(format!("the file has no world {name}")))?;
+        Ok(entry.take())
     }
 }
