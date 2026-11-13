@@ -512,6 +512,11 @@ impl<'py> Host for PyHost<'py> {
         Ok(found.0.into_iter().next().and_then(|(_, logged)| logged))
     }
 
+    /// The records' bytes from the world's `EventStore`, which keeps those Python took.
+    fn read_records(&mut self, positions: &[usize], each: &mut dyn FnMut(usize, &[u8]) -> sheltersim_core::error::Result<()>) -> Result<(), HostError> {
+        Ok(crate::eventlog::read_records(&self.world, positions, each)?)
+    }
+
     /// `Geo::of(world)`, the plan the PyO3 crate keeps by the stamps of the configs and the overlay.
     fn floor_plan(&mut self) -> Result<Arc<Geo>, HostError> {
         Ok(<Geo as GeoPy>::of(&self.world)?)

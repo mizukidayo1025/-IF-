@@ -1,0 +1,7146 @@
+{
+ "expected": {
+  "arrivals": [
+   [
+    0,
+    "e39089978e29fa9b20c463ca41471d0d087f4510b2cb68c89507dbfcfd7a00c3",
+    "e12bd470c021e7c862eb51c631966edc00c9d76e7ca51526ff7121c182859545"
+   ],
+   [
+    31,
+    "8756ac14142c67675d17ccb0d72c76e189afc7cd93c5a9600e71c5d2d74965da",
+    "24f9a10255bdd3a20f1a925b19342b6927d4883739c5d7e3ab034eac94940606"
+   ],
+   [
+    33,
+    "aa34ebca4b0b652cd3ebbb36b178cb11a8d5c56743ebbb5d40723bc2a9de6829",
+    "dbbcb112a045715828db767cb68e93b426c350a8786ba65dcdb1979d7be435d0"
+   ],
+   [
+    40,
+    "0c838e1805c65254b138ca414991021b32c24417b8e04ee2808ba1e385f59df4",
+    "9958592ae07ada85d7a1e7a5616e60a5e9ee737ab651bc1507a70383a70b99c9"
+   ],
+   [
+    720,
+    "3d56bb88961b73ae914df266e9afc298686cf00a28004de8be2280575e68ccd8",
+    "9f85c1480074bfb5578bdc49ef57bd27e3ddc441f8ddc2de13e8cffc5755ea60"
+   ],
+   [
+    1439,
+    "f1237bd79ead384f6e97c1007353e2bbc8d2232409fe38cb33a5d3fb556da43e",
+    "f355b51897be806fad1425ca518c1a4682dc769ee1c7965b8db3d72dee28c526"
+   ]
+  ],
+  "generated": [
+   [
+    0,
+    "d45ca8b91fc45a7369420d3ab557c0469c571d0dbd96f493600f649ee2c0228d",
+    "121b9c64e7821c09e9adec2905a60e81d00bf762a40ce6a36dde7e007573b960"
+   ],
+   [
+    30,
+    "7b3276b9b32e5aece1c21938075aeb75fbabe121b113098720a92500c2c013c4",
+    "e9e99106746ce3f375168e31f3d6cfd37a8d1f1796c614702b666a63a657205e"
+   ],
+   [
+    152,
+    "d0f3e7c3d1a48c0b924963139afa34863e5d8ad2231ccf13b182ba588e03a7d2",
+    "7d5bfe27fb9289914c65ffa4cd9e573d82c0b1c7980822b5927a3fd1c37b1229"
+   ],
+   [
+    360,
+    "f54af5cd010cab5eb813142de3a834ae9f098c7c28b2f383c8dd873ba6097edc",
+    "9d294150a92b5e779a04d221944b909b2abe2a097dc04c00c6e44662f48d5df5"
+   ]
+  ],
+  "small_replay": [
+   [
+    0,
+    "b75d2645986da70ef8c0684bae4d44e0fa7a8f8251b9ef44ecb3ca759d9cf1fa",
+    "2dccae709dae0671b8c8992d54dcd26de1c6eed86757f15aa74c5d0132bc9d45"
+   ],
+   [
+    90,
+    "9e18d4a1d74e84d0778028914321751a24d0d1f4136e53255a12621bdc7d6782",
+    "dc3e38e19766bd4d3130ca7180b44779001bd9f1beaa722bab65d6f3121aad89"
+   ],
+   [
+    600,
+    "e97aabd91a90ba9ea95b1c6e6820a96346ec33ee6fea6264935f9b26ba26d20c",
+    "f9c7719b50d7abc0d170ed44f57cd06e879b7699e20a36a0a16a47118f83241a"
+   ],
+   [
+    1440,
+    "29b154e3a47245fd5bbf30ac2ac88fd9545f51f007c211a154ab7fe4af45f718",
+    "67cecda212c851e15fd9d291215cf5fa5e7fa028220505a647d6e9e6e789b9c2"
+   ]
+  ]
+ },
+ "files": {
+  "arrivals": "frames",
+  "generated": "tick_core",
+  "small_replay": "tick_core"
+ },
+ "worlds": {
+  "arrivals": {
+   "run": {
+    "policies": {
+     "controller": {
+      "attrs": {
+       "artifacts": {
+        "object": {
+         "attrs": {
+          "trace_level": {
+           "text": "off"
+          }
+         },
+         "class": [
+          "sheltersim.inspection.traces",
+          "RunArtifactWriter",
+          true
+         ],
+         "class_own": {
+          "decision_sink": {
+           "value": "artifacts"
+          }
+         },
+         "own": {}
+        }
+       },
+       "decisions": {
+        "object": {
+         "attrs": {
+          "policy": {
+           "object": {
+            "attrs": {
+             "autonomy_enabled": {
+              "value": true
+             },
+             "decision_interval_minutes": {
+              "value": 15
+             },
+             "decision_interval_minutes_by_agent": {
+              "value": {}
+             },
+             "hunger_action_threshold": {
+              "value": 0.7
+             },
+             "hydration_action_threshold": {
+              "value": 0.25
+             },
+             "information_query_threshold": {
+              "value": 0.45
+             },
+             "information_query_utility_weight": {
+              "value": 0.8
+             },
+             "meal_utility_base": {
+              "value": 0.18
+             },
+             "meal_utility_need_weight": {
+              "value": 0.85
+             },
+             "policy_version": {
+              "value": "sleep-aware-utility-softmax-v2-autonomy-v2-resource-service-v1"
+             },
+             "resource_service_enabled": {
+              "value": true
+             },
+             "scorer": {
+              "fault": [
+               "builtins.AttributeError",
+               "'UtilityBehaviorPolicy' object has no attribute 'scorer'"
+              ]
+             },
+             "sleep_debt_utility_weight": {
+              "value": 1.0
+             },
+             "temperature": {
+              "value": 0.2
+             },
+             "temperature_by_agent": {
+              "value": {}
+             },
+             "water_utility_base": {
+              "value": 0.18
+             },
+             "water_utility_need_weight": {
+              "value": 1.0
+             }
+            },
+            "class": [
+             "sheltersim.policies.behavior",
+             "UtilityBehaviorPolicy",
+             true
+            ],
+            "class_own": {},
+            "own": {}
+           }
+          }
+         },
+         "class": [
+          "sheltersim.policies.behavior",
+          "BehaviorDecisionRunner",
+          true
+         ],
+         "class_own": {},
+         "own": {}
+        }
+       },
+       "information_policy": {
+        "object": {
+         "attrs": {
+          "config": {
+           "object": {
+            "attrs": {
+             "adjacent_zone_contact_multiplier": {
+              "value": 0.5
+             },
+             "base_transmission_probability": {
+              "value": 0.2
+             },
+             "contact_duration_scale_minutes": {
+              "value": 5
+             },
+             "correction_acceptance_probability": {
+              "value": 0.7
+             },
+             "correction_source_reliability_by_id": {
+              "value": {}
+             },
+             "correction_source_sensitivity": {
+              "value": 0.2
+             },
+             "correction_transmission_multiplier": {
+              "value": 1.25
+             },
+             "correction_trust_sensitivity": {
+              "value": 0.2
+             },
+             "default_source_reliability": {
+              "value": 0.7
+             },
+             "distress_sharing_sensitivity": {
+              "value": 0.5
+             },
+             "enabled": {
+              "value": true
+             },
+             "family_contact_multiplier": {
+              "value": 1.5
+             },
+             "forgetting_rate_per_minute": {
+              "value": 0.0
+             },
+             "max_contacts_per_agent": {
+              "value": 2
+             },
+             "minimum_contact_minutes": {
+              "value": 2
+             },
+             "policy_version": {
+              "value": "sparse-information-contact-v1"
+             },
+             "query_pressure_decay_per_minute": {
+              "value": 0.002
+             },
+             "query_pressure_per_claim": {
+              "value": 0.5
+             },
+             "query_pressure_relief_per_correction": {
+              "value": 0.5
+             },
+             "query_threshold": {
+              "value": 0.45
+             },
+             "query_utility_weight": {
+              "value": 0.8
+             },
+             "rumor_belief_probability": {
+              "value": 0.5
+             },
+             "rumor_source_sensitivity": {
+              "value": 0.2
+             },
+             "rumor_trust_sensitivity": {
+              "value": 0.2
+             },
+             "schema_version": {
+              "value": 1
+             },
+             "share_propensity_decay_per_minute": {
+              "value": 0.002
+             },
+             "source_id": {
+              "value": "ASM-INFORMATION-SPREAD-V1"
+             },
+             "source_type": {
+              "value": "assumption"
+             },
+             "trust_sensitivity": {
+              "value": 0.5
+             }
+            },
+            "class": [
+             "sheltersim.domain.models",
+             "InformationSpreadConfig",
+             true
+            ],
+            "class_own": {},
+            "own": {}
+           }
+          },
+          "policy_version": {
+           "value": "evidence-aware-rumor-v1"
+          }
+         },
+         "class": [
+          "sheltersim.policies.information",
+          "EvidenceAwareInformationPolicy",
+          true
+         ],
+         "class_own": {},
+         "own": {}
+        }
+       },
+       "llm_router": {
+        "value": null
+       },
+       "proximity_contact_config": {
+        "value": null
+       },
+       "proximity_policy": {
+        "object": {
+         "attrs": {
+          "config": {
+           "fault": [
+            "builtins.AttributeError",
+            "'DisabledProximityPolicy' object has no attribute 'config'"
+           ]
+          }
+         },
+         "class": [
+          "sheltersim.policies.proximity",
+          "DisabledProximityPolicy",
+          true
+         ],
+         "class_own": {},
+         "own": {}
+        }
+       },
+       "psychology": {
+        "object": {
+         "attrs": {
+          "base": {
+           "object": {
+            "attrs": {
+             "include_direct_rest_stress_recovery": {
+              "value": false
+             }
+            },
+            "class": [
+             "sheltersim.policies.psychology",
+             "SimplePsychologyPolicy",
+             true
+            ],
+            "class_own": {},
+            "own": {}
+           }
+          },
+          "body_config": {
+           "value": {
+            "affect_policy": "linear-positive-negative-v1",
+            "affect_transfer_rate": 0.05,
+            "awake_sleep_debt_minutes_per_minute": 0.5,
+            "caregiver_assistance_reassurance_gain": 0.02,
+            "caregiver_assistance_stress_relief": 0.03,
+            "complaint_discontent_reduction": 0.01,
+            "complaint_reassurance_gain": 0.02,
+            "cooperation_discontent_reduction": 0.01,
+            "cooperation_negative_reduction": 0.02,
+            "cooperation_positive_gain": 0.03,
+            "cooperation_reassurance_gain": 0.03,
+            "correction_reassurance_gain": 0.01,
+            "correction_uncertainty_reduction": 0.05,
+            "dependent_assistance_reassurance_gain": 0.03,
+            "dependent_assistance_stress_relief": 0.04,
+            "discontent_queue_rate": 0.0005,
+            "discontent_relief_per_minute": 0.0002,
+            "discontent_stress_rate": 0.001,
+            "hygiene_growth_per_minute": 5e-05,
+            "hygiene_support_relief": 0.15,
+            "language_access_uncertainty_relief": 0.05,
+            "medical_assessment_uncertainty_relief": 0.02,
+            "medication_support_uncertainty_relief": 0.01,
+            "mobility_assistance_stress_relief": 0.03,
+            "negative_affect_stress_rate": 0.001,
+            "policy_version": "life-state-feedback-v1",
+            "positive_affect_decay_per_minute": 0.0001,
+            "privacy_accommodation_discontent_relief": 0.02,
+            "reassurance_decay_per_minute": 0.0003,
+            "relationship_distance_scale_m": 2.0,
+            "relationship_repeat_contact_bonus": 0.05,
+            "relationship_trust_decay_per_day": 0.002,
+            "relationship_trust_gain": 0.0005,
+            "rest_sleep_debt_recovery_per_minute": 0.0,
+            "sanitation_hygiene_growth_per_minute": 0.0001,
+            "sanitation_stress_rate": 0.002,
+            "schema_version": 1,
+            "sleep_debt_stress_rate": 0.001,
+            "sleep_sleep_debt_recovery_per_minute": 1.0,
+            "social_action_affect_transfer": 0.02,
+            "social_interaction_minutes": 5,
+            "source_id": "ASM-LIFE-STATE-FEEDBACK-V1",
+            "uncertainty_decay_per_minute": 5e-05,
+            "uncertainty_drift_per_minute": 2e-05
+           }
+          },
+          "body_formula": {
+           "object": {
+            "attrs": {
+             "model_id": {
+              "value": "body-feedback-complete-v2"
+             }
+            },
+            "class": [
+             "sheltersim.policies.registry",
+             "BodyDynamicsFormula",
+             true
+            ],
+            "class_own": {},
+            "own": {}
+           }
+          },
+          "include_direct_rest_stress_recovery": {
+           "fault": [
+            "builtins.AttributeError",
+            "'IntegratedDistressLifeStatePolicy' object has no attribute 'include_direct_rest_stress_recovery'"
+           ]
+          },
+          "parameters": {
+           "object": {
+            "attrs": {
+             "awake_fatigue_growth": {
+              "value": 0.0008
+             },
+             "awake_fatigue_growth_by_agent": {
+              "value": {}
+             },
+             "baseline_distress_by_agent": {
+              "value": {}
+             },
+             "chronic_acute_weight": {
+              "value": 0.08
+             },
+             "chronic_high_distress_weight": {
+              "value": 0.02
+             },
+             "chronic_retention": {
+              "value": 0.9
+             },
+             "high_distress_threshold": {
+              "value": 0.7
+             },
+             "hunger_growth": {
+              "value": 0.0005
+             },
+             "hunger_growth_by_agent": {
+              "value": {}
+             },
+             "hydration_growth": {
+              "value": 0.001
+             },
+             "natural_recovery_rate_by_agent": {
+              "value": {}
+             },
+             "natural_recovery_rate_per_minute": {
+              "value": 0.01
+             },
+             "need_pressure_threshold": {
+              "value": 0.35
+             },
+             "queued_stress": {
+              "value": 0.002
+             },
+             "resting_fatigue_recovery": {
+              "value": 0.004
+             },
+             "resting_stress_recovery": {
+              "value": 0.003
+             },
+             "sleeping_fatigue_recovery": {
+              "value": 0.01
+             },
+             "sleeping_stress_recovery": {
+              "value": 0.006
+             },
+             "stress_pressure": {
+              "value": 0.012
+             },
+             "support_wait_stress": {
+              "value": 0.001
+             },
+             "toilet_growth": {
+              "value": 0.001
+             },
+             "toilet_growth_by_agent": {
+              "value": {}
+             }
+            },
+            "class": [
+             "sheltersim.policies.psychology",
+             "PsychologyParameters",
+             true
+            ],
+            "class_own": {},
+            "own": {}
+           }
+          },
+          "policy_version": {
+           "value": "mean-reverting-life-state-v1"
+          },
+          "source_id": {
+           "value": "ASM-MEAN-REVERTING-LIFE-STATE-V1"
+          },
+          "update_long_term_state": {
+           "fault": [
+            "builtins.AttributeError",
+            "'IntegratedDistressLifeStatePolicy' object has no attribute 'update_long_term_state'"
+           ]
+          },
+          "use_tick_start_stress_for_feedback": {
+           "value": true
+          }
+         },
+         "class": [
+          "sheltersim.policies.psychology",
+          "IntegratedDistressLifeStatePolicy",
+          true
+         ],
+         "class_own": {},
+         "own": {}
+        }
+       },
+       "resource_service": {
+        "object": {
+         "attrs": {
+          "config": {
+           "value": {
+            "food_meal_units_per_service": 1,
+            "hunger_action_threshold": 0.7,
+            "hunger_relief": 0.5,
+            "hydration_action_threshold": 0.25,
+            "hydration_growth_per_minute": 0.001,
+            "hydration_relief": 0.35,
+            "meal_staff_skill": "meal_service",
+            "meal_utility_base": 0.18,
+            "meal_utility_need_weight": 0.85,
+            "policy_version": "resource-service-v1",
+            "schema_version": 1,
+            "service_minutes": 5,
+            "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+            "source_type": "assumption",
+            "water_ml_per_service": 250,
+            "water_staff_skill": "water_service",
+            "water_utility_base": 0.18,
+            "water_utility_need_weight": 1.0
+           }
+          },
+          "policy_version": {
+           "value": "resource-service-v1"
+          }
+         },
+         "class": [
+          "sheltersim.domain.resource_service",
+          "ResourceServiceManager",
+          true
+         ],
+         "class_own": {},
+         "own": {}
+        }
+       },
+       "social_policy": {
+        "value": null
+       },
+       "staff_service": {
+        "object": {
+         "attrs": {
+          "cooldown_minutes": {
+           "value": 30
+          },
+          "fairness_after_minutes": {
+           "value": 30
+          },
+          "policy_version": {
+           "value": "staff-support-fifo-aging-v2"
+          },
+          "route_resolver": {
+           "method": "_route"
+          },
+          "task_duration_minutes": {
+           "value": 10
+          },
+          "travel_scheduler": {
+           "method": "_schedule_staff_support_travel"
+          },
+          "unresolved_after_minutes": {
+           "value": 90
+          }
+         },
+         "class": [
+          "sheltersim.domain.staff",
+          "StaffService",
+          true
+         ],
+         "class_own": {},
+         "own": {}
+        }
+       },
+       "stress_policy": {
+        "object": {
+         "attrs": {
+          "parameters": {
+           "object": {
+            "attrs": {
+             "cooldown_minutes": {
+              "value": 30
+             },
+             "enabled": {
+              "value": true
+             },
+             "family_channel_strength": {
+              "value": 1.0
+             },
+             "max_agent_stress_increase_per_minute": {
+              "value": 0.05
+             },
+             "max_contacts_per_agent": {
+              "value": 3
+             },
+             "max_pair_stress_increase": {
+              "value": 0.05
+             },
+             "minimum_contact_minutes": {
+              "value": 5
+             },
+             "natural_recovery_per_minute": {
+              "value": 0.0
+             },
+             "nearby_zone_channel_strength": {
+              "value": 0.5
+             },
+             "same_zone_channel_strength": {
+              "value": 0.75
+             },
+             "source_expressiveness_by_agent": {
+              "value": {}
+             },
+             "source_id": {
+              "value": "ASM-BOSSE-AFFECT-CONTAGION-V1"
+             },
+             "stress_spread_per_minute": {
+              "value": 0.001
+             }
+            },
+            "class": [
+             "sheltersim.policies.social",
+             "SocialPropagationParameters",
+             true
+            ],
+            "class_own": {},
+            "own": {}
+           }
+          },
+          "policy_version": {
+           "value": "expressiveness-channel-openness-v1"
+          }
+         },
+         "class": [
+          "sheltersim.policies.social",
+          "ExpressivenessChannelOpennessPolicy",
+          true
+         ],
+         "class_own": {},
+         "own": {}
+        }
+       },
+       "toilet_service": {
+        "object": {
+         "attrs": {
+          "max_service_minutes": {
+           "value": 8
+          },
+          "min_service_minutes": {
+           "value": 4
+          },
+          "policy_version": {
+           "value": "toilet-service-uniform-v1"
+          }
+         },
+         "class": [
+          "sheltersim.domain.facilities",
+          "ToiletServiceManager",
+          true
+         ],
+         "class_own": {},
+         "own": {}
+        }
+       }
+      },
+      "class": [
+       "sheltersim.experiments.runner",
+       "OfflineSimulationController",
+       true
+      ],
+      "class_own": {},
+      "own": {}
+     },
+     "dispatch": {
+      "handlers": {
+       "value": {
+        "agent_travel_complete": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "AgentTravelCompletionHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "resource_service": {
+            "object": {
+             "attrs": {},
+             "class": [
+              "sheltersim.domain.resource_service",
+              "ResourceServiceManager",
+              true
+             ],
+             "class_own": {},
+             "own": {}
+            }
+           },
+           "toilet_service": {
+            "object": {
+             "attrs": {},
+             "class": [
+              "sheltersim.domain.facilities",
+              "ToiletServiceManager",
+              true
+             ],
+             "class_own": {},
+             "own": {}
+            }
+           },
+           "validate_request_state": {
+            "value": false
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "AgentTravelCompletionHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "delivery_delayed": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "DeliveryDelayHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "DeliveryDelayHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "effect_program_apply": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramFacilityHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": false
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramFacilityHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "effect_program_environment": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramEnvironmentHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": false
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramEnvironmentHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "effect_program_environment_expire": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramEnvironmentHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": true
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramEnvironmentHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "effect_program_expire": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramFacilityHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": true
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramFacilityHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "effect_program_geometry": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramGeometryHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": false
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramGeometryHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "effect_program_geometry_expire": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramGeometryHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": true
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramGeometryHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "effect_program_population": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "EffectProgramPopulationHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "EffectProgramPopulationHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "effect_program_structure": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramStructureHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramStructureHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "effect_program_temporary_space": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramTemporarySpaceHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": false
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramTemporarySpaceHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "effect_program_temporary_space_expire": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramTemporarySpaceHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": true
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramTemporarySpaceHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "environmental_stressor_end": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "equipment_failure": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "equipment_repaired": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "extreme_cold": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "extreme_heat": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "facility_outage": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "FacilityOutageHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "FacilityOutageHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "facility_recovery": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "FacilityRecoveryHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "FacilityRecoveryHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "information_contact_update": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InformationContactHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InformationContactHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "information_correction": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InformationCorrectionHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InformationCorrectionHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "information_rumor": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InformationRumorHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InformationRumorHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "population_approach_complete": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "EffectProgramPopulationHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "EffectProgramPopulationHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "power_outage": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "power_restored": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "proximity_contact_update": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ProximityContactHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "ProximityContactHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "resource_consume": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ResourceLedgerHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "operation": {
+            "value": "consume"
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "ResourceLedgerHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "resource_delivery": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ResourceLedgerHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "operation": {
+            "value": "delivery"
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "ResourceLedgerHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "resource_loss": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ResourceLedgerHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "operation": {
+            "value": "loss"
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "ResourceLedgerHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "resource_release": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ResourceLedgerHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "operation": {
+            "value": "release"
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "ResourceLedgerHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "resource_reserve": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ResourceLedgerHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "operation": {
+            "value": "reserve"
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "ResourceLedgerHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "resource_service_cancel": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ResourceServiceCancellationHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "service": {
+            "object": {
+             "attrs": {},
+             "class": [
+              "sheltersim.domain.resource_service",
+              "ResourceServiceManager",
+              true
+             ],
+             "class_own": {},
+             "own": {}
+            }
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "ResourceServiceCancellationHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "resource_service_complete": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ResourceServiceCompletionHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "service": {
+            "object": {
+             "attrs": {},
+             "class": [
+              "sheltersim.domain.resource_service",
+              "ResourceServiceManager",
+              true
+             ],
+             "class_own": {},
+             "own": {}
+            }
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "ResourceServiceCompletionHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "social_interaction": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "SocialInteractionHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "SocialInteractionHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "staff_operation_arrive": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffOperationArrivalHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "StaffOperationArrivalHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "staff_operation_complete": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffOperationCompletionHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "StaffOperationCompletionHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "staff_operation_relief": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffOperationReliefHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "StaffOperationReliefHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "staff_restored": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffRestorationHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "StaffRestorationHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "staff_shift_change": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffUnavailabilityHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "StaffUnavailabilityHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "staff_support_complete": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffSupportCompletionHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "cooldown_minutes": {
+            "value": 30
+           },
+           "require_colocated": {
+            "value": true
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "StaffSupportCompletionHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "staff_unavailable": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffUnavailabilityHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "StaffUnavailabilityHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "supply_route_interruption": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "supply_route_restored": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "support_request_timeout": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "SupportRequestTimeoutHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "cooldown_minutes": {
+            "value": 30
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "SupportRequestTimeoutHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "toilet_service_complete": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ToiletServiceCompletionHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "after_complete": {
+            "method": "_schedule_return_to_initial_zone"
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "ToiletServiceCompletionHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "water_outage": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "WaterOutageHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "WaterOutageHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "water_restored": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "WaterRestorationHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "WaterRestorationHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        }
+       }
+      },
+      "known": {
+       "value": true
+      }
+     }
+    },
+    "route_capacities": {},
+    "zone_neighbors": {
+     "corridor": [
+      "food",
+      "intake",
+      "medical",
+      "quiet",
+      "sleeping",
+      "staff",
+      "toilet"
+     ],
+     "food": [
+      "corridor"
+     ],
+     "intake": [
+      "corridor"
+     ],
+     "medical": [
+      "corridor"
+     ],
+     "quiet": [
+      "corridor"
+     ],
+     "sleeping": [
+      "corridor"
+     ],
+     "staff": [
+      "corridor"
+     ],
+     "toilet": [
+      "corridor"
+     ]
+    }
+   },
+   "sections": {
+    "body_models": {
+     "value": {
+      "affect": "linear-positive-negative-v1",
+      "relationship": "distance-duration-repeat-trust-v1"
+     }
+    },
+    "care_outcome": {
+     "value": {
+      "config": {
+       "affect_policy": "linear-positive-negative-v1",
+       "affect_transfer_rate": 0.05,
+       "awake_sleep_debt_minutes_per_minute": 0.5,
+       "caregiver_assistance_reassurance_gain": 0.02,
+       "caregiver_assistance_stress_relief": 0.03,
+       "complaint_discontent_reduction": 0.01,
+       "complaint_reassurance_gain": 0.02,
+       "cooperation_discontent_reduction": 0.01,
+       "cooperation_negative_reduction": 0.02,
+       "cooperation_positive_gain": 0.03,
+       "cooperation_reassurance_gain": 0.03,
+       "correction_reassurance_gain": 0.01,
+       "correction_uncertainty_reduction": 0.05,
+       "dependent_assistance_reassurance_gain": 0.03,
+       "dependent_assistance_stress_relief": 0.04,
+       "discontent_queue_rate": 0.0005,
+       "discontent_relief_per_minute": 0.0002,
+       "discontent_stress_rate": 0.001,
+       "hygiene_growth_per_minute": 5e-05,
+       "hygiene_support_relief": 0.15,
+       "language_access_uncertainty_relief": 0.05,
+       "medical_assessment_uncertainty_relief": 0.02,
+       "medication_support_uncertainty_relief": 0.01,
+       "mobility_assistance_stress_relief": 0.03,
+       "negative_affect_stress_rate": 0.001,
+       "policy_version": "life-state-feedback-v1",
+       "positive_affect_decay_per_minute": 0.0001,
+       "privacy_accommodation_discontent_relief": 0.02,
+       "reassurance_decay_per_minute": 0.0003,
+       "relationship_distance_scale_m": 2.0,
+       "relationship_repeat_contact_bonus": 0.05,
+       "relationship_trust_decay_per_day": 0.002,
+       "relationship_trust_gain": 0.0005,
+       "rest_sleep_debt_recovery_per_minute": 0.0,
+       "sanitation_hygiene_growth_per_minute": 0.0001,
+       "sanitation_stress_rate": 0.002,
+       "schema_version": 1,
+       "sleep_debt_stress_rate": 0.001,
+       "sleep_sleep_debt_recovery_per_minute": 1.0,
+       "social_action_affect_transfer": 0.02,
+       "social_interaction_minutes": 5,
+       "source_id": "ASM-LIFE-STATE-FEEDBACK-V1",
+       "uncertainty_decay_per_minute": 5e-05,
+       "uncertainty_drift_per_minute": 2e-05
+      },
+      "model_id": "typed-care-support-response-v1",
+      "source_id": "ASM-CARE-TYPED-SUPPORT-RESPONSE-V1"
+     }
+    },
+    "extensions_enabled": {
+     "value": true
+    },
+    "facility_geometry": {
+     "value": {
+      "arrival_approach_routes": [
+       {
+        "destination_zone_id": "quiet",
+        "distance_m": 4.130648586880582,
+        "points_m": [
+         {
+          "x": 6.531676725154982,
+          "y": 13.954451150103322
+         },
+         {
+          "x": 7.031676725154982,
+          "y": 12.454451150103322
+         },
+         {
+          "x": 6.531676725154982,
+          "y": 9.954451150103322
+         }
+        ],
+        "route_id": "arrival-to-quiet",
+        "schema_version": 1,
+        "source_ids": [
+         "SRC-TEST-APPROACH-ROUTE"
+        ],
+        "source_kind": "operator",
+        "travel_minutes": {
+         "value": 5
+        },
+        "walking_speed_m_per_min": 1.0
+       }
+      ],
+      "facility_points": {
+       "accessible_toilet_01": {
+        "x": 11.631676725154984,
+        "y": 9.306649943084725
+       },
+       "intake_desk": {
+        "x": 13.461676725154986,
+        "y": 9.306649943084725
+       },
+       "meal_distribution_main": {
+        "x": 9.831676725154983,
+        "y": 9.306649943084725
+       },
+       "medical_desk": {
+        "x": 8.061676725154983,
+        "y": 9.306649943084725
+       },
+       "quiet_support": {
+        "x": 6.261676725154983,
+        "y": 9.306649943084725
+       },
+       "toilet_01": {
+        "x": 12.231676725154985,
+        "y": 9.306649943084725
+       },
+       "water_station_main": {
+        "x": 10.431676725154984,
+        "y": 9.306649943084725
+       }
+      },
+      "height_m": 14.954451150103322,
+      "origin": "top_left",
+      "routes": [
+       {
+        "accessible": true,
+        "edge_id": "route_corridor_food",
+        "points": [
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         },
+         {
+          "x": 10.131676725154984,
+          "y": 0.9
+         },
+         {
+          "x": 10.131676725154984,
+          "y": 1.8
+         },
+         {
+          "x": 10.131676725154984,
+          "y": 6.3772255750516615
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_corridor_intake",
+        "points": [
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         },
+         {
+          "x": 13.731676725154985,
+          "y": 0.9
+         },
+         {
+          "x": 13.731676725154985,
+          "y": 1.8
+         },
+         {
+          "x": 13.731676725154985,
+          "y": 6.3772255750516615
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_corridor_medical",
+        "points": [
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         },
+         {
+          "x": 8.331676725154983,
+          "y": 0.9
+         },
+         {
+          "x": 8.331676725154983,
+          "y": 1.8
+         },
+         {
+          "x": 8.331676725154983,
+          "y": 6.3772255750516615
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_corridor_quiet",
+        "points": [
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         },
+         {
+          "x": 6.531676725154982,
+          "y": 0.9
+         },
+         {
+          "x": 6.531676725154982,
+          "y": 1.8
+         },
+         {
+          "x": 6.531676725154982,
+          "y": 6.3772255750516615
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_corridor_sleeping",
+        "points": [
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         },
+         {
+          "x": 2.8158383625774914,
+          "y": 0.9
+         },
+         {
+          "x": 2.8158383625774914,
+          "y": 1.8
+         },
+         {
+          "x": 2.8158383625774914,
+          "y": 6.3772255750516615
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_corridor_staff",
+        "points": [
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         },
+         {
+          "x": 15.531676725154984,
+          "y": 0.9
+         },
+         {
+          "x": 15.531676725154984,
+          "y": 1.8
+         },
+         {
+          "x": 15.531676725154984,
+          "y": 6.3772255750516615
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_corridor_toilet",
+        "points": [
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         },
+         {
+          "x": 11.931676725154984,
+          "y": 0.9
+         },
+         {
+          "x": 11.931676725154984,
+          "y": 1.8
+         },
+         {
+          "x": 11.931676725154984,
+          "y": 6.3772255750516615
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_food_corridor",
+        "points": [
+         {
+          "x": 10.131676725154984,
+          "y": 6.3772255750516615
+         },
+         {
+          "x": 10.131676725154984,
+          "y": 1.8
+         },
+         {
+          "x": 10.131676725154984,
+          "y": 0.9
+         },
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_intake_corridor",
+        "points": [
+         {
+          "x": 13.731676725154985,
+          "y": 6.3772255750516615
+         },
+         {
+          "x": 13.731676725154985,
+          "y": 1.8
+         },
+         {
+          "x": 13.731676725154985,
+          "y": 0.9
+         },
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_medical_corridor",
+        "points": [
+         {
+          "x": 8.331676725154983,
+          "y": 6.3772255750516615
+         },
+         {
+          "x": 8.331676725154983,
+          "y": 1.8
+         },
+         {
+          "x": 8.331676725154983,
+          "y": 0.9
+         },
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_quiet_corridor",
+        "points": [
+         {
+          "x": 6.531676725154982,
+          "y": 6.3772255750516615
+         },
+         {
+          "x": 6.531676725154982,
+          "y": 1.8
+         },
+         {
+          "x": 6.531676725154982,
+          "y": 0.9
+         },
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_sleeping_corridor",
+        "points": [
+         {
+          "x": 2.8158383625774914,
+          "y": 6.3772255750516615
+         },
+         {
+          "x": 2.8158383625774914,
+          "y": 1.8
+         },
+         {
+          "x": 2.8158383625774914,
+          "y": 0.9
+         },
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_staff_corridor",
+        "points": [
+         {
+          "x": 15.531676725154984,
+          "y": 6.3772255750516615
+         },
+         {
+          "x": 15.531676725154984,
+          "y": 1.8
+         },
+         {
+          "x": 15.531676725154984,
+          "y": 0.9
+         },
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_toilet_corridor",
+        "points": [
+         {
+          "x": 11.931676725154984,
+          "y": 6.3772255750516615
+         },
+         {
+          "x": 11.931676725154984,
+          "y": 1.8
+         },
+         {
+          "x": 11.931676725154984,
+          "y": 0.9
+         },
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         }
+        ],
+        "width_m": 1.8
+       }
+      ],
+      "schema_version": 1,
+      "service_points": [
+       {
+        "access": {
+         "accessibility": "unknown",
+         "required_access_tags": [],
+         "required_staff_skills": []
+        },
+        "facility_id": "accessible_toilet_01",
+        "id": "legacy-service:d34bc5076754a08e28331f68",
+        "point_m": {
+         "x": 11.631676725154984,
+         "y": 9.306649943084725
+        },
+        "queue_id": "accessible_toilet_01",
+        "schema_version": 1,
+        "service_capacity": 1
+       },
+       {
+        "access": {
+         "accessibility": "unknown",
+         "required_access_tags": [],
+         "required_staff_skills": []
+        },
+        "facility_id": "intake_desk",
+        "id": "legacy-service:788cc82320ce4b6e07a59965",
+        "point_m": {
+         "x": 13.461676725154986,
+         "y": 9.306649943084725
+        },
+        "queue_id": "intake_desk",
+        "schema_version": 1,
+        "service_capacity": 1
+       },
+       {
+        "access": {
+         "accessibility": "unknown",
+         "required_access_tags": [],
+         "required_staff_skills": []
+        },
+        "facility_id": "meal_distribution_main",
+        "id": "legacy-service:4483648d70d51dce47b29586",
+        "point_m": {
+         "x": 9.831676725154983,
+         "y": 9.306649943084725
+        },
+        "queue_id": "meal_distribution_main",
+        "schema_version": 1,
+        "service_capacity": 1
+       },
+       {
+        "access": {
+         "accessibility": "unknown",
+         "required_access_tags": [],
+         "required_staff_skills": []
+        },
+        "facility_id": "medical_desk",
+        "id": "legacy-service:24a22dc837f7add348c91a46",
+        "point_m": {
+         "x": 8.061676725154983,
+         "y": 9.306649943084725
+        },
+        "queue_id": "medical_desk",
+        "schema_version": 1,
+        "service_capacity": 1
+       },
+       {
+        "access": {
+         "accessibility": "unknown",
+         "required_access_tags": [],
+         "required_staff_skills": []
+        },
+        "facility_id": "quiet_support",
+        "id": "legacy-service:1a50d56190f3f558ae2e7fd5",
+        "point_m": {
+         "x": 6.261676725154983,
+         "y": 9.306649943084725
+        },
+        "queue_id": "quiet_support",
+        "schema_version": 1,
+        "service_capacity": 1
+       },
+       {
+        "access": {
+         "accessibility": "unknown",
+         "required_access_tags": [],
+         "required_staff_skills": []
+        },
+        "facility_id": "toilet_01",
+        "id": "legacy-service:650608e8abd263c7ffed0b32",
+        "point_m": {
+         "x": 12.231676725154985,
+         "y": 9.306649943084725
+        },
+        "queue_id": "toilet_01",
+        "schema_version": 1,
+        "service_capacity": 1
+       },
+       {
+        "access": {
+         "accessibility": "unknown",
+         "required_access_tags": [],
+         "required_staff_skills": []
+        },
+        "facility_id": "water_station_main",
+        "id": "legacy-service:efc8fc0c9793f65a86378d94",
+        "point_m": {
+         "x": 10.431676725154984,
+         "y": 9.306649943084725
+        },
+        "queue_id": "water_station_main",
+        "schema_version": 1,
+        "service_capacity": 1
+       }
+      ],
+      "source_ids": [
+       "ASM-SHELTER-AREA-HEURISTIC-V1",
+       "ASM-SHELTER-SERVICE-STATIONS-V1",
+       "ASM-SHELTER-STAFFING-HEURISTIC-V2",
+       "ASM-SHELTER-TOILET-HEURISTIC-V2",
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "source_kind": "synthetic",
+      "units": "m",
+      "width_m": 16.431676725154983,
+      "zones": [
+       {
+        "polygon": [
+         {
+          "x": 0.0,
+          "y": 0.0
+         },
+         {
+          "x": 16.431676725154983,
+          "y": 0.0
+         },
+         {
+          "x": 16.431676725154983,
+          "y": 1.8
+         },
+         {
+          "x": 0.0,
+          "y": 1.8
+         }
+        ],
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "usable_area_m2": 26.619316294751073,
+        "zone_id": "corridor"
+       },
+       {
+        "polygon": [
+         {
+          "x": 0.0,
+          "y": 1.8
+         },
+         {
+          "x": 5.631676725154983,
+          "y": 1.8
+         },
+         {
+          "x": 5.631676725154983,
+          "y": 10.954451150103322
+         },
+         {
+          "x": 0.0,
+          "y": 10.954451150103322
+         }
+        ],
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "usable_area_m2": 46.39941852624463,
+        "zone_id": "sleeping"
+       },
+       {
+        "polygon": [
+         {
+          "x": 5.631676725154983,
+          "y": 1.8
+         },
+         {
+          "x": 7.431676725154983,
+          "y": 1.8
+         },
+         {
+          "x": 7.431676725154983,
+          "y": 10.954451150103322
+         },
+         {
+          "x": 5.631676725154983,
+          "y": 10.954451150103322
+         }
+        ],
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "usable_area_m2": 14.830210863167379,
+        "zone_id": "quiet"
+       },
+       {
+        "polygon": [
+         {
+          "x": 7.431676725154983,
+          "y": 1.8
+         },
+         {
+          "x": 9.231676725154983,
+          "y": 1.8
+         },
+         {
+          "x": 9.231676725154983,
+          "y": 10.954451150103322
+         },
+         {
+          "x": 7.431676725154983,
+          "y": 10.954451150103322
+         }
+        ],
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "usable_area_m2": 14.830210863167387,
+        "zone_id": "medical"
+       },
+       {
+        "polygon": [
+         {
+          "x": 9.231676725154983,
+          "y": 1.8
+         },
+         {
+          "x": 11.031676725154984,
+          "y": 1.8
+         },
+         {
+          "x": 11.031676725154984,
+          "y": 10.954451150103322
+         },
+         {
+          "x": 9.231676725154983,
+          "y": 10.954451150103322
+         }
+        ],
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "usable_area_m2": 14.830210863167387,
+        "zone_id": "food"
+       },
+       {
+        "polygon": [
+         {
+          "x": 11.031676725154984,
+          "y": 1.8
+         },
+         {
+          "x": 12.831676725154985,
+          "y": 1.8
+         },
+         {
+          "x": 12.831676725154985,
+          "y": 10.954451150103322
+         },
+         {
+          "x": 11.031676725154984,
+          "y": 10.954451150103322
+         }
+        ],
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "usable_area_m2": 14.830210863167387,
+        "zone_id": "toilet"
+       },
+       {
+        "polygon": [
+         {
+          "x": 12.831676725154985,
+          "y": 1.8
+         },
+         {
+          "x": 14.631676725154986,
+          "y": 1.8
+         },
+         {
+          "x": 14.631676725154986,
+          "y": 10.954451150103322
+         },
+         {
+          "x": 12.831676725154985,
+          "y": 10.954451150103322
+         }
+        ],
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "usable_area_m2": 14.830210863167387,
+        "zone_id": "intake"
+       },
+       {
+        "polygon": [
+         {
+          "x": 14.631676725154986,
+          "y": 1.8
+         },
+         {
+          "x": 16.431676725154983,
+          "y": 1.8
+         },
+         {
+          "x": 16.431676725154983,
+          "y": 10.954451150103322
+         },
+         {
+          "x": 14.631676725154986,
+          "y": 10.954451150103322
+         }
+        ],
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "usable_area_m2": 14.830210863167359,
+        "zone_id": "staff"
+       }
+      ]
+     }
+    },
+    "information_spread": {
+     "value": {
+      "correction_acceptance_probability": 0.7,
+      "correction_source_reliability_by_id": {},
+      "correction_source_sensitivity": 0.2,
+      "correction_trust_sensitivity": 0.2,
+      "default_source_reliability": 0.7,
+      "enabled": true,
+      "minimum_contact_minutes": 2,
+      "present": true,
+      "query_pressure_per_claim": 0.5,
+      "query_pressure_relief_per_correction": 0.5,
+      "rumor_belief_probability": 0.5,
+      "rumor_source_sensitivity": 0.2,
+      "rumor_trust_sensitivity": 0.2
+     }
+    },
+    "infrastructure": {
+     "fault": [
+      "Key",
+      "'infrastructure'"
+     ]
+    },
+    "overlay_rooms": {
+     "value": {
+      "is_dict": true,
+      "room_schema": {
+       "value": true
+      }
+     }
+    },
+    "proximity": {
+     "value": null
+    },
+    "selection": {
+     "value": [
+      [
+       "behavior",
+       "sleep-aware-utility-softmax-v2"
+      ],
+      [
+       "psychology",
+       "mean-reverting-life-state-v1"
+      ],
+      [
+       "social",
+       "expressiveness-channel-openness-v1"
+      ],
+      [
+       "information",
+       "evidence-aware-rumor-v1"
+      ],
+      [
+       "affect",
+       "linear-positive-negative-v1"
+      ],
+      [
+       "body_dynamics",
+       "body-feedback-complete-v2"
+      ],
+      [
+       "queue",
+       "need-weighted-physical-queue-v1"
+      ],
+      [
+       "relationship",
+       "distance-duration-repeat-trust-v1"
+      ],
+      [
+       "social_proximity",
+       "disabled-proximity-v1"
+      ],
+      [
+       "care_outcome",
+       "typed-care-support-response-v1"
+      ],
+      [
+       "staff_fatigue",
+       "staff-fatigue-linear-v1"
+      ],
+      [
+       "staff_operations",
+       "staff-urgency-first-v1"
+      ],
+      [
+       "zone_environment",
+       "zone-temperature-comfort-band-v1"
+      ],
+      [
+       "zone_hygiene",
+       "zone-hygiene-linear-v1"
+      ],
+      [
+       "zone_privacy",
+       "zone-privacy-threshold-v1"
+      ],
+      [
+       "zone_rest",
+       "zone-rest-multiplicative-v1"
+      ]
+     ]
+    },
+    "spatial_constraints": {
+     "value": {
+      "accessible_facility_ids": [],
+      "equipment_footprints": [],
+      "obstacles": [],
+      "openings": [
+       {
+        "accessible": true,
+        "center": {
+         "x": 2.8158383625774914,
+         "y": 1.8
+        },
+        "edge_ids": [
+         "route_corridor_sleeping",
+         "route_sleeping_corridor"
+        ],
+        "id": "opening_sleeping_corridor",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "wall_id": "wall_corridor_partition",
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "center": {
+         "x": 6.531676725154983,
+         "y": 1.8
+        },
+        "edge_ids": [
+         "route_corridor_quiet",
+         "route_quiet_corridor"
+        ],
+        "id": "opening_quiet_corridor",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "wall_id": "wall_corridor_partition",
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "center": {
+         "x": 8.331676725154983,
+         "y": 1.8
+        },
+        "edge_ids": [
+         "route_corridor_medical",
+         "route_medical_corridor"
+        ],
+        "id": "opening_medical_corridor",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "wall_id": "wall_corridor_partition",
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "center": {
+         "x": 10.131676725154984,
+         "y": 1.8
+        },
+        "edge_ids": [
+         "route_corridor_food",
+         "route_food_corridor"
+        ],
+        "id": "opening_food_corridor",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "wall_id": "wall_corridor_partition",
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "center": {
+         "x": 11.931676725154984,
+         "y": 1.8
+        },
+        "edge_ids": [
+         "route_corridor_toilet",
+         "route_toilet_corridor"
+        ],
+        "id": "opening_toilet_corridor",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "wall_id": "wall_corridor_partition",
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "center": {
+         "x": 13.731676725154985,
+         "y": 1.8
+        },
+        "edge_ids": [
+         "route_corridor_intake",
+         "route_intake_corridor"
+        ],
+        "id": "opening_intake_corridor",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "wall_id": "wall_corridor_partition",
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "center": {
+         "x": 15.531676725154984,
+         "y": 1.8
+        },
+        "edge_ids": [
+         "route_corridor_staff",
+         "route_staff_corridor"
+        ],
+        "id": "opening_staff_corridor",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "wall_id": "wall_corridor_partition",
+        "width_m": 1.8
+       }
+      ],
+      "planning_capacity_by_zone": {},
+      "schema_version": 1,
+      "walls": [
+       {
+        "end": {
+         "x": 16.431676725154983,
+         "y": 0.0
+        },
+        "id": "exterior_north",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 0.0,
+         "y": 0.0
+        }
+       },
+       {
+        "end": {
+         "x": 16.431676725154983,
+         "y": 10.954451150103322
+        },
+        "id": "exterior_east",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 16.431676725154983,
+         "y": 0.0
+        }
+       },
+       {
+        "end": {
+         "x": 0.0,
+         "y": 10.954451150103322
+        },
+        "id": "exterior_south",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 16.431676725154983,
+         "y": 10.954451150103322
+        }
+       },
+       {
+        "end": {
+         "x": 0.0,
+         "y": 0.0
+        },
+        "id": "exterior_west",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 0.0,
+         "y": 10.954451150103322
+        }
+       },
+       {
+        "end": {
+         "x": 16.431676725154983,
+         "y": 1.8
+        },
+        "id": "wall_corridor_partition",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 0.0,
+         "y": 1.8
+        }
+       },
+       {
+        "end": {
+         "x": 5.631676725154983,
+         "y": 10.954451150103322
+        },
+        "id": "partition_zone_01",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 5.631676725154983,
+         "y": 1.8
+        }
+       },
+       {
+        "end": {
+         "x": 7.431676725154983,
+         "y": 10.954451150103322
+        },
+        "id": "partition_zone_02",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 7.431676725154983,
+         "y": 1.8
+        }
+       },
+       {
+        "end": {
+         "x": 9.231676725154983,
+         "y": 10.954451150103322
+        },
+        "id": "partition_zone_03",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 9.231676725154983,
+         "y": 1.8
+        }
+       },
+       {
+        "end": {
+         "x": 11.031676725154984,
+         "y": 10.954451150103322
+        },
+        "id": "partition_zone_04",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 11.031676725154984,
+         "y": 1.8
+        }
+       },
+       {
+        "end": {
+         "x": 12.831676725154985,
+         "y": 10.954451150103322
+        },
+        "id": "partition_zone_05",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 12.831676725154985,
+         "y": 1.8
+        }
+       },
+       {
+        "end": {
+         "x": 14.631676725154986,
+         "y": 10.954451150103322
+        },
+        "id": "partition_zone_06",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 14.631676725154986,
+         "y": 1.8
+        }
+       }
+      ]
+     }
+    },
+    "staff_operations": {
+     "value": {
+      "model_id": "staff-urgency-first-v1",
+      "selected_source": "ASM-STAFF-URGENCY-FIRST-V1"
+     }
+    },
+    "support_cooldown_minutes": {
+     "value": 30
+    },
+    "tick_plan": {
+     "value": {
+      "declared": [
+       [
+        "population_presence_v1",
+        1
+       ]
+      ],
+      "environment_zones": [],
+      "independent_queues": false,
+      "information_enabled": true,
+      "infrastructure_configured": false,
+      "infrastructure_events": [
+       "environmental_stressor_end",
+       "equipment_failure",
+       "equipment_repaired",
+       "extreme_cold",
+       "extreme_heat",
+       "power_outage",
+       "power_restored",
+       "staff_shift_change",
+       "supply_route_interruption",
+       "supply_route_restored"
+      ],
+      "mean_reverting": true,
+      "operational_enabled": true,
+      "operational_events": [
+       "delivery_delayed",
+       "resource_delivery",
+       "staff_shift_change",
+       "staff_unavailable",
+       "water_outage",
+       "water_restored"
+      ],
+      "required": [
+       "agent_dynamics_v1",
+       "body_state_v1",
+       "geometry_overlay_v1",
+       "movement_v1",
+       "population_dynamics_v1",
+       "population_lifecycle_v1",
+       "shared_operations_v1",
+       "social_network_v1",
+       "staff_dynamics_v1",
+       "staff_operations_v1",
+       "temporary_spaces_v1"
+      ],
+      "resource_config": {
+       "food_meal_units_per_service": 1,
+       "meal_staff_skill": "meal_service",
+       "water_ml_per_service": 250,
+       "water_staff_skill": "water_service"
+      },
+      "shared_configured": true
+     }
+    },
+    "transit_capacities": {
+     "value": false
+    },
+    "zone_environment": {
+     "value": {
+      "baseline_by_zone": {},
+      "comfortable_max_temperature_c": 26.0,
+      "comfortable_min_temperature_c": 18.0,
+      "lighting_sleep_efficiency_loss": 0.2,
+      "max_active_modifiers_per_zone": 16,
+      "max_probability_multiplier": 2.0,
+      "max_rest_decision_minutes": 60,
+      "min_probability_multiplier": 0.5,
+      "min_rest_decision_minutes": 1,
+      "noise_rest_efficiency_loss": 0.5,
+      "policy_version": "zone-environment-v2",
+      "privacy_discontent_per_minute": 0.0001,
+      "schema_version": 1,
+      "source_id": "ASM-H19-ZONE-ENVIRONMENT-V2",
+      "source_type": "assumption",
+      "temperature_stress_per_degree_minute": 0.0001,
+      "ventilation_hygiene_growth_per_minute": 0.0001
+     }
+    }
+   },
+   "slots": [
+    [
+     "psychological_distress_v1",
+     false
+    ],
+    [
+     "staff_dynamics_v1",
+     false
+    ],
+    [
+     "information_spread_v1",
+     false
+    ],
+    [
+     "social_propagation_v1",
+     false
+    ],
+    [
+     "movement_v1",
+     false
+    ],
+    [
+     "body_state_v1",
+     false
+    ],
+    [
+     "social_network_v1",
+     false
+    ],
+    [
+     "agent_dynamics_v1",
+     false
+    ],
+    [
+     "staff_operations_v1",
+     false
+    ],
+    [
+     "shared_operations_v1",
+     false
+    ],
+    [
+     "resource_ledger_v1",
+     false
+    ],
+    [
+     "population_presence_v1",
+     false
+    ],
+    [
+     "population_lifecycle_v1",
+     false
+    ],
+    [
+     "population_dynamics_v1",
+     false
+    ],
+    [
+     "temporary_spaces_v1",
+     false
+    ],
+    [
+     "geometry_overlay_v1",
+     false
+    ],
+    [
+     "resource_service_v1",
+     false
+    ],
+    [
+     "effect_program_v1",
+     false
+    ],
+    [
+     "facility_queues_v1",
+     false
+    ],
+    [
+     "metric_state",
+     true
+    ],
+    [
+     "model_configs",
+     true
+    ],
+    [
+     "resources",
+     true
+    ],
+    [
+     "id_counters",
+     true
+    ],
+    [
+     "operational_events_v1",
+     false
+    ],
+    [
+     "zone_environment_v1",
+     false
+    ]
+   ],
+   "world": {
+    "active_tasks": [],
+    "agents": [
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.4976599457955883,
+       "hunger": 0.9794616646381298,
+       "hydration_need": 0.0,
+       "toilet_urgency": 0.1866529940393592
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "H000001",
+       "id": "A001",
+       "initial_needs": {
+        "fatigue": 0.4976599457955883,
+        "hunger": 0.9794616646381298,
+        "hydration_need": 0.0,
+        "toilet_urgency": 0.1866529940393592
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-regional-profile-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A001",
+       "stress_sensitivity": 0.7435250194629027,
+       "support_need": 0.37387076915424183
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.5684506322013796,
+       "hunger": 0.8271342046961999,
+       "hydration_need": 0.0,
+       "toilet_urgency": 0.47906218480808616
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "H000002",
+       "id": "A002",
+       "initial_needs": {
+        "fatigue": 0.5684506322013796,
+        "hunger": 0.8271342046961999,
+        "hydration_need": 0.0,
+        "toilet_urgency": 0.47906218480808616
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-regional-profile-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A002",
+       "stress_sensitivity": 0.2083001013072911,
+       "support_need": 0.28083414617585156
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.06249928486435384,
+       "hunger": 0.025615816358124276,
+       "hydration_need": 0.0,
+       "toilet_urgency": 0.704628461624468
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "H000003",
+       "id": "A003",
+       "initial_needs": {
+        "fatigue": 0.06249928486435384,
+        "hunger": 0.025615816358124276,
+        "hydration_need": 0.0,
+        "toilet_urgency": 0.704628461624468
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-regional-profile-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A003",
+       "stress_sensitivity": 0.27645139337514474,
+       "support_need": 0.46795630236779584
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.288857036280807,
+       "hunger": 0.04849068202211752,
+       "hydration_need": 0.0,
+       "toilet_urgency": 0.5559265558453603
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "H000003",
+       "id": "A004",
+       "initial_needs": {
+        "fatigue": 0.288857036280807,
+        "hunger": 0.04849068202211752,
+        "hydration_need": 0.0,
+        "toilet_urgency": 0.5559265558453603
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "wheelchair",
+       "provenance": {
+        "generator": "synthetic-regional-profile-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A004",
+       "stress_sensitivity": 0.490539207381208,
+       "support_need": 0.4111610558633719
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.34003028505632454,
+       "hunger": 0.24109144498122487,
+       "hydration_need": 0.0,
+       "toilet_urgency": 0.826760819534379
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "H000003",
+       "id": "A005",
+       "initial_needs": {
+        "fatigue": 0.34003028505632454,
+        "hunger": 0.24109144498122487,
+        "hydration_need": 0.0,
+        "toilet_urgency": 0.826760819534379
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-regional-profile-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A005",
+       "stress_sensitivity": 0.7712322302333914,
+       "support_need": 0.4261747376275999
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.0630683675432566,
+       "hunger": 0.18647556452727773,
+       "hydration_need": 0.0,
+       "toilet_urgency": 0.6987823538371716
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "H000003",
+       "id": "A006",
+       "initial_needs": {
+        "fatigue": 0.0630683675432566,
+        "hunger": 0.18647556452727773,
+        "hydration_need": 0.0,
+        "toilet_urgency": 0.6987823538371716
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-regional-profile-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A006",
+       "stress_sensitivity": 0.18457414589033103,
+       "support_need": 0.4664973599858302
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.33390246116111255,
+       "hunger": 0.6896800994924098,
+       "hydration_need": 0.0,
+       "toilet_urgency": 0.23279163292521432
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "H000004",
+       "id": "A007",
+       "initial_needs": {
+        "fatigue": 0.33390246116111255,
+        "hunger": 0.6896800994924098,
+        "hydration_need": 0.0,
+        "toilet_urgency": 0.23279163292521432
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-regional-profile-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A007",
+       "stress_sensitivity": 0.3549786283536269,
+       "support_need": 0.5798684185848776
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.4192553920699942,
+       "hunger": 0.44455517774895803,
+       "hydration_need": 0.0,
+       "toilet_urgency": 0.8083693011700799
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "H000004",
+       "id": "A008",
+       "initial_needs": {
+        "fatigue": 0.4192553920699942,
+        "hunger": 0.44455517774895803,
+        "hydration_need": 0.0,
+        "toilet_urgency": 0.8083693011700799
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-regional-profile-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A008",
+       "stress_sensitivity": 0.5320105712749215,
+       "support_need": 0.32034334123722646
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.02835536117569259,
+       "hunger": 0.6346465712954263,
+       "hydration_need": 0.0,
+       "toilet_urgency": 0.7700054978913509
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "H000004",
+       "id": "A009",
+       "initial_needs": {
+        "fatigue": 0.02835536117569259,
+        "hunger": 0.6346465712954263,
+        "hydration_need": 0.0,
+        "toilet_urgency": 0.7700054978913509
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-regional-profile-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A009",
+       "stress_sensitivity": 0.9037148709887222,
+       "support_need": 0.46834112805305905
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.43676062401117094,
+       "hunger": 0.16231142392747705,
+       "hydration_need": 0.0,
+       "toilet_urgency": 0.4368081160036895
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "H000004",
+       "id": "A010",
+       "initial_needs": {
+        "fatigue": 0.43676062401117094,
+        "hunger": 0.16231142392747705,
+        "hydration_need": 0.0,
+        "toilet_urgency": 0.4368081160036895
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "wheelchair",
+       "provenance": {
+        "generator": "synthetic-regional-profile-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A010",
+       "stress_sensitivity": 0.4240629931884438,
+       "support_need": 0.17014752721312518
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.16325033592453117,
+       "hunger": 0.7082943887763258,
+       "hydration_need": 0.0,
+       "toilet_urgency": 0.11600176163454744
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "H000005",
+       "id": "A011",
+       "initial_needs": {
+        "fatigue": 0.16325033592453117,
+        "hunger": 0.7082943887763258,
+        "hydration_need": 0.0,
+        "toilet_urgency": 0.11600176163454744
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-regional-profile-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A011",
+       "stress_sensitivity": 0.9673729998891208,
+       "support_need": 0.10392972090106636
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.18822916227840317,
+       "hunger": 0.002784314558562091,
+       "hydration_need": 0.0,
+       "toilet_urgency": 0.8990407480861088
+      },
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "H000005",
+       "id": "A012",
+       "initial_needs": {
+        "fatigue": 0.18822916227840317,
+        "hunger": 0.002784314558562091,
+        "hydration_need": 0.0,
+        "toilet_urgency": 0.8990407480861088
+       },
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-regional-profile-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A012",
+       "stress_sensitivity": 0.1856568003699712,
+       "support_need": 0.36519287402968736
+      },
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     }
+    ],
+    "duration_minutes": 1440,
+    "event_log": [],
+    "event_queue": [
+     {
+      "causation_id": null,
+      "due_minute": 30,
+      "event_id": "effect-event-0",
+      "event_type": "effect_program_population",
+      "kind": "intervention",
+      "payload": {
+       "admission_zone_ids": [],
+       "approach_route_id": "arrival-to-quiet",
+       "count": 3,
+       "effect_id": "arrivals",
+       "household_size": 1,
+       "language": "ja",
+       "mobility": "independent",
+       "op": "add_evacuees",
+       "person_context_overrides": [],
+       "program_id": "fixture-arrivals",
+       "zone_id": "quiet"
+      },
+      "priority": 0,
+      "provenance": {
+       "effect_program_v1": {
+        "assumption_ids": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_id": "arrivals",
+        "op": "add_evacuees",
+        "phase": "start",
+        "policy_dependencies": [
+         "population_dynamics_v1"
+        ],
+        "program_id": "fixture-arrivals",
+        "source_text_hash": "d0da547a7e51cf4deb679359677b418a42965b916b8201ccc5a3c5ead63c0a92",
+        "units": "evacuee"
+       }
+      },
+      "sequence": 0,
+      "source_id": "ASM-TEST-DYNAMIC-ARRIVAL-V1"
+     }
+    ],
+    "facilities": [
+     {
+      "active_agent_ids": [],
+      "capacity": 1,
+      "id": "accessible_toilet_01",
+      "kind": "toilet",
+      "queue_agent_ids": [],
+      "resource_active_agent_ids": [],
+      "resource_queue_agent_ids": [],
+      "working_units": 1,
+      "zone_id": "toilet"
+     },
+     {
+      "active_agent_ids": [],
+      "capacity": 1,
+      "id": "intake_desk",
+      "kind": "intake",
+      "queue_agent_ids": [],
+      "resource_active_agent_ids": [],
+      "resource_queue_agent_ids": [],
+      "working_units": 1,
+      "zone_id": "intake"
+     },
+     {
+      "active_agent_ids": [],
+      "capacity": 1,
+      "id": "meal_distribution_main",
+      "kind": "meal_distribution",
+      "queue_agent_ids": [],
+      "resource_active_agent_ids": [],
+      "resource_queue_agent_ids": [],
+      "working_units": 1,
+      "zone_id": "food"
+     },
+     {
+      "active_agent_ids": [],
+      "capacity": 1,
+      "id": "medical_desk",
+      "kind": "medical_support",
+      "queue_agent_ids": [],
+      "resource_active_agent_ids": [],
+      "resource_queue_agent_ids": [],
+      "working_units": 1,
+      "zone_id": "medical"
+     },
+     {
+      "active_agent_ids": [],
+      "capacity": 1,
+      "id": "quiet_support",
+      "kind": "quiet_space",
+      "queue_agent_ids": [],
+      "resource_active_agent_ids": [],
+      "resource_queue_agent_ids": [],
+      "working_units": 1,
+      "zone_id": "quiet"
+     },
+     {
+      "active_agent_ids": [],
+      "capacity": 1,
+      "id": "toilet_01",
+      "kind": "toilet",
+      "queue_agent_ids": [],
+      "resource_active_agent_ids": [],
+      "resource_queue_agent_ids": [],
+      "working_units": 1,
+      "zone_id": "toilet"
+     },
+     {
+      "active_agent_ids": [],
+      "capacity": 1,
+      "id": "water_station_main",
+      "kind": "water_station",
+      "queue_agent_ids": [],
+      "resource_active_agent_ids": [],
+      "resource_queue_agent_ids": [],
+      "working_units": 1,
+      "zone_id": "food"
+     }
+    ],
+    "id_counters": {
+     "agent": 12,
+     "event": 1
+    },
+    "metric_state": {},
+    "minute_index": 0,
+    "model_configs": {
+     "agent_dynamics": {
+      "policy_version": "need-led-autonomy-memory-v3",
+      "schema_version": 1,
+      "source_id": "ASM-INTAKE-FACILITY-ORIENTATION-V1"
+     },
+     "behavior": {
+      "decision_interval_minutes": 15,
+      "mode": "offline",
+      "policy": "sleep-aware-utility-softmax-v2",
+      "sleep_debt_utility_weight": 1.0,
+      "source_id": "ASM-SLEEP-AWARE-BEHAVIOR-V2",
+      "source_type": "assumption",
+      "temperature": 0.2
+     },
+     "body_dynamics": {
+      "affect_policy": "linear-positive-negative-v1",
+      "affect_transfer_rate": 0.05,
+      "awake_sleep_debt_minutes_per_minute": 0.5,
+      "caregiver_assistance_reassurance_gain": 0.02,
+      "caregiver_assistance_stress_relief": 0.03,
+      "complaint_discontent_reduction": 0.01,
+      "complaint_reassurance_gain": 0.02,
+      "cooperation_discontent_reduction": 0.01,
+      "cooperation_negative_reduction": 0.02,
+      "cooperation_positive_gain": 0.03,
+      "cooperation_reassurance_gain": 0.03,
+      "correction_reassurance_gain": 0.01,
+      "correction_uncertainty_reduction": 0.05,
+      "dependent_assistance_reassurance_gain": 0.03,
+      "dependent_assistance_stress_relief": 0.04,
+      "discontent_queue_rate": 0.0005,
+      "discontent_relief_per_minute": 0.0002,
+      "discontent_stress_rate": 0.001,
+      "hygiene_growth_per_minute": 5e-05,
+      "hygiene_support_relief": 0.15,
+      "language_access_uncertainty_relief": 0.05,
+      "medical_assessment_uncertainty_relief": 0.02,
+      "medication_support_uncertainty_relief": 0.01,
+      "mobility_assistance_stress_relief": 0.03,
+      "negative_affect_stress_rate": 0.001,
+      "policy_version": "life-state-feedback-v1",
+      "positive_affect_decay_per_minute": 0.0001,
+      "privacy_accommodation_discontent_relief": 0.02,
+      "reassurance_decay_per_minute": 0.0003,
+      "relationship_distance_scale_m": 2.0,
+      "relationship_repeat_contact_bonus": 0.05,
+      "relationship_trust_decay_per_day": 0.002,
+      "relationship_trust_gain": 0.0005,
+      "rest_sleep_debt_recovery_per_minute": 0.0,
+      "sanitation_hygiene_growth_per_minute": 0.0001,
+      "sanitation_stress_rate": 0.002,
+      "schema_version": 1,
+      "sleep_debt_stress_rate": 0.001,
+      "sleep_sleep_debt_recovery_per_minute": 1.0,
+      "social_action_affect_transfer": 0.02,
+      "social_interaction_minutes": 5,
+      "source_id": "ASM-LIFE-STATE-FEEDBACK-V1",
+      "uncertainty_decay_per_minute": 5e-05,
+      "uncertainty_drift_per_minute": 2e-05
+     },
+     "facility_geometry": {
+      "arrival_approach_routes": [
+       {
+        "destination_zone_id": "quiet",
+        "points_m": [
+         {
+          "x": 6.531676725154982,
+          "y": 13.954451150103322
+         },
+         {
+          "x": 7.031676725154982,
+          "y": 12.454451150103322
+         },
+         {
+          "x": 6.531676725154982,
+          "y": 9.954451150103322
+         }
+        ],
+        "route_id": "arrival-to-quiet",
+        "source_ids": [
+         "SRC-TEST-APPROACH-ROUTE"
+        ],
+        "source_kind": "operator",
+        "walking_speed_m_per_min": 1.0
+       }
+      ],
+      "facility_points": {
+       "accessible_toilet_01": {
+        "x": 11.631676725154984,
+        "y": 9.306649943084725
+       },
+       "intake_desk": {
+        "x": 13.461676725154986,
+        "y": 9.306649943084725
+       },
+       "meal_distribution_main": {
+        "x": 9.831676725154983,
+        "y": 9.306649943084725
+       },
+       "medical_desk": {
+        "x": 8.061676725154983,
+        "y": 9.306649943084725
+       },
+       "quiet_support": {
+        "x": 6.261676725154983,
+        "y": 9.306649943084725
+       },
+       "toilet_01": {
+        "x": 12.231676725154985,
+        "y": 9.306649943084725
+       },
+       "water_station_main": {
+        "x": 10.431676725154984,
+        "y": 9.306649943084725
+       }
+      },
+      "height_m": 14.954451150103322,
+      "origin": "top_left",
+      "routes": [
+       {
+        "accessible": true,
+        "edge_id": "route_corridor_food",
+        "points": [
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         },
+         {
+          "x": 10.131676725154984,
+          "y": 0.9
+         },
+         {
+          "x": 10.131676725154984,
+          "y": 1.8
+         },
+         {
+          "x": 10.131676725154984,
+          "y": 6.3772255750516615
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_corridor_intake",
+        "points": [
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         },
+         {
+          "x": 13.731676725154985,
+          "y": 0.9
+         },
+         {
+          "x": 13.731676725154985,
+          "y": 1.8
+         },
+         {
+          "x": 13.731676725154985,
+          "y": 6.3772255750516615
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_corridor_medical",
+        "points": [
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         },
+         {
+          "x": 8.331676725154983,
+          "y": 0.9
+         },
+         {
+          "x": 8.331676725154983,
+          "y": 1.8
+         },
+         {
+          "x": 8.331676725154983,
+          "y": 6.3772255750516615
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_corridor_quiet",
+        "points": [
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         },
+         {
+          "x": 6.531676725154982,
+          "y": 0.9
+         },
+         {
+          "x": 6.531676725154982,
+          "y": 1.8
+         },
+         {
+          "x": 6.531676725154982,
+          "y": 6.3772255750516615
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_corridor_sleeping",
+        "points": [
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         },
+         {
+          "x": 2.8158383625774914,
+          "y": 0.9
+         },
+         {
+          "x": 2.8158383625774914,
+          "y": 1.8
+         },
+         {
+          "x": 2.8158383625774914,
+          "y": 6.3772255750516615
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_corridor_staff",
+        "points": [
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         },
+         {
+          "x": 15.531676725154984,
+          "y": 0.9
+         },
+         {
+          "x": 15.531676725154984,
+          "y": 1.8
+         },
+         {
+          "x": 15.531676725154984,
+          "y": 6.3772255750516615
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_corridor_toilet",
+        "points": [
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         },
+         {
+          "x": 11.931676725154984,
+          "y": 0.9
+         },
+         {
+          "x": 11.931676725154984,
+          "y": 1.8
+         },
+         {
+          "x": 11.931676725154984,
+          "y": 6.3772255750516615
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_food_corridor",
+        "points": [
+         {
+          "x": 10.131676725154984,
+          "y": 6.3772255750516615
+         },
+         {
+          "x": 10.131676725154984,
+          "y": 1.8
+         },
+         {
+          "x": 10.131676725154984,
+          "y": 0.9
+         },
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_intake_corridor",
+        "points": [
+         {
+          "x": 13.731676725154985,
+          "y": 6.3772255750516615
+         },
+         {
+          "x": 13.731676725154985,
+          "y": 1.8
+         },
+         {
+          "x": 13.731676725154985,
+          "y": 0.9
+         },
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_medical_corridor",
+        "points": [
+         {
+          "x": 8.331676725154983,
+          "y": 6.3772255750516615
+         },
+         {
+          "x": 8.331676725154983,
+          "y": 1.8
+         },
+         {
+          "x": 8.331676725154983,
+          "y": 0.9
+         },
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_quiet_corridor",
+        "points": [
+         {
+          "x": 6.531676725154982,
+          "y": 6.3772255750516615
+         },
+         {
+          "x": 6.531676725154982,
+          "y": 1.8
+         },
+         {
+          "x": 6.531676725154982,
+          "y": 0.9
+         },
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_sleeping_corridor",
+        "points": [
+         {
+          "x": 2.8158383625774914,
+          "y": 6.3772255750516615
+         },
+         {
+          "x": 2.8158383625774914,
+          "y": 1.8
+         },
+         {
+          "x": 2.8158383625774914,
+          "y": 0.9
+         },
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_staff_corridor",
+        "points": [
+         {
+          "x": 15.531676725154984,
+          "y": 6.3772255750516615
+         },
+         {
+          "x": 15.531676725154984,
+          "y": 1.8
+         },
+         {
+          "x": 15.531676725154984,
+          "y": 0.9
+         },
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         }
+        ],
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "edge_id": "route_toilet_corridor",
+        "points": [
+         {
+          "x": 11.931676725154984,
+          "y": 6.3772255750516615
+         },
+         {
+          "x": 11.931676725154984,
+          "y": 1.8
+         },
+         {
+          "x": 11.931676725154984,
+          "y": 0.9
+         },
+         {
+          "x": 8.215838362577491,
+          "y": 0.9
+         }
+        ],
+        "width_m": 1.8
+       }
+      ],
+      "schema_version": 1,
+      "service_points": [
+       {
+        "access": {
+         "accessibility": "unknown",
+         "required_access_tags": [],
+         "required_staff_skills": []
+        },
+        "facility_id": "accessible_toilet_01",
+        "id": "legacy-service:d34bc5076754a08e28331f68",
+        "point_m": {
+         "x": 11.631676725154984,
+         "y": 9.306649943084725
+        },
+        "queue_id": "accessible_toilet_01",
+        "schema_version": 1,
+        "service_capacity": 1
+       },
+       {
+        "access": {
+         "accessibility": "unknown",
+         "required_access_tags": [],
+         "required_staff_skills": []
+        },
+        "facility_id": "intake_desk",
+        "id": "legacy-service:788cc82320ce4b6e07a59965",
+        "point_m": {
+         "x": 13.461676725154986,
+         "y": 9.306649943084725
+        },
+        "queue_id": "intake_desk",
+        "schema_version": 1,
+        "service_capacity": 1
+       },
+       {
+        "access": {
+         "accessibility": "unknown",
+         "required_access_tags": [],
+         "required_staff_skills": []
+        },
+        "facility_id": "meal_distribution_main",
+        "id": "legacy-service:4483648d70d51dce47b29586",
+        "point_m": {
+         "x": 9.831676725154983,
+         "y": 9.306649943084725
+        },
+        "queue_id": "meal_distribution_main",
+        "schema_version": 1,
+        "service_capacity": 1
+       },
+       {
+        "access": {
+         "accessibility": "unknown",
+         "required_access_tags": [],
+         "required_staff_skills": []
+        },
+        "facility_id": "medical_desk",
+        "id": "legacy-service:24a22dc837f7add348c91a46",
+        "point_m": {
+         "x": 8.061676725154983,
+         "y": 9.306649943084725
+        },
+        "queue_id": "medical_desk",
+        "schema_version": 1,
+        "service_capacity": 1
+       },
+       {
+        "access": {
+         "accessibility": "unknown",
+         "required_access_tags": [],
+         "required_staff_skills": []
+        },
+        "facility_id": "quiet_support",
+        "id": "legacy-service:1a50d56190f3f558ae2e7fd5",
+        "point_m": {
+         "x": 6.261676725154983,
+         "y": 9.306649943084725
+        },
+        "queue_id": "quiet_support",
+        "schema_version": 1,
+        "service_capacity": 1
+       },
+       {
+        "access": {
+         "accessibility": "unknown",
+         "required_access_tags": [],
+         "required_staff_skills": []
+        },
+        "facility_id": "toilet_01",
+        "id": "legacy-service:650608e8abd263c7ffed0b32",
+        "point_m": {
+         "x": 12.231676725154985,
+         "y": 9.306649943084725
+        },
+        "queue_id": "toilet_01",
+        "schema_version": 1,
+        "service_capacity": 1
+       },
+       {
+        "access": {
+         "accessibility": "unknown",
+         "required_access_tags": [],
+         "required_staff_skills": []
+        },
+        "facility_id": "water_station_main",
+        "id": "legacy-service:efc8fc0c9793f65a86378d94",
+        "point_m": {
+         "x": 10.431676725154984,
+         "y": 9.306649943084725
+        },
+        "queue_id": "water_station_main",
+        "schema_version": 1,
+        "service_capacity": 1
+       }
+      ],
+      "source_ids": [
+       "ASM-SHELTER-AREA-HEURISTIC-V1",
+       "ASM-SHELTER-SERVICE-STATIONS-V1",
+       "ASM-SHELTER-STAFFING-HEURISTIC-V2",
+       "ASM-SHELTER-TOILET-HEURISTIC-V2",
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "source_kind": "synthetic",
+      "units": "m",
+      "width_m": 16.431676725154983,
+      "zones": [
+       {
+        "polygon": [
+         {
+          "x": 0.0,
+          "y": 0.0
+         },
+         {
+          "x": 16.431676725154983,
+          "y": 0.0
+         },
+         {
+          "x": 16.431676725154983,
+          "y": 1.8
+         },
+         {
+          "x": 0.0,
+          "y": 1.8
+         }
+        ],
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "usable_area_m2": 26.619316294751073,
+        "zone_id": "corridor"
+       },
+       {
+        "polygon": [
+         {
+          "x": 0.0,
+          "y": 1.8
+         },
+         {
+          "x": 5.631676725154983,
+          "y": 1.8
+         },
+         {
+          "x": 5.631676725154983,
+          "y": 10.954451150103322
+         },
+         {
+          "x": 0.0,
+          "y": 10.954451150103322
+         }
+        ],
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "usable_area_m2": 46.39941852624463,
+        "zone_id": "sleeping"
+       },
+       {
+        "polygon": [
+         {
+          "x": 5.631676725154983,
+          "y": 1.8
+         },
+         {
+          "x": 7.431676725154983,
+          "y": 1.8
+         },
+         {
+          "x": 7.431676725154983,
+          "y": 10.954451150103322
+         },
+         {
+          "x": 5.631676725154983,
+          "y": 10.954451150103322
+         }
+        ],
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "usable_area_m2": 14.830210863167379,
+        "zone_id": "quiet"
+       },
+       {
+        "polygon": [
+         {
+          "x": 7.431676725154983,
+          "y": 1.8
+         },
+         {
+          "x": 9.231676725154983,
+          "y": 1.8
+         },
+         {
+          "x": 9.231676725154983,
+          "y": 10.954451150103322
+         },
+         {
+          "x": 7.431676725154983,
+          "y": 10.954451150103322
+         }
+        ],
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "usable_area_m2": 14.830210863167387,
+        "zone_id": "medical"
+       },
+       {
+        "polygon": [
+         {
+          "x": 9.231676725154983,
+          "y": 1.8
+         },
+         {
+          "x": 11.031676725154984,
+          "y": 1.8
+         },
+         {
+          "x": 11.031676725154984,
+          "y": 10.954451150103322
+         },
+         {
+          "x": 9.231676725154983,
+          "y": 10.954451150103322
+         }
+        ],
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "usable_area_m2": 14.830210863167387,
+        "zone_id": "food"
+       },
+       {
+        "polygon": [
+         {
+          "x": 11.031676725154984,
+          "y": 1.8
+         },
+         {
+          "x": 12.831676725154985,
+          "y": 1.8
+         },
+         {
+          "x": 12.831676725154985,
+          "y": 10.954451150103322
+         },
+         {
+          "x": 11.031676725154984,
+          "y": 10.954451150103322
+         }
+        ],
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "usable_area_m2": 14.830210863167387,
+        "zone_id": "toilet"
+       },
+       {
+        "polygon": [
+         {
+          "x": 12.831676725154985,
+          "y": 1.8
+         },
+         {
+          "x": 14.631676725154986,
+          "y": 1.8
+         },
+         {
+          "x": 14.631676725154986,
+          "y": 10.954451150103322
+         },
+         {
+          "x": 12.831676725154985,
+          "y": 10.954451150103322
+         }
+        ],
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "usable_area_m2": 14.830210863167387,
+        "zone_id": "intake"
+       },
+       {
+        "polygon": [
+         {
+          "x": 14.631676725154986,
+          "y": 1.8
+         },
+         {
+          "x": 16.431676725154983,
+          "y": 1.8
+         },
+         {
+          "x": 16.431676725154983,
+          "y": 10.954451150103322
+         },
+         {
+          "x": 14.631676725154986,
+          "y": 10.954451150103322
+         }
+        ],
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "usable_area_m2": 14.830210863167359,
+        "zone_id": "staff"
+       }
+      ]
+     },
+     "facility_queues": {
+      "persistence_urgency_threshold": 0.8,
+      "retry_delay_minutes": 15,
+      "schema_version": 1
+     },
+     "geometry_overlay": {
+      "schema_version": 4
+     },
+     "information_spread": {
+      "adjacent_zone_contact_multiplier": 0.5,
+      "base_transmission_probability": 0.2,
+      "contact_duration_scale_minutes": 5,
+      "correction_acceptance_probability": 0.7,
+      "correction_source_reliability_by_id": {},
+      "correction_source_sensitivity": 0.2,
+      "correction_transmission_multiplier": 1.25,
+      "correction_trust_sensitivity": 0.2,
+      "default_source_reliability": 0.7,
+      "distress_sharing_sensitivity": 0.5,
+      "enabled": true,
+      "family_contact_multiplier": 1.5,
+      "forgetting_rate_per_minute": 0.0,
+      "max_contacts_per_agent": 2,
+      "minimum_contact_minutes": 2,
+      "policy_version": "sparse-information-contact-v1",
+      "query_pressure_decay_per_minute": 0.002,
+      "query_pressure_per_claim": 0.5,
+      "query_pressure_relief_per_correction": 0.5,
+      "query_threshold": 0.45,
+      "query_utility_weight": 0.8,
+      "rumor_belief_probability": 0.5,
+      "rumor_source_sensitivity": 0.2,
+      "rumor_trust_sensitivity": 0.2,
+      "schema_version": 1,
+      "share_propensity_decay_per_minute": 0.002,
+      "source_id": "ASM-INFORMATION-SPREAD-V1",
+      "source_type": "assumption",
+      "trust_sensitivity": 0.5
+     },
+     "movement_model": {
+      "density_slowdown_per_person_m2": 0.12,
+      "maximum_density_slowdown": 2.5,
+      "policy_version": "spatial-route-and-room-waypoint-v2",
+      "schema_version": 1,
+      "source_id": "ASM-SPATIAL-MOVEMENT-V2",
+      "speed_m_per_minute_by_mobility": {
+       "assisted": 36.0,
+       "independent": 72.0,
+       "wheelchair": 48.0
+      }
+     },
+     "operational_events": {
+      "enabled": true
+     },
+     "policy_registry": {
+      "affect": "linear-positive-negative-v1",
+      "body_dynamics": "body-feedback-complete-v2",
+      "care_outcome": "typed-care-support-response-v1",
+      "information": "evidence-aware-rumor-v1",
+      "psychology": "mean-reverting-life-state-v1",
+      "queue": "need-weighted-physical-queue-v1",
+      "relationship": "distance-duration-repeat-trust-v1",
+      "schema_version": 3,
+      "social": "expressiveness-channel-openness-v1",
+      "social_proximity": "disabled-proximity-v1",
+      "staff_fatigue": "staff-fatigue-linear-v1",
+      "staff_operations": "staff-urgency-first-v1",
+      "suite_id": "core-model-suite-v2",
+      "zone_environment": "zone-temperature-comfort-band-v1",
+      "zone_hygiene": "zone-hygiene-linear-v1",
+      "zone_privacy": "zone-privacy-threshold-v1",
+      "zone_rest": "zone-rest-multiplicative-v1"
+     },
+     "population": {
+      "people": {
+       "A001": {
+        "accessibility_needs": [
+         "mobility_support"
+        ],
+        "age_years": 56,
+        "household_id": "H000001",
+        "household_role": "alone",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A002": {
+        "accessibility_needs": [],
+        "age_years": 23,
+        "household_id": "H000002",
+        "household_role": "alone",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A003": {
+        "accessibility_needs": [],
+        "age_years": 45,
+        "household_id": "H000003",
+        "household_role": "adult",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A004": {
+        "accessibility_needs": [
+         "mobility_support"
+        ],
+        "age_years": 85,
+        "household_id": "H000003",
+        "household_role": "adult",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A005": {
+        "accessibility_needs": [
+         "mobility_support"
+        ],
+        "age_years": 53,
+        "household_id": "H000003",
+        "household_role": "adult",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A006": {
+        "accessibility_needs": [],
+        "age_years": 13,
+        "household_id": "H000003",
+        "household_role": "child",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A007": {
+        "accessibility_needs": [],
+        "age_years": 79,
+        "household_id": "H000004",
+        "household_role": "adult",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A008": {
+        "accessibility_needs": [],
+        "age_years": 48,
+        "household_id": "H000004",
+        "household_role": "adult",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A009": {
+        "accessibility_needs": [
+         "mobility_support"
+        ],
+        "age_years": 35,
+        "household_id": "H000004",
+        "household_role": "adult",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A010": {
+        "accessibility_needs": [
+         "mobility_support"
+        ],
+        "age_years": 87,
+        "household_id": "H000004",
+        "household_role": "adult",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A011": {
+        "accessibility_needs": [],
+        "age_years": 53,
+        "household_id": "H000005",
+        "household_role": "adult",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A012": {
+        "accessibility_needs": [],
+        "age_years": 71,
+        "household_id": "H000005",
+        "household_role": "adult",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       }
+      },
+      "schema_version": 1,
+      "source_ids": [
+       "ASM-SYNTHETIC-AGE-BANDS-V1",
+       "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+       "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+       "ASM-SYNTHETIC-LANGUAGE-V1",
+       "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+      ]
+     },
+     "population_context": {
+      "evacuation_selection_source_ids": [],
+      "households": {
+       "H000001": {
+        "member_ids": [
+         "A001"
+        ],
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "H000002": {
+        "member_ids": [
+         "A002"
+        ],
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "H000003": {
+        "member_ids": [
+         "A003",
+         "A004",
+         "A005",
+         "A006"
+        ],
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "H000004": {
+        "member_ids": [
+         "A007",
+         "A008",
+         "A009",
+         "A010"
+        ],
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "H000005": {
+        "member_ids": [
+         "A011",
+         "A012"
+        ],
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       }
+      },
+      "people": {
+       "A001": {
+        "care_for_ids": [],
+        "care_support_needs": [],
+        "caregiver_ids": [],
+        "daily_rhythm_id": null,
+        "guardian_status": "not_applicable",
+        "household_id": "H000001",
+        "information_access": null,
+        "medical_support": null,
+        "medication_support": null,
+        "parent_ids": [],
+        "partner_ids": [],
+        "pet_count": null,
+        "relative_ids": [],
+        "required_sleep_minutes": null,
+        "requires_review": false,
+        "review_reasons": [],
+        "roles": [
+         "alone"
+        ],
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ],
+        "usual_sleep_minute": null,
+        "usual_wake_minute": null
+       },
+       "A002": {
+        "care_for_ids": [],
+        "care_support_needs": [],
+        "caregiver_ids": [],
+        "daily_rhythm_id": null,
+        "guardian_status": "not_applicable",
+        "household_id": "H000002",
+        "information_access": null,
+        "medical_support": null,
+        "medication_support": null,
+        "parent_ids": [],
+        "partner_ids": [],
+        "pet_count": null,
+        "relative_ids": [],
+        "required_sleep_minutes": null,
+        "requires_review": false,
+        "review_reasons": [],
+        "roles": [
+         "alone"
+        ],
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ],
+        "usual_sleep_minute": null,
+        "usual_wake_minute": null
+       },
+       "A003": {
+        "care_for_ids": [
+         "A006"
+        ],
+        "care_support_needs": [],
+        "caregiver_ids": [],
+        "daily_rhythm_id": null,
+        "guardian_status": "not_applicable",
+        "household_id": "H000003",
+        "information_access": null,
+        "medical_support": null,
+        "medication_support": null,
+        "parent_ids": [],
+        "partner_ids": [],
+        "pet_count": null,
+        "relative_ids": [],
+        "required_sleep_minutes": null,
+        "requires_review": false,
+        "review_reasons": [],
+        "roles": [
+         "caregiver",
+         "parent"
+        ],
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ],
+        "usual_sleep_minute": null,
+        "usual_wake_minute": null
+       },
+       "A004": {
+        "care_for_ids": [],
+        "care_support_needs": [],
+        "caregiver_ids": [],
+        "daily_rhythm_id": null,
+        "guardian_status": "not_applicable",
+        "household_id": "H000003",
+        "information_access": null,
+        "medical_support": null,
+        "medication_support": null,
+        "parent_ids": [],
+        "partner_ids": [],
+        "pet_count": null,
+        "relative_ids": [],
+        "required_sleep_minutes": null,
+        "requires_review": false,
+        "review_reasons": [],
+        "roles": [],
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ],
+        "usual_sleep_minute": null,
+        "usual_wake_minute": null
+       },
+       "A005": {
+        "care_for_ids": [],
+        "care_support_needs": [],
+        "caregiver_ids": [],
+        "daily_rhythm_id": null,
+        "guardian_status": "not_applicable",
+        "household_id": "H000003",
+        "information_access": null,
+        "medical_support": null,
+        "medication_support": null,
+        "parent_ids": [],
+        "partner_ids": [],
+        "pet_count": null,
+        "relative_ids": [],
+        "required_sleep_minutes": null,
+        "requires_review": false,
+        "review_reasons": [],
+        "roles": [],
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ],
+        "usual_sleep_minute": null,
+        "usual_wake_minute": null
+       },
+       "A006": {
+        "care_for_ids": [],
+        "care_support_needs": [],
+        "caregiver_ids": [
+         "A003"
+        ],
+        "daily_rhythm_id": null,
+        "guardian_status": "accompanied",
+        "household_id": "H000003",
+        "information_access": null,
+        "medical_support": null,
+        "medication_support": null,
+        "parent_ids": [
+         "A003"
+        ],
+        "partner_ids": [],
+        "pet_count": null,
+        "relative_ids": [],
+        "required_sleep_minutes": null,
+        "requires_review": false,
+        "review_reasons": [],
+        "roles": [
+         "child"
+        ],
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ],
+        "usual_sleep_minute": null,
+        "usual_wake_minute": null
+       },
+       "A007": {
+        "care_for_ids": [],
+        "care_support_needs": [],
+        "caregiver_ids": [],
+        "daily_rhythm_id": null,
+        "guardian_status": "not_applicable",
+        "household_id": "H000004",
+        "information_access": null,
+        "medical_support": null,
+        "medication_support": null,
+        "parent_ids": [],
+        "partner_ids": [],
+        "pet_count": null,
+        "relative_ids": [],
+        "required_sleep_minutes": null,
+        "requires_review": false,
+        "review_reasons": [],
+        "roles": [],
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ],
+        "usual_sleep_minute": null,
+        "usual_wake_minute": null
+       },
+       "A008": {
+        "care_for_ids": [],
+        "care_support_needs": [],
+        "caregiver_ids": [],
+        "daily_rhythm_id": null,
+        "guardian_status": "not_applicable",
+        "household_id": "H000004",
+        "information_access": null,
+        "medical_support": null,
+        "medication_support": null,
+        "parent_ids": [],
+        "partner_ids": [],
+        "pet_count": null,
+        "relative_ids": [],
+        "required_sleep_minutes": null,
+        "requires_review": false,
+        "review_reasons": [],
+        "roles": [],
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ],
+        "usual_sleep_minute": null,
+        "usual_wake_minute": null
+       },
+       "A009": {
+        "care_for_ids": [],
+        "care_support_needs": [],
+        "caregiver_ids": [],
+        "daily_rhythm_id": null,
+        "guardian_status": "not_applicable",
+        "household_id": "H000004",
+        "information_access": null,
+        "medical_support": null,
+        "medication_support": null,
+        "parent_ids": [],
+        "partner_ids": [],
+        "pet_count": null,
+        "relative_ids": [],
+        "required_sleep_minutes": null,
+        "requires_review": false,
+        "review_reasons": [],
+        "roles": [],
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ],
+        "usual_sleep_minute": null,
+        "usual_wake_minute": null
+       },
+       "A010": {
+        "care_for_ids": [],
+        "care_support_needs": [],
+        "caregiver_ids": [],
+        "daily_rhythm_id": null,
+        "guardian_status": "not_applicable",
+        "household_id": "H000004",
+        "information_access": null,
+        "medical_support": null,
+        "medication_support": null,
+        "parent_ids": [],
+        "partner_ids": [],
+        "pet_count": null,
+        "relative_ids": [],
+        "required_sleep_minutes": null,
+        "requires_review": false,
+        "review_reasons": [],
+        "roles": [],
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ],
+        "usual_sleep_minute": null,
+        "usual_wake_minute": null
+       },
+       "A011": {
+        "care_for_ids": [],
+        "care_support_needs": [],
+        "caregiver_ids": [],
+        "daily_rhythm_id": null,
+        "guardian_status": "not_applicable",
+        "household_id": "H000005",
+        "information_access": null,
+        "medical_support": null,
+        "medication_support": null,
+        "parent_ids": [],
+        "partner_ids": [],
+        "pet_count": null,
+        "relative_ids": [],
+        "required_sleep_minutes": null,
+        "requires_review": false,
+        "review_reasons": [],
+        "roles": [],
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ],
+        "usual_sleep_minute": null,
+        "usual_wake_minute": null
+       },
+       "A012": {
+        "care_for_ids": [],
+        "care_support_needs": [],
+        "caregiver_ids": [],
+        "daily_rhythm_id": null,
+        "guardian_status": "not_applicable",
+        "household_id": "H000005",
+        "information_access": null,
+        "medical_support": null,
+        "medication_support": null,
+        "parent_ids": [],
+        "partner_ids": [],
+        "pet_count": null,
+        "relative_ids": [],
+        "required_sleep_minutes": null,
+        "requires_review": false,
+        "review_reasons": [],
+        "roles": [],
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ],
+        "usual_sleep_minute": null,
+        "usual_wake_minute": null
+       }
+      },
+      "resident_distribution_source_ids": [
+       "ASM-SYNTHETIC-AGE-BANDS-V1"
+      ],
+      "schema_version": 1
+     },
+     "psychology": {
+      "awake_fatigue_growth": 0.0008,
+      "chronic_acute_weight": 0.08,
+      "chronic_high_distress_weight": 0.02,
+      "chronic_retention": 0.9,
+      "high_distress_threshold": 0.7,
+      "hunger_growth": 0.0005,
+      "natural_recovery_rate_per_minute": 0.01,
+      "need_pressure_threshold": 0.35,
+      "policy_version": "causal-stress-v1",
+      "queued_stress": 0.002,
+      "resting_fatigue_recovery": 0.004,
+      "resting_stress_recovery": 0.003,
+      "schema_version": 1,
+      "sleeping_fatigue_recovery": 0.01,
+      "sleeping_stress_recovery": 0.006,
+      "source_id": "ASM-H04-CAUSAL-STRESS-V1",
+      "source_type": "assumption",
+      "stress_pressure": 0.012,
+      "support_wait_stress": 0.001,
+      "toilet_growth": 0.001
+     },
+     "resource_service": {
+      "food_meal_units_per_service": 1,
+      "hunger_action_threshold": 0.7,
+      "hunger_relief": 0.5,
+      "hydration_action_threshold": 0.25,
+      "hydration_growth_per_minute": 0.001,
+      "hydration_relief": 0.35,
+      "meal_staff_skill": "meal_service",
+      "meal_utility_base": 0.18,
+      "meal_utility_need_weight": 0.85,
+      "policy_version": "resource-service-v1",
+      "schema_version": 1,
+      "service_minutes": 5,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_type": "assumption",
+      "water_ml_per_service": 250,
+      "water_staff_skill": "water_service",
+      "water_utility_base": 0.18,
+      "water_utility_need_weight": 1.0
+     },
+     "shared_operations": {
+      "policy_version": "shared-operations-v1",
+      "schema_version": 1
+     },
+     "simulator_extensions": {
+      "enabled": true
+     },
+     "social_propagation": {
+      "cooldown_minutes": 30,
+      "enabled": true,
+      "family_channel_strength": 1.0,
+      "max_agent_stress_increase_per_minute": 0.05,
+      "max_contacts_per_agent": 3,
+      "max_pair_stress_increase": 0.05,
+      "minimum_contact_minutes": 5,
+      "natural_recovery_per_minute": 0.0005,
+      "nearby_zone_channel_strength": 0.5,
+      "same_zone_channel_strength": 0.75,
+      "source_expressiveness_by_agent": {},
+      "source_id": "ASM-BOSSE-AFFECT-CONTAGION-V1",
+      "source_type": "assumption",
+      "stress_spread_per_minute": 0.001
+     },
+     "spatial_constraints": {
+      "accessible_facility_ids": [],
+      "equipment_footprints": [],
+      "obstacles": [],
+      "openings": [
+       {
+        "accessible": true,
+        "center": {
+         "x": 2.8158383625774914,
+         "y": 1.8
+        },
+        "edge_ids": [
+         "route_corridor_sleeping",
+         "route_sleeping_corridor"
+        ],
+        "id": "opening_sleeping_corridor",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "wall_id": "wall_corridor_partition",
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "center": {
+         "x": 6.531676725154983,
+         "y": 1.8
+        },
+        "edge_ids": [
+         "route_corridor_quiet",
+         "route_quiet_corridor"
+        ],
+        "id": "opening_quiet_corridor",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "wall_id": "wall_corridor_partition",
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "center": {
+         "x": 8.331676725154983,
+         "y": 1.8
+        },
+        "edge_ids": [
+         "route_corridor_medical",
+         "route_medical_corridor"
+        ],
+        "id": "opening_medical_corridor",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "wall_id": "wall_corridor_partition",
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "center": {
+         "x": 10.131676725154984,
+         "y": 1.8
+        },
+        "edge_ids": [
+         "route_corridor_food",
+         "route_food_corridor"
+        ],
+        "id": "opening_food_corridor",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "wall_id": "wall_corridor_partition",
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "center": {
+         "x": 11.931676725154984,
+         "y": 1.8
+        },
+        "edge_ids": [
+         "route_corridor_toilet",
+         "route_toilet_corridor"
+        ],
+        "id": "opening_toilet_corridor",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "wall_id": "wall_corridor_partition",
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "center": {
+         "x": 13.731676725154985,
+         "y": 1.8
+        },
+        "edge_ids": [
+         "route_corridor_intake",
+         "route_intake_corridor"
+        ],
+        "id": "opening_intake_corridor",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "wall_id": "wall_corridor_partition",
+        "width_m": 1.8
+       },
+       {
+        "accessible": true,
+        "center": {
+         "x": 15.531676725154984,
+         "y": 1.8
+        },
+        "edge_ids": [
+         "route_corridor_staff",
+         "route_staff_corridor"
+        ],
+        "id": "opening_staff_corridor",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "wall_id": "wall_corridor_partition",
+        "width_m": 1.8
+       }
+      ],
+      "planning_capacity_by_zone": {},
+      "schema_version": 1,
+      "walls": [
+       {
+        "end": {
+         "x": 16.431676725154983,
+         "y": 0.0
+        },
+        "id": "exterior_north",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 0.0,
+         "y": 0.0
+        }
+       },
+       {
+        "end": {
+         "x": 16.431676725154983,
+         "y": 10.954451150103322
+        },
+        "id": "exterior_east",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 16.431676725154983,
+         "y": 0.0
+        }
+       },
+       {
+        "end": {
+         "x": 0.0,
+         "y": 10.954451150103322
+        },
+        "id": "exterior_south",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 16.431676725154983,
+         "y": 10.954451150103322
+        }
+       },
+       {
+        "end": {
+         "x": 0.0,
+         "y": 0.0
+        },
+        "id": "exterior_west",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 0.0,
+         "y": 10.954451150103322
+        }
+       },
+       {
+        "end": {
+         "x": 16.431676725154983,
+         "y": 1.8
+        },
+        "id": "wall_corridor_partition",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 0.0,
+         "y": 1.8
+        }
+       },
+       {
+        "end": {
+         "x": 5.631676725154983,
+         "y": 10.954451150103322
+        },
+        "id": "partition_zone_01",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 5.631676725154983,
+         "y": 1.8
+        }
+       },
+       {
+        "end": {
+         "x": 7.431676725154983,
+         "y": 10.954451150103322
+        },
+        "id": "partition_zone_02",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 7.431676725154983,
+         "y": 1.8
+        }
+       },
+       {
+        "end": {
+         "x": 9.231676725154983,
+         "y": 10.954451150103322
+        },
+        "id": "partition_zone_03",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 9.231676725154983,
+         "y": 1.8
+        }
+       },
+       {
+        "end": {
+         "x": 11.031676725154984,
+         "y": 10.954451150103322
+        },
+        "id": "partition_zone_04",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 11.031676725154984,
+         "y": 1.8
+        }
+       },
+       {
+        "end": {
+         "x": 12.831676725154985,
+         "y": 10.954451150103322
+        },
+        "id": "partition_zone_05",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 12.831676725154985,
+         "y": 1.8
+        }
+       },
+       {
+        "end": {
+         "x": 14.631676725154986,
+         "y": 10.954451150103322
+        },
+        "id": "partition_zone_06",
+        "source_ids": [
+         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+        ],
+        "start": {
+         "x": 14.631676725154986,
+         "y": 1.8
+        }
+       }
+      ]
+     },
+     "staff": {
+      "source_id": "ASM-STAFF-SUPPORT-LIFECYCLE-V1",
+      "source_type": "assumption",
+      "support_cooldown_minutes": 30,
+      "support_fairness_minutes": 30,
+      "support_task_minutes": 10,
+      "unresolved_after_minutes": 90
+     },
+     "staff_dynamics": {
+      "max_continuous_work_minutes": 240,
+      "max_continuous_work_minutes_by_staff": {},
+      "off_shift_fatigue_recovery_per_minute": 0.0,
+      "policy_version": "continuous-duty-fatigue-v1",
+      "rest_minutes": 30,
+      "schema_version": 1,
+      "shift_windows_by_staff": {},
+      "source_id": "ASM-STAFF-DYNAMICS-V1"
+     },
+     "staff_operations": {
+      "cleaning_sanitation_recovery": 0.15,
+      "effects_by_zone": {},
+      "outreach_uncertainty_relief": 0.04,
+      "patrol_reassurance": 0.01,
+      "policy_version": "autonomous-routed-staff-v1",
+      "sanitation_use_per_person_minute": 5e-06,
+      "schema_version": 1,
+      "source_id": "ASM-STAFF-OPERATIONS-V1",
+      "task_duration_minutes": {
+       "cleaning": 15,
+       "information_outreach": 10,
+       "intake": 5,
+       "maintenance": 20,
+       "patrol": 15
+      },
+      "thresholds_by_zone": {}
+     },
+     "state_contracts": {
+      "namespaces": {
+       "population_presence_v1": {
+        "implementation_id": "population-presence-ledger-v1",
+        "implementation_version": "1",
+        "schema_version": 1
+       }
+      },
+      "schema_version": 1
+     },
+     "toilet_service": {
+      "duration_distribution": "discrete_uniform_inclusive",
+      "maximum_minutes": 8,
+      "minimum_minutes": 4,
+      "source_id": "ASM-TOILET-SERVICE-DURATION-V1",
+      "source_type": "assumption"
+     },
+     "zone_environment": {
+      "baseline_by_zone": {},
+      "comfortable_max_temperature_c": 26.0,
+      "comfortable_min_temperature_c": 18.0,
+      "lighting_sleep_efficiency_loss": 0.2,
+      "max_active_modifiers_per_zone": 16,
+      "max_probability_multiplier": 2.0,
+      "max_rest_decision_minutes": 60,
+      "min_probability_multiplier": 0.5,
+      "min_rest_decision_minutes": 1,
+      "noise_rest_efficiency_loss": 0.5,
+      "policy_version": "zone-environment-v2",
+      "privacy_discontent_per_minute": 0.0001,
+      "schema_version": 1,
+      "source_id": "ASM-H19-ZONE-ENVIRONMENT-V2",
+      "source_type": "assumption",
+      "temperature_stress_per_degree_minute": 0.0001,
+      "ventilation_hygiene_growth_per_minute": 0.0001
+     }
+    },
+    "model_state": {
+     "agent_dynamics_v1": {
+      "agents": {
+       "A001": {
+        "decision_due_minute": 0,
+        "decision_reason": null,
+        "known_facility_ids": [
+         "accessible_toilet_01",
+         "intake_desk",
+         "meal_distribution_main",
+         "medical_desk",
+         "quiet_support",
+         "toilet_01",
+         "water_station_main"
+        ],
+        "last_action": null,
+        "last_decision_minute": null,
+        "last_target_id": null
+       },
+       "A002": {
+        "decision_due_minute": 0,
+        "decision_reason": null,
+        "known_facility_ids": [
+         "accessible_toilet_01",
+         "intake_desk",
+         "meal_distribution_main",
+         "medical_desk",
+         "quiet_support",
+         "toilet_01",
+         "water_station_main"
+        ],
+        "last_action": null,
+        "last_decision_minute": null,
+        "last_target_id": null
+       },
+       "A003": {
+        "decision_due_minute": 0,
+        "decision_reason": null,
+        "known_facility_ids": [
+         "accessible_toilet_01",
+         "intake_desk",
+         "meal_distribution_main",
+         "medical_desk",
+         "quiet_support",
+         "toilet_01",
+         "water_station_main"
+        ],
+        "last_action": null,
+        "last_decision_minute": null,
+        "last_target_id": null
+       },
+       "A004": {
+        "decision_due_minute": 0,
+        "decision_reason": null,
+        "known_facility_ids": [
+         "accessible_toilet_01",
+         "intake_desk",
+         "meal_distribution_main",
+         "medical_desk",
+         "quiet_support",
+         "toilet_01",
+         "water_station_main"
+        ],
+        "last_action": null,
+        "last_decision_minute": null,
+        "last_target_id": null
+       },
+       "A005": {
+        "decision_due_minute": 0,
+        "decision_reason": null,
+        "known_facility_ids": [
+         "accessible_toilet_01",
+         "intake_desk",
+         "meal_distribution_main",
+         "medical_desk",
+         "quiet_support",
+         "toilet_01",
+         "water_station_main"
+        ],
+        "last_action": null,
+        "last_decision_minute": null,
+        "last_target_id": null
+       },
+       "A006": {
+        "decision_due_minute": 0,
+        "decision_reason": null,
+        "known_facility_ids": [
+         "accessible_toilet_01",
+         "intake_desk",
+         "meal_distribution_main",
+         "medical_desk",
+         "quiet_support",
+         "toilet_01",
+         "water_station_main"
+        ],
+        "last_action": null,
+        "last_decision_minute": null,
+        "last_target_id": null
+       },
+       "A007": {
+        "decision_due_minute": 0,
+        "decision_reason": null,
+        "known_facility_ids": [
+         "accessible_toilet_01",
+         "intake_desk",
+         "meal_distribution_main",
+         "medical_desk",
+         "quiet_support",
+         "toilet_01",
+         "water_station_main"
+        ],
+        "last_action": null,
+        "last_decision_minute": null,
+        "last_target_id": null
+       },
+       "A008": {
+        "decision_due_minute": 0,
+        "decision_reason": null,
+        "known_facility_ids": [
+         "accessible_toilet_01",
+         "intake_desk",
+         "meal_distribution_main",
+         "medical_desk",
+         "quiet_support",
+         "toilet_01",
+         "water_station_main"
+        ],
+        "last_action": null,
+        "last_decision_minute": null,
+        "last_target_id": null
+       },
+       "A009": {
+        "decision_due_minute": 0,
+        "decision_reason": null,
+        "known_facility_ids": [
+         "accessible_toilet_01",
+         "intake_desk",
+         "meal_distribution_main",
+         "medical_desk",
+         "quiet_support",
+         "toilet_01",
+         "water_station_main"
+        ],
+        "last_action": null,
+        "last_decision_minute": null,
+        "last_target_id": null
+       },
+       "A010": {
+        "decision_due_minute": 0,
+        "decision_reason": null,
+        "known_facility_ids": [
+         "accessible_toilet_01",
+         "intake_desk",
+         "meal_distribution_main",
+         "medical_desk",
+         "quiet_support",
+         "toilet_01",
+         "water_station_main"
+        ],
+        "last_action": null,
+        "last_decision_minute": null,
+        "last_target_id": null
+       },
+       "A011": {
+        "decision_due_minute": 0,
+        "decision_reason": null,
+        "known_facility_ids": [
+         "accessible_toilet_01",
+         "intake_desk",
+         "meal_distribution_main",
+         "medical_desk",
+         "quiet_support",
+         "toilet_01",
+         "water_station_main"
+        ],
+        "last_action": null,
+        "last_decision_minute": null,
+        "last_target_id": null
+       },
+       "A012": {
+        "decision_due_minute": 0,
+        "decision_reason": null,
+        "known_facility_ids": [
+         "accessible_toilet_01",
+         "intake_desk",
+         "meal_distribution_main",
+         "medical_desk",
+         "quiet_support",
+         "toilet_01",
+         "water_station_main"
+        ],
+        "last_action": null,
+        "last_decision_minute": null,
+        "last_target_id": null
+       }
+      },
+      "policy_version": "need-led-autonomy-memory-v3",
+      "schema_version": 1
+     },
+     "body_state_v1": {
+      "agents": {
+       "A001": {
+        "discontent": 0.0,
+        "hygiene_need": 0.0,
+        "negative_affect": 0.0,
+        "positive_affect": 0.5,
+        "reassurance": 0.0,
+        "sleep_debt_minutes": 179.1575804864118,
+        "uncertainty": 0.25
+       },
+       "A002": {
+        "discontent": 0.0,
+        "hygiene_need": 0.0,
+        "negative_affect": 0.0,
+        "positive_affect": 0.5,
+        "reassurance": 0.0,
+        "sleep_debt_minutes": 204.64222759249665,
+        "uncertainty": 0.25
+       },
+       "A003": {
+        "discontent": 0.0,
+        "hygiene_need": 0.0,
+        "negative_affect": 0.0,
+        "positive_affect": 0.5,
+        "reassurance": 0.0,
+        "sleep_debt_minutes": 22.499742551167383,
+        "uncertainty": 0.25
+       },
+       "A004": {
+        "discontent": 0.0,
+        "hygiene_need": 0.0,
+        "negative_affect": 0.0,
+        "positive_affect": 0.5,
+        "reassurance": 0.0,
+        "sleep_debt_minutes": 103.98853306109052,
+        "uncertainty": 0.25
+       },
+       "A005": {
+        "discontent": 0.0,
+        "hygiene_need": 0.0,
+        "negative_affect": 0.0,
+        "positive_affect": 0.5,
+        "reassurance": 0.0,
+        "sleep_debt_minutes": 122.41090262027683,
+        "uncertainty": 0.25
+       },
+       "A006": {
+        "discontent": 0.0,
+        "hygiene_need": 0.0,
+        "negative_affect": 0.0,
+        "positive_affect": 0.5,
+        "reassurance": 0.0,
+        "sleep_debt_minutes": 22.70461231557238,
+        "uncertainty": 0.25
+       },
+       "A007": {
+        "discontent": 0.0,
+        "hygiene_need": 0.0,
+        "negative_affect": 0.0,
+        "positive_affect": 0.5,
+        "reassurance": 0.0,
+        "sleep_debt_minutes": 120.20488601800052,
+        "uncertainty": 0.25
+       },
+       "A008": {
+        "discontent": 0.0,
+        "hygiene_need": 0.0,
+        "negative_affect": 0.0,
+        "positive_affect": 0.5,
+        "reassurance": 0.0,
+        "sleep_debt_minutes": 150.9319411451979,
+        "uncertainty": 0.25
+       },
+       "A009": {
+        "discontent": 0.0,
+        "hygiene_need": 0.0,
+        "negative_affect": 0.0,
+        "positive_affect": 0.5,
+        "reassurance": 0.0,
+        "sleep_debt_minutes": 10.207930023249332,
+        "uncertainty": 0.25
+       },
+       "A010": {
+        "discontent": 0.0,
+        "hygiene_need": 0.0,
+        "negative_affect": 0.0,
+        "positive_affect": 0.5,
+        "reassurance": 0.0,
+        "sleep_debt_minutes": 157.23382464402152,
+        "uncertainty": 0.25
+       },
+       "A011": {
+        "discontent": 0.0,
+        "hygiene_need": 0.0,
+        "negative_affect": 0.0,
+        "positive_affect": 0.5,
+        "reassurance": 0.0,
+        "sleep_debt_minutes": 58.77012093283122,
+        "uncertainty": 0.25
+       },
+       "A012": {
+        "discontent": 0.0,
+        "hygiene_need": 0.0,
+        "negative_affect": 0.0,
+        "positive_affect": 0.5,
+        "reassurance": 0.0,
+        "sleep_debt_minutes": 67.76249842022514,
+        "uncertainty": 0.25
+       }
+      },
+      "config": {
+       "affect_policy": "linear-positive-negative-v1",
+       "affect_transfer_rate": 0.05,
+       "awake_sleep_debt_minutes_per_minute": 0.5,
+       "caregiver_assistance_reassurance_gain": 0.02,
+       "caregiver_assistance_stress_relief": 0.03,
+       "complaint_discontent_reduction": 0.01,
+       "complaint_reassurance_gain": 0.02,
+       "cooperation_discontent_reduction": 0.01,
+       "cooperation_negative_reduction": 0.02,
+       "cooperation_positive_gain": 0.03,
+       "cooperation_reassurance_gain": 0.03,
+       "correction_reassurance_gain": 0.01,
+       "correction_uncertainty_reduction": 0.05,
+       "dependent_assistance_reassurance_gain": 0.03,
+       "dependent_assistance_stress_relief": 0.04,
+       "discontent_queue_rate": 0.0005,
+       "discontent_relief_per_minute": 0.0002,
+       "discontent_stress_rate": 0.001,
+       "hygiene_growth_per_minute": 5e-05,
+       "hygiene_support_relief": 0.15,
+       "language_access_uncertainty_relief": 0.05,
+       "medical_assessment_uncertainty_relief": 0.02,
+       "medication_support_uncertainty_relief": 0.01,
+       "mobility_assistance_stress_relief": 0.03,
+       "negative_affect_stress_rate": 0.001,
+       "policy_version": "life-state-feedback-v1",
+       "positive_affect_decay_per_minute": 0.0001,
+       "privacy_accommodation_discontent_relief": 0.02,
+       "reassurance_decay_per_minute": 0.0003,
+       "relationship_distance_scale_m": 2.0,
+       "relationship_repeat_contact_bonus": 0.05,
+       "relationship_trust_decay_per_day": 0.002,
+       "relationship_trust_gain": 0.0005,
+       "rest_sleep_debt_recovery_per_minute": 0.0,
+       "sanitation_hygiene_growth_per_minute": 0.0001,
+       "sanitation_stress_rate": 0.002,
+       "schema_version": 1,
+       "sleep_debt_stress_rate": 0.001,
+       "sleep_sleep_debt_recovery_per_minute": 1.0,
+       "social_action_affect_transfer": 0.02,
+       "social_interaction_minutes": 5,
+       "source_id": "ASM-LIFE-STATE-FEEDBACK-V1",
+       "uncertainty_decay_per_minute": 5e-05,
+       "uncertainty_drift_per_minute": 2e-05
+      },
+      "history": [],
+      "policy_version": "life-state-feedback-v1",
+      "relationships": {},
+      "schema_version": 1,
+      "source_id": "ASM-LIFE-STATE-FEEDBACK-V1"
+     },
+     "effect_program_v1": {
+      "active_facility_modifiers": {},
+      "programs": {
+       "fixture-arrivals": {
+        "assumptions": [],
+        "compiler_provenance": {
+         "compiler_kind": "offline_rule",
+         "compiler_version": "test-v1",
+         "model_id": null,
+         "prompt_hash": null
+        },
+        "effect_ids": [
+         "arrivals"
+        ],
+        "narrative": "People come in on the approach route.",
+        "operators": {
+         "arrivals": "add_evacuees"
+        },
+        "program_hash": "8ce7518f6450e63fc6d8d53601fa16ae79e623ef422f249d4426c7f0d5cbbc5a",
+        "scheduled_event_ids": [
+         "effect-event-0"
+        ],
+        "source_text_hash": "d0da547a7e51cf4deb679359677b418a42965b916b8201ccc5a3c5ead63c0a92",
+        "support_mode": "native"
+       }
+      },
+      "schema_version": 1
+     },
+     "geometry_overlay_v1": {
+      "bed_reservations": {},
+      "facility_points": {},
+      "history": [],
+      "partitions": {},
+      "policy_version": "bounded-runtime-geometry-v1",
+      "room_admissions": {},
+      "route_modifiers": {},
+      "schema_version": 1,
+      "temporary_rooms": {}
+     },
+     "information_spread_v1": {
+      "beliefs": {
+       "A001": {},
+       "A002": {},
+       "A003": {},
+       "A004": {},
+       "A005": {},
+       "A006": {},
+       "A007": {},
+       "A008": {},
+       "A009": {},
+       "A010": {},
+       "A011": {},
+       "A012": {}
+      },
+      "contacts": {},
+      "counters": {
+       "contact_attempts": 0,
+       "contact_deliveries": 0,
+       "correction_deliveries": 0,
+       "support_requests": 0
+      },
+      "messages": {},
+      "query_pressure": {
+       "A001": 0.0,
+       "A002": 0.0,
+       "A003": 0.0,
+       "A004": 0.0,
+       "A005": 0.0,
+       "A006": 0.0,
+       "A007": 0.0,
+       "A008": 0.0,
+       "A009": 0.0,
+       "A010": 0.0,
+       "A011": 0.0,
+       "A012": 0.0
+      },
+      "schema_version": 2,
+      "support_requests": []
+     },
+     "movement_v1": {
+      "edge_usage_minutes": {},
+      "journeys": {},
+      "last_updated_minute": -1,
+      "policy_version": "spatial-route-and-room-waypoint-v2",
+      "positions": {
+       "A001": {
+        "edge_id": null,
+        "point": {
+         "x": 2.8158383625774914,
+         "y": 6.3772255750516615
+        },
+        "position_kind": "physical",
+        "progress": 0.0,
+        "zone_id": "sleeping"
+       },
+       "A002": {
+        "edge_id": null,
+        "point": {
+         "x": 2.8158383625774914,
+         "y": 6.3772255750516615
+        },
+        "position_kind": "physical",
+        "progress": 0.0,
+        "zone_id": "sleeping"
+       },
+       "A003": {
+        "edge_id": null,
+        "point": {
+         "x": 2.8158383625774914,
+         "y": 6.3772255750516615
+        },
+        "position_kind": "physical",
+        "progress": 0.0,
+        "zone_id": "sleeping"
+       },
+       "A004": {
+        "edge_id": null,
+        "point": {
+         "x": 2.8158383625774914,
+         "y": 6.3772255750516615
+        },
+        "position_kind": "physical",
+        "progress": 0.0,
+        "zone_id": "sleeping"
+       },
+       "A005": {
+        "edge_id": null,
+        "point": {
+         "x": 2.8158383625774914,
+         "y": 6.3772255750516615
+        },
+        "position_kind": "physical",
+        "progress": 0.0,
+        "zone_id": "sleeping"
+       },
+       "A006": {
+        "edge_id": null,
+        "point": {
+         "x": 2.8158383625774914,
+         "y": 6.3772255750516615
+        },
+        "position_kind": "physical",
+        "progress": 0.0,
+        "zone_id": "sleeping"
+       },
+       "A007": {
+        "edge_id": null,
+        "point": {
+         "x": 2.8158383625774914,
+         "y": 6.3772255750516615
+        },
+        "position_kind": "physical",
+        "progress": 0.0,
+        "zone_id": "sleeping"
+       },
+       "A008": {
+        "edge_id": null,
+        "point": {
+         "x": 2.8158383625774914,
+         "y": 6.3772255750516615
+        },
+        "position_kind": "physical",
+        "progress": 0.0,
+        "zone_id": "sleeping"
+       },
+       "A009": {
+        "edge_id": null,
+        "point": {
+         "x": 2.8158383625774914,
+         "y": 6.3772255750516615
+        },
+        "position_kind": "physical",
+        "progress": 0.0,
+        "zone_id": "sleeping"
+       },
+       "A010": {
+        "edge_id": null,
+        "point": {
+         "x": 2.8158383625774914,
+         "y": 6.3772255750516615
+        },
+        "position_kind": "physical",
+        "progress": 0.0,
+        "zone_id": "sleeping"
+       },
+       "A011": {
+        "edge_id": null,
+        "point": {
+         "x": 2.8158383625774914,
+         "y": 6.3772255750516615
+        },
+        "position_kind": "physical",
+        "progress": 0.0,
+        "zone_id": "sleeping"
+       },
+       "A012": {
+        "edge_id": null,
+        "point": {
+         "x": 2.8158383625774914,
+         "y": 6.3772255750516615
+        },
+        "position_kind": "physical",
+        "progress": 0.0,
+        "zone_id": "sleeping"
+       }
+      },
+      "schema_version": 2,
+      "staff_positions": {
+       "staff_001": {
+        "edge_id": null,
+        "point": {
+         "x": 15.531676725154984,
+         "y": 6.377225575051661
+        },
+        "position_kind": "physical",
+        "progress": 0.0,
+        "zone_id": "staff"
+       },
+       "staff_002": {
+        "edge_id": null,
+        "point": {
+         "x": 10.131676725154982,
+         "y": 6.377225575051662
+        },
+        "position_kind": "physical",
+        "progress": 0.0,
+        "zone_id": "food"
+       },
+       "staff_003": {
+        "edge_id": null,
+        "point": {
+         "x": 10.131676725154982,
+         "y": 6.377225575051662
+        },
+        "position_kind": "physical",
+        "progress": 0.0,
+        "zone_id": "food"
+       }
+      }
+     },
+     "operational_events_v1": {
+      "cancelled_staff_task_ids": [],
+      "schema_version": 1,
+      "shipments": {},
+      "staff_status": {
+       "staff_001": {
+        "available": true,
+        "restore_event_id": null,
+        "unavailability_event_id": null,
+        "until_minute": null
+       },
+       "staff_002": {
+        "available": true,
+        "restore_event_id": null,
+        "unavailability_event_id": null,
+        "until_minute": null
+       },
+       "staff_003": {
+        "available": true,
+        "restore_event_id": null,
+        "unavailability_event_id": null,
+        "until_minute": null
+       }
+      },
+      "water_outages": {}
+     },
+     "population_dynamics_v1": {
+      "arrivals": [],
+      "departures": [],
+      "initial_agent_ids": [
+       "A001",
+       "A002",
+       "A003",
+       "A004",
+       "A005",
+       "A006",
+       "A007",
+       "A008",
+       "A009",
+       "A010",
+       "A011",
+       "A012"
+      ],
+      "pending_arrivals": [],
+      "policy_version": "capacity-aware-arrivals-departures-v1",
+      "profile_context": {},
+      "profile_traits": {
+       "A001": {
+        "accessibility_needs": [
+         "mobility_support"
+        ],
+        "age_years": 56,
+        "household_id": "H000001",
+        "household_role": "alone",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A002": {
+        "accessibility_needs": [],
+        "age_years": 23,
+        "household_id": "H000002",
+        "household_role": "alone",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A003": {
+        "accessibility_needs": [],
+        "age_years": 45,
+        "household_id": "H000003",
+        "household_role": "adult",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A004": {
+        "accessibility_needs": [
+         "mobility_support"
+        ],
+        "age_years": 85,
+        "household_id": "H000003",
+        "household_role": "adult",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A005": {
+        "accessibility_needs": [
+         "mobility_support"
+        ],
+        "age_years": 53,
+        "household_id": "H000003",
+        "household_role": "adult",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A006": {
+        "accessibility_needs": [],
+        "age_years": 13,
+        "household_id": "H000003",
+        "household_role": "child",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A007": {
+        "accessibility_needs": [],
+        "age_years": 79,
+        "household_id": "H000004",
+        "household_role": "adult",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A008": {
+        "accessibility_needs": [],
+        "age_years": 48,
+        "household_id": "H000004",
+        "household_role": "adult",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A009": {
+        "accessibility_needs": [
+         "mobility_support"
+        ],
+        "age_years": 35,
+        "household_id": "H000004",
+        "household_role": "adult",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A010": {
+        "accessibility_needs": [
+         "mobility_support"
+        ],
+        "age_years": 87,
+        "household_id": "H000004",
+        "household_role": "adult",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A011": {
+        "accessibility_needs": [],
+        "age_years": 53,
+        "household_id": "H000005",
+        "household_role": "adult",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       },
+       "A012": {
+        "accessibility_needs": [],
+        "age_years": 71,
+        "household_id": "H000005",
+        "household_role": "adult",
+        "languages": [
+         "ja"
+        ],
+        "medical_support": false,
+        "source_ids": [
+         "ASM-SYNTHETIC-AGE-BANDS-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+         "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+         "ASM-SYNTHETIC-LANGUAGE-V1",
+         "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+        ]
+       }
+      },
+      "schema_version": 1,
+      "source_id": "ASM-POPULATION-DYNAMICS-V1"
+     },
+     "population_lifecycle_v1": {
+      "deferred_beliefs": {},
+      "history": [],
+      "messages": {},
+      "pending_relocations": {},
+      "pending_returns": [],
+      "people": {},
+      "policy_version": "same-id-population-lifecycle-v1",
+      "relationship_archive": [],
+      "schema_version": 1,
+      "source_id": "ASM-POPULATION-LIFECYCLE-V1"
+     },
+     "population_presence_v1": {
+      "history": [],
+      "people": {
+       "A001": {
+        "agent_id": "A001",
+        "archive_path": null,
+        "expected_return_minute": null,
+        "household_id": "H000001",
+        "return_zone_id": null,
+        "since_minute": 0,
+        "source_event_ids": [],
+        "status": "admitted",
+        "transition_zone_id": "sleeping"
+       },
+       "A002": {
+        "agent_id": "A002",
+        "archive_path": null,
+        "expected_return_minute": null,
+        "household_id": "H000002",
+        "return_zone_id": null,
+        "since_minute": 0,
+        "source_event_ids": [],
+        "status": "admitted",
+        "transition_zone_id": "sleeping"
+       },
+       "A003": {
+        "agent_id": "A003",
+        "archive_path": null,
+        "expected_return_minute": null,
+        "household_id": "H000003",
+        "return_zone_id": null,
+        "since_minute": 0,
+        "source_event_ids": [],
+        "status": "admitted",
+        "transition_zone_id": "sleeping"
+       },
+       "A004": {
+        "agent_id": "A004",
+        "archive_path": null,
+        "expected_return_minute": null,
+        "household_id": "H000003",
+        "return_zone_id": null,
+        "since_minute": 0,
+        "source_event_ids": [],
+        "status": "admitted",
+        "transition_zone_id": "sleeping"
+       },
+       "A005": {
+        "agent_id": "A005",
+        "archive_path": null,
+        "expected_return_minute": null,
+        "household_id": "H000003",
+        "return_zone_id": null,
+        "since_minute": 0,
+        "source_event_ids": [],
+        "status": "admitted",
+        "transition_zone_id": "sleeping"
+       },
+       "A006": {
+        "agent_id": "A006",
+        "archive_path": null,
+        "expected_return_minute": null,
+        "household_id": "H000003",
+        "return_zone_id": null,
+        "since_minute": 0,
+        "source_event_ids": [],
+        "status": "admitted",
+        "transition_zone_id": "sleeping"
+       },
+       "A007": {
+        "agent_id": "A007",
+        "archive_path": null,
+        "expected_return_minute": null,
+        "household_id": "H000004",
+        "return_zone_id": null,
+        "since_minute": 0,
+        "source_event_ids": [],
+        "status": "admitted",
+        "transition_zone_id": "sleeping"
+       },
+       "A008": {
+        "agent_id": "A008",
+        "archive_path": null,
+        "expected_return_minute": null,
+        "household_id": "H000004",
+        "return_zone_id": null,
+        "since_minute": 0,
+        "source_event_ids": [],
+        "status": "admitted",
+        "transition_zone_id": "sleeping"
+       },
+       "A009": {
+        "agent_id": "A009",
+        "archive_path": null,
+        "expected_return_minute": null,
+        "household_id": "H000004",
+        "return_zone_id": null,
+        "since_minute": 0,
+        "source_event_ids": [],
+        "status": "admitted",
+        "transition_zone_id": "sleeping"
+       },
+       "A010": {
+        "agent_id": "A010",
+        "archive_path": null,
+        "expected_return_minute": null,
+        "household_id": "H000004",
+        "return_zone_id": null,
+        "since_minute": 0,
+        "source_event_ids": [],
+        "status": "admitted",
+        "transition_zone_id": "sleeping"
+       },
+       "A011": {
+        "agent_id": "A011",
+        "archive_path": null,
+        "expected_return_minute": null,
+        "household_id": "H000005",
+        "return_zone_id": null,
+        "since_minute": 0,
+        "source_event_ids": [],
+        "status": "admitted",
+        "transition_zone_id": "sleeping"
+       },
+       "A012": {
+        "agent_id": "A012",
+        "archive_path": null,
+        "expected_return_minute": null,
+        "household_id": "H000005",
+        "return_zone_id": null,
+        "since_minute": 0,
+        "source_event_ids": [],
+        "status": "admitted",
+        "transition_zone_id": "sleeping"
+       }
+      },
+      "schema_version": 1
+     },
+     "psychological_distress_v1": {
+      "agents": {
+       "A001": {
+        "baseline_distress": 0.0,
+        "completed_days": 0,
+        "daily_acute_sum": 0.0,
+        "daily_high_distress_minutes": 0,
+        "daily_observed_minutes": 0,
+        "long_term_distress": 0.0
+       },
+       "A002": {
+        "baseline_distress": 0.0,
+        "completed_days": 0,
+        "daily_acute_sum": 0.0,
+        "daily_high_distress_minutes": 0,
+        "daily_observed_minutes": 0,
+        "long_term_distress": 0.0
+       },
+       "A003": {
+        "baseline_distress": 0.0,
+        "completed_days": 0,
+        "daily_acute_sum": 0.0,
+        "daily_high_distress_minutes": 0,
+        "daily_observed_minutes": 0,
+        "long_term_distress": 0.0
+       },
+       "A004": {
+        "baseline_distress": 0.0,
+        "completed_days": 0,
+        "daily_acute_sum": 0.0,
+        "daily_high_distress_minutes": 0,
+        "daily_observed_minutes": 0,
+        "long_term_distress": 0.0
+       },
+       "A005": {
+        "baseline_distress": 0.0,
+        "completed_days": 0,
+        "daily_acute_sum": 0.0,
+        "daily_high_distress_minutes": 0,
+        "daily_observed_minutes": 0,
+        "long_term_distress": 0.0
+       },
+       "A006": {
+        "baseline_distress": 0.0,
+        "completed_days": 0,
+        "daily_acute_sum": 0.0,
+        "daily_high_distress_minutes": 0,
+        "daily_observed_minutes": 0,
+        "long_term_distress": 0.0
+       },
+       "A007": {
+        "baseline_distress": 0.0,
+        "completed_days": 0,
+        "daily_acute_sum": 0.0,
+        "daily_high_distress_minutes": 0,
+        "daily_observed_minutes": 0,
+        "long_term_distress": 0.0
+       },
+       "A008": {
+        "baseline_distress": 0.0,
+        "completed_days": 0,
+        "daily_acute_sum": 0.0,
+        "daily_high_distress_minutes": 0,
+        "daily_observed_minutes": 0,
+        "long_term_distress": 0.0
+       },
+       "A009": {
+        "baseline_distress": 0.0,
+        "completed_days": 0,
+        "daily_acute_sum": 0.0,
+        "daily_high_distress_minutes": 0,
+        "daily_observed_minutes": 0,
+        "long_term_distress": 0.0
+       },
+       "A010": {
+        "baseline_distress": 0.0,
+        "completed_days": 0,
+        "daily_acute_sum": 0.0,
+        "daily_high_distress_minutes": 0,
+        "daily_observed_minutes": 0,
+        "long_term_distress": 0.0
+       },
+       "A011": {
+        "baseline_distress": 0.0,
+        "completed_days": 0,
+        "daily_acute_sum": 0.0,
+        "daily_high_distress_minutes": 0,
+        "daily_observed_minutes": 0,
+        "long_term_distress": 0.0
+       },
+       "A012": {
+        "baseline_distress": 0.0,
+        "completed_days": 0,
+        "daily_acute_sum": 0.0,
+        "daily_high_distress_minutes": 0,
+        "daily_observed_minutes": 0,
+        "long_term_distress": 0.0
+       }
+      },
+      "last_updated_minute": -1,
+      "schema_version": 1
+     },
+     "resource_ledger_v1": {
+      "accounts": {
+       "food_meal_units": {
+        "delivered": 0,
+        "initial": 108,
+        "losses": 0,
+        "remaining": 108,
+        "reservations": {},
+        "reserved": 0,
+        "served": 0,
+        "source_ids": [
+         "ASM-STANDARD-PROVISIONING-V1"
+        ]
+       },
+       "water_ml": {
+        "delivered": 0,
+        "initial": 108000,
+        "losses": 0,
+        "remaining": 108000,
+        "reservations": {},
+        "reserved": 0,
+        "served": 0,
+        "source_ids": [
+         "ASM-STANDARD-PROVISIONING-V1"
+        ]
+       }
+      },
+      "audit": [
+       {
+        "agent_id": null,
+        "delivered": 0,
+        "event_id": null,
+        "initial": 108000,
+        "losses": 0,
+        "minute": 0,
+        "operation": "initial",
+        "quantity": 108000,
+        "remaining": 108000,
+        "reservation_id": null,
+        "reserved": 0,
+        "resource_id": "water_ml",
+        "schema_version": 1,
+        "served": 0,
+        "source_id": null,
+        "source_ids": [
+         "ASM-STANDARD-PROVISIONING-V1"
+        ],
+        "warehouse_id": "main_warehouse"
+       },
+       {
+        "agent_id": null,
+        "delivered": 0,
+        "event_id": null,
+        "initial": 108,
+        "losses": 0,
+        "minute": 0,
+        "operation": "initial",
+        "quantity": 108,
+        "remaining": 108,
+        "reservation_id": null,
+        "reserved": 0,
+        "resource_id": "food_meal_units",
+        "schema_version": 1,
+        "served": 0,
+        "source_id": null,
+        "source_ids": [
+         "ASM-STANDARD-PROVISIONING-V1"
+        ],
+        "warehouse_id": "main_warehouse"
+       }
+      ],
+      "schema_version": 1,
+      "used_reservation_ids": [],
+      "warehouse_id": "main_warehouse",
+      "zone_id": null
+     },
+     "resource_service_v1": {
+      "active_reservation_ids": [],
+      "cancelled_task_ids": [],
+      "queue_stall_history": [],
+      "request_history": [],
+      "schema_version": 1,
+      "stall_state": {}
+     },
+     "shared_operations_v1": {
+      "history": [],
+      "history_truncated": false,
+      "policy_version": "shared-operations-v1",
+      "schema_version": 1,
+      "support_requests": {}
+     },
+     "social_network_v1": {
+      "information_transfer_count": 0,
+      "interaction_count": 0,
+      "policy_version": "directed-contact-relationships-v1",
+      "relationships": {},
+      "schema_version": 1
+     },
+     "staff_dynamics_v1": {
+      "config": {
+       "max_continuous_work_minutes": 240,
+       "off_shift_fatigue_recovery_per_minute": 0.0,
+       "policy_version": "continuous-duty-fatigue-v1",
+       "rest_minutes": 30,
+       "schema_version": 1,
+       "shift_windows_by_staff": {},
+       "source_id": "ASM-STAFF-DYNAMICS-V1"
+      },
+      "policy_version": "continuous-duty-fatigue-v1",
+      "schema_version": 1,
+      "source_id": "ASM-STAFF-DYNAMICS-V1",
+      "staff": {
+       "staff_001": {
+        "consecutive_work_minutes": 0,
+        "fatigue": 0.0,
+        "last_activity": "off_duty",
+        "rest_until_minute": 0,
+        "total_rest_minutes": 0,
+        "total_work_minutes": 0
+       },
+       "staff_002": {
+        "consecutive_work_minutes": 0,
+        "fatigue": 0.0,
+        "last_activity": "off_duty",
+        "rest_until_minute": 0,
+        "total_rest_minutes": 0,
+        "total_work_minutes": 0
+       },
+       "staff_003": {
+        "consecutive_work_minutes": 0,
+        "fatigue": 0.0,
+        "last_activity": "off_duty",
+        "rest_until_minute": 0,
+        "total_rest_minutes": 0,
+        "total_work_minutes": 0
+       }
+      }
+     },
+     "staff_operations_v1": {
+      "config": {
+       "cleaning_sanitation_recovery": 0.15,
+       "effects_by_zone": {},
+       "outreach_uncertainty_relief": 0.04,
+       "patrol_reassurance": 0.01,
+       "policy_version": "autonomous-routed-staff-v1",
+       "sanitation_use_per_person_minute": 5e-06,
+       "schema_version": 1,
+       "source_id": "ASM-STAFF-OPERATIONS-V1",
+       "task_duration_minutes": {
+        "cleaning": 15,
+        "information_outreach": 10,
+        "intake": 5,
+        "maintenance": 20,
+        "patrol": 15
+       },
+       "thresholds_by_zone": {}
+      },
+      "history": [],
+      "policy_version": "autonomous-routed-staff-v1",
+      "schema_version": 1,
+      "source_id": "ASM-STAFF-OPERATIONS-V1",
+      "staff": {
+       "staff_001": {
+        "arrival_minute": null,
+        "causation_event_ids": [],
+        "due_minute": null,
+        "phase": "idle",
+        "reason": null,
+        "route_edge_ids": [],
+        "route_zone_ids": [],
+        "started_minute": null,
+        "target_id": null,
+        "target_zone_id": null,
+        "task_id": null,
+        "task_kind": null,
+        "travel_due_minute": null,
+        "travel_minutes": 0
+       },
+       "staff_002": {
+        "arrival_minute": null,
+        "causation_event_ids": [],
+        "due_minute": null,
+        "phase": "idle",
+        "reason": null,
+        "route_edge_ids": [],
+        "route_zone_ids": [],
+        "started_minute": null,
+        "target_id": null,
+        "target_zone_id": null,
+        "task_id": null,
+        "task_kind": null,
+        "travel_due_minute": null,
+        "travel_minutes": 0
+       },
+       "staff_003": {
+        "arrival_minute": null,
+        "causation_event_ids": [],
+        "due_minute": null,
+        "phase": "idle",
+        "reason": null,
+        "route_edge_ids": [],
+        "route_zone_ids": [],
+        "started_minute": null,
+        "target_id": null,
+        "target_zone_id": null,
+        "task_id": null,
+        "task_kind": null,
+        "travel_due_minute": null,
+        "travel_minutes": 0
+       }
+      },
+      "zones": {
+       "corridor": {
+        "sanitation": 1.0,
+        "updated_minute": 0
+       },
+       "food": {
+        "sanitation": 1.0,
+        "updated_minute": 0
+       },
+       "intake": {
+        "sanitation": 1.0,
+        "updated_minute": 0
+       },
+       "medical": {
+        "sanitation": 1.0,
+        "updated_minute": 0
+       },
+       "quiet": {
+        "sanitation": 1.0,
+        "updated_minute": 0
+       },
+       "sleeping": {
+        "sanitation": 1.0,
+        "updated_minute": 0
+       },
+       "staff": {
+        "sanitation": 1.0,
+        "updated_minute": 0
+       },
+       "toilet": {
+        "sanitation": 1.0,
+        "updated_minute": 0
+       }
+      }
+     },
+     "temporary_spaces_v1": {
+      "history": [],
+      "policy_version": "typed-temporary-capacity-v1",
+      "schema_version": 1,
+      "spaces": {}
+     },
+     "zone_environment_v1": {
+      "modifiers": {},
+      "schema_version": 1
+     }
+    },
+    "resources": {
+     "food_meal_units": 108,
+     "water_ml": 108000
+    },
+    "rng_state": {
+     "algorithm": "sha256-keyed-v1",
+     "seed": 2026
+    },
+    "scenario_id": "region-d8186157dddeaee5",
+    "schema_version": 6,
+    "seed": 2026,
+    "staff": [
+     {
+      "active_task_id": null,
+      "busy_until": 0,
+      "id": "staff_001",
+      "skills": [
+       "support",
+       "intake",
+       "information",
+       "water_service",
+       "meal_service",
+       "medical_support"
+      ],
+      "work_queue": [],
+      "zone_id": "staff"
+     },
+     {
+      "active_task_id": null,
+      "busy_until": 0,
+      "id": "staff_002",
+      "skills": [
+       "water_service",
+       "meal_service"
+      ],
+      "work_queue": [],
+      "zone_id": "food"
+     },
+     {
+      "active_task_id": null,
+      "busy_until": 0,
+      "id": "staff_003",
+      "skills": [
+       "water_service",
+       "meal_service"
+      ],
+      "work_queue": [],
+      "zone_id": "food"
+     }
+    ],
+    "support_requests": [],
+    "zone_edges": [
+     {
+      "closed": false,
+      "from_zone_id": "corridor",
+      "id": "route_corridor_food",
+      "to_zone_id": "food",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "corridor",
+      "id": "route_corridor_intake",
+      "to_zone_id": "intake",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "corridor",
+      "id": "route_corridor_medical",
+      "to_zone_id": "medical",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "corridor",
+      "id": "route_corridor_quiet",
+      "to_zone_id": "quiet",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "corridor",
+      "id": "route_corridor_sleeping",
+      "to_zone_id": "sleeping",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "corridor",
+      "id": "route_corridor_staff",
+      "to_zone_id": "staff",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "corridor",
+      "id": "route_corridor_toilet",
+      "to_zone_id": "toilet",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "food",
+      "id": "route_food_corridor",
+      "to_zone_id": "corridor",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "intake",
+      "id": "route_intake_corridor",
+      "to_zone_id": "corridor",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "medical",
+      "id": "route_medical_corridor",
+      "to_zone_id": "corridor",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "quiet",
+      "id": "route_quiet_corridor",
+      "to_zone_id": "corridor",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "sleeping",
+      "id": "route_sleeping_corridor",
+      "to_zone_id": "corridor",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "staff",
+      "id": "route_staff_corridor",
+      "to_zone_id": "corridor",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "toilet",
+      "id": "route_toilet_corridor",
+      "to_zone_id": "corridor",
+      "travel_minutes": 1
+     }
+    ],
+    "zones": [
+     {
+      "capacity": null,
+      "display_x": 100.0,
+      "display_y": 100.0,
+      "id": "corridor",
+      "name": "共用通路"
+     },
+     {
+      "capacity": 12,
+      "display_x": 100.0,
+      "display_y": 620.0,
+      "id": "food",
+      "name": "食事・給水スペース"
+     },
+     {
+      "capacity": 12,
+      "display_x": 100.0,
+      "display_y": 860.0,
+      "id": "intake",
+      "name": "受付"
+     },
+     {
+      "capacity": 12,
+      "display_x": 100.0,
+      "display_y": 500.0,
+      "id": "medical",
+      "name": "救護スペース"
+     },
+     {
+      "capacity": 1,
+      "display_x": 100.0,
+      "display_y": 380.0,
+      "id": "quiet",
+      "name": "静養スペース"
+     },
+     {
+      "capacity": 13,
+      "display_x": 100.0,
+      "display_y": 260.0,
+      "id": "sleeping",
+      "name": "避難スペース"
+     },
+     {
+      "capacity": 12,
+      "display_x": 100.0,
+      "display_y": 980.0,
+      "id": "staff",
+      "name": "運営本部"
+     },
+     {
+      "capacity": 12,
+      "display_x": 100.0,
+      "display_y": 740.0,
+      "id": "toilet",
+      "name": "トイレ"
+     }
+    ]
+   }
+  }
+ }
+}

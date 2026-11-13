@@ -39,7 +39,7 @@ use sheltersim_core::config::queues::QueueConfig;
 use sheltersim_core::config::service::ResourceService;
 use sheltersim_core::config::staff::{StaffFatigue, StaffOperations};
 use sheltersim_core::config::{
-    agent_dynamics, Configs, FacilityGeometry, Filled, Lazy, Section, SectionId, Selection, SpatialConstraints, TickPlan,
+    agent_dynamics, Configs, FacilityGeometry, Fault, Filled, Lazy, Section, SectionId, Selection, SpatialConstraints, TickPlan,
 };
 use sheltersim_core::error::Error;
 use sheltersim_core::events::EventRow;
@@ -185,6 +185,7 @@ pub fn fill_section(configs: &Configs, which: SectionId) {
                 })),
                 approach_routes: Ok(Arc::from(Vec::new())),
                 independent_queues: Ok(false),
+                document: Err(Fault::refused("the test host keeps no document")),
             },
         ),
         SectionId::SpatialConstraints => put(&configs.spatial_constraints, SpatialConstraints::default()),

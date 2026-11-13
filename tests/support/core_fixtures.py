@@ -56,6 +56,7 @@ FIXTURES: dict[str, str] = {
     "behavior_rows": "support.core_fixtures_reads:behavior_rows_fixture",
     "staff_dynamics": "support.core_fixtures_staff_work:staff_dynamics_fixture",
     "staff_order_texts": "support.core_fixtures_staff_work:staff_order_texts_fixture",
+    "frames": "support.core_frames:frames_fixture",
 }
 
 # ---- The registry ------------------------------------------------------------------------------

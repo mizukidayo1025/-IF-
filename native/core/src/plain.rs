@@ -350,6 +350,9 @@ pub struct PlainRun {
     pub loaded: Rc<Loaded>,
     pub host: PlainHost,
     pub stepping: Stepping,
+    /// The world document's `rng_state`, which the core's World does not hold: what the world's
+    /// digest reads (`frame`).
+    pub rng_state: V,
 }
 
 impl PlainRun {
@@ -359,7 +362,8 @@ impl PlainRun {
         // The log holds its records in the binary form (#252): about a seventh of their JSON.
         loaded.cell.with(|world| world.log_mut().and_then(|mut log| log.pack_records()))??;
         let host = PlainHost::new(entry, Rc::clone(&loaded))?;
-        Ok(Self { loaded, host, stepping: Stepping::default() })
+        let rng_state = load::value(&entry["world"]["rng_state"])?;
+        Ok(Self { loaded, host, stepping: Stepping::default(), rng_state })
     }
 
     /// `of_entry` of the entry's JSON text.
@@ -396,5 +400,16 @@ impl PlainRun {
     /// The digest of each part of the world's canonical document (`canonical::digests`).
     pub fn digests(&self) -> Result<Vec<(&'static str, String)>> {
         self.loaded.cell.with(|world| crate::canonical::digests(world))?
+    }
+
+    /// The frame of the world now (`frame::frame`, #264): its canonical JSON, what the API's
+    /// timeline gives for this minute. It changes nothing.
+    pub fn frame(&mut self, request: &crate::frame::Request<'_>) -> Result<Vec<u8>> {
+        crate::frame::frame(&self.loaded.cell, &mut self.host, request, &self.rng_state)
+    }
+
+    /// `world.state_digest()` (`canonical::state_digest`) of the world now.
+    pub fn state_digest(&self) -> Result<String> {
+        self.loaded.cell.with(|world| crate::canonical::state_digest(world, &self.rng_state))?
     }
 }

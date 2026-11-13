@@ -52,20 +52,22 @@ fn int(value: i64) -> Vec<u8> {
 /// The canonical JSON of each top-level key of the world's document but `rng_state`, in the order
 /// of the keys.
 pub fn parts(world: &World) -> Result<Vec<(&'static str, Vec<u8>)>> {
-    parts_with(world, true)
+    parts_with(world, true, true)
 }
 
 /// Each part of `parts` but `event_log`, whose bytes are most of a long Run's document: the
 /// world a browser's Run stores beside its log (`archive::world_parts`, #252).
 pub fn parts_without_log(world: &World) -> Result<Vec<(&'static str, Vec<u8>)>> {
-    let mut all = parts_with(world, false)?;
+    let mut all = parts_with(world, false, true)?;
     all.retain(|(name, _)| *name != "event_log");
     Ok(all)
 }
 
 /// `parts`, but `event_log`'s is empty unless `with_log`: the log is most of a long Run's
-/// document, and a digest of it reads it a record at a time instead (`log_digest`, #252).
-fn parts_with(world: &World, with_log: bool) -> Result<Vec<(&'static str, Vec<u8>)>> {
+/// document, and a digest of it reads it a record at a time instead (`log_digest`, #252); and
+/// `model_state`'s is empty unless `with_model_state`, for the tree digest, which reads each
+/// namespace on its own (`state_digest`).
+fn parts_with(world: &World, with_log: bool, with_model_state: bool) -> Result<Vec<(&'static str, Vec<u8>)>> {
     let version = world.schema_version()?;
     let scalars = world.scalars()?;
     let mut scenario = Encoder::with_capacity(64);
@@ -100,15 +102,7 @@ fn parts_with(world: &World, with_log: bool) -> Result<Vec<(&'static str, Vec<u8
     if with_log {
         write_log(world, |raw| records.extend_from_slice(raw))?;
     }
-    let mut names: Vec<&Arc<str>> = Vec::new();
-    for name in world.slots.names() {
-        let Some(slot) = world.slots.get(name) else { continue };
-        let slot = slot.try_borrow()?;
-        if slot.place != Place::Field && slot.row.is_some() {
-            names.push(name);
-        }
-    }
-    names.sort_by(|first, second| first.as_bytes().cmp(second.as_bytes()));
+    let names = if with_model_state { namespace_names(world)? } else { Vec::new() };
     let mut model_state = Encoder::with_capacity(256);
     model_state.out.push(b'{');
     for (index, name) in names.into_iter().enumerate() {
@@ -143,6 +137,20 @@ fn parts_with(world: &World, with_log: bool) -> Result<Vec<(&'static str, Vec<u8
     ])
 }
 
+/// The names of the world's namespaces (the keys of `model_state`), sorted by their bytes.
+fn namespace_names(world: &World) -> Result<Vec<&Arc<str>>> {
+    let mut names: Vec<&Arc<str>> = Vec::new();
+    for name in world.slots.names() {
+        let Some(slot) = world.slots.get(name) else { continue };
+        let slot = slot.try_borrow()?;
+        if slot.place != Place::Field && slot.row.is_some() {
+            names.push(name);
+        }
+    }
+    names.sort_by(|first, second| first.as_bytes().cmp(second.as_bytes()));
+    Ok(names)
+}
+
 /// The canonical JSON of the log's records, `[record,record,...]`, given to `out` a piece at a
 /// time.
 fn write_log(world: &World, mut out: impl FnMut(&[u8])) -> Result<()> {
@@ -175,7 +183,7 @@ pub fn log_digest(world: &World) -> Result<String> {
 /// Each part but `event_log` as `parts` gives it, and the digest of `event_log` (`log_digest`) in
 /// its place: for the digests, which need no copy of the log.
 fn digested_parts(world: &World) -> Result<(Vec<(&'static str, Vec<u8>)>, String)> {
-    let mut all = parts_with(world, false)?;
+    let mut all = parts_with(world, false, true)?;
     all.retain(|(name, _)| *name != "event_log");
     Ok((all, log_digest(world)?))
 }
@@ -258,4 +266,265 @@ pub fn canonical_json(world: &World, rng_state: &V) -> Result<Vec<u8>> {
     }
     out.push(b'}');
     Ok(out)
+}
+
+// ---- The tree digest of a world (`state_hash`, #264) ---------------------------------------------
+
+/// How many items each hash of a history list covers (`TREE_CHUNK_ITEMS` of
+/// `core/checkpoint_cache.py`, a rule of the Checkpoint v2 hash).
+pub const TREE_CHUNK_ITEMS: usize = 128;
+/// The inner nodes start with NUL, which canonical JSON (the bytes of a leaf) never does.
+const TREE_LIST: &[u8] = b"\0sheltersim-tree-list\0";
+const TREE_OBJECT: &[u8] = b"\0sheltersim-tree-object\0";
+/// The namespaces of `model_state` whose lists the tree splits into chunks, and those lists
+/// (`_WORLD_TREE`); every other value is a leaf.
+const TREE_NAMESPACES: [(&str, &[&str]); 4] = [
+    ("body_state_v1", &["history"]),
+    ("shared_operations_v1", &["history"]),
+    ("resource_ledger_v1", &["audit"]),
+    ("resource_service_v1", &["request_history", "queue_stall_history"]),
+];
+
+/// `world.state_digest()`: the hash tree of the world's canonical document, with its `rng_state`
+/// (`CanonicalEncoder.world_tree_digest`, the `state_hash` of a Checkpoint v2). The bytes are
+/// streamed into the hashers: the log a record at a time, `model_state` a namespace at a time, so
+/// no copy of the whole document is made (#252: the copy of a day-7 world took 1.59 GiB).
+pub fn state_digest(world: &World, rng_state: &V) -> Result<String> {
+    let log = log_node(world)?;
+    tree_digest(world, rng_state, log)
+}
+
+/// `state_digest`, with the log's node given (`ListNode` of its records): for a reader whose host
+/// holds records the core's log no longer keeps.
+pub fn tree_digest(world: &World, rng_state: &V, log: String) -> Result<String> {
+    let mut log = Some(log);
+    let mut nodes: Vec<(&str, String)> = Vec::with_capacity(20);
+    for (name, raw) in parts_with(world, false, false)? {
+        let node = match name {
+            "event_log" => log.take().unwrap_or_default(),
+            "model_state" => model_state_node(world)?,
+            _ => sha256_hex(&raw),
+        };
+        nodes.push((name, node));
+    }
+    nodes.push(("rng_state", sha256_hex(&rng_state.to_json()?)));
+    Ok(object_node(nodes))
+}
+
+/// An object's node: the hash of its fields' hashes, as a canonical JSON object.
+fn object_node(mut nodes: Vec<(&str, String)>) -> String {
+    nodes.sort_by(|first, second| first.0.as_bytes().cmp(second.0.as_bytes()));
+    let mut encoder = Encoder::with_capacity(TREE_OBJECT.len() + 80 * nodes.len());
+    encoder.out.extend_from_slice(TREE_OBJECT);
+    encoder.out.push(b'{');
+    for (index, (name, node)) in nodes.iter().enumerate() {
+        if index > 0 {
+            encoder.out.push(b',');
+        }
+        encoder.string(name);
+        encoder.out.push(b':');
+        encoder.string(node);
+    }
+    encoder.out.push(b'}');
+    sha256_hex(&encoder.out)
+}
+
+/// A list's node, its items given one at a time: its count and the hash of each run of
+/// `TREE_CHUNK_ITEMS` items (the canonical JSON of that slice of the list).
+pub struct ListNode {
+    hasher: Sha256,
+    in_chunk: usize,
+    count: usize,
+    keys: Vec<String>,
+}
+
+impl Default for ListNode {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ListNode {
+    pub fn new() -> Self {
+        Self { hasher: Sha256::new(), in_chunk: 0, count: 0, keys: Vec::new() }
+    }
+
+    pub fn push(&mut self, item: &[u8]) {
+        self.hasher.update(if self.in_chunk == 0 { b"[" } else { b"," });
+        self.hasher.update(item);
+        self.in_chunk += 1;
+        self.count += 1;
+        if self.in_chunk == TREE_CHUNK_ITEMS {
+            self.seal();
+        }
+    }
+
+    fn seal(&mut self) {
+        let mut hasher = std::mem::take(&mut self.hasher);
+        hasher.update(b"]");
+        self.keys.push(hex(&hasher.finalize()));
+        self.in_chunk = 0;
+    }
+
+    pub fn node(mut self) -> String {
+        if self.in_chunk > 0 {
+            self.seal();
+        }
+        let mut encoder = Encoder::with_capacity(TREE_LIST.len() + 70 * self.keys.len() + 24);
+        encoder.out.extend_from_slice(TREE_LIST);
+        encoder.out.push(b'[');
+        encoder.int(self.count as i64);
+        encoder.out.extend_from_slice(b",[");
+        for (index, key) in self.keys.iter().enumerate() {
+            if index > 0 {
+                encoder.out.push(b',');
+            }
+            encoder.string(key);
+        }
+        encoder.out.extend_from_slice(b"]]");
+        sha256_hex(&encoder.out)
+    }
+}
+
+fn log_node(world: &World) -> Result<String> {
+    let log = world.log()?;
+    let mut chunks = ListNode::new();
+    let mut record = Vec::with_capacity(4096);
+    for index in 0..log.len() {
+        record.clear();
+        if !log.write_record(index, &mut record)? {
+            return Err(Error::unsupported("a record without its bytes"));
+        }
+        chunks.push(&record);
+    }
+    Ok(chunks.node())
+}
+
+fn model_state_node(world: &World) -> Result<String> {
+    let mut nodes: Vec<(&str, String)> = Vec::new();
+    for name in namespace_names(world)? {
+        let raw = slot_json(world, name)?;
+        let node = match TREE_NAMESPACES.iter().find(|(namespace, _)| *namespace == &**name) {
+            Some((_, lists)) => namespace_node(&raw, lists)?,
+            None => sha256_hex(&raw),
+        };
+        nodes.push((&**name, node));
+    }
+    Ok(object_node(nodes))
+}
+
+/// The node of a namespace whose `lists` are chunked: an object of its fields' hashes, where it is
+/// a dict, else a leaf.
+fn namespace_node(raw: &[u8], lists: &[&str]) -> Result<String> {
+    if raw.first() != Some(&b'{') {
+        return Ok(sha256_hex(raw));
+    }
+    let members = json_members(raw)?;
+    let mut nodes: Vec<(&str, String)> = Vec::with_capacity(members.len());
+    for (key, span) in &members {
+        let value = &raw[span.clone()];
+        let node = if lists.contains(&key.as_str()) && value.first() == Some(&b'[') {
+            let mut chunks = ListNode::new();
+            for item in json_items(value)? {
+                chunks.push(&value[item]);
+            }
+            chunks.node()
+        } else {
+            sha256_hex(value)
+        };
+        nodes.push((key.as_str(), node));
+    }
+    Ok(object_node(nodes))
+}
+
+// ---- Spans of compact JSON -------------------------------------------------------------------------
+
+fn not_json() -> Error {
+    Error::Runtime("canonical JSON that does not split".to_owned())
+}
+
+/// Where the string starting at `start` ends: past its closing quote.
+fn string_end(raw: &[u8], start: usize) -> Result<usize> {
+    let mut at = start + 1;
+    while at < raw.len() {
+        match raw[at] {
+            b'\\' => at += 2,
+            b'"' => return Ok(at + 1),
+            _ => at += 1,
+        }
+    }
+    Err(not_json())
+}
+
+/// Where the value starting at `start` ends.
+fn value_end(raw: &[u8], start: usize) -> Result<usize> {
+    let mut depth = 0_usize;
+    let mut at = start;
+    loop {
+        match *raw.get(at).ok_or_else(not_json)? {
+            b'"' => {
+                at = string_end(raw, at)?;
+                if depth == 0 {
+                    return Ok(at);
+                }
+                continue;
+            }
+            b'{' | b'[' => depth += 1,
+            b'}' | b']' => {
+                depth = depth.checked_sub(1).ok_or_else(not_json)?;
+                if depth == 0 {
+                    return Ok(at + 1);
+                }
+            }
+            _ if depth == 0 => {
+                while at < raw.len() && !matches!(raw[at], b',' | b'}' | b']') {
+                    at += 1;
+                }
+                return Ok(at);
+            }
+            _ => {}
+        }
+        at += 1;
+    }
+}
+
+/// The keys of a compact JSON object and where each value is.
+fn json_members(raw: &[u8]) -> Result<Vec<(String, std::ops::Range<usize>)>> {
+    let mut members = Vec::new();
+    if raw.get(1) == Some(&b'}') {
+        return Ok(members);
+    }
+    let mut at = 1;
+    loop {
+        let key_end = string_end(raw, at)?;
+        let key: String = serde_json::from_slice(&raw[at..key_end]).map_err(|_| not_json())?;
+        if raw.get(key_end) != Some(&b':') {
+            return Err(not_json());
+        }
+        let end = value_end(raw, key_end + 1)?;
+        members.push((key, key_end + 1..end));
+        match raw.get(end) {
+            Some(b',') => at = end + 1,
+            Some(b'}') => return Ok(members),
+            _ => return Err(not_json()),
+        }
+    }
+}
+
+/// Where each item of a compact JSON list is.
+fn json_items(raw: &[u8]) -> Result<Vec<std::ops::Range<usize>>> {
+    let mut items = Vec::new();
+    if raw.get(1) == Some(&b']') {
+        return Ok(items);
+    }
+    let mut at = 1;
+    loop {
+        let end = value_end(raw, at)?;
+        items.push(at..end);
+        match raw.get(end) {
+            Some(b',') => at = end + 1,
+            Some(b']') => return Ok(items),
+            _ => return Err(not_json()),
+        }
+    }
 }

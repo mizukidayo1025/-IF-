@@ -92,6 +92,7 @@ fn spatial(value: &Value) -> SpatialConstraints {
             .collect(),
         obstacles: list("obstacles").iter().map(|item| points(&item["polygon"])).collect(),
         footprints: list("equipment_footprints").iter().map(|item| (text(&item["facility_id"]), points(&item["polygon"]))).collect(),
+        document: None,
     }
 }
 

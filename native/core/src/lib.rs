@@ -16,6 +16,7 @@ pub mod engine;
 pub mod entities;
 pub mod error;
 pub mod events;
+pub mod frame;
 pub mod geometry;
 pub mod host;
 pub mod interner;
