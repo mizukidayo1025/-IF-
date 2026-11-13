@@ -5,6 +5,7 @@
 //! maps this crate's errors to Python's exceptions. The plan of the split is in
 //! `docs/rust-port/step5-plan.md`.
 
+pub mod archive;
 pub mod canonical;
 pub mod cell;
 pub mod census;

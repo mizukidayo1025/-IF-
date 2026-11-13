@@ -10,6 +10,11 @@ and whether the digests of the world and of the metric samples are the native pa
     python benchmarks/wasm_trial_measure.py --worlds DIR --pkg PKG [--browsers chromium firefox]
         [--repeat 3] [--output result.json]
 
+With --store (#252, PR 6-5) it opens `store.html` instead, once per world: the page runs the world
+in a Worker, stores it in the browser's origin private file system as it goes (native/wasm/js),
+reads it back and checks the digests, and the script writes the times to run, compress, write and
+read back, the WASM memory and the stored sizes.
+
 Playwright and its browsers are not dependencies of the project: install them where you measure
 (`python -m playwright install chromium firefox`).
 """
@@ -27,6 +32,9 @@ from pathlib import Path
 from typing import Any
 
 PAGE = Path(__file__).resolve().parent / "wasm_trial" / "index.html"
+# The page that stores a Run in OPFS as it goes and reads it back (#252, PR 6-5), and its JS.
+STORE_PAGE = PAGE.with_name("store.html")
+STORE_JS = Path(__file__).resolve().parents[1] / "native" / "wasm" / "js"
 # The page's runs of one world may take a while in a slow browser.
 TIMEOUT_MS = 600_000
 
@@ -38,11 +46,79 @@ class _Quiet(SimpleHTTPRequestHandler):
 
 def _site(worlds: Path, pkg: Path, directory: Path) -> None:
     shutil.copy(PAGE, directory / "index.html")
+    shutil.copy(STORE_PAGE, directory / "store.html")
+    shutil.copytree(STORE_JS, directory / "js")
     shutil.copytree(pkg, directory / "pkg")
     expected = json.loads((worlds / "expected.json").read_text(encoding="utf-8"))
     shutil.copy(worlds / "expected.json", directory / "expected.json")
     for world in expected["worlds"].values():
         shutil.copy(worlds / world["file"], directory / world["file"])
+
+
+class _Site:
+    """The measuring pages served from a temporary directory, on a port of 127.0.0.1."""
+
+    def __init__(self, worlds: Path, pkg: Path) -> None:
+        self._temporary = tempfile.TemporaryDirectory()
+        directory = Path(self._temporary.name)
+        _site(worlds, pkg, directory)
+        handler = functools.partial(_Quiet, directory=str(directory))
+        self._server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        threading.Thread(target=self._server.serve_forever, daemon=True).start()
+        self.base = f"http://127.0.0.1:{self._server.server_address[1]}"
+
+    def __enter__(self) -> _Site:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self._server.shutdown()
+        self._temporary.cleanup()
+
+
+def measure_store(worlds: Path, pkg: Path, browsers: list[str], ticks: int) -> dict[str, Any]:
+    """Each world in each browser, on a fresh page: run in a Worker, stored in OPFS as it goes,
+    read back and checked (`store.html`)."""
+    from playwright.sync_api import sync_playwright
+
+    names = list(json.loads((worlds / "expected.json").read_text(encoding="utf-8"))["worlds"])
+    results: dict[str, Any] = {"ticks": ticks, "browsers": {}}
+    with _Site(worlds, pkg) as site, sync_playwright() as playwright:
+        for name in browsers:
+            browser = getattr(playwright, name).launch()
+            per_world: dict[str, Any] = {"version": browser.version, "worlds": {}}
+            for world in names:
+                context = browser.new_context()
+                page = context.new_page()
+                page.goto(f"{site.base}/store.html?world={world}&ticks={ticks}")
+                page.wait_for_function("window.storeResult !== undefined", timeout=TIMEOUT_MS)
+                result = page.evaluate("window.storeResult")
+                context.close()
+                if "error" in result:
+                    raise RuntimeError(f"{name} {world}: {result['error']}")
+                per_world["userAgent"] = result.pop("userAgent")
+                per_world["worlds"][world] = result
+            browser.close()
+            results["browsers"][name] = per_world
+    return results
+
+
+def store_summary(results: dict[str, Any]) -> str:
+    lines = []
+    mib = 2**20
+    for name, browser in results["browsers"].items():
+        for world, measured in browser["worlds"].items():
+            ran, back = measured["ran"], measured["back"]
+            raw = sum(size["raw"] for size in ran["sizes"].values()) / mib
+            stored = sum(size["stored"] for size in ran["sizes"].values()) / mib
+            lines.append(
+                f"{name} {browser['version']} {world}: ticks {ran['tickMs'] / 1000:.2f} s, "
+                f"compress {ran['compressMs'] / 1000:.2f} s, write {ran['writeMs'] / 1000:.2f} s, "
+                f"read back {back['totalMs'] / 1000:.2f} s, "
+                f"memory {ran['memoryBytes'] / mib:.1f} MiB "
+                f"(after reading {measured['memoryAfterRead'] / mib:.1f}), stored {raw:.1f} -> "
+                f"{stored:.1f} MiB, digests {'same' if not measured['problems'] else 'DIFFERENT'}"
+            )
+    return "\n".join(lines)
 
 
 def measure(worlds: Path, pkg: Path, browsers: list[str], repeat: int) -> dict[str, Any]:
@@ -113,7 +189,29 @@ def main() -> int:
     parser.add_argument("--browsers", nargs="+", default=["chromium", "firefox"])
     parser.add_argument("--repeat", type=int, default=3)
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--store",
+        action="store_true",
+        help="run each world once in a Worker, stored in OPFS as it goes, and read it back",
+    )
+    parser.add_argument("--ticks", type=int, default=1440, help="--store: ticks per advance")
     arguments = parser.parse_args()
+    if arguments.store:
+        stored = measure_store(arguments.worlds, arguments.pkg, arguments.browsers, arguments.ticks)
+        if arguments.output:
+            arguments.output.write_text(
+                json.dumps(stored, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+            )
+        print(store_summary(stored))
+        return (
+            1
+            if any(
+                measured["problems"]
+                for browser in stored["browsers"].values()
+                for measured in browser["worlds"].values()
+            )
+            else 0
+        )
     results = measure(arguments.worlds, arguments.pkg, arguments.browsers, arguments.repeat)
     if arguments.output:
         arguments.output.write_text(

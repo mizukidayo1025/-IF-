@@ -172,61 +172,13 @@ impl MetricSamples {
         let Some(&start) = self.starts.get(index) else {
             return Ok(None);
         };
-        let mut cursor = Cursor::new(self.blocks.at(start));
-        let count = |cursor: &mut Cursor<'_>| -> Result<usize> {
-            usize::try_from(cursor.varint()?).map_err(|_| Error::Value("not a packed sample: a count".to_owned()))
-        };
-        let minute = cursor.zigzag()?;
-        let toilet_queue_length = count(&mut cursor)?;
-        let toilet_active_users = count(&mut cursor)?;
-        let toilet_working_units = cursor.zigzag()?;
-        let toilet_wait_count = cursor.float()?;
-        let toilet_wait_total_minutes = cursor.float()?;
-        let toilet_wait_mean_minutes = cursor.float()?;
-        let toilet_wait_max_minutes = cursor.float()?;
-        let stress_mean = cursor.float()?;
-        let stress_high_count = count(&mut cursor)?;
-        let staff_assigned_task_count = count(&mut cursor)?;
-        let staff_busy_count = count(&mut cursor)?;
-        let staff_load_ratio = cursor.float()?;
-        let unresolved_support_request_count = count(&mut cursor)?;
-        let source_ids_json = match cursor.byte()? {
-            0 => {
-                let (value, used) = self.packer.unpack_value(cursor.rest())?;
-                cursor.skip(used)?;
-                let mut text = Encoder::with_capacity(1024);
-                value.write_json(&mut text)?;
-                String::from_utf8(text.out).map_err(|_| Error::Value("not a packed sample: its IDs".to_owned()))?
-            }
-            1 => {
-                let length = usize::try_from(cursor.varint()?).map_err(|_| Error::Value("not a packed sample: a length".to_owned()))?;
-                String::from_utf8(cursor.take(length)?.to_vec()).map_err(|_| Error::Value("not a packed sample: its IDs".to_owned()))?
-            }
-            _ => return Err(Error::Value("not a packed sample: its IDs".to_owned())),
-        };
-        let support_no_qualified_worker_count = count(&mut cursor)?;
-        let sample = MetricSample {
-            toilet_queue_length,
-            toilet_active_users,
-            toilet_working_units,
-            toilet_wait_count,
-            toilet_wait_total_minutes,
-            toilet_wait_mean_minutes,
-            toilet_wait_max_minutes,
-            stress_mean,
-            stress_high_count,
-            staff_assigned_task_count,
-            staff_busy_count,
-            staff_load_ratio,
-            unresolved_support_request_count,
-            source_ids_json,
-            support_no_qualified_worker_count,
-            support_no_qualified_worker_request_minutes: cursor.float()?,
-            support_fairness_promoted_assignment_count: cursor.float()?,
-            support_wait_staff_busy_request_minutes: cursor.float()?,
-            support_wait_staff_off_shift_request_minutes: cursor.float()?,
-        };
+        let (sample, minute, _) = unpack_sample(&self.packer, self.blocks.at(start))?;
         Ok(Some((sample, minute)))
+    }
+
+    /// The packer and the blocks of the samples: what a Run in the browser stores (`archive`).
+    pub fn store(&self) -> (&Packer, &Blocks) {
+        (&self.packer, &self.blocks)
     }
 
     /// The line of the sample `index` (`engine::metric_line`), or None past the last.
@@ -238,6 +190,65 @@ impl MetricSamples {
     pub fn digest(&self) -> String {
         hex(&self.digest.clone().finalize())
     }
+}
+
+/// The sample `MetricSamples` packed at the start of `bytes` against `packer`'s tables, its minute,
+/// and how many bytes it took. An error, never a panic, for bytes that are not such a sample.
+pub fn unpack_sample(packer: &Packer, bytes: &[u8]) -> Result<(MetricSample, i64, usize)> {
+    let bad = |what: &str| Error::Value(format!("not a packed sample: {what}"));
+    let mut cursor = Cursor::new(bytes);
+    let count = |cursor: &mut Cursor<'_>| -> Result<usize> { usize::try_from(cursor.varint()?).map_err(|_| bad("a count")) };
+    let minute = cursor.zigzag()?;
+    let toilet_queue_length = count(&mut cursor)?;
+    let toilet_active_users = count(&mut cursor)?;
+    let toilet_working_units = cursor.zigzag()?;
+    let toilet_wait_count = cursor.float()?;
+    let toilet_wait_total_minutes = cursor.float()?;
+    let toilet_wait_mean_minutes = cursor.float()?;
+    let toilet_wait_max_minutes = cursor.float()?;
+    let stress_mean = cursor.float()?;
+    let stress_high_count = count(&mut cursor)?;
+    let staff_assigned_task_count = count(&mut cursor)?;
+    let staff_busy_count = count(&mut cursor)?;
+    let staff_load_ratio = cursor.float()?;
+    let unresolved_support_request_count = count(&mut cursor)?;
+    let source_ids_json = match cursor.byte()? {
+        0 => {
+            let (value, used) = packer.unpack_value(cursor.rest())?;
+            cursor.skip(used)?;
+            let mut text = Encoder::with_capacity(1024);
+            value.write_json(&mut text)?;
+            String::from_utf8(text.out).map_err(|_| bad("its IDs"))?
+        }
+        1 => {
+            let length = usize::try_from(cursor.varint()?).map_err(|_| bad("a length"))?;
+            String::from_utf8(cursor.take(length)?.to_vec()).map_err(|_| bad("its IDs"))?
+        }
+        _ => return Err(bad("its IDs")),
+    };
+    let support_no_qualified_worker_count = count(&mut cursor)?;
+    let sample = MetricSample {
+        toilet_queue_length,
+        toilet_active_users,
+        toilet_working_units,
+        toilet_wait_count,
+        toilet_wait_total_minutes,
+        toilet_wait_mean_minutes,
+        toilet_wait_max_minutes,
+        stress_mean,
+        stress_high_count,
+        staff_assigned_task_count,
+        staff_busy_count,
+        staff_load_ratio,
+        unresolved_support_request_count,
+        source_ids_json,
+        support_no_qualified_worker_count,
+        support_no_qualified_worker_request_minutes: cursor.float()?,
+        support_fairness_promoted_assignment_count: cursor.float()?,
+        support_wait_staff_busy_request_minutes: cursor.float()?,
+        support_wait_staff_off_shift_request_minutes: cursor.float()?,
+    };
+    Ok((sample, minute, cursor.position()))
 }
 
 impl Host for PlainHost {

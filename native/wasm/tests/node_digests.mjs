@@ -65,8 +65,42 @@ const again = wasm.Simulation.fromWorlds(raw, "small_replay");
 assert.equal(again.advance(3), 3);
 again.free();
 
+// Each world stored as it runs, in memory, and read back (#252, PR 6-5; js/run_store.mjs): the
+// stored log, samples and world give the Run's digests and the native path's.
+const store = await import(join(here, "..", "js", "run_store.mjs"));
+for (const [name, entry] of Object.entries(fixture.worlds)) {
+  const backend = store.memoryBackend();
+  const ran = await store.runAndStore({ wasm, exportBytes: raw, world: name, backend, ticks: 60 });
+  const back = await store.readAndVerify({ wasm, backend });
+  const problems = [];
+  if (!back.complete || back.torn || !back.verified) problems.push(`read back: complete ${back.complete}, torn ${back.torn}, mismatches ${back.mismatches}`);
+  for (const [part, digest] of Object.entries(entry.expected.world)) {
+    if (part !== "scalars" && back.parts?.[part] !== digest) problems.push(`stored ${part} is not the native path's`);
+  }
+  if (back.metrics !== entry.expected.metrics) problems.push("stored metrics are not the native path's");
+  if (ran.end.minute !== entry.expected.ticks) problems.push(`ran to ${ran.end.minute}`);
+  // A journal cut in its last line reads back to the lines before it: the Run is not complete.
+  const journal = backend.files.get("journal.jsonl");
+  backend.files.set("journal.jsonl", journal.slice(0, journal.length - 5));
+  const cut = await store.readAndVerify({ wasm, backend });
+  if (cut.complete || !cut.torn) problems.push(`a cut journal read as complete ${cut.complete}, torn ${cut.torn}`);
+  backend.files.set("journal.jsonl", journal);
+  // A changed byte of a piece is an error.
+  const data = backend.files.get("data.pack");
+  const changed = data.slice();
+  changed[changed.length - 3] ^= 0xff;
+  backend.files.set("data.pack", changed);
+  await assert.rejects(store.readAndVerify({ wasm, backend }), Error, `${name}: a changed piece`);
+  backend.files.set("data.pack", data);
+  const verdict = problems.length === 0 ? "ok" : "FAILED";
+  const stored = Object.values(ran.sizes).reduce((sum, size) => sum + size.stored, 0);
+  console.log(`${name}: stored ${verdict} (${Object.values(ran.sizes).reduce((sum, size) => sum + size.pieces, 0)} pieces, ${(stored / 1024).toFixed(1)} KiB, records ${back.records}, samples ${back.samples})`);
+  for (const problem of problems) console.log(`  ${problem}`);
+  failures += problems.length;
+}
+
 if (failures > 0) {
   console.error(`${failures} problem(s)`);
   process.exit(1);
 }
-console.log("all worlds reach the native path's digests");
+console.log("all worlds reach the native path's digests, stored and read back");
