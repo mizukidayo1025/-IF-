@@ -26,9 +26,11 @@
 // version, and how many log and sample blocks hold those records and samples (`log_blocks`,
 // `sample_blocks`): the blocks there were when it was saved, the last of them maybe not stored yet.
 //
-// Formats: "sheltersim-browser-run-v2" (#251) is written. "sheltersim-browser-run-v1" (#252) is the
-// same without saved points and is still read: seeking in it computes from minute 0. Any other is
-// an error. The log and the samples are only appended to, so a saved point holds no copy of them:
+// Formats: "sheltersim-browser-run-v3" (#266) is written: a metric sample of a world with a
+// resource ledger also holds the ledger's KPI columns (`MetricSamples` of the core), which the
+// API's KPI history answers with. "sheltersim-browser-run-v2" (#251) is the same without them, and
+// "sheltersim-browser-run-v1" (#252) also without saved points; both are still read (seeking in v1
+// computes from minute 0), but the KPI history refuses them. Any other is an error. The log and the samples are only appended to, so a saved point holds no copy of them:
 // seeking (`RunReader.seek`) restores the nearest saved point at or before the minute from it and
 // the stored log's and samples' first records and samples up to its counts, then computes the
 // ticks up to the minute (at most `saveEvery` - 1).
@@ -41,11 +43,13 @@
 // `wasm` is the module wasm-bindgen made of sheltersim_wasm (any target): its Simulation,
 // StoredRun, Restore, worldPartDigests and sha256Hex.
 
-export const FORMAT = "sheltersim-browser-run-v2";
+export const FORMAT = "sheltersim-browser-run-v3";
 /// The format of #252, without saved points: read, never written.
 export const FORMAT_V1 = "sheltersim-browser-run-v1";
+/// The format of #251, whose samples do not hold the ledger's columns: read, never written.
+export const FORMAT_V2 = "sheltersim-browser-run-v2";
 /// The formats this code reads.
-export const FORMATS = [FORMAT_V1, FORMAT];
+export const FORMATS = [FORMAT_V1, FORMAT_V2, FORMAT];
 /// Minutes between saved points by default: 6 hours (#263).
 export const SAVE_EVERY = 360;
 const DATA = "data.pack";

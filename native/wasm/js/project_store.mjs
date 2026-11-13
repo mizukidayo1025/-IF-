@@ -470,6 +470,20 @@ export async function branches(tree, projectId, runId) {
   return listed;
 }
 
+/// A branch's record (Python's `branch_reference`), with Python's errors for a bad identifier or a
+/// missing record (#266).
+export async function branchRecord(tree, projectId, runId, branchId) {
+  return readRecord(tree, [...branchPath(projectId, runId, branchId), "branch.json"]);
+}
+
+/// The Scenario of a Run, as the bytes Python wrote (#266).
+export async function runScenarioBytes(tree, projectId, runId) {
+  const run = await readRecord(tree, [...runPath(projectId, runId), "run.json"]);
+  const bytes = await tree.read([...scenarioPath(projectId, run.scenario_id), `v${run.scenario_version}.scenario.json`]);
+  if (bytes === null) fail("saved artifact is missing or corrupt");
+  return bytes;
+}
+
 /// The folder of a branch's stored Run, as run_store.mjs's backend.
 export async function branchBackend(tree, projectId, runId, branchId) {
   return tree.folder(branchPath(projectId, runId, branchId));
