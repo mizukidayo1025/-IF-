@@ -204,6 +204,25 @@ impl Simulation {
     }
 }
 
+/// A program scheduled on the world (#305, under #292): what a fork does to its child.
+#[wasm_bindgen]
+impl Simulation {
+    /// `schedule_effect_program(world, program)` on the world now, for a program's JSON bytes, as
+    /// `BranchRuntime.apply_effect_program` calls it on a fork's child: its record and events are
+    /// written, all or none. The receipt is the `command_log` entry Python appends, as JSON
+    /// (`{"command": "effect_program", "program_id", "program_hash", "event_ids", "minute"}`). An
+    /// error, with nothing changed, for a program with issues (their text, as Python's
+    /// `EffectProgram could not be scheduled: ...`), one the contract refuses, or one the browser
+    /// does not check.
+    #[wasm_bindgen(js_name = applyEffectProgram)]
+    pub fn apply_effect_program(&mut self, program: &[u8]) -> Result<String, JsError> {
+        let program = EffectProgram::of_json(program).map_err(js_error)?;
+        let receipt = self.run.apply_effect_program(&program).map_err(js_error)?;
+        let bytes = receipt.command().to_json().map_err(js_error)?;
+        String::from_utf8(bytes).map_err(|error| JsError::new(&error.to_string()))
+    }
+}
+
 /// `EffectProgram.model_validate(json).model_dump(mode="json")` of a program's JSON bytes, as its
 /// canonical JSON (#304): the bytes whose sha256 is the approval's hash (`approved_program_hash`).
 /// An error for a program the contract refuses (the text is the core's, not pydantic's).
@@ -500,6 +519,19 @@ pub fn world_part_digests(bytes: &[u8]) -> Result<String, JsError> {
 #[wasm_bindgen]
 pub fn casefold(text: &str) -> String {
     sheltersim_core::text::casefold(text).into_owned()
+}
+
+/// The entry of a Scenario's world at minute 0, from the Scenario's canonical JSON
+/// (`sheltersim_core::initial::entry`, #249): the bytes Python's `export_world` writes of it, which
+/// `new Simulation(entry)` runs. What the core does not build (a Scenario whose configs its table
+/// lacks, and the like) is an error whose message starts with `unsupported: `; any other error is
+/// input that is not a Scenario.
+#[wasm_bindgen(js_name = initialEntry)]
+pub fn initial_entry(scenario: &[u8]) -> Result<Vec<u8>, JsError> {
+    sheltersim_core::initial::entry(scenario).map_err(|error| match error {
+        Error::Unsupported(reason) => JsError::new(&format!("unsupported: {reason}")),
+        other => js_error(other),
+    })
 }
 
 /// `hashlib.sha256(bytes).hexdigest()`: what the page's journal checks its lines and pieces by.
