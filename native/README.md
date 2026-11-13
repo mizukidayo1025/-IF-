@@ -203,7 +203,11 @@ split PR by PR; its last section sums up what is where.
   templates) comes from `initial/table.json`, keyed by `initial::fingerprint` of the configs
   without their data (`DATA_CONFIGS`); `tests/support/core_initial.py` writes it. Configs the table
   lacks are `Unsupported`. In WASM: `initialEntry`; `core/tests/initial.rs` and
-  `wasm/tests/node_initial.mjs` check `core/tests/data/initial_worlds.json`.
+  `wasm/tests/node_initial.mjs` check `core/tests/data/initial_worlds.json`. A new Run's records
+  come from the same table (#301): `initial::model_versions` (`model_signatures`, with the floor
+  plan's service-point signature computed) and `initial::evidence` (the evidence route's answer,
+  with the Scenario's sources, assumptions and research limits); in WASM `modelVersions` and
+  `runEvidence`.
 - **Out of the core** (decision 4): building a world from a Scenario the screen does not make and
   restoring a Checkpoint stay in Python and the wrapper. The whole-world validation texts (E6) and the pydantic
   contracts (E15) stay Python behind `Host`; a host without Python passes the validation and
