@@ -105,12 +105,20 @@ async function start(sampleUrl) {
     }
     return sample;
   });
+  // The site's index of the GSI shelter CSV (scripts/build_static_site.py), read once; null when
+  // the site has none (the Scenario preview then answers browser_unsupported).
+  let shelters = null;
+  const shelterIndex = () =>
+    (shelters ??= fetch(new URL("./gsi-shelter-index.json", import.meta.url), { cache: "no-cache" })
+      .then((answer) => (answer.ok ? answer.json() : null))
+      .catch(() => null));
   const api = new BrowserApi({
     wasm,
     tree,
     quota: async () => (await navigator.storage.estimate()).quota ?? null,
     locked,
     branchLock,
+    scenario: { shelterIndex },
   });
   return { api, wasm, installed };
 }

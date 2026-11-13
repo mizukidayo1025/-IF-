@@ -430,12 +430,14 @@ function checkBranch(branch, runId) {
   if (!Number.isSafeInteger(fork_minute) || fork_minute < 0) fail("invalid fork minute");
   if (!Number.isSafeInteger(computed_until) || computed_until < fork_minute) fail("invalid computed minute");
   if (checkpoint_hash !== null && !/^[a-f0-9]{64}$/.test(checkpoint_hash)) fail("invalid checkpoint hash");
-  if (!STATUSES.has(status)) fail("unsupported run status");
+  // A branch without a status has had no computation (Python's branch without its status.json).
+  if (status !== undefined && !STATUSES.has(status)) fail("unsupported run status");
   if (branch.run_id !== runId) fail("branch record of another run");
 }
 
 /// Writes a branch's record: `{branch_id, parent_branch_id, fork_minute, computed_until,
-/// checkpoint_hash, status}`. A child's parent must have a record; a branch's lineage
+/// checkpoint_hash, status}`; a null `status` leaves it out (a branch not computed yet, as a new
+/// Run's `main`, #301). A child's parent must have a record; a branch's lineage
 /// (parent and fork minute) never changes.
 export async function writeBranch(tree, projectId, runId, branch) {
   const record = {
@@ -446,7 +448,7 @@ export async function writeBranch(tree, projectId, runId, branch) {
     fork_minute: branch.fork_minute ?? 0,
     computed_until: branch.computed_until ?? branch.fork_minute ?? 0,
     checkpoint_hash: branch.checkpoint_hash ?? null,
-    status: branch.status,
+    ...(branch.status === null ? {} : { status: branch.status }),
   };
   checkBranch(record, runId);
   await readRecord(tree, [...runPath(projectId, runId), "run.json"]);
@@ -675,6 +677,9 @@ export async function exportProject({ tree, projectId, source = null }) {
         continue;
       }
       const relative = [...path, name].join("/");
+      // The Scenario screen's working files (its preparation account and its previews' drafts,
+      // scenario_routes.mjs, #301) are not the Project's results: a bundle leaves them out.
+      if (relative === "preparation.json" || relative.startsWith("drafts/")) continue;
       if (entryKind(relative) === null) fail(`${relative}: a file a bundle does not hold`, "bundle_invalid");
       entries.push([relative, await tree.read([projectId, ...path, name])]);
     }
