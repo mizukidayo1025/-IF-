@@ -123,6 +123,15 @@ split PR by PR; its last section sums up what is where.
   without the feature `parallel` (one thread, decision 5). `wasm/tests/node_digests.mjs` runs the
   worlds of `core/tests/data/tick_core.json` in Node and checks the native path's digests; CI's
   lint job runs it (docs/development.md has the commands).
+- **Saved points** (#251, for the browser only; not Python's Checkpoints): `PlainRun::saved_point`
+  writes the Run at a minute as `archive::SavedPoint`, a versioned binary of the world without its
+  log (`archive::world_parts`), the counts of the log's records and the metric samples, and the
+  contracts' counts. `archive::Restore` reads the stored log and samples back up to those counts
+  and `PlainRun::restore` builds the Run there; the open actions are made again from the log
+  (`ActiveActions::of_log`, as `active_action_index`). In WASM: `Simulation.saved_point`,
+  `Restore`, `Simulation.restore`/`restoreFromWorlds`; `wasm/js/run_store.mjs` keeps a saved
+  point every 6 hours and seeks (`RunReader.seek`), and `wasm/tests/node_saved_points.mjs`
+  checks it in Node (`core/tests/archive_store.rs` in native code).
 - **A Project in the browser** (#265): `wasm/js/project_store.mjs` keeps the Project, Run and
   Branch records beside each branch's stored Run (`wasm/js/run_store.mjs`, #252), answers the
   Project routes of the screen with the Python server's JSON, and writes and reads one versioned

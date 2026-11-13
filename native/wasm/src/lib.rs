@@ -11,7 +11,8 @@
 //! It also hands the page what a Run stores (#252, PR 6-5; `sheltersim_core::archive`): the packed
 //! log's and samples' table entries and sealed blocks, and the world without its log; `StoredRun`
 //! reads them back to the Run's digests. The page's side is `js/run_store.mjs` and
-//! `js/run_worker.mjs`.
+//! `js/run_worker.mjs`. A Run is saved at a minute (`Simulation.saved_point`) and restored from
+//! there with its stored log and samples (`Restore`, `Simulation.restore`; #251).
 //!
 //! A minute crosses the boundary as an `f64` (a JS number), not an `i64` (a `BigInt`): a world's
 //! minutes are far below 2^53.
@@ -236,6 +237,111 @@ impl Simulation {
             .and_then(|result| result)
             .map_err(js_error)
     }
+}
+
+/// Saved points (#251; `sheltersim_core::archive::SavedPoint`): the Run now as a saved point's
+/// bytes, and the Run at a saved point, restored with the stored log and samples (`Restore`). The
+/// page's side is `RunWriter.save` and `RunReader.seek` of `js/run_store.mjs`.
+#[wasm_bindgen]
+impl Simulation {
+    /// The Run now as a saved point's bytes (`archive::SavedPoint`): call it between calls to
+    /// `advance`.
+    pub fn saved_point(&self) -> Result<Vec<u8>, JsError> {
+        Ok(self.run.saved_point().map_err(js_error)?.to_bytes())
+    }
+
+    /// The Run at the saved point `restore` was made of, which has read the stored log and samples
+    /// up to its counts, with the exported entry the Run started from (its JSON bytes). `restore`
+    /// is used up: it cannot restore again.
+    pub fn restore(entry: &[u8], restore: &mut Restore) -> Result<Simulation, JsError> {
+        let entry = PlainRun::entry_of_json(entry).map_err(js_error)?;
+        Ok(Simulation { run: PlainRun::restore(entry, restore.take()?).map_err(js_error)? })
+    }
+
+    /// `restore` with the world `name` of a file of named worlds as the exported entry.
+    #[wasm_bindgen(js_name = restoreFromWorlds)]
+    pub fn restore_from_worlds(file: &[u8], name: &str, restore: &mut Restore) -> Result<Simulation, JsError> {
+        let entry = PlainRun::entry_of_worlds_json(file, name).map_err(js_error)?;
+        Ok(Simulation { run: PlainRun::restore(entry, restore.take()?).map_err(js_error)? })
+    }
+}
+
+/// A saved point being restored (`archive::Restore`): made of the saved point's bytes, then given
+/// the stored log's and samples' tables and blocks in the order they were written until it needs
+/// no more (`log_needed`, `samples_needed`), then used by `Simulation.restore`.
+#[wasm_bindgen]
+pub struct Restore {
+    inner: Option<archive::Restore>,
+}
+
+#[wasm_bindgen]
+impl Restore {
+    /// An error for bytes that are not a saved point of the version this core reads.
+    #[wasm_bindgen(constructor)]
+    pub fn new(point: &[u8]) -> Result<Restore, JsError> {
+        Ok(Restore { inner: Some(archive::Restore::new(point).map_err(js_error)?) })
+    }
+
+    /// The saved point's minute.
+    pub fn minute(&self) -> Result<f64, JsError> {
+        Ok(self.inner()?.point.minute as f64)
+    }
+
+    /// How many records the log held at the saved point.
+    pub fn records(&self) -> Result<f64, JsError> {
+        Ok(self.inner()?.point.records as f64)
+    }
+
+    /// How many metric samples the Run had taken at the saved point.
+    pub fn samples(&self) -> Result<f64, JsError> {
+        Ok(self.inner()?.point.samples as f64)
+    }
+
+    pub fn log_needed(&self) -> Result<bool, JsError> {
+        Ok(self.inner()?.log_needed())
+    }
+
+    pub fn samples_needed(&self) -> Result<bool, JsError> {
+        Ok(self.inner()?.samples_needed())
+    }
+
+    pub fn read_log_tables(&mut self, bytes: &[u8]) -> Result<(), JsError> {
+        self.inner_mut()?.read_log_tables(bytes).map_err(js_error)
+    }
+
+    /// How many of the block's records were taken.
+    pub fn read_log_block(&mut self, bytes: &[u8]) -> Result<u32, JsError> {
+        self.inner_mut()?.read_log_block(bytes).map(|taken| taken as u32).map_err(js_error)
+    }
+
+    pub fn read_sample_tables(&mut self, bytes: &[u8]) -> Result<(), JsError> {
+        self.inner_mut()?.read_sample_tables(bytes).map_err(js_error)
+    }
+
+    /// How many of the block's samples were taken.
+    pub fn read_sample_block(&mut self, bytes: &[u8]) -> Result<u32, JsError> {
+        self.inner_mut()?.read_sample_block(bytes).map(|taken| taken as u32).map_err(js_error)
+    }
+}
+
+impl Restore {
+    fn inner(&self) -> Result<&archive::Restore, JsError> {
+        self.inner.as_ref().ok_or_else(|| JsError::new("the saved point was restored already"))
+    }
+
+    fn inner_mut(&mut self) -> Result<&mut archive::Restore, JsError> {
+        self.inner.as_mut().ok_or_else(|| JsError::new("the saved point was restored already"))
+    }
+
+    fn take(&mut self) -> Result<archive::Restore, JsError> {
+        self.inner.take().ok_or_else(|| JsError::new("the saved point was restored already"))
+    }
+}
+
+/// The version of the saved points this core writes and reads (`archive::SAVED_POINT_VERSION`).
+#[wasm_bindgen(js_name = savedPointVersion)]
+pub fn saved_point_version() -> f64 {
+    archive::SAVED_POINT_VERSION as f64
 }
 
 /// A stored Run read back (`archive::LogReader`, `SampleReader`): the pieces in the order they were
