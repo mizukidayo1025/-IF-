@@ -159,7 +159,7 @@ const runStatus = async () => JSON.parse((await get("")).body).status;
 const refusal = async (path, body, status, error, code = status === 409 ? "storage_conflict" : null) => {
   const answer = await post(path, body);
   const document = JSON.parse(answer.body);
-  check(answer.status === status && document.error === error && document.code === code, `${path} ${JSON.stringify(body)}: ${answer.status} ${answer.body}`);
+  check(answer.status === status && document.error === error && (document.code ?? null) === code && (code !== null || !("code" in document)), `${path} ${JSON.stringify(body)}: ${answer.status} ${answer.body}`);
 };
 /// Waits (answering requests meanwhile) until the Run's status is not `running`.
 async function settle(browserApi = browser) {

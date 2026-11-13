@@ -64,7 +64,9 @@ const invalidInput = () => new ApiError(400, "invalid query or saved contract", 
 /// The status and body (JSON text) the server answers an error with: an `ApiError` as it is, a
 /// `ProjectStoreError` as the StorageError it stands for, anything else as the server's 500.
 export function errorAnswer(error) {
-  if (error instanceof ApiError) return { status: error.status, body: sortedJson({ code: error.code, error: error.message }) };
+  // The server answers a request it cannot read with `{"error"}` alone (a 400 of the project
+  // routes); a refusal with a code has both.
+  if (error instanceof ApiError) return { status: error.status, body: sortedJson(error.code === null ? { error: error.message } : { code: error.code, error: error.message }) };
   if (error instanceof ProjectStoreError) return { status: 409, body: sortedJson({ code: storageCode(error.message, error.code), error: error.message }) };
   return { status: 500, body: sortedJson({ error: "inspector request failed" }) };
 }
