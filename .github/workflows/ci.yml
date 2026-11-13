@@ -179,3 +179,4 @@ jobs:
           node native/wasm/tests/node_interpret.mjs "$RUNNER_TEMP/pkg"
           node native/wasm/tests/node_summaries.mjs "$RUNNER_TEMP/pkg"
           node native/wasm/tests/node_programs.mjs "$RUNNER_TEMP/pkg"
+          node native/wasm/tests/node_initial.mjs "$RUNNER_TEMP/pkg"
