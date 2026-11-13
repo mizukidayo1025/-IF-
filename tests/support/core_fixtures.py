@@ -67,6 +67,7 @@ FIXTURES: dict[str, str] = {
     "initial_worlds": "support.core_initial:initial_worlds_fixture",
     # Not a test's data: the table the core's minute-0 builder reads (#249), at its own path.
     "initial_table": "support.core_initial:initial_table",
+    "scenario_builder": "support.core_scenario_builder:scenario_builder_fixture",
 }
 # The fixtures whose file is not under native/core/tests/data/.
 PATHS: dict[str, Path] = {"initial_table": INITIAL_TABLE}
