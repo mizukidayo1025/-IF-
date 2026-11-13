@@ -35,7 +35,7 @@ def test_a_core_fixture_is_what_its_builder_makes_today(name: str) -> None:
     if committed != made:
         where = _first_difference(json.loads(committed), json.loads(made))
         pytest.fail(
-            f"native/core/tests/data/{name}.json differs at {where}; write it again with "
+            f"{fixture_path(name).name} ({name}) differs at {where}; write it again with "
             f"`python benchmarks/core_fixtures.py {name}` if the change is meant"
         )
 
