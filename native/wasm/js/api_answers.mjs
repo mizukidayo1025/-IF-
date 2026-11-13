@@ -32,7 +32,7 @@
 // - A number of the query takes ASCII digits only (Python's `int()` also takes other decimal
 //   digits), and a cursor's minute written as 5.0 is taken as 5.
 
-import { FORMAT, RunReader } from "./run_store.mjs";
+import { CURRENT_FORMATS, RunReader } from "./run_store.mjs";
 import { ProjectStoreError, branchBackend, branchRecord, runScenarioBytes } from "./project_store.mjs";
 
 const encoder = new TextEncoder();
@@ -64,7 +64,9 @@ const invalidInput = () => new ApiError(400, "invalid query or saved contract", 
 /// The status and body (JSON text) the server answers an error with: an `ApiError` as it is, a
 /// `ProjectStoreError` as the StorageError it stands for, anything else as the server's 500.
 export function errorAnswer(error) {
-  if (error instanceof ApiError) return { status: error.status, body: sortedJson({ code: error.code, error: error.message }) };
+  // The server answers a request it cannot read with `{"error"}` alone (a 400 of the project
+  // routes); a refusal with a code has both.
+  if (error instanceof ApiError) return { status: error.status, body: sortedJson(error.code === null ? { error: error.message } : { code: error.code, error: error.message }) };
   if (error instanceof ProjectStoreError) return { status: 409, body: sortedJson({ code: storageCode(error.message, error.code), error: error.message }) };
   return { status: 500, body: sortedJson({ error: "inspector request failed" }) };
 }
@@ -307,7 +309,7 @@ export function historyCache(size = 2) {
 async function readSamples(wasm, backend) {
   const reader = await RunReader.open({ wasm, backend });
   try {
-    if (reader.run.format !== FORMAT) {
+    if (!CURRENT_FORMATS.includes(reader.run.format)) {
       throw storageError(`browser_run_outdated: the branch was stored as ${reader.run.format}, whose samples lack the ledger's columns; compute it again`);
     }
     const table = new wasm.KpiHistory();

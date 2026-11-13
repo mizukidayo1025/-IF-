@@ -19,6 +19,8 @@
 //                                                   parent_branch_id, fork_minute, computed_until,
 //                                                   checkpoint_hash, status}
 //   <project>/runs/<run>/branches/<branch>/journal.jsonl, data.pack   the branch's stored Run
+//   <project>/drafts/<preview_id>.json            an intervention's preview (js/interventions.mjs,
+//                                                   #306), not carried by a bundle
 //
 // Records are JSON with sorted keys and a newline. The Scenario and the evidence are kept as the
 // bytes Python wrote (route A: Python builds the world and exports it), so their numbers are never
@@ -666,6 +668,8 @@ export async function exportProject({ tree, projectId, source = null }) {
   const entries = [];
   async function visit(path) {
     for (const { name, kind } of await tree.list([projectId, ...path])) {
+      // An intervention's preview drafts (#306) are kept beside the records, not carried.
+      if (path.length === 0 && name === "drafts" && kind === "directory") continue;
       if (kind === "directory") {
         await visit([...path, name]);
         continue;

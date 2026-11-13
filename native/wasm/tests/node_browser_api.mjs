@@ -124,14 +124,19 @@ assert.deepEqual(await status("/p1/runs/r1/replay-frames", "?branch_ids=main&sta
 assert.deepEqual(await status("/p1/runs/r1/replay-frames", "?branch_ids=main&start=0"), [409, true, true]);
 assert.deepEqual(await status("/p1/runs/r1/replay-frames", `?branch_ids=main&start=${end}&end=${end + 1}`), [409, true, true]);
 
+// Two branches (#307; node_interventions.mjs checks them against the server's): each minute's
+// comparison, with no receipt for a branch not made by a fork.
+{
+  const replay = await get("/p1/runs/r1/replay-frames", "?branch_ids=main,child&start=0&end=1");
+  const compare = await get("/p1/runs/r1/compare", "?branch_ids=main,child&minute=1");
+  check(replay.status === 200 && JSON.parse(replay.body).samples.length === 2, `replay of two branches: ${replay.body.slice(0, 200)}`);
+  check(compare.status === 200 && JSON.stringify(JSON.parse(compare.body).origin_receipts) === "[null,null]", `compare: ${compare.body.slice(0, 200)}`);
+}
+
 // What stage A leaves out: "未対応", 409.
 const unsupported = [
-  await get("/p1/runs/r1/replay-frames", "?branch_ids=main,child&start=0&end=1"),
-  await get("/p1/runs/r1/compare", "?branch_ids=main,child&minute=1"),
   await post("/p1/scenario-preview", { text: "x" }),
-  await post("/p1/runs/r1/branches/main/intervention-apply", { preview_id: "x", approved_program_hash: "x", approved: true, child_id: "c" }),
   await post("/p1/runs/r1/pdf-report", { branch_ids: ["main"], minute: 1 }),
-  await post("/p1/runs/r1/branches/main/intervention-preview", { text: "x" }),
   await browser.answer({ method: "GET", path: "/api/v1/demo", search: "" }),
 ];
 for (const answer of unsupported) {

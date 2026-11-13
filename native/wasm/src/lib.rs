@@ -671,3 +671,34 @@ pub fn compile_intervention_offline(request: &[u8]) -> Result<Option<String>, Js
         Err(error) => Err(js_error(error)),
     }
 }
+
+/// The canonical JSON of the object `base` with the fields of the object `extra` put in
+/// (`sheltersim_core::interpret::merge_objects`): an answer the core wrote, with a route's fields
+/// added, whose floats keep their digits (#306).
+#[wasm_bindgen(js_name = mergeJson)]
+pub fn merge_json(base: &[u8], extra: &[u8]) -> Result<String, JsError> {
+    let bytes = sheltersim_core::interpret::merge_objects(base, extra).map_err(js_error)?;
+    String::from_utf8(bytes).map_err(|error| JsError::new(&error.to_string()))
+}
+
+/// Whether the server's `safe_document` would redact a string of the JSON document (an API key,
+/// a bearer token, an e-mail address or a phone number): a draft holding one is refused (#306).
+#[wasm_bindgen(js_name = documentRedacts)]
+pub fn document_redacts(document: &[u8]) -> Result<bool, JsError> {
+    sheltersim_core::interpret::document_redacts(document).map_err(js_error)
+}
+
+/// The text a result question stores of its question, before the route's own IDs are replaced
+/// (`sheltersim_core::interpret::question_text`, #308).
+#[wasm_bindgen(js_name = questionText)]
+pub fn question_text(question: &str) -> Result<String, JsError> {
+    sheltersim_core::interpret::question_text(question).map_err(js_error)
+}
+
+/// The KPI differences of the frame `other` from the frame `base` in a comparison, as canonical
+/// JSON (`sheltersim_core::interpret::kpi_differences`, #307): ints stay ints, floats are Python's.
+#[wasm_bindgen(js_name = kpiDifferences)]
+pub fn kpi_differences(base: &[u8], other: &[u8]) -> Result<String, JsError> {
+    let bytes = sheltersim_core::interpret::kpi_differences(base, other).map_err(js_error)?;
+    String::from_utf8(bytes).map_err(|error| JsError::new(&error.to_string()))
+}
