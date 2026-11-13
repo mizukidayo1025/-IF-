@@ -658,6 +658,24 @@ pub fn split_json_array<'py>(py: Python<'py>, raw: &[u8]) -> PyResult<Vec<Bound<
 // ---- The EventLog's Python records, as the core reads them (lane P10-1c) ------------------------------
 
 /// `event_log.find(event_id)` of each ID, as the core reads a record (`Host::find_record`).
+/// The canonical JSON of the world's log's record at each position (`bytes_at`: the bytes the core
+/// wrote, or Python's), given to `each`: the native host's `read_records` (#264).
+pub(crate) fn read_records(
+    world: &Bound<'_, PyAny>,
+    positions: &[usize],
+    each: &mut dyn FnMut(usize, &[u8]) -> sheltersim_core::error::Result<()>,
+) -> PyResult<()> {
+    let py = world.py();
+    let log = crate::core::row::attribute(world, intern!(py, "event_log"))?;
+    let store = log.getattr(intern!(py, "_store"))?;
+    let store = store.downcast::<EventStore>()?.get();
+    for &index in positions {
+        let bytes = store.bytes_at(py, index)?;
+        each(index, bytes.as_bytes(py)).or_py()?;
+    }
+    Ok(())
+}
+
 pub(crate) fn found_records(world: &Bound<'_, PyAny>, ids: Vec<std::sync::Arc<str>>) -> PyResult<sheltersim_core::rules::common_operations::Found> {
     let py = world.py();
     let log = crate::core::row::attribute(world, intern!(py, "event_log"))?;

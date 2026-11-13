@@ -26,6 +26,7 @@ use crate::core::configs::{self, fault_of};
 use crate::core::errors::OrPy;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, unsupported, IdMap};
 use crate::core::tracked::as_readable_dict;
+use crate::core::value::{VPy, V};
 use crate::core::world_core::{field_stamp, with_state_value};
 use crate::Unsupported;
 
@@ -154,6 +155,14 @@ fn independent_of(model: &Bound<'_, PyAny>) -> PyResult<bool> {
     Ok(false)
 }
 
+/// `model.model_dump(mode="json")`, as a `V`: the document a frame shows (#264).
+fn document_of(model: &Bound<'_, PyAny>) -> PyResult<Arc<V>> {
+    let py = model.py();
+    let options = pyo3::types::PyDict::new(py);
+    options.set_item(intern!(py, "mode"), intern!(py, "json"))?;
+    Ok(Arc::new(V::from_py(&model.call_method(intern!(py, "model_dump"), (), Some(&options))?)?))
+}
+
 /// What reading a part of a parsed model gave: the value, or the fault of what it raised.
 fn part<T>(py: Python<'_>, read: PyResult<T>) -> Result<T, Fault> {
     read.map_err(|error| fault_of(py, &error))
@@ -212,6 +221,7 @@ pub(crate) fn facility_geometry<'c>(configs: &'c Configs, raw_configs: &Bound<'_
                         .map(Arc::from),
                 ),
                 independent_queues: part(py, independent_of(&model)),
+                document: part(py, document_of(&model)),
             })),
             Err(error) => Section::Fault(fault_of(py, &error)),
         }
@@ -240,7 +250,7 @@ pub(crate) fn spatial_constraints<'c>(configs: &'c Configs, raw_configs: &Bound<
 
 fn spatial_of(model: &Bound<'_, PyAny>) -> PyResult<SpatialConstraints> {
     let py = model.py();
-    let mut spatial = SpatialConstraints::default();
+    let mut spatial = SpatialConstraints { document: Some(document_of(model)?), ..SpatialConstraints::default() };
     for item in tuple_of(model, intern!(py, "obstacles"))?.iter() {
         let polygon = points_of(&item, intern!(py, "polygon"))?;
         if polygon.is_empty() {

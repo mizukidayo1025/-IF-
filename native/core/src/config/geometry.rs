@@ -11,6 +11,7 @@ use std::sync::Arc;
 use super::Fault;
 use crate::geometry::{Opening, Pt, Route, ServicePoint, Wall, Zone};
 use crate::row::IdMap;
+use crate::value::V;
 
 /// `FacilityGeometry.model_validate(model_configs["facility_geometry"])`, as the rules read it.
 pub struct FacilityGeometry {
@@ -22,6 +23,9 @@ pub struct FacilityGeometry {
     /// `independent_queues_required`: a service point whose queue is not its facility's ID, or a
     /// facility with two points.
     pub independent_queues: Result<bool, Fault>,
+    /// `model_dump(mode="json")` of the parsed model, which a frame shows (`frame.rs`, #264), or
+    /// why it cannot be read.
+    pub document: Result<Arc<V>, Fault>,
 }
 
 /// The Scenario's own floor plan, before the overlay moves anything.
@@ -56,4 +60,7 @@ pub struct SpatialConstraints {
     pub obstacles: Vec<Vec<Pt>>,
     /// The equipment footprints, by facility.
     pub footprints: Vec<(Arc<str>, Vec<Pt>)>,
+    /// `model_dump(mode="json")` of the parsed model, which a frame shows (`frame.rs`, #264); None
+    /// where the host did not keep it.
+    pub document: Option<Arc<V>>,
 }

@@ -123,6 +123,17 @@ split PR by PR; its last section sums up what is where.
   without the feature `parallel` (one thread, decision 5). `wasm/tests/node_digests.mjs` runs the
   worlds of `core/tests/data/tick_core.json` in Node and checks the native path's digests; CI's
   lint job runs it (docs/development.md has the commands).
+- **The frame of a minute** (#264, stage 6 of #132): `frame.rs` makes, from a World, the frame the
+  API's `timeline` gives (`TimelineFrame`), byte for byte the frame Python's
+  `inspection/frames.py` made: canonical JSON, the same ints and floats. What Python parses (the
+  floor plan's and the spatial constraints' documents, kept with their sections as `document`) and
+  the waits' routes come through the `Host`, as for the metrics phase; the log's records whose bytes
+  Python took come from `Host::read_records`. Without a `state_hash` from the caller, the frame's
+  is `canonical::state_digest` (`world.state_digest()`, the hash tree of a Checkpoint v2), whose log
+  is streamed into the hasher a batch of records at a time. The PyO3 entry is
+  `sheltersim_native.rules.frame.world_frame`; `PlainRun::frame` and `PlainRun::state_digest` serve
+  the browser (`Simulation.frame`, `Simulation.stateDigest`). `core/tests/frames.rs` and
+  `wasm/tests/node_frames.mjs` check the worlds of `core/tests/data/frames.json`.
 - **Saved points** (#251, for the browser only; not Python's Checkpoints): `PlainRun::saved_point`
   writes the Run at a minute as `archive::SavedPoint`, a versioned binary of the world without its
   log (`archive::world_parts`), the counts of the log's records and the metric samples, and the

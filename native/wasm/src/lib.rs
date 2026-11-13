@@ -18,7 +18,7 @@
 //! minutes are far below 2^53.
 
 use sheltersim_core::events::packed::{Blocks, Packer};
-use sheltersim_core::{archive, canonical, checkpoint};
+use sheltersim_core::{archive, canonical, checkpoint, frame};
 use sheltersim_core::engine::StepError;
 use sheltersim_core::error::Error;
 use sheltersim_core::json::Encoder;
@@ -150,6 +150,33 @@ impl Simulation {
         encoder.out.push(b'}');
         String::from_utf8(encoder.out).unwrap_or_default()
     }
+}
+
+/// The frame of a minute (#264): the map and the indicators the API's `timeline` gives, made by the
+/// core (`sheltersim_core::frame`), byte for byte the native path's.
+#[wasm_bindgen]
+impl Simulation {
+    /// The frame of the world now, as its canonical JSON bytes (a `TimelineFrame`): `computedUntil`
+    /// is how far the branch is computed, and `stateHash` the world's digest where the caller holds
+    /// it (a saved world's); without it the frame's is the world's (`stateDigest`).
+    pub fn frame(&mut self, run_id: &str, branch_id: &str, computed_until: f64, state_hash: Option<String>) -> Result<Vec<u8>, JsError> {
+        let request = frame::Request { run_id, branch_id, computed_until: minute_of(computed_until)?, state_hash: state_hash.as_deref() };
+        self.run.frame(&request).map_err(js_error)
+    }
+
+    /// `world.state_digest()` of the world now: the `state_hash` of a frame without one.
+    #[wasm_bindgen(js_name = stateDigest)]
+    pub fn state_digest(&self) -> Result<String, JsError> {
+        self.run.state_digest().map_err(js_error)
+    }
+}
+
+/// A minute given as a JS number: a whole number of minutes, not negative.
+fn minute_of(minute: f64) -> Result<i64, JsError> {
+    if minute.fract() != 0.0 || !(0.0..=9_007_199_254_740_991.0).contains(&minute) {
+        return Err(JsError::new("a minute is a whole number of minutes, not negative"));
+    }
+    Ok(minute as i64)
 }
 
 /// The pieces a Run stores (#252, PR 6-5; `sheltersim_core::archive`): the packed log's and the

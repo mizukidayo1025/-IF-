@@ -360,6 +360,9 @@ pub struct PlainRun {
     pub loaded: Rc<Loaded>,
     pub host: PlainHost,
     pub stepping: Stepping,
+    /// The world document's `rng_state`, which the core's World does not hold: what the world's
+    /// digest reads (`frame`).
+    pub rng_state: V,
 }
 
 impl PlainRun {
@@ -369,7 +372,8 @@ impl PlainRun {
         // The log holds its records in the binary form (#252): about a seventh of their JSON.
         loaded.cell.with(|world| world.log_mut().and_then(|mut log| log.pack_records()))??;
         let host = PlainHost::new(entry, Rc::clone(&loaded))?;
-        Ok(Self { loaded, host, stepping: Stepping::default() })
+        let rng_state = load::value(&entry["world"]["rng_state"])?;
+        Ok(Self { loaded, host, stepping: Stepping::default(), rng_state })
     }
 
     /// `of_entry` of the entry's JSON text.
@@ -405,6 +409,17 @@ impl PlainRun {
         self.loaded.cell.with(|world| crate::canonical::digests(world))?
     }
 
+    /// The frame of the world now (`frame::frame`, #264): its canonical JSON, what the API's
+    /// timeline gives for this minute. It changes nothing.
+    pub fn frame(&mut self, request: &crate::frame::Request<'_>) -> Result<Vec<u8>> {
+        crate::frame::frame(&self.loaded.cell, &mut self.host, request, &self.rng_state)
+    }
+
+    /// `world.state_digest()` (`canonical::state_digest`) of the world now.
+    pub fn state_digest(&self) -> Result<String> {
+        self.loaded.cell.with(|world| crate::canonical::state_digest(world, &self.rng_state))?
+    }
+
     /// The Run now as a saved point (`archive::SavedPoint`, #251), between two ticks.
     pub fn saved_point(&self) -> Result<SavedPoint> {
         let (world, records) = self.loaded.cell.with(|world| -> Result<_> { Ok((archive::world_parts(world)?, world.log()?.len() as u64)) })??;
@@ -418,6 +433,8 @@ impl PlainRun {
     /// not of the saved point's minute.
     pub fn restore(mut entry: Value, restore: Restore) -> Result<Self> {
         let (point, log, samples) = restore.into_parts()?;
+        // The world document's `rng_state` is the Run's from its start (the algorithm and the seed).
+        let rng_state = load::value(&entry["world"]["rng_state"])?;
         let entry_object = entry.as_object_mut().ok_or_else(|| Error::Value("not an exported world: the entry is not a dict".to_owned()))?;
         entry_object.insert("world".to_owned(), Value::Object(archive::world_document(&point.world)?));
         let loaded = Rc::new(load::loaded(&entry)?);
@@ -433,7 +450,7 @@ impl PlainRun {
         let mut host = PlainHost::new(&entry, Rc::clone(&loaded))?;
         host.samples = samples;
         host.contracts = point.contracts;
-        Ok(Self { loaded, host, stepping: Stepping::default() })
+        Ok(Self { loaded, host, stepping: Stepping::default(), rng_state })
     }
 
     /// The exported entry of `of_json`'s JSON text, for `restore`.

@@ -237,12 +237,29 @@ fn facility_geometry(json: &Value) -> Parsed<FacilityGeometry> {
         Some(fault) => Err(fault),
         None => Ok(Arc::from(routes)),
     };
-    Ok(Ok(FacilityGeometry { plan, approach_routes, independent_queues: Ok(independent(json)?) }))
+    Ok(Ok(FacilityGeometry { plan, approach_routes, independent_queues: Ok(independent(json)?), document: Ok(Arc::new(geometry_document(json)?)) }))
+}
+
+/// The model's dump as the exporter wrote it, less what it adds to each approach route
+/// (`distance_m` and `travel_minutes`, properties of the model).
+fn geometry_document(json: &Value) -> Result<V> {
+    let mut document = value(json)?;
+    if let V::Map(map) = &mut document {
+        if let Some(V::List(routes)) = map.get_mut("arrival_approach_routes") {
+            for route in routes {
+                if let V::Map(route) = route {
+                    route.shift_remove("distance_m");
+                    route.shift_remove("travel_minutes");
+                }
+            }
+        }
+    }
+    Ok(document)
 }
 
 /// `spatial_of`.
 fn spatial_constraints(json: &Value) -> Parsed<SpatialConstraints> {
-    let mut spatial = SpatialConstraints::default();
+    let mut spatial = SpatialConstraints { document: Some(Arc::new(value(json)?)), ..SpatialConstraints::default() };
     for item in array(&json["obstacles"], "obstacles")? {
         let polygon = read!(points(&item["polygon"]));
         if polygon.is_empty() {

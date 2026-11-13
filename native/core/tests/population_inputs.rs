@@ -140,7 +140,7 @@ fn geometry(routes: Result<Arc<[sheltersim_core::config::geometry::ApproachRoute
     let configs = sheltersim_core::config::Configs::new(None);
     support::fill_section(&configs, SectionId::FacilityGeometry);
     let Some(Section::Ok(found)) = configs.facility_geometry.get() else { panic!("the test host fills the geometry") };
-    Section::Ok(Arc::new(FacilityGeometry { plan: found.plan.clone(), approach_routes: routes, independent_queues: found.independent_queues.clone() }))
+    Section::Ok(Arc::new(FacilityGeometry { plan: found.plan.clone(), approach_routes: routes, independent_queues: found.independent_queues.clone(), document: found.document.clone() }))
 }
 
 #[test]

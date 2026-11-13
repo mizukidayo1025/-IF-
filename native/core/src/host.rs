@@ -508,6 +508,14 @@ pub trait Host {
         Err(Error::unsupported(NO_RECORDS).into())
     }
 
+    /// The canonical JSON of the log's record at each of these positions, given to `each`, for a
+    /// reader of records whose bytes the core's log no longer keeps (Python took them): a frame
+    /// and its digest (#264). A host without Python has every record in the core's log, and
+    /// refuses.
+    fn read_records(&mut self, _positions: &[usize], _each: &mut dyn FnMut(usize, &[u8]) -> crate::error::Result<()>) -> Result<(), Self::Error> {
+        Err(Error::unsupported(NO_RECORDS).into())
+    }
+
     // ---- The floor plan (lane P8 d3) ----------------------------------------------------------------
 
     /// The floor plan of the world now (`Geo::of`), for a rule that read it, changed what it is
