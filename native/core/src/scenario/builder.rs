@@ -82,6 +82,10 @@ pub struct Parts<'a> {
     /// `connect_generated_context(population, editable, geometry)`, in its order.
     pub connections: &'a [(String, V)],
     pub input: &'a ScenarioInput,
+    /// Whether the request's JSON gave `duration_days`. Python keeps an absent one at its
+    /// default, the int 7 (pydantic does not validate defaults), which the defaults' assumption
+    /// records as `7`; the request's dump writes `7.0` either way.
+    pub duration_days_given: bool,
 }
 
 /// A built Scenario as the preview answers it.
@@ -661,7 +665,11 @@ pub fn assemble(parts: &Parts, service_warnings: impl FnOnce(&V) -> Result<Vec<S
             _ => None,
         });
         if !matches!(origin.as_deref(), Some("user" | "llm_extracted")) {
-            defaulted.push((field, at(request, &[field])?.clone()));
+            let value = match at(request, &[field])? {
+                V::Float(days) if field == "duration_days" && !parts.duration_days_given && *days == 7.0 => V::Int(7),
+                other => other.clone(),
+            };
+            defaulted.push((field, value));
         }
     }
     if !defaulted.is_empty() {
@@ -966,4 +974,96 @@ fn sort_text(value: &V) -> &str {
         V::Str(text) => text,
         _ => "",
     }
+}
+
+// ---- The whole build --------------------------------------------------------------------------
+
+/// Why `build` makes no Scenario: what the server answers 400 (`Invalid`), or what the browser
+/// does not compute (`Unsupported`, the browser's `browser_unsupported`).
+pub use crate::scenario::request::Refusal;
+
+/// A screen request's Scenario as `scenario-preview` answers it, but the text parser's warnings,
+/// the research and the IDs (the route adds them).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Preview {
+    pub built: Built,
+    /// `InitialScenarioRequest.model_dump(mode="json")` (the answer's `request`).
+    pub request: V,
+    /// `FacilityDesign.model_dump(mode="json")` (the answer's `facility_design`).
+    pub facility_design: V,
+    /// sha256 of the design's geometry's canonical JSON (the answer's `geometry_hash`).
+    pub geometry_hash: String,
+}
+
+fn refusal(error: Error) -> Refusal {
+    match error {
+        Error::Unsupported(reason) => Refusal::Unsupported(reason.into_owned()),
+        Error::Value(text) | Error::MarkedValue(text) => Refusal::Invalid(text),
+        other => Refusal::Invalid(format!("{other:?}")),
+    }
+}
+
+/// `scenario-preview`'s build of a request (`InitialScenarioRequest`'s JSON, as the screen or the
+/// text parser gives it) with the research the route made (its JSON dump), `research` and
+/// `input` given as bytes and values the route read. The parts are made in the core: the
+/// standard shelter (#296), the population (#297), the conditions, the generated context and the
+/// service-capacity warnings (#298).
+pub fn build(request_json: &[u8], research_json: &[u8], input: &ScenarioInput) -> std::result::Result<Preview, Refusal> {
+    use crate::scenario::conditions::{with_standard_provisioning, Conditions as Compilable, FacilityKind};
+    use crate::scenario::connections::connect_generated_context;
+    use crate::scenario::facility::{generate, FacilityRequest};
+    use crate::scenario::population::{generate_population, PopulationInput};
+    use crate::scenario::request::InitialScenarioRequest;
+    use crate::scenario::service_capacity::service_capacity_warnings;
+
+    let request = InitialScenarioRequest::of_json(request_json)?;
+    let research: serde_json::Value = serde_json::from_slice(research_json).map_err(|error| Refusal::Invalid(format!("research is not JSON: {error}")))?;
+    let research = V::from_json(&research).ok_or_else(|| Refusal::Invalid("research holds a number Python cannot read".to_owned()))?;
+    let design = generate(&FacilityRequest {
+        population: request.evacuees,
+        gross_area_m2: request.gross_area_m2,
+        accessible_toilet_count: request.accessible_toilet_count,
+        staff_count: request.staff_count,
+        facility_conditions: request.facility_conditions.clone(),
+    })
+    .map_err(refusal)?;
+    let population = generate_population(&PopulationInput::for_request(request.evacuees, request.seed)).map_err(Refusal::Invalid)?;
+    let duration_minutes = request.duration_minutes();
+    let (conditions, provisioning) =
+        with_standard_provisioning(&request.operational_conditions, request.evacuees, duration_minutes, request.default_supply_start_day);
+    let kinds: Vec<FacilityKind> = design.facilities.iter().map(|item| FacilityKind { id: &item.id, kind: &item.kind }).collect();
+    let compiled = conditions.compile(duration_minutes, &kinds).map_err(Refusal::Invalid)?;
+    let entered = Compilable::of_request(&request.operational_conditions);
+    let compiled = Conditions {
+        initial_stock: compiled.initial_stock.as_ref().map(|stock| stock.dump()),
+        scheduled_events: compiled.scheduled_events,
+        model_configs: compiled.model_configs,
+        blockers: compiled.blockers,
+        provenance_sources: conditions.provenance_sources(),
+        provisioning,
+        request_provenance_sources: entered.provenance_sources(),
+        request_referenced_source_ids: entered.referenced_source_ids(),
+    };
+    let geometry = design.geometry.dump();
+    let editable = design.editable_geometry.dump();
+    let connections = connect_generated_context(&population, Some(&editable), &geometry).map_err(Refusal::Invalid)?;
+    let request_dump = request.dump();
+    let duration_days_given = matches!(
+        serde_json::from_slice::<serde_json::Value>(request_json),
+        Ok(serde_json::Value::Object(fields)) if fields.contains_key("duration_days")
+    );
+    let population_dump = population.dump();
+    let parts = Parts {
+        request: &request_dump,
+        research: &research,
+        design: &design,
+        population: &population_dump,
+        conditions: &compiled,
+        connections: &connections,
+        input,
+        duration_days_given,
+    };
+    let built = assemble(&parts, |scenario| service_capacity_warnings(scenario).map_err(Error::Value)).map_err(refusal)?;
+    let geometry_hash = sha256_hex(&geometry.to_json().map_err(refusal)?);
+    Ok(Preview { built, request: request_dump, facility_design: design.dump(), geometry_hash })
 }

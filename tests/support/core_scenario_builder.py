@@ -213,6 +213,7 @@ def builder_parts(name: str) -> dict[str, Any]:
         "request": answer["request"],
         "research": answer["research"],
         "input": answer["scenario"]["provenance"]["scenario_input"],
+        "duration_days_given": "duration_days" in request.model_fields_set,
         "population": {
             key: value
             for key, value in population.model_dump(mode="json").items()

@@ -54,7 +54,16 @@ fn build(case: &Value) -> Built {
         sha256: case["input"]["sha256"].as_str().unwrap().to_owned(),
         extraction_source: case["input"]["extraction_source"].as_str().unwrap().to_owned(),
     };
-    let parts = Parts { request: &request, research: &research, design: &design, population: &population, conditions: &conditions, connections: &connections, input: &input };
+    let parts = Parts {
+        request: &request,
+        research: &research,
+        design: &design,
+        population: &population,
+        conditions: &conditions,
+        connections: &connections,
+        input: &input,
+        duration_days_given: case["duration_days_given"].as_bool().unwrap(),
+    };
     let warnings = strings(&case["service_capacity_warnings"]);
     assemble(&parts, |_| Ok(warnings)).unwrap()
 }
@@ -111,4 +120,60 @@ fn every_case_builds_python_s_scenario() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Every Scenario of the scenario corpus (#293), built in the core from the request the server
+/// read and the research it made: the same approved_hash, design, geometry hash, warnings and
+/// blockers.
+#[test]
+fn the_corpus_scenarios_are_built_in_the_core() {
+    use sheltersim_core::checkpoint::sha256_hex;
+    use sheltersim_core::scenario::builder::build as build_request;
+    let corpus = read("scenario_corpus");
+    let mut failures = Vec::new();
+    let mut checked = 0;
+    for (name, case) in corpus["cases"].as_object().unwrap() {
+        let Some(scenario) = case.get("scenario") else { continue };
+        let answer = &case["answer"];
+        let text = case["body"]["text"].as_str().unwrap_or("");
+        // What the server validated: the form's request as posted, or the text parser's.
+        let posted = case["body"].get("request").filter(|value| !value.is_null()).unwrap_or(&answer["request"]);
+        let request = serde_json::to_vec(posted).unwrap();
+        let input = if text.trim().is_empty() {
+            let dumped = sheltersim_core::scenario::request::InitialScenarioRequest::of_json(&request).unwrap().input_sha256();
+            ScenarioInput { sha256: dumped, extraction_source: "structured_form".to_owned() }
+        } else {
+            ScenarioInput { sha256: sha256_hex(text.as_bytes()), extraction_source: "rules_fallback".to_owned() }
+        };
+        let research = serde_json::to_vec(&corpus["research"][case["research"].as_str().unwrap()]).unwrap();
+        let preview = match build_request(&request, &research, &input) {
+            Ok(preview) => preview,
+            Err(refusal) => {
+                failures.push(format!("{name}: {refusal:?}"));
+                continue;
+            }
+        };
+        checked += 1;
+        let built = &preview.built;
+        if built.approved_hash != answer["approved_hash"].as_str().unwrap() {
+            failures.push(format!("{name}: {} bytes, Python {}; parts differ: {:?}", built.canonical.len(), scenario["length"], differing_parts(name, built)));
+        }
+        if sha256_hex(&preview.facility_design.to_json().unwrap()) != case["facility_design"]["sha256"].as_str().unwrap() {
+            failures.push(format!("{name}: facility_design"));
+        }
+        if preview.geometry_hash != answer["geometry_hash"].as_str().unwrap() {
+            failures.push(format!("{name}: geometry_hash"));
+        }
+        if preview.request != v(&answer["request"]) {
+            failures.push(format!("{name}: request dump"));
+        }
+        if !strings(&answer["warnings"]).ends_with(&built.warnings) || built.warnings.len() < 3 {
+            failures.push(format!("{name}: warnings {:?}", built.warnings));
+        }
+        if built.approval_blockers != strings(&answer["approval_blockers"]) || built.can_start != answer["can_start"].as_bool().unwrap() {
+            failures.push(format!("{name}: blockers {:?}", built.approval_blockers));
+        }
+    }
+    assert!(failures.is_empty(), "{} of {checked}:\n{}", failures.len(), failures.join("\n"));
+    assert!(checked > 40, "only {checked} corpus Scenarios");
 }

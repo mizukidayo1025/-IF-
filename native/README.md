@@ -143,6 +143,19 @@ split PR by PR; its last section sums up what is where.
   accessible toilets, staff or none, facility conditions); `FacilityDesign::dump` is its
   `model_dump(mode="json")`. The coefficients it reads are constants (`facility::coefficients`).
   `core/tests/scenario_facility.rs` checks the cases of `core/tests/data/scenario_facility.json`.
+- **The Scenario builder** (#299, for #291): `scenario::builder::assemble` joins a screen
+  request's parts (the request's dump, the research, the standard shelter, the population's dump,
+  the compiled conditions, the generated context, the service-capacity warnings) as
+  `InitialScenarioBuilder.build` and `ProjectWorkspace.preview` do: the provenance, the model
+  configs, the Scenario's ID (`spaced_json`: `json.dumps` with its default separators), the address
+  removal, `scenario_input`, the canonical JSON (`builder::canonical_json`) and `approved_hash`.
+  What no screen request changes is in `scenario/constants.json`, which
+  `core/tools/scenario_constants.py` writes from Python. `core/tests/scenario_builder.rs` joins the
+  parts of `core/tests/data/scenario_builder.json` and compares with the scenario corpus (#293).
+  `scenario::builder::build` makes the parts in the core from a request's and a research's JSON
+  bytes (`Preview`: the built Scenario, the request's dump, the design and its geometry hash);
+  `core/tests/scenario_builder.rs` builds every Scenario of the corpus with it. In WASM:
+  `buildScenario` and `BuiltScenario`; `wasm/tests/node_scenarios.mjs` checks the corpus.
 - **A Scenario made in the browser** (#291, under #285): `scenario/` holds the pieces of
   `InitialScenarioBuilder` that the browser runs without Python, each a function with typed input
   and output giving what Python gives. `scenario::request` (#295) is `InitialScenarioRequest`:

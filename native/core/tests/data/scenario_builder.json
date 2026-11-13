@@ -2118,6 +2118,7 @@
      ]
     }
    },
+   "duration_days_given": true,
    "expected": {
     "approval_blockers": [],
     "approved_hash": "4a36213fe7297625d2d43832a13ada3a34643b6db310e5e4dc6647b817653709",
@@ -5058,6 +5059,7 @@
      ]
     }
    },
+   "duration_days_given": true,
    "expected": {
     "approval_blockers": [],
     "approved_hash": "3986d2d20fc2f4574b0adfa3714d24e70f002db45e3d027b6584ffd71c2ab8ac",
@@ -8300,6 +8302,7 @@
      ]
     }
    },
+   "duration_days_given": true,
    "expected": {
     "approval_blockers": [],
     "approved_hash": "1281f92227ed24284b036ba54169a92511e62ca2f865b481fef95026b5cc172c",
@@ -9925,6 +9928,7 @@
      ]
     }
    },
+   "duration_days_given": true,
    "expected": {
     "approval_blockers": [],
     "approved_hash": "16dc963b4b52c795bcd00d167fdc64708b6605bdf66d439ad93f875bdcc4bb2b",
@@ -12466,6 +12470,7 @@
      ]
     }
    },
+   "duration_days_given": true,
    "expected": {
     "approval_blockers": [],
     "approved_hash": "eedf4710f30cf8a4bf6ff8278a5bea2075c48256c67e402f86c980865fe7ed9e",
@@ -14510,6 +14515,7 @@
      ]
     }
    },
+   "duration_days_given": true,
    "expected": {
     "approval_blockers": [],
     "approved_hash": "3e47b20769dbf22260e3c31f4f792ea09c6a88b3ac76dd2619d798d1e8862d3b",
