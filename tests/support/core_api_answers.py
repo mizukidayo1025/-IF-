@@ -78,6 +78,33 @@ CASES: list[tuple[str, str, str, bool]] = [
 # branch's rows and head, not to the query (`HistoryIndex.search` checks the cursor against the SQL
 # term of the branch's rows, which it also names `scope`), and so does the browser.
 FOREIGN_CURSOR = ("kind=kpis&start=13&end=140&step=7&limit=5", "kind=kpis&end=140&limit=5")
+# `POST runs/{run}/pdf-report` (#309): the Run and the body. Without an API key the server answers
+# 409 `pdf_analysis_offline` once the request passes its checks, which come first in their order.
+PDF_CASES: list[tuple[str, str]] = [
+    (RUN_ID, '{"branch_ids":["main"],"minute":100}'),
+    (RUN_ID, f'{{"branch_ids":["main"],"minute":{MINUTES}}}'),
+    (RUN_ID, '{"branch_ids":["main"],"minute":0}'),
+    (RUN_ID, f'{{"branch_ids":["main"],"minute":{MINUTES + 1}}}'),
+    (RUN_ID, '{"branch_ids":["main"],"minute":-1}'),
+    (RUN_ID, '{"branch_ids":["main"],"minute":true}'),
+    (RUN_ID, '{"branch_ids":["main"],"minute":"1"}'),
+    (RUN_ID, '{"branch_ids":["main"],"minute":null}'),
+    (RUN_ID, '{"branch_ids":[],"minute":1}'),
+    (RUN_ID, '{"branch_ids":["main","main"],"minute":1}'),
+    (RUN_ID, '{"branch_ids":["main","a","b"],"minute":1}'),
+    (RUN_ID, '{"branch_ids":"main","minute":1}'),
+    (RUN_ID, '{"branch_ids":[1],"minute":1}'),
+    (RUN_ID, '{"branch_ids":["main"]}'),
+    (RUN_ID, '{"branch_ids":["main"],"minute":1,"extra":1}'),
+    (RUN_ID, '{"branch_ids":["nope"],"minute":1}'),
+    (RUN_ID, '{"branch_ids":["main","nope"],"minute":1}'),
+    (RUN_ID, '{"branch_ids":["../x"],"minute":1}'),
+    (RUN_ID, '{"branch_ids":["main"],"minute":100000000000000000000}'),
+    ("nope", '{"branch_ids":["main"],"minute":1}'),
+    (RUN_ID, "[1]"),
+    (RUN_ID, "{bad"),
+    (RUN_ID, ""),
+]
 
 
 def normalize(body: str, anchor: str | None) -> str:
@@ -108,6 +135,31 @@ def _answer(api: Any, branch: str, route: str, query: str) -> tuple[int, str]:
         payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
     )
     return status, body
+
+
+def _post(api: Any, run_id: str, action: str, body: str) -> tuple[int, str]:
+    """The server's status and body of a project POST (web/server.py's do_POST)."""
+    from sheltersim.storage.projects import StorageError
+
+    try:
+        raw = body.encode()
+        if not 0 < len(raw) <= 2_097_152:
+            raise StorageError("project request exceeds the body limit")
+        document = json.loads(raw.decode("utf-8"))
+        if not isinstance(document, dict):
+            raise StorageError("project request must be an object")
+        if action == "pdf-report":
+            api.pdf_reports.export("sample", run_id, document)
+            raise AssertionError("an offline PDF report was made")
+        status, payload = 200, api.post(["sample", "runs", run_id, action], document)
+    except StorageError as exc:
+        status, payload = 409, {"error": str(exc), "code": exc.code}
+    except (ValueError, UnicodeDecodeError):
+        status, payload = 400, {"error": "invalid project request"}
+    text = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+    )
+    return status, text
 
 
 def _page(status: int, body: str, anchor: str) -> dict[str, Any]:
@@ -201,6 +253,10 @@ def api_answers_fixture() -> dict[str, Any]:
                 api, BRANCH_ID, "history", _with_cursor(target, json.loads(first)["next_cursor"])
             )
             foreign = {"from": source, "to": target, **_page(status, body, anchor)}
+            pdf = []
+            for run_id, body in PDF_CASES:
+                status, text = _post(api, run_id, "pdf-report", body)
+                pdf.append({"run_id": run_id, "body": body, "status": status, "answer": text})
             run = store.run("sample", RUN_ID)
             scenario = store.scenario("sample", run["scenario_id"], run["scenario_version"])
         finally:
@@ -223,4 +279,5 @@ def api_answers_fixture() -> dict[str, Any]:
         "scenario_json": scenario_text,
         "cases": cases,
         "foreign_cursor": foreign,
+        "pdf_cases": pdf,
     }

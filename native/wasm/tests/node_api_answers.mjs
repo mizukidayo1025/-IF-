@@ -12,7 +12,7 @@
 // head replaced by ANCHOR). The Run is computed here in WASM and stored in memory as the browser
 // stores it (project_store.mjs), and each case is asked again: the browser's body, its head
 // replaced the same way, has the same sha256, and a refusal the same body. Paged cases follow the
-// browser's own `next_cursor`. Then what only the browser does: kinds it does not answer, a branch
+// browser's own `next_cursor`. Then `pdf-report`'s answers (#309), and what only the browser does: kinds it does not answer, a branch
 // stored in an older format, a report kept once made, a branch not completed.
 
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
@@ -138,6 +138,18 @@ for (const { route, branch, query, pages } of fixture.cases) {
   compare("a cursor of another query", await answer("history", branchId, `${to}&cursor=${first.next_cursor}`, cache), expected);
 }
 console.log(`${asked} answers compared with the server's in ${((performance.now() - started) / 1000).toFixed(2)} s`);
+
+// `POST runs/{run}/pdf-report` (#309): the server's checks and, past them, its 409 without an API key.
+{
+  const { BrowserApi } = await import(join(here, "..", "js", "browser_api.mjs"));
+  const browser = new BrowserApi({ wasm, tree });
+  for (const item of fixture.pdf_cases ?? []) {
+    const got = await browser.answer({ method: "POST", path: `/api/v1/projects/${projectId}/runs/${item.run_id}/pdf-report`, body: item.body });
+    check(got.status === item.status && got.body === item.answer, `pdf-report ${item.run_id} ${item.body}: ${got.status} ${got.body}, not ${item.status} ${item.answer}`);
+  }
+  check((fixture.pdf_cases ?? []).length > 0, "the fixture has pdf-report cases");
+  browser.close();
+}
 
 // The report was made once and kept as the branch's report.json; the next answer is the same.
 const reportPath = [projectId, "runs", runId, "branches", branchId, "report.json"];
