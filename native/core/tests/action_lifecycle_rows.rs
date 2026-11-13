@@ -411,7 +411,7 @@ fn a_sequence_of_actions_gives_the_python_rules_receipts() {
     lifecycle::finalize(&world, &mut active, 300).unwrap();
     assert!(active.is_empty());
     let all = V::List(vec![V::List(raws(&world, 0))]);
-    assert_eq!(digest(Dumps::default().text(&all).as_bytes()), "2ae9f2d61d0c4fba");
+    assert_eq!(digest(Dumps::default().text(&all).as_bytes()), "90b4ecdbfbe2e89f");
 }
 
 /// `test_an_applied_event_gives_the_python_rules_receipt`: an action open since minute 2 for the
@@ -421,13 +421,13 @@ fn a_sequence_of_actions_gives_the_python_rules_receipts() {
 fn an_applied_event_gives_the_python_rules_receipt() {
     let actions = ["request_toilet", "fetch_water", "seek_help", "seek_help", "socialize", "collect_meal", "collect_meal", "collect_meal", "rest", "rest"];
     let recorded = [
-        "608d02a896f0b406",
-        "77fe70358ce22375",
-        "017cb551e27c7304",
-        "c03ffd51c163cf93",
-        "f2b126883535bed3",
-        "9d776d98181f1ff2",
-        "a6f74e2e980f0754",
+        "5154550349c8fb9e",
+        "57ea473b677a703f",
+        "c831cb18ecdd567c",
+        "37af01c855abbc2e",
+        "cbf2e5b48758d84f",
+        "76ea8d1c17775e8a",
+        "f889965a334414bc",
         "81a953b53781a70f",
         "609e15dd62e42f5b",
         "609e15dd62e42f5b",
@@ -484,7 +484,7 @@ fn an_agent_gone_from_the_world_closes_without_needs() {
     let receipt: Value = serde_json::from_slice(world.log().unwrap().written(from).unwrap()).unwrap();
     assert_eq!(receipt["event"]["payload"]["current_needs"], json!({}));
     assert_eq!(receipt["event"]["payload"]["activity"], Value::Null);
-    assert_eq!(receipts_digest(&world, from, &active), "b775ac3301d454ed");
+    assert_eq!(receipts_digest(&world, from, &active), "7e0c0993216c31f4");
 }
 
 /// `test_a_population_exit_gives_the_python_rules_receipts`: four open actions, and the population's
@@ -510,7 +510,7 @@ fn a_population_exit_gives_the_python_rules_receipts() {
         .map(|index| serde_json::from_slice::<Value>(world.log().unwrap().written(index).unwrap()).unwrap()["event"]["payload"]["reason_code"].clone())
         .collect();
     assert_eq!(reasons, [json!("population_departure"), json!("population_temporary_exit")]);
-    assert_eq!(receipts_digest(&world, from, &active), "220f4152957a9cd0");
+    assert_eq!(receipts_digest(&world, from, &active), "1a1baca03ed82f5c");
 }
 
 // ---- What the kernels refuse, with nothing changed ----------------------------------------------

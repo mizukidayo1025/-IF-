@@ -33,7 +33,7 @@ use support::{cases, ticks, Call};
 
 /// `_python_s` of the records and of the world in `test_a_run_gives_the_rows_and_world_of_python`.
 const ROWS: &str = "33be50e2458c9bf3";
-const WORLD: &str = "9a356ae3bed7843c";
+const WORLD: &str = "ae0c6872ec1e5041";
 
 /// `float.hex()`.
 fn float_hex(value: f64) -> String {

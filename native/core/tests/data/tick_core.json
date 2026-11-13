@@ -1190,7 +1190,7 @@
     "world": {
      "active_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
      "agents": "fb22495e3da8adb0af47d804b2a110e131a10d98eb1adb570af7a4822457bf58",
-     "event_log": "f25422583c933c812fbc42a5ba0f92a18043edf54c8a0e0603f8db868a28b106",
+     "event_log": "347df37a856a7de23d87e9074b3d2fbb66e9531d32117d98e6dafd8f3630404a",
      "event_queue": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
      "facilities": "0c810593e282486ee5c03ceed21f762ee874789b1e9ee2970a564fd57f73d32b",
      "id_counters": "5ea3f937c9bd5f1c2d94a73c56d5f413910fc19b1f11908fd7c18741a21f5b48",
@@ -8487,7 +8487,7 @@
     "world": {
      "active_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
      "agents": "35dec3895043fcfc44e9277f28ebc177fe8e4dba378c3f789271f21035713c4d",
-     "event_log": "69307c4b3d264fc8d5c4be344562d4da05e4710362667b5b25fc6bb3f8dcf85e",
+     "event_log": "4ef7ee45db940a02a584b6b0bfcceafd810a0e8548824f9c12ae4ee3d904215a",
      "event_queue": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
      "facilities": "db5004bcc560243f853d507b4a4efeab93808adf24bbabf4d3997eb31dc4a723",
      "id_counters": "3540219e0ec618ad2ba28f1023b6697f7c67ff55962be3c627b25d4e5973986f",

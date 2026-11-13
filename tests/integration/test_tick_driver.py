@@ -137,7 +137,7 @@ def test_the_driver_serves_independent_queues_itself(
         if '"facility_queue_transition"' in event and '"service_started"' in event
     ]
     assert requests, "nobody was served, so the queues were not tried"
-    assert _digest(driven) == "9aad665bb4e6bd3f"
+    assert _digest(driven) == "2e81691c83b3be1f"
 
 
 def test_the_driver_keeps_the_view_the_next_phase_builds_on(
@@ -359,7 +359,7 @@ TRACE_FILES = (
     "psychology_contributions.jsonl",
     "social_contacts.jsonl",
 )
-TRACE_DIGESTS = {TraceLevel.SUMMARY: "7453fe603338a482", TraceLevel.FULL: "b368a7c9a08a52b0"}
+TRACE_DIGESTS = {TraceLevel.SUMMARY: "d4cffb2d2c539c9a", TraceLevel.FULL: "e179df436790686a"}
 
 
 def test_a_trace_of_the_engine_s_phases_runs_on_the_driver(
@@ -435,7 +435,7 @@ def test_a_router_that_can_call_a_provider_runs_on_the_driver(
     driven, driven_calls = run(tmp_path / "driven", record)
     assert _ticks() - before == minutes
     assert provider.asked, "no Provider call was reached"
-    assert _digest([driven, driven_calls, provider.asked]) == "cecea3cbbc10bddc"
+    assert _digest([driven, driven_calls, provider.asked]) == "5fff469501f37f5c"
 
     # The same recorded responses, from the tape alone: no Provider is given.
     before = _ticks()
@@ -473,7 +473,7 @@ def test_an_answer_the_schema_refuses_falls_back_on_the_driver(
     assert _ticks() - before == minutes
     assert asked
     assert "run this code" not in driven["world"]
-    assert _digest([driven, asked]) == "828ad5463a977fcf"
+    assert _digest([driven, asked]) == "82d47d3e6433f0c4"
 
 
 def test_the_hooks_of_an_offline_router_run_on_the_driver(
@@ -506,7 +506,7 @@ def test_the_hooks_of_an_offline_router_run_on_the_driver(
     driven, driven_calls = run(tmp_path / "driven")
     assert _ticks() - before == minutes
     assert any(call[0] == "consider_support_request" for call in driven_calls)
-    assert _digest([driven, driven_calls]) == "086773ea4b80e1e4"
+    assert _digest([driven, driven_calls]) == "bd893be459a84081"
 
 
 class _Seen:
@@ -699,7 +699,7 @@ def _camel(value: str) -> str:
 
 # The digest of `test_the_arbitrate_loops_give_the_world_of_the_driver_s_loops`, taken from the
 # build before the arbitrate loops moved to the core (main 60806a37, Issue #152 lane P9-2a).
-ARBITRATE_DIGEST = "43a43ae49ba318b0"
+ARBITRATE_DIGEST = "12e725ac126866cf"
 
 
 def test_the_arbitrate_loops_give_the_world_of_the_driver_s_loops(

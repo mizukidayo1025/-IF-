@@ -5,7 +5,8 @@ signatures of each installed policy and state contract it holds two whole-model 
 
 - ``engine:model``, the version of the simulation as a whole. It is raised once, in one
   place (ENGINE_VERSION), when results change for every Scenario without a
-  per-Scenario signature changing: libm, RNG keys or the order of rules.
+  per-Scenario signature changing: libm, RNG keys, the order of rules or what every Run's
+  records hold.
 - ``engine:rng_algorithm``, the ``algorithm_id`` of the RNG (core/rng.py): how a seed and a
   key give a draw. The keys the rules draw with are the engine's; changing them raises
   ``engine:model`` and not this, which the Scenario generators share.
@@ -43,7 +44,8 @@ RNG_ALGORITHM_KEY = "engine:rng_algorithm"
 # Raised when results change for every Scenario without a per-Scenario signature changing.
 # 2 (step 4, L11): exp, expm1, pow and fma of the pinned libm crate, the information events'
 # draw keys without event IDs, and Python's remaining float math without libm.
-ENGINE_VERSION = "2"
+# 3 (#255): the action lifecycle receipts of schema 2 write each needs snapshot once.
+ENGINE_VERSION = "3"
 # Saves from before engine:* was recorded: engine 1 and the only RNG there was.
 UNRECORDED_ENGINE = {ENGINE_VERSION_KEY: "1", RNG_ALGORITHM_KEY: "sha256-keyed-v1"}
 VIEW_ONLY_CODE = "run_model_view_only"

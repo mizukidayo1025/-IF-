@@ -224,7 +224,7 @@ def test_conditions_of_the_form_are_python_s() -> None:
     world = _run_comparing(
         gate.generated(evacuees=20, minutes=120, operational_conditions=conditions), seen
     )
-    _is_the_python_rules_run(world, "f5758af05264f6df")
+    _is_the_python_rules_run(world, "7196b6ff67e1efb8")
     for event_type in (
         "power_outage",
         "power_restored",
@@ -245,7 +245,7 @@ def test_rumors_and_corrections_are_python_s() -> None:
     gate = _gate()
     seen: Counter[str] = Counter()
     world = _run_comparing(gate.with_rumors(gate.generated(evacuees=20, minutes=120)), seen)
-    _is_the_python_rules_run(world, "44de998728962e5d")
+    _is_the_python_rules_run(world, "48044fece3263813")
     for event_type in ("information_rumor", "information_correction", "information_contact_update"):
         assert seen[f"{event_type}.applied"] > 0, (event_type, seen)
 
@@ -316,10 +316,10 @@ def test_an_information_state_the_upgrade_turns_down_fails_the_event_before_its_
 @pytest.mark.parametrize(
     ("name", "digest"),
     [
-        ("multi_operational", "666880beb4cb8d08"),
-        ("water_intervention", "26726ee9ede8b09d"),
-        ("failure_day3", "7228ef1bb1598fdc"),
-        ("delivery_intervention", "00f630574725b910"),
+        ("multi_operational", "45deb216623f24d8"),
+        ("water_intervention", "4bb2505f1720cd90"),
+        ("failure_day3", "f627c50dcfb6b468"),
+        ("delivery_intervention", "b6c2581e047c7ba5"),
     ],
 )
 def test_the_operational_fixtures_are_python_s(name: str, digest: str) -> None:

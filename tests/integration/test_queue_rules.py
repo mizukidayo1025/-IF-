@@ -219,6 +219,6 @@ def test_each_tick_of_a_run_is_python_s_at_every_facility(generated_scenario: An
 # when they moved to native/core/tests/queue_rules.rs (#225).
 ANSWERS = {
     "test_each_tick_of_a_run_is_python_s_at_every_facility": (
-        "be75b1c0e1fdaf61b30e96ad3b3ec0fbe1b8f74751d64c914476aded32034d05"
+        "66b22a89a431abdc07962e318ae418ff4b1555eb015631be14a4a8165d19669a"
     ),
 }

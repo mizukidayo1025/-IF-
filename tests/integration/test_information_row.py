@@ -103,10 +103,10 @@ ANSWERS: dict[str, str] = {
     "probability": ("b4a9dfa29e64cd80bc648b338f68108391249fae87cf68e6f1c6bb45682e8dba"),
     "random": ("31d66819725fb4d71435209ee29031af6c1ea99b4028133c2c521ee11ed2e4df"),
     "ticks-evidence-aware-rumor-v1": (
-        "0cb22fbfe15ed9e5c35f66b51267b238244c4ca1e5a33752cd8db5dd10e3d692"
+        "a51d2488d9ba36809a8546be9eb6baa232e67a9ec0ff8f4287bb2020483b18c9"
     ),
     "ticks-sparse-information-contact-v1": (
-        "c7d18637982b41ef90b56ecb2626932fc8f7683fe10b3c244ef9176c6e9af7f7"
+        "0d26cc068f15f941a7456f96c2286c193623a40e1ff84646114b87b4e50cd559"
     ),
 }
 _RECORD = os.environ.get("SHELTERSIM_RECORD_INFORMATION")

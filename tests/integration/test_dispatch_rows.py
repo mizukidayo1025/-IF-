@@ -511,4 +511,4 @@ def test_a_run_through_the_kernel_is_what_the_python_step_made(
         label for label in after if label.startswith("refused.") and after[label] != before[label]
     ]
     text = json.dumps(direct, sort_keys=True)
-    assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == "9bea40ea3b5cd8b4"
+    assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == "7f8da91773a71b14"

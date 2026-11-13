@@ -115,4 +115,4 @@ def test_a_tick_with_a_closed_edge_replans_through_the_driver(generated_scenario
         engine.step()
     assert native.rules("tick").stats()[0]["ticks"] - ticks == 11
     assert world.metric_state.get("movement_replan_count", 0.0) >= 1.0
-    assert hashlib.sha256(_bytes(world).encode("utf-8")).hexdigest()[:16] == "9cd678a4de3f16ca"
+    assert hashlib.sha256(_bytes(world).encode("utf-8")).hexdigest()[:16] == "30719c65b82d33f9"

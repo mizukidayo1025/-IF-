@@ -29,13 +29,13 @@ from sheltersim.experiments.scenario import ScenarioSpec
 # sha256 of the files, recorded once on Linux.
 ANSWERS: dict[str, str] = {
     "no-weight-channel_strength": (
-        "5ec6d91e11f3631f0244f2033c3dc6c9abf9863a62c05e12eabcd48d42ddfb78"
+        "3041fc74e645c94901b30039a824bc8e94647b88ab982180eaf9f53b550d936e"
     ),
     "no-weight-source_expressiveness": (
-        "30565ddfd5debd74f6e623e8650c07d6003c2ec53da669f342a6a7fd622feb8b"
+        "35873748a603027ebb4d61c423661888d4dadda863c7d944b5745fd0bb5b9c11"
     ),
     "no-weight-stress_sensitivity": (
-        "97a7979480990b8511a722764d4d623ae35ffac38bcfeb12806b50d62955f13e"
+        "6b4b0799f0f3b3fa469ac872422e88e1d9a3a42feaaffc1a17fcd8854c5d4e9e"
     ),
 }
 

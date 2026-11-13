@@ -303,7 +303,7 @@ def test_a_head_at_the_point_starts_its_service(generated_scenario: Any) -> None
     world, _ = _run(generated_scenario, 5)
     facility, agent_id = _at_service(world)
     _free_all_staff(world, facility)
-    event_id = _serve(world, facility, digest="2a3c0767c9e08409")
+    event_id = _serve(world, facility, digest="8159d90af1a53b63")
     assert event_id is not None
     assert world.agents[agent_id].activity is Activity.IN_SERVICE
     assert world.event_queue.find(event_id).event_type == "resource_service_complete"
@@ -336,8 +336,8 @@ def _started(
 @pytest.mark.parametrize(
     ("kind", "resource", "need", "started", "completed"),
     [
-        ("water_station", "water_ml", "hydration_need", "2a3c0767c9e08409", "4f39327b201771c8"),
-        ("meal_distribution", "food_meal_units", "hunger", "0d30579820e3bf95", "46c48784b7891a9e"),
+        ("water_station", "water_ml", "hydration_need", "8159d90af1a53b63", "d3f935a1eba2f4f8"),
+        ("meal_distribution", "food_meal_units", "hunger", "70b127bf0ae2656d", "11b5099a992b97bf"),
     ],
 )
 def test_a_completion_relieves_python_s_need(
@@ -376,7 +376,7 @@ def test_a_request_is_python_s(generated_scenario: Any) -> None:
     result = native.rules("service").request(
         ResourceServiceManager(world), agent_id, facility.id, validate_state=False
     )
-    _is_python_s(world, "22667c113d8b86dd")
+    _is_python_s(world, "308c78ffcc575fba")
     task_id = f"resource-service-task-{counter}"
     assert (result.agent_id, result.facility_id, result.resource_id) == (
         agent_id,

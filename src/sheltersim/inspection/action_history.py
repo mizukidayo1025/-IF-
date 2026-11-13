@@ -76,6 +76,11 @@ def applied_action_record(event: dict[str, Any], minute: int) -> dict[str, Any] 
         payload = event["payload"]
         transition = payload.get("transition")
         terminal = transition in {"completed", "interrupted", "abandoned", "censored"}
+        current_needs = payload.get("current_needs", {})
+        if payload.get("schema_version") == 2 and transition == "started":
+            # A started receipt of schema 2 keeps its needs once, as start_needs (#255): they
+            # are the needs now, as schema 1 wrote them twice.
+            current_needs = payload.get("start_needs", {})
         return {
             "schema_version": 1,
             "record_kind": "actions",
@@ -95,7 +100,7 @@ def applied_action_record(event: dict[str, Any], minute: int) -> dict[str, Any] 
             "reason_code": payload.get("reason_code"),
             "activity": payload.get("activity"),
             "start_activity": payload.get("start_activity"),
-            "current_needs": payload.get("current_needs", {}),
+            "current_needs": current_needs,
             "causation_id": event.get("causation_id"),
             "source_id": event.get("source_id"),
             "model_id": payload.get("model_id"),

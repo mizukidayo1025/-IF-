@@ -151,7 +151,7 @@ fn pending_count(doc: &Value) -> usize {
 #[test]
 fn a_still_action_gives_up_the_target_and_waits() {
     let given = inputs("still_action");
-    for (action, digest) in [(Action::Wait, "2aabc4432833cddd2decbfa67e22dea7cea4a9d10ac834507226a4d2e19c8959"), (Action::Rest, "2f640708922958b147f98ce95dc100513b742872253bc6d4ffc7e1f3cac85285"), (Action::Sleep, "f1612734281eddc62b77ecc4b471fd46443dfc89037c5872d99435d3b20e3403")] {
+    for (action, digest) in [(Action::Wait, "788883555654f44faafd52106860682d8704804d33c69b239bf9109efa625db2"), (Action::Rest, "d18ea2567725cfac4af6cca167e2e9fd3fe3a63501e903e8c4e848d14cfa1aa8"), (Action::Sleep, "595aeb86c21fd5a31606c095bbf1a4dea76c09d9f195cd1262fced6191ae33db")] {
         let mut case = Case::of(FILE, s(&given["world"]));
         assert_eq!(case.apply(action, s(&given["agent"]), None).unwrap(), applied(None, 12, true), "{action:?}");
         assert_eq!(case.hex(), digest);
@@ -163,7 +163,7 @@ fn a_still_action_gives_up_the_target_and_waits() {
 #[test]
 fn a_social_action_schedules_its_event() {
     let pair = &inputs("social_action")["pair"];
-    for (action, digest) in [(Action::Socialize, "0f840912889d248c1daf81382232e0e6f4566dc915951dd4be7b2c77699f9605"), (Action::CareFamily, "e66ebeaed3dca3eb80bb179988defb4dd5aa2ec4895faf30021aae4d3772ddbd"), (Action::HelpOthers, "870a61152f47e033f1024982cd08cf4b872ff0a5a5e6304a1287a6c1c722788f")] {
+    for (action, digest) in [(Action::Socialize, "eaad70fba8884eb3bb41d5c79d1aa777815c15c114abcda263ebaf71b66239dc"), (Action::CareFamily, "d18609dc17987b3f5dc3c98411fb61da716c4415bd6a9542c5d778df66112cf4"), (Action::HelpOthers, "474c9a742050631497ed943b2ab4f5bc26599e3244e4ea7f252ac03c20113f1c")] {
         let mut case = Case::of(FILE, "minute_5");
         let pending = pending_count(&case.doc());
         assert_eq!(case.apply(action, s(&pair[0]), Some(s(&pair[1]))).unwrap(), applied(Some(s(&pair[1])), 10, true), "{action:?}");
@@ -180,11 +180,11 @@ fn the_config_s_minutes_and_their_end_of_the_run() {
     let pairs = &given["pairs"];
     let mut case = Case::of(FILE, s(&given["world"]));
     assert_eq!(case.apply(Action::Socialize, s(&pairs[0][0]), Some(s(&pairs[0][1]))).unwrap(), applied(Some(s(&pairs[0][1])), 16, true));
-    assert_eq!(case.hex(), "48cf36d95b5b9d61557c1f42e85bb44c764df6afcd04783fe2b4289a5821dfb2");
+    assert_eq!(case.hex(), "858ab939b7284fc369812937d6abed6719486c2c3211795dd59dc67d9fa6d42a");
     // Past the last minute there is no event, and the planned decision stands.
     case.edit(|doc| doc["model_configs"]["body_dynamics"]["social_interaction_minutes"] = doc["duration_minutes"].clone());
     assert_eq!(case.apply(Action::Socialize, s(&pairs[1][0]), Some(s(&pairs[1][1]))).unwrap(), applied(None, 12, false));
-    assert_eq!(case.hex(), "266999a76d3940df6696597cac5dd34e2c42e7b10d8dc0f84b7c1e314a78807a");
+    assert_eq!(case.hex(), "c101fd8e76cd429d268546a41d076cc7405d5776a4adbedbc77979a501fc1c11");
 }
 
 /// `test_without_a_config_the_default_minutes_are_python_s` (pytest digest `50325313983b94ac`).
@@ -193,7 +193,7 @@ fn without_a_config_the_default_minutes() {
     let pair = &inputs("social_action")["pair"];
     let mut case = Case::of(FILE, s(&inputs("default_minutes")["world"]));
     assert_eq!(case.apply(Action::Socialize, s(&pair[0]), Some(s(&pair[1]))).unwrap(), applied(Some(s(&pair[1])), 10, true));
-    assert_eq!(case.hex(), "9a814903ab4bb08eb1111cc58e67f93e5498d580a868e636f7b47541c69ac17a");
+    assert_eq!(case.hex(), "ce73c8db056e7db81e6055ea511129cada0aea15e8c6840cef850efd58125e3b");
 }
 
 /// `test_a_social_action_needs_someone_else_in_the_zone` (pytest digest `a8a42ffe67df1a3a` after
@@ -209,7 +209,7 @@ fn a_social_action_needs_someone_else_in_the_zone() {
     }
     // The pytest's digest was the same after each step.
     assert!(worlds.iter().all(|world| *world == worlds[0]));
-    assert_eq!(case.hex(), "77061f57f81971c6be4cb2017bd3566d1dfe5d5e59ddc32c43aae064abbcbc37");
+    assert_eq!(case.hex(), "ee7215675e0c0981900bdd443ce9655e76cbc979c45e0e35dce8687557ec1903");
 }
 
 /// `test_a_held_bed_is_given_up_and_sleep_keeps_it`.
@@ -230,7 +230,7 @@ fn a_held_bed_is_given_up_and_sleep_keeps_it() {
 #[test]
 fn each_trip_action_from_each_zone() {
     let given = inputs("trip_action_from_each_zone");
-    for (action, name, digest) in [(Action::RequestToilet, "request_toilet", "f9b6362f7a1ad46255bd75ae14084e640249387eb1c73cdce014788d7249fc6f"), (Action::FetchWater, "fetch_water", "c4cd33c4a84a3d2afc918beb6f933afd2792e714ddd6ebecdd02db038965b8b0"), (Action::CollectMeal, "collect_meal", "ebaebd1848e4b3796b381e32038f7c4a8fa43d031874cc00a03069c41c2cfb3b")] {
+    for (action, name, digest) in [(Action::RequestToilet, "request_toilet", "a767620cbf126e353a5f6e57c18169c2037c385b6eee8ae508798354c3a7f611"), (Action::FetchWater, "fetch_water", "b174f3a00192ab06ad94d7a44c2b41188654abb5784b8f2e0085cc727e5ea862"), (Action::CollectMeal, "collect_meal", "4b65eda4321f4188da8543e785e740338e9f54376718426e93c08d8344b44d35")] {
         let mut case = Case::of(FILE, "minute_5");
         let mut worlds = Vec::new();
         for step in given[name].as_array().unwrap() {
@@ -260,7 +260,7 @@ fn a_trip_past_the_end_of_the_run_is_refused() {
         worlds.push(case.bytes());
     }
     assert!(worlds[0] == worlds[1]);
-    assert_eq!(case.hex(), "3267bee81f34fa9ac6e083ce60f782c24344868c2b0b0da12b622db21d22d1af");
+    assert_eq!(case.hex(), "ce1f82ecc1befae240ad6aa65c0fa9300465afac32a5e1e5cd8afd3eea8ca481");
 }
 
 /// `test_no_known_facility_is_recorded_as_python_records` (pytest digests `de420a4402712c0d`,
@@ -276,7 +276,7 @@ fn no_known_facility_is_recorded() {
         worlds.push(case.bytes());
     }
     assert!(worlds[1] == worlds[2]);
-    assert_eq!(case.hex(), "c6977b38bd0e346bf256cf3d88deb7957ba49cd3827a01fac46d65e77a1b87d8");
+    assert_eq!(case.hex(), "741b9ae361869dea7125a02d3b17496fef2d48aec1771dac5f27009ddf285a62");
     let doc = case.doc();
     let history = doc["model_state"]["resource_service_v1"]["request_history"].as_array().unwrap();
     let reasons: Vec<&Value> = history[history.len() - 2..].iter().map(|record| &record["reason"]).collect();
@@ -302,7 +302,7 @@ fn a_toilet_kind_beyond_ascii_is_folded_as_python_folds_it() {
     let given = inputs("toilet_kind_beyond_ascii");
     let mut case = Case::of(FILE, s(&given["world"]));
     assert_eq!(case.apply(Action::RequestToilet, s(&given["agent"]), None).unwrap(), applied(Some("toilet_01"), 12, true));
-    assert_eq!(case.hex(), "bbfb03e74247f80c4be1b3729d43b155e0ad8c892783bf3848b2c450d40f4587");
+    assert_eq!(case.hex(), "68138e5672f4b7b9c2d3954251cf98bf70d633e192f7dec609214c8a9b3d8012");
 }
 
 /// `test_a_request_of_the_run_s_last_minute_is_closed_at_once` (pytest digests
@@ -310,7 +310,7 @@ fn a_toilet_kind_beyond_ascii_is_folded_as_python_folds_it() {
 #[test]
 fn a_request_of_the_run_s_last_minute_is_closed_at_once() {
     let given = inputs("request_of_the_last_minute");
-    for (action, digest) in [(Action::SeekHelp, "65ff571811ac5f4b1363743a8c24a0065e2688dd538cbaccc3b3385ff662867c"), (Action::SeekInformation, "40ae17d6a5f10f6374f1d26001a7e597d25385072830280090b0bd4010dc3145")] {
+    for (action, digest) in [(Action::SeekHelp, "c40bf28ea9019d19c5147af1a3fce8752508b1694d6e423d9a014f07d67633f2"), (Action::SeekInformation, "1894b65ff8b4bef838afc7e05d76d3df9330fefe4ce51ec8895e6c8de64349cb")] {
         let mut case = Case::of(FILE, s(&given["world"]));
         let request = "support-5d7322b2c209034dac8ce21e";
         assert_eq!(case.apply(action, s(&given["agent"]), None).unwrap(), applied(Some(request), 12, false), "{action:?}");
@@ -347,7 +347,7 @@ fn every_route_for_every_mobility() {
         }
     }
     assert_eq!(found.len(), 192);
-    assert_eq!(case.hex(), "bd51a5cd154ef7fbded4e091589fe23a0a760a7a45060eaeeaf6f7af93ecbd55");
+    assert_eq!(case.hex(), "2732fa9f6889e655f8c8febf7415bdbbda89fdc0f6af84c2c6ee6101c2823333");
 }
 
 /// `test_an_equal_time_goes_to_the_lower_edge_id`: the graph's own travel times equal, so only the
@@ -385,7 +385,7 @@ fn a_trip_and_each_limit() {
     case.edit(|doc| doc["duration_minutes"] = duration);
     assert!(schedule(&mut case, agent, &route, "return").unwrap());
     assert_eq!(row(&case.doc(), "agents", agent)["activity"], json!("moving"));
-    assert_eq!(case.hex(), "640749a65940d7ead17f5f5f499a7c3913eb65b0b7216f96f42a4370b555b359");
+    assert_eq!(case.hex(), "76d470042e297b32da8ea7b6a9fe8d237732bda7a6e8d0796b92a58ffccd8aeb");
 }
 
 /// `test_a_trip_refused_writes_nothing`: the Python rule's errors, raised before anything is
@@ -424,7 +424,7 @@ fn a_head_at_the_point_starts_its_service() {
     let event = doc["event_queue"].as_array().unwrap().iter().find(|event| event["event_id"] == *event_id).unwrap();
     assert_eq!(event["event_type"], json!("resource_service_complete"));
     assert!(metric(&doc, "water_service_wait_count") >= 1.0);
-    assert_eq!(case.hex(), "17e17f23640dcfd2de39337dc40ff7609a7042ddaec082b4aa371e5f69052749");
+    assert_eq!(case.hex(), "2319ada0d5e77cd7f91359bd25a8cb4330ae6a87c29dbb17046963df5c8a0e91");
 }
 
 /// `test_each_wait_is_python_s_record` (pytest digests: `capacity` `bb6a050583414052`, `staff`
@@ -434,7 +434,7 @@ fn a_head_at_the_point_starts_its_service() {
 #[test]
 fn each_wait_is_recorded_once() {
     let given = inputs("each_wait");
-    for (reason, digest) in [("capacity", "4cf6b5308dc1569901a5219327a2ba25c39b62fb7d7cff52ae90375f322ccc02"), ("staff", "a2a629b11053f6b0621c3b2dd2d574664f043a109ad2446d2defe9961a5d0bf7"), ("stock", "2ed219a62070ec04df55a4b2c004798d13e839ba7e40cca5792533285d1a298b"), ("run_end", "6c9018cc26e4bd2602acc48fb7510f9e53af660d74ecc3f3f85338c015062e3f"), ("water_outage", "ae75efe1a692ed6bd1503a75c6908801d064ddfd9c4a37020d8a4d91adc9560a")] {
+    for (reason, digest) in [("capacity", "94c8f29eab35dc23f4a60f989e010ab69ab776e6550cb61b662bc9e406511e53"), ("staff", "8c2f95dcbfa36c3cd412811dafde900bbcaff0bf8d5a321e4afc8bdaa71a3794"), ("stock", "86263baecc8f7516e02556136a29a3339bbe3b21d65c155e80756aea6ff9c5e3"), ("run_end", "953c52f1e4c5e548d0363e291425fe47eec8a6bc1c208d0a3cbb7cc95e38c6b0"), ("water_outage", "10bbd629abecc5fdde927892646a274684b70b5d298bcc5a6a9f2b9cd4ba9610")] {
         let case_inputs = &given[reason];
         let (agent, facility) = (s(&case_inputs["agent"]), s(&case_inputs["facility"]));
         let mut case = Case::of(FILE, s(&case_inputs["world"]));
@@ -491,8 +491,8 @@ fn only_the_queues_with_people_are_served() {
 #[test]
 fn a_completion_relieves_the_need() {
     for (kind, resource, need, relief, started, completed) in [
-        ("at_water_station", "water_ml", "hydration_need", "hydration_relief", "17e17f23640dcfd2de39337dc40ff7609a7042ddaec082b4aa371e5f69052749", "70102a3d5cf9c3df1e5551cc231f44db8cd80e23ff13669a28c54dabb025ef83"),
-        ("at_meal_distribution", "food_meal_units", "hunger", "hunger_relief", "513652304385c620a39031c3c6936e6f18dffaf2f09ccf17c756a9bb64acd657", "fdd94d2612c3af532866c861a61cfd4b2fa8e7d97c955cf4074b65f20202c512"),
+        ("at_water_station", "water_ml", "hydration_need", "hydration_relief", "2319ada0d5e77cd7f91359bd25a8cb4330ae6a87c29dbb17046963df5c8a0e91", "43fe303a1559d31c6272e84ba0385661fed101e10a54a7457d81b4e2f32799bb"),
+        ("at_meal_distribution", "food_meal_units", "hunger", "hunger_relief", "d644111bba0410254eb0884e01595f8bd6a04687ab53e7469dbb123cfd7cc365", "aadaa255a8c5f614720e9c65da8846b830f1304407417af0cd1826e7e9d5825c"),
     ] {
         let given = inputs(kind);
         let (agent, facility) = (s(&given["agent"]), s(&given["facility"]));
@@ -570,7 +570,7 @@ fn a_request_queues_the_person() {
     assert_eq!(receipt.queue_position as usize, row(&doc, "facilities", facility)["resource_queue_agent_ids"].as_array().unwrap().len());
     assert_eq!(row(&doc, "agents", agent)["activity"], json!("queued"));
     assert_eq!(row(&doc, "active_tasks", &task_id)["kind"], json!("resource_service_queue"));
-    assert_eq!(case.hex(), "814ce54aa76fce5c77e6818ada19e7488eb8072ac8511bb262650e6d23606958");
+    assert_eq!(case.hex(), "16593c41e9eed57abc20951d2aefef1f81d42d96471087b3c2a5083dbd141272");
 }
 
 /// `test_a_request_refused_has_python_s_text`: the kernel's text of the Python rule's ValueError,

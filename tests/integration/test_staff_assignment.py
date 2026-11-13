@@ -252,7 +252,7 @@ def test_a_full_edge_in_a_request_records_the_wait_before_the_trip_s_sequence(
     TickEngine(world, phase_handler=controller).run(30)
     assert driven_ticks() - ticks == 30
     assert any("zone_edge_capacity_wait" in record for record in _state(world)["records"])
-    _is_what_the_phases_left(world, "bd964e07cd68fee2")
+    _is_what_the_phases_left(world, "01da0b5553a248ed")
 
 
 def test_a_trip_chosen_past_a_full_edge_takes_its_sequence_after_the_wait(tmp_path: Path) -> None:
@@ -280,7 +280,7 @@ def test_a_trip_chosen_past_a_full_edge_takes_its_sequence_after_the_wait(tmp_pa
     driven = _state(world)
     assert any("zone_edge_capacity_wait" in record for record in driven["records"])
     assert any("agent_travel_complete" in str(event) for event in driven["pending"][1:])
-    _is_what_the_phases_left(world, "b52928d26554d73f")
+    _is_what_the_phases_left(world, "c75f69288ee0e9b0")
 
 
 # ---- A Run with a preemption ----
@@ -330,7 +330,7 @@ def test_an_urgent_request_preempts_a_routed_task_in_a_run(tmp_path: Path) -> No
     world = run("driven")
     assert driven_ticks() - ticks == 60
     assert any("staff_operation_preempted" in record for record in _state(world)["records"])
-    _is_what_the_phases_left(world, "62b58a7463d941d4")
+    _is_what_the_phases_left(world, "0105444ef7271471")
 
 
 # What `assign_pending` left with the controller's own `_route` and `_schedule_staff_support_travel`
