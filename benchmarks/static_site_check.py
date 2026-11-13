@@ -84,19 +84,6 @@ EXCLUDED = [
         "the cursor holds the anchor (the branch's head); what else it holds (scope, minute, key) "
         "is compared",
     ),
-    (
-        r"timeline\?minute=0$",
-        ("state_hash",),
-        "the world's digest at minute 0: Python's Project route saves the world before the first "
-        "tick with rng_state null, the exported world the browser starts from holds the RNG's "
-        "initial state (algorithm and seed); every part of the world is the same, and from minute "
-        "1 the digests are equal",
-    ),
-    (
-        r"replay-frames\?branch_ids=main&start=0&",
-        ("samples", "0", "state_hash"),
-        "the same, in the first replay sample",
-    ),
 ]
 
 
