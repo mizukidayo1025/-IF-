@@ -1,7 +1,7 @@
 //! The world of a Scenario at minute 0, built in the core (Issue #249): `initial::entry` of a
 //! generated Scenario's canonical JSON is the entry Python exports of its world
 //! (`export_world`, the sha256 of its bytes), and the world it loads runs to the native path's
-//! world (the digests of its parts and of the metric samples after the ticks).
+//! world (the digests of its parts and of the metric samples after a day of ticks).
 //!
 //! `initial_worlds.json` holds the Scenarios and what Python gave (`tests/support/core_initial.py`,
 //! written by `benchmarks/core_fixtures.py`, checked against Python by

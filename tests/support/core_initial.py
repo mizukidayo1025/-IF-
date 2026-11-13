@@ -63,8 +63,8 @@ TABLE_REQUESTS: dict[str, dict[str, Any]] = {
 }
 # The worlds of `initial_worlds.json`: the request (over `BASE_REQUEST`) and the ticks to run.
 WORLDS: dict[str, tuple[dict[str, Any], int]] = {
-    "twenty": ({"evacuees": 20, "duration_days": 1.0}, 360),
-    "hundred": ({"duration_days": 1.0}, 60),
+    "twenty": ({"evacuees": 20, "duration_days": 1.0}, 1440),
+    "hundred": ({"duration_days": 1.0}, 1440),
 }
 
 
