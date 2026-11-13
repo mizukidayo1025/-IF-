@@ -108,6 +108,11 @@ def test_the_site_holds_the_screen_the_browser_api_and_the_sample_in_parts(
     index = (output / "index.html").read_text(encoding="utf-8")
     for target in (summary["open"], summary["compute"]):
         assert f'href="{target.replace("&", "&amp;")}"' in index
+    # The reset button removes the folder of that Run in the Worker's store (api_worker.mjs).
+    assert '<button id="reset" type="button">計算をやり直す</button>' in index
+    assert 'const path = ["projects", "sample", "runs", "run-browser-compute"];' in index
+    worker_js = (STATIC.parents[3] / "native" / "wasm" / "js" / "api_worker.mjs").read_text("utf-8")
+    assert 'root.getDirectoryHandle("projects", { create: true })' in worker_js
     # The Run the browser computes is the one compute.mjs makes.
     compute_js = (STATIC.parents[3] / "native" / "wasm" / "js" / "compute.mjs").read_text("utf-8")
     assert 'export const COMPUTE_RUN = "run-browser-compute";' in compute_js

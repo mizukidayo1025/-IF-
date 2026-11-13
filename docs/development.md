@@ -125,7 +125,7 @@ node native/wasm/tests/node_browser_api.mjs wasm-pkg
 
 #### ブラウザーで計算する（#267の段階B）
 
-ブラウザーはScenarioから世界を作りません（#249はまだです）。#263で決めたとおり、Pythonが作った0分の世界から計算します。Workerは例を読み込んだ後、Project `sample`に、例のRunと同じScenarioの、計算していないRun（`run-browser-compute`、`compute.mjs`の`COMPUTE_RUN`）を作ります。記録は例のRunのものにそのRunのIDを付け、状態をPythonの作ったばかりのRunと同じ`queued`にします。保存したRunには、例の保存したRunの`run`の行と`export`の部分（縮めたbytesをそのまま写し、JSONとして読み直しません）だけを置き、mainの分岐は0分まで計算済み（先頭は`export`の行）です。サイトの最初の頁（`/`）は、例のRunと、このRunへのリンクを並べます。画面では、このRunを開き（Runの選択欄にも出ます）、「終了まで計算」（`#compute-end`）か、分を決めて「この時刻まで計算」を押します。
+ブラウザーはScenarioから世界を作りません（#249はまだです）。#263で決めたとおり、Pythonが作った0分の世界から計算します。Workerは例を読み込んだ後、Project `sample`に、例のRunと同じScenarioの、計算していないRun（`run-browser-compute`、`compute.mjs`の`COMPUTE_RUN`）を作ります。記録は例のRunのものにそのRunのIDを付け、状態をPythonの作ったばかりのRunと同じ`queued`にします。保存したRunには、例の保存したRunの`run`の行と`export`の部分（縮めたbytesをそのまま写し、JSONとして読み直しません）だけを置き、mainの分岐は0分まで計算済み（先頭は`export`の行）です。サイトの最初の頁（`/`）は、例のRunと、このRunへのリンクを並べます。最初の頁の「計算をやり直す」は、確認の後、ブラウザーの保存からこのRunのフォルダー（`projects/sample/runs/run-browser-compute`）を消します。Workerは次に画面を開いたとき、計算していないRunを作り直します。例は消しません。画面のタブが開いていて保存のファイルが使われているときは、消さずに、タブを閉じるよう案内します。最初の頁がブラウザーの「戻る」のcache（back-forward cache）から出たときは、読み直します。サイトを上げ直した後に古い頁が残らないようにするためです。画面では、このRunを開き（Runの選択欄にも出ます）、「終了まで計算」（`#compute-end`）か、分を決めて「この時刻まで計算」を押します。
 
 | 道 | 答え |
 |---|---|
@@ -164,7 +164,7 @@ python scripts/serve_static_site.py ../hinanjo-if-site --port 8000
 
 | 道 | ファイル |
 |---|---|
-| `/` | `index.html`。例のRunと、ブラウザーで計算するRunを開く`/demo-v2?…`へのリンク |
+| `/` | `index.html`。例のRunと、ブラウザーで計算するRunを開く`/demo-v2?…`へのリンク、計算をやり直すボタン |
 | `/demo-v2` | `demo-v2.html` |
 | `/demo-v2.css`、`/demo-v2*.js`、`/demo-v2-logo.jpg` | 画面のファイル（変えずに写す） |
 | `/LICENSE.txt` | リポジトリーの`LICENSE`（MIT） |

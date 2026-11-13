@@ -119,9 +119,53 @@ NOT_FOUND = (
 )
 
 
-def index_html(sample: str, compute: str) -> str:
+# The first page's reset button: it removes the Run the browser computed (its folder in the
+# browser's store, api_worker.mjs's `projects` folder), which the Worker makes again, not computed,
+# the next time the screen opens (compute.mjs's ensureComputeRun). The sample is kept. A page
+# shown again from the back-forward cache is loaded again, so a site updated since is not left
+# showing its old first page.
+RESET_SCRIPT = """<script>
+(() => {
+  "use strict";
+  const path = %s;
+  addEventListener("pageshow", (event) => {
+    if (event.persisted) location.reload();
+  });
+  const button = document.getElementById("reset");
+  const out = document.getElementById("reset-note");
+  button.addEventListener("click", async () => {
+    const question = "このブラウザーで計算した結果を消して、0分から計算し直せるようにします。" +
+      "計算済みの例は消えません。計算の画面を開いているタブは、先に閉じてください。よろしいですか？";
+    if (!confirm(question)) return;
+    button.disabled = true;
+    out.textContent = "消しています…";
+    try {
+      let folder = await navigator.storage.getDirectory();
+      for (const name of path.slice(0, -1)) folder = await folder.getDirectoryHandle(name);
+      await folder.removeEntry(path[path.length - 1], { recursive: true });
+      out.textContent = "消しました。「このブラウザーで計算する」を開くと、0分から計算できます。";
+    } catch (error) {
+      const name = error && error.name;
+      if (name === "NotFoundError") {
+        out.textContent = "まだ計算していないので、消すものはありません。";
+      } else if (name === "NoModificationAllowedError" || name === "InvalidModificationError") {
+        out.textContent = "計算の画面が開いているため消せません。" +
+          "その画面のタブを閉じてから、もう一度押してください。";
+      } else {
+        out.textContent = "消せませんでした：" + ((error && error.message) || error);
+      }
+    } finally {
+      button.disabled = false;
+    }
+  });
+})();
+</script>
+"""
+
+
+def index_html(sample: str, compute: str, project_id: str = "sample") -> str:
     """The site's first page: links to the sample's Run (`sample`) and to the Run the browser
-    computes itself (`compute`)."""
+    computes itself (`compute`), and a button that resets the latter."""
 
     def link(target: str, title: str, note: str) -> str:
         return (
@@ -148,6 +192,10 @@ def index_html(sample: str, compute: str) -> str:
         ".choice:hover, .choice:focus { border-color: var(--accent); }\n"
         ".choice strong { display: block; color: var(--accent); font-size: 1.1rem; }\n"
         "small { display: block; margin-top: 24px; opacity: 0.8; }\n"
+        ".reset { margin: 8px 0 0; }\n"
+        ".reset button { font: inherit; padding: 6px 14px; border: 1px solid var(--line);"
+        " border-radius: 6px; background: var(--card); color: inherit; cursor: pointer; }\n"
+        ".reset button:disabled { opacity: 0.6; cursor: default; }\n"
         "</style>\n"
         "</head>\n<body>\n<main>\n<h1>避難所IF！</h1>\n"
         "<p>合成の避難所（100人・7日間）のシミュレーションです。計算も表示も、このブラウザーの中で動きます。</p>\n"
@@ -162,9 +210,14 @@ def index_html(sample: str, compute: str) -> str:
             "同じシナリオを0分から計算します。「終了まで計算」を押すと、"
             "時計が進むのを見ながら7日分を計算できます（数十秒）。",
         )
+        + '<div class="reset"><button id="reset" type="button">計算をやり直す</button>'
+        "<span>（このブラウザーで計算した結果を消し、0分に戻します）</span>"
+        '<p id="reset-note" role="status"></p></div>\n'
         + "<small>初めて開くときは、例のデータ（約47 MB）を読み込んで、このブラウザーに保存します。"
         "実在の避難所や人の記録ではありません。</small>\n"
-        "</main>\n</body>\n</html>\n"
+        "</main>\n"
+        + RESET_SCRIPT % json.dumps(["projects", project_id, "runs", COMPUTE_RUN])
+        + "</body>\n</html>\n"
     )
 
 
@@ -236,7 +289,7 @@ def build(
     target = f"/demo-v2?{query}#simulation"
     compute_query = urlencode({"project": project_id, "run": COMPUTE_RUN, "branch": "main"})
     compute = f"/demo-v2?{compute_query}#simulation"
-    (output / "index.html").write_text(index_html(target, compute), encoding="utf-8")
+    (output / "index.html").write_text(index_html(target, compute, project_id), encoding="utf-8")
     # A missing file is a 404 (Cloudflare Pages without a 404.html answers every path with the
     # root's index.html, as for a single-page app).
     (output / "404.html").write_text(NOT_FOUND, encoding="utf-8")
