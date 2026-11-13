@@ -99,13 +99,14 @@ impl Simulation {
 
     /// How many metric samples the Run took.
     pub fn metric_count(&self) -> u32 {
-        self.run.host.metric_lines.len() as u32
+        self.run.host.samples.len() as u32
     }
 
-    /// The metric sample `index` as its JSON list (`MetricSnapshot`'s fields, the minute first).
-    pub fn metric_line(&self, index: u32) -> Option<String> {
-        let line = self.run.host.metric_lines.get(index as usize)?;
-        String::from_utf8(line.clone()).ok()
+    /// The metric sample `index` as its JSON list (`MetricSnapshot`'s fields, the minute first),
+    /// written again from its packed form; None past the last sample.
+    pub fn metric_line(&self, index: u32) -> Result<Option<String>, JsError> {
+        let line = self.run.host.samples.line(index as usize).map_err(js_error)?;
+        line.map(|line| String::from_utf8(line).map_err(|error| JsError::new(&error.to_string()))).transpose()
     }
 
     /// How many times each contract gave its input back (`PlainHost::contracts`), as a JSON

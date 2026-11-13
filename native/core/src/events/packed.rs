@@ -56,7 +56,8 @@ fn corrupt(what: &str) -> Error {
     Error::Value(format!("not a packed record: {what}"))
 }
 
-fn put_varint(out: &mut Vec<u8>, mut value: u64) {
+/// Appends `value` as a varint (7 bits a byte, the low bits first).
+pub fn put_varint(out: &mut Vec<u8>, mut value: u64) {
     while value >= 0x80 {
         out.push((value as u8) | 0x80);
         value >>= 7;
@@ -64,7 +65,8 @@ fn put_varint(out: &mut Vec<u8>, mut value: u64) {
     out.push(value as u8);
 }
 
-fn put_zigzag(out: &mut Vec<u8>, value: i64) {
+/// Appends `value` as a zigzag varint.
+pub fn put_zigzag(out: &mut Vec<u8>, value: i64) {
     put_varint(out, ((value << 1) ^ (value >> 63)) as u64);
 }
 
@@ -196,6 +198,22 @@ impl Packer {
             }
         }
         Ok(())
+    }
+
+    /// Appends the packed form of a value alone to `out` (a metric sample's IDs, #252 PR 6-4).
+    /// Nothing is appended for an error, though the tables may have grown.
+    pub fn pack_value(&mut self, out: &mut Vec<u8>, value: &V) -> Result<()> {
+        let mut packed = Vec::with_capacity(256);
+        self.put_value(&mut packed, value, 0)?;
+        out.extend_from_slice(&packed);
+        Ok(())
+    }
+
+    /// The value `pack_value` packed at the start of `bytes`, and how many bytes it took.
+    pub fn unpack_value(&self, bytes: &[u8]) -> Result<(V, usize)> {
+        let mut reader = Reader { bytes, at: 0, packer: self };
+        let value = reader.value(0)?;
+        Ok((value, reader.at))
     }
 
     /// Appends the packed form of the record of `event`'s outcome to `out`. Nothing is appended for
@@ -367,5 +385,131 @@ impl<'a> Reader<'a> {
             }
             _ => return Err(corrupt("a value's tag")),
         })
+    }
+}
+
+/// Packed bytes held in blocks of about `BLOCK` bytes, each start's place a `u64` (its block's index
+/// times 2^32 plus its offset in it). A piece never spans two blocks and a block never grows past
+/// its capacity, so holding the pieces takes no copy of them and little room beyond them, where one
+/// growing buffer would double.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Blocks {
+    blocks: Vec<Vec<u8>>,
+    size: usize,
+}
+
+/// The bytes of a block of `Blocks`.
+pub const BLOCK: usize = 1 << 20;
+
+impl Blocks {
+    /// Holds a piece: where it starts.
+    pub fn push(&mut self, piece: &[u8]) -> u64 {
+        let fits = self.blocks.last().is_some_and(|block| block.len() + piece.len() <= block.capacity());
+        if !fits {
+            self.blocks.push(Vec::with_capacity(BLOCK.max(piece.len())));
+        }
+        let index = self.blocks.len() - 1;
+        let block = &mut self.blocks[index];
+        let start = ((index as u64) << 32) | block.len() as u64;
+        block.extend_from_slice(piece);
+        self.size += piece.len();
+        start
+    }
+
+    /// The bytes from a start to the end of its block; empty for a start past them.
+    pub fn at(&self, start: u64) -> &[u8] {
+        let (block, offset) = ((start >> 32) as usize, (start & 0xffff_ffff) as usize);
+        self.blocks.get(block).and_then(|block| block.get(offset..)).unwrap_or_default()
+    }
+
+    /// Lets go of the pieces from a start on.
+    pub fn truncate(&mut self, start: u64) {
+        let (block, offset) = ((start >> 32) as usize, (start & 0xffff_ffff) as usize);
+        for later in self.blocks.drain(block.saturating_add(1).min(self.blocks.len())..) {
+            self.size -= later.len();
+        }
+        if let Some(last) = self.blocks.get_mut(block) {
+            self.size -= last.len().saturating_sub(offset);
+            last.truncate(offset);
+            if last.is_empty() {
+                self.blocks.pop();
+            }
+        }
+    }
+
+    /// The bytes of the pieces held.
+    pub fn size(&self) -> usize {
+        self.size
+    }
+
+    /// The blocks, in order.
+    pub fn blocks(&self) -> &[Vec<u8>] {
+        &self.blocks
+    }
+}
+
+/// A reader of the varints, floats and bytes `put_varint`, `put_zigzag` and a float's 8 bytes wrote:
+/// an error at the end of the bytes or for a varint past 64 bits, never a panic.
+pub struct Cursor<'a> {
+    bytes: &'a [u8],
+    at: usize,
+}
+
+impl<'a> Cursor<'a> {
+    pub fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes, at: 0 }
+    }
+
+    /// How many bytes were read.
+    pub fn position(&self) -> usize {
+        self.at
+    }
+
+    /// The bytes not read yet.
+    pub fn rest(&self) -> &'a [u8] {
+        self.bytes.get(self.at..).unwrap_or_default()
+    }
+
+    /// Skips bytes another reader read.
+    pub fn skip(&mut self, count: usize) -> Result<()> {
+        self.take(count).map(drop)
+    }
+
+    pub fn byte(&mut self) -> Result<u8> {
+        Ok(self.take(1)?[0])
+    }
+
+    pub fn take(&mut self, count: usize) -> Result<&'a [u8]> {
+        let end = self.at.checked_add(count).filter(|end| *end <= self.bytes.len()).ok_or_else(|| corrupt("it ends early"))?;
+        let taken = &self.bytes[self.at..end];
+        self.at = end;
+        Ok(taken)
+    }
+
+    pub fn varint(&mut self) -> Result<u64> {
+        let mut value = 0u64;
+        for shift in (0..64).step_by(7) {
+            let byte = self.byte()?;
+            let part = u64::from(byte & 0x7f);
+            if shift == 63 && part > 1 {
+                return Err(corrupt("a varint past 64 bits"));
+            }
+            value |= part << shift;
+            if byte & 0x80 == 0 {
+                return Ok(value);
+            }
+        }
+        Err(corrupt("a varint past 64 bits"))
+    }
+
+    pub fn zigzag(&mut self) -> Result<i64> {
+        let value = self.varint()?;
+        Ok(((value >> 1) as i64) ^ -((value & 1) as i64))
+    }
+
+    pub fn float(&mut self) -> Result<f64> {
+        let mut bits = [0u8; 8];
+        bits.copy_from_slice(self.take(8)?);
+        Ok(f64::from_bits(u64::from_le_bytes(bits)))
     }
 }
