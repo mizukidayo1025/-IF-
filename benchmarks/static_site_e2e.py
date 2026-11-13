@@ -199,6 +199,8 @@ NORMALIZED = {
     "tail is left out",
     "projects": "the Project list holds only the Project the stage works on (the browser also "
     "holds the site's sample)",
+    "sample_branches": "on the site's sample (when the scenario stage is not available), only "
+    "the branches the stages made are compared: Python's sample has branches the site's may not",
 }
 
 # ---- The page and the Worker -------------------------------------------------------------------
@@ -412,9 +414,35 @@ def _masked(route: str, path: tuple[Any, ...]) -> str | None:
     )
 
 
-def _normalize(route: str, document: Any, project: str) -> tuple[Any, list[str]]:
+def _branches(document: Any, keep: set[str]) -> tuple[Any, bool]:
+    """The document with only the branches `keep` in its records' branch lists."""
+    if isinstance(document, list):
+        items = [_branches(item, keep) for item in document]
+        return [item for item, _ in items], any(changed for _, changed in items)
+    if not isinstance(document, dict):
+        return document, False
+    changed = False
+    out = {}
+    for key, value in document.items():
+        if key == "branches" and isinstance(value, list):
+            kept = [b for b in value if not isinstance(b, dict) or b.get("branch_id") in keep]
+            changed |= len(kept) != len(value)
+            value = kept
+        value, inner = _branches(value, keep)
+        out[key] = value
+        changed |= inner
+    return out, changed
+
+
+def _normalize(
+    route: str, document: Any, project: str, keep: set[str] | None = None
+) -> tuple[Any, list[str]]:
     """The answer with what NORMALIZED lists made comparable, and which of it applied."""
     applied = []
+    if keep is not None:
+        document, changed = _branches(document, keep)
+        if changed:
+            applied.append(NORMALIZED["sample_branches"])
     if isinstance(document, dict):
         if route.endswith("/questions") and isinstance(document.get("context_id"), str):
             match = CONTEXT_ID.match(document["context_id"])
@@ -448,6 +476,7 @@ def compare_answers(
     project: str,
     translate: Callable[[str], str] = lambda text: text,
     expect: Callable[[int, Any], str | None] | None = None,
+    keep: set[str] | None = None,
 ) -> dict[str, Any]:
     """One check: the browser's answer {status, text, ms} against Python's (status, text), or
     with python None (--url) only that the browser answered (and `expect`, if given)."""
@@ -472,8 +501,9 @@ def compare_answers(
         theirs = json.loads(text) if text.startswith(("{", "[")) else text
         if browser.get("status") != status:
             found.append((("status",), status, browser.get("status")))
-        ours, applied_ours = _normalize(route, ours, project)
-        theirs, _ = _normalize(route, theirs, project)
+        ours, applied_ours = _normalize(route, ours, project, keep)
+        theirs, applied_theirs = _normalize(route, theirs, project, keep)
+        applied += applied_theirs
         applied += applied_ours
         site_check._differences(theirs, ours, (), found)
     elif browser.get("status") != 200 and expect is None:
@@ -1003,9 +1033,25 @@ class Walk:
             self.page.wait_for_timeout(200)
         return None
 
+    def wait(self, condition: str, what: str, arg: Any = None) -> None:
+        """Waits for the screen's `condition` (a JS function of `arg`); on a timeout the error
+        says what the screen showed."""
+        try:
+            self.page.wait_for_function(condition, arg=arg, timeout=TIMEOUT_MS)
+        except Exception as error:
+            if "Timeout" not in type(error).__name__ + str(error):
+                raise
+            state = self.screen()
+            raise RuntimeError(f"waiting for {what} timed out; the screen: {state}") from None
+
     def idle(self) -> None:
-        self.page.wait_for_function(
-            "() => !document.body.classList.contains('is-busy')", timeout=TIMEOUT_MS
+        self.wait("() => !document.body.classList.contains('is-busy')", "the screen to be idle")
+
+    def view(self, name: str) -> None:
+        self.wait(
+            f"() => document.body.dataset.view === '{name}'"
+            " && !document.body.classList.contains('is-busy')",
+            f"the {name} page",
         )
 
     def screen(self) -> dict[str, Any]:
@@ -1064,6 +1110,7 @@ class Walk:
             project=s.project if s else PROJECT,
             translate=s.translate(stage) if s else (lambda text: text),
             expect=expect,
+            keep={"main", s.child} if s and s.chain == "sample" else None,
         )
         if sent is not None and body is not None and item["verdict"] == "ok":
             found: list[tuple[Any, ...]] = []
@@ -1105,13 +1152,24 @@ class Walk:
         return False
 
     def open(self, url: str, view: str) -> None:
+        """Loads the screen at `url` afresh (a URL differing only in its hash would not reload)
+        and waits for the page `view`."""
+        self.page.goto("about:blank")
         self.page.goto(self.base + url)
         self.page.evaluate("window.HinanjoBrowserApi.ready")
-        self.page.wait_for_function(
-            f"() => document.body.dataset.view === '{view}'"
-            " && !document.body.classList.contains('is-busy')",
-            timeout=TIMEOUT_MS,
+        self.view(view)
+
+    def open_comparison(self) -> None:
+        """The child branch's comparison page, as a person reaches it: the Run opened on the
+        child, then the comparison tab (the screen does not open on `#comparison`)."""
+        s = self.subject
+        assert s is not None
+        self.open(
+            f"/demo-v2?project={s.project}&run={s.run}&branch={quote(s.child)}#simulation",
+            "simulation",
         )
+        self.page.click("[data-page=comparison]")
+        self.view("comparison")
 
     # The stages.
     def stage_scenario(self) -> bool:
@@ -1179,11 +1237,7 @@ class Walk:
             if sent.get("run_id") != run:
                 self.problem(stage, f"the screen's Run id is {sent.get('run_id')}, not {run}")
                 return False
-            self.page.wait_for_function(
-                "() => document.body.dataset.view === 'simulation'"
-                " && !document.body.classList.contains('is-busy')",
-                timeout=TIMEOUT_MS,
-            )
+            self.view("simulation")
             self.screen_error(stage, f"approve {label}")
         # POST runs: the first Scenario under another id, then another Scenario under that id.
         records = {
@@ -1294,11 +1348,11 @@ class Walk:
             " s.dispatchEvent(new Event('change')); }",
             minute,
         )
-        self.page.wait_for_function(
+        self.wait(
             "(minute) => document.getElementById('seek').value === String(minute)"
             " && !document.body.classList.contains('is-busy')",
-            arg=minute,
-            timeout=TIMEOUT_MS,
+            f"minute {minute}",
+            minute,
         )
 
     def stage_intervention(self) -> bool:
@@ -1349,11 +1403,7 @@ class Walk:
         if sent.get("child_id") != s.child:
             self.problem(stage, f"the screen's child id is {sent.get('child_id')}, not {s.child}")
             return False
-        self.page.wait_for_function(
-            "() => document.body.dataset.view === 'comparison'"
-            " && !document.body.classList.contains('is-busy')",
-            timeout=TIMEOUT_MS,
-        )
+        self.view("comparison")
         self.screen_error(stage, "apply")
         if not self.compute(stage, s.project, s.run, s.child, "full"):
             return False
@@ -1365,10 +1415,7 @@ class Walk:
         s = self.subject
         assert s is not None
         stage = "compare"
-        self.open(
-            f"/demo-v2?project={s.project}&run={s.run}&branch={quote(s.child)}#comparison",
-            "comparison",
-        )
+        self.open_comparison()
         since = self.mark()
         self.page.click("#compare-refresh")
         shown = self.wait_caught(since, "GET", r"/compare$", timeout_s=120)
@@ -1399,10 +1446,7 @@ class Walk:
         side = self.side()
         if self.child_ready:
             # From the comparison: the question and the PDF are of the two branches.
-            self.open(
-                f"/demo-v2?project={s.project}&run={s.run}&branch={quote(s.child)}#comparison",
-                "comparison",
-            )
+            self.open_comparison()
             since = self.mark()
             self.page.click("#compare-refresh")
             self.wait_caught(since, "GET", r"/compare$", timeout_s=120)
