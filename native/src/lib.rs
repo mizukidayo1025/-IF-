@@ -204,6 +204,22 @@ fn float_json(value: f64) -> PyResult<String> {
     Ok(String::from_utf8(encoder.out).expect("a float is ASCII"))
 }
 
+/// The core's offline parse of a Scenario text (`sheltersim_core::scenario::text::parse`, #294),
+/// as canonical JSON, for the tests: ValueError where Python raises, Unsupported where the core
+/// does not compute the request.
+#[pyfunction]
+fn scenario_text_parse(text: &str) -> PyResult<String> {
+    use sheltersim_core::scenario::request::Refusal;
+    match sheltersim_core::scenario::text::parse(text) {
+        Ok(parsed) => {
+            let bytes = parsed.to_value().to_json().or_py()?;
+            Ok(String::from_utf8(bytes).expect("canonical JSON is UTF-8"))
+        }
+        Err(Refusal::Invalid(why)) => Err(pyo3::exceptions::PyValueError::new_err(why)),
+        Err(Refusal::Unsupported(why)) => Err(Unsupported::new_err(why)),
+    }
+}
+
 #[pymodule]
 fn sheltersim_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("Unsupported", module.py().get_type::<Unsupported>())?;
@@ -234,6 +250,7 @@ fn sheltersim_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(canonical_sha256, module)?)?;
     module.add_function(wrap_pyfunction!(float_repr, module)?)?;
     module.add_function(wrap_pyfunction!(float_json, module)?)?;
+    module.add_function(wrap_pyfunction!(scenario_text_parse, module)?)?;
     module.add_function(wrap_pyfunction!(records::scheduled_event_checked, module)?)?;
     module.add_function(wrap_pyfunction!(records::view_state_hash, module)?)?;
     module.add_function(wrap_pyfunction!(checkpoint::sensitive_candidates, module)?)?;

@@ -4,3 +4,4 @@
 //! The builder (#299) joins them.
 
 pub mod request;
+pub mod text;

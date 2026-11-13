@@ -495,6 +495,24 @@ pub fn world_part_digests(bytes: &[u8]) -> Result<String, JsError> {
     String::from_utf8(encoder.out).map_err(|error| JsError::new(&error.to_string()))
 }
 
+/// What the server's `scenario-preview` reads of a Scenario text without an API key
+/// (`sheltersim_core::scenario::text::parse`, #294), as JSON: `request` (its dump, or null),
+/// `missing_fields`, `source`, `warnings` and `input_sha256`. An error whose message starts with
+/// `invalid: ` is what Python refuses (the server's 400); `unsupported: `, what the browser does
+/// not compute.
+#[wasm_bindgen(js_name = parseScenarioText)]
+pub fn parse_scenario_text(text: &str) -> Result<String, JsError> {
+    use sheltersim_core::scenario::request::Refusal;
+    match sheltersim_core::scenario::text::parse(text) {
+        Ok(parsed) => {
+            let bytes = parsed.to_value().to_json().map_err(js_error)?;
+            String::from_utf8(bytes).map_err(|error| JsError::new(&error.to_string()))
+        }
+        Err(Refusal::Invalid(why)) => Err(JsError::new(&format!("invalid: {why}"))),
+        Err(Refusal::Unsupported(why)) => Err(JsError::new(&format!("unsupported: {why}"))),
+    }
+}
+
 /// `hashlib.sha256(bytes).hexdigest()`: what the page's journal checks its lines and pieces by.
 #[wasm_bindgen(js_name = sha256Hex)]
 pub fn sha256_hex(bytes: &[u8]) -> String {

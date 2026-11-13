@@ -54,6 +54,8 @@ node native/wasm/tests/node_digests.mjs wasm-pkg
 
 最後のcommandは、`native/core/tests/data/tick_core.json`の世界をWASMで進め、ネイティブの経路と同じdigestになることを確かめます。CIのlintのjobも同じことをします。
 
+シナリオの画面の文の読み取り（APIキーなし）も中核にあります（`sheltersim_core::scenario::text`、#294）。WASMでは`parseScenarioText(text)`が、サーバーの`parse_scenario_text`がofflineのrouterで返すもの（requestのdump、`missing_fields`、`source`、`warnings`、`input_sha256`）をJSONで返します。正規表現は、Pythonの`re`と同じ一致になるよう手で照合します。`\d`・`\s`・`\w`の文字の表（`native/core/src/text/classes.rs`）は`python native/core/tools/regex_classes_table.py`で作り直します。`tests/unit/llm/test_region_prepare.py`がPythonと比べ、`node native/wasm/tests/node_scenario_text.mjs wasm-pkg`がコーパスの文で確かめます。
+
 ある分の地図と指標（frame、APIの`TimelineFrame`）は、中核が作ります（`sheltersim_core::frame`、#264）。WASMでは`Simulation.frame(runId, branchId, computedUntil, stateHash)`が、frameの正準JSONのbytesを返します。`stateHash`を渡さないときは、世界のdigest（`Simulation.stateDigest()`、Pythonの`world.state_digest()`と同じ値）を入れます。digestは、ログを1件ずつhashに流して求め、世界全体のJSONは作りません。ログは追記だけなので、Run（`PlainRun`）はログの128件ごとの塊のhashと途中の塊のhashの状態を持ち続け、次のdigestでは増えた記録だけを流します（`canonical::state_digest_with`、#266）。最初のdigest（作った直後や途中の点から戻した直後）だけがログ全体を読みます。値は変わりません。計った時間は#266に記録しています。`node native/wasm/tests/node_frames.mjs wasm-pkg`は、`native/core/tests/data/frames.json`の世界と分で、WASMのframeがネイティブの経路のframeと同じbytesになることを確かめます。CIのlintのjobも実行します。
 
 介入の文の読み取りに渡す世界の要約（`ScenarioSummary`、#302）も中核が作ります（`sheltersim_core::summary`）。WASMでは`Simulation.scenarioSummary()`が、Pythonの`scenario_summary_from_world(world).model_dump(mode="json")`の正準JSONと同じbytesを返します。serverの`intervention-preview`と同じく、既定のzoneはzoneが1つの世界のそのzone、開始日は`null`です。世界は変えません。`node native/wasm/tests/node_summaries.mjs wasm-pkg`が、`native/core/tests/data/summaries.json`の世界と分で確かめます。CIのlintのjobも実行します。
