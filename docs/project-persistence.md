@@ -93,3 +93,37 @@ Pythonの欄のうち、ブラウザーで意味が変わるもの：
 | `exportProject`、`importProject`、`readBundle`、`packBundle` | 1つのファイル |
 
 計算済みの例は`scripts/build_browser_sample.py`で作ります（[development.md](development.md#ブラウザー向けのwasm試作)）。
+
+## ブラウザーの時系列・レポート・LLMの状態（#266）
+
+ブラウザー版は、Branchの`GET …/history?kind=kpis`、`GET …/report`、`GET …/llm-status`に、同じRunにPythonのserverが返すのと同じbytesのJSONで答えます（`native/wasm/js/api_answers.mjs`）。
+
+| 関数 | 答える道 |
+|---|---|
+| `historyResponse({wasm, tree, projectId, runId, branchId, query, cache})` | `history`。`query`は`?`の後ろの文字列（Pythonの`parse_qs`と同じ読み方。空の値は無い扱い）。`cache`は`historyCache()`で、読み戻した標本をBranchの先頭ごとに持ちます |
+| `reportResponse({wasm, tree, projectId, runId, branchId, query})` | `report` |
+| `llmStatusResponse({tree, projectId, runId, branchId, query})` | `llm-status` |
+| `errorAnswer(error)` | 誤りを`{status, body}`にします。`ApiError`はその`status`、`ProjectStoreError`はserverの`StorageError`と同じ409と`code`、そのほかは500 |
+
+どれも答えのJSONの文字列を返し、断るときは`ApiError`（`status`、`message`がserverの`error`、`code`）を投げます。serverと同じく、問い合わせの欄の誤り（知らない欄、同じ欄が2つ）は409の`invalid_query_fields`、契約に合わない値は400の`invalid_input`、計算した範囲の外は409の`history_outside_computed_range`、合わないcursorは409の`stale_or_foreign_cursor`です。
+
+時系列は、Pythonの履歴の索引ではなく、Branchの保存した指標の標本（#252）から作ります。行は索引と同じで（`MetricSnapshot`の欄から`source_ids_json`を除き、資源の台帳の列、`time_semantics`、`record_kind`、`run_id`、`branch_id`を足したもの）、`start`から`end`までの`start + k*step`の分を、cursorの後から`limit`件返します。資源の台帳の列は、標本の形`sheltersim-browser-run-v3`から標本が持ちます（[development.md](development.md#ブラウザー向けのwasm試作)）。
+
+Pythonの欄のうち、ブラウザーで意味が変わるもの：
+
+| 欄・動き | ブラウザーで入るもの |
+|---|---|
+| 時系列の`anchor_hash`とcursorの`anchor` | Branchの先頭（記録の`checkpoint_hash`）。cursorのほかの中身（`scope`、分、key）はPythonと同じ |
+| 時系列の`indexed_through_minute` | Branchの`computed_until`（保存したRunは先頭まで標本を持つので、索引の遅れはありません） |
+| 時系列の`first_indexed_checkpoint_minute` | Branchの`fork_minute`（保存したRunの始まり） |
+| `kind`が`kpis`以外の時系列 | 409、`browser_unsupported`（範囲などのserverの確かめの後） |
+| `v1`・`v2`の形で保存したBranchの時系列 | 409、`browser_run_outdated`（標本が資源の台帳の列を持たないため。計算し直します） |
+| 保存したRunのないBranch | `anchor_hash`と`indexed_through_minute`と`first_indexed_checkpoint_minute`が`null`、行なし |
+| レポート | serverは計算が終わったときに書きます。ブラウザーは、終わったBranchで最初に聞かれたときに、保存したRunの最後の分から作り（最後の点に戻すので、100人・7日のNodeで約4秒）、Branchのフォルダーに`report.json`として残します。終わっていなければ`{"status":"not_generated"}` |
+| LLMの状態の`checkpoint_hash` | Branchの先頭。`mode`は`offline`、記録はありません |
+
+レポートは、画面のofflineのRun（`scenario-approve`から作り、`SHELTERSIM_LLM_MODE=offline`で計算したもの）でserverが書くものです。評価の依頼はofflineで規則のfallbackになり（`rule_fallback`）、最後の指標の標本、最後の100件の記録のうち重要なもの20件、Scenarioから決まる仮定のID、世界のdigest（`state_hash`）を持ちます。`execution_mode: offline`で作ったRun（実験用、`offline_experiment_no_paid_review`）の答えではありません。
+
+Pythonの索引のcursorは、問い合わせの内容ではなく、Branchの行の範囲（`HistoryIndex.search`で、問い合わせのdigestと同じ名前`scope`に後から入るSQLの条件）と先頭に結び付いています。そのため、同じBranchの別の問い合わせのcursorも受け付けます。ブラウザーも同じにしています。
+
+`native/wasm/tests/node_api_answers.mjs`が、`native/core/tests/data/api_answers.json`のRunで、serverの答えと同じbytesになることを確かめます。

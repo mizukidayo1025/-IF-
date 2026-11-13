@@ -152,6 +152,14 @@ split PR by PR; its last section sums up what is where.
   bundle file of a Project (`sheltersim-project-bundle`, version 1). `wasm/tools/build_project_bundle.mjs`
   is the Node half of `scripts/build_browser_sample.py`; `wasm/tests/node_project_store.mjs`
   checks a bundle's round trip and its refusals in CI.
+- **The KPI history, report and LLM status in the browser** (#266): `history::KpiTable` reads a
+  stored Run's metric samples back and pages them as the Python history index pages
+  `kind=kpis` (`history::kpi_row` writes a row as canonical JSON); a sample of a world with a
+  resource ledger also holds the ledger's columns (`plain::Balances`, format
+  `sheltersim-browser-run-v3`). In WASM: `KpiHistory`, `Simulation.log_record` and
+  `Simulation.review_metrics`; `wasm/js/api_answers.mjs` writes the answers, and
+  `wasm/tests/node_api_answers.mjs` checks them against the Python server's on the Run of
+  `core/tests/data/api_answers.json`.
 - **Out of the core** (decision 4): building a world from a Scenario and restoring a Checkpoint
   stay in Python and the wrapper. The whole-world validation texts (E6) and the pydantic
   contracts (E15) stay Python behind `Host`; a host without Python passes the validation and

@@ -18,6 +18,7 @@ pub mod error;
 pub mod events;
 pub mod frame;
 pub mod geometry;
+pub mod history;
 pub mod host;
 pub mod interner;
 pub mod json;

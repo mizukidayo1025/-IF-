@@ -18,7 +18,9 @@
 //!   for (the digests, `find_record`), the same bytes as the native path's.
 //! - The metric samples are kept packed (`MetricSamples`, #252), and their lines, which
 //!   `engine::metric_line` writes, are written again when asked for; `metrics_digest` is the digest
-//!   `tests/support/core_tick.py` writes of a Run's samples.
+//!   `tests/support/core_tick.py` writes of a Run's samples. Where the world has a resource ledger,
+//!   each sample also holds its KPI columns then (`Balances`, #266), which the API's KPI history
+//!   answers with (`history`).
 //! - The core writes `world.resources` and the namespaces it starts itself (decision 2): the host
 //!   is only told.
 //! - A Run is saved at a minute and restored from there (`saved_point`, `restore`; #251, for the
@@ -41,11 +43,12 @@ use crate::events::packed::{put_varint, put_zigzag, Blocks, Cursor, Packer};
 use crate::events::EventRow;
 use crate::json::Encoder;
 use crate::geometry::Geo;
-use crate::host::{Contract, Decision, DecisionSink, Foreign, Host, Llm, Phase, Stage, Trace, TraceLevel, TxnKind, NO_FOREIGN};
+use crate::host::{Contract, Decision, DecisionSink, Foreign, Holding, Host, Llm, Phase, Stage, Trace, TraceLevel, TxnKind, NO_FOREIGN};
 use crate::load::{self, FloorPlans, Loaded, Sections};
 use crate::rules::action_lifecycle::ActiveActions;
 use crate::rules::common_operations::Logged;
 use crate::rules::metrics::MetricSample;
+use crate::state::resource_ledger::NAME as LEDGER;
 use crate::value::V;
 use crate::world::WorldCell;
 
@@ -97,19 +100,49 @@ impl PlainHost {
 /// varint, `toilet_working_units` a zigzag varint, a float its 8 bytes), and `source_ids_json`:
 /// 0 then its JSON packed as a value (`Packer::pack_value`), or 1 then its length and its bytes,
 /// for a text the packed value would not write again.
+///
+/// A sample of a world with a resource ledger (#266) also holds the ledger's KPI columns then
+/// (`Balances`, the native path's `resource_snapshots`): it starts with the byte 1 (`WITH_BALANCES`),
+/// and the twelve columns follow its last field as zigzag varints. A minute is never negative, so
+/// the first byte of a sample without them, its minute's, is even: samples stored before (format v2
+/// of `run_store.mjs`) read as they did. A Run's samples all have them or none do, as the native
+/// path's recorder requires.
 #[derive(Clone, Debug, Default)]
 pub struct MetricSamples {
     packer: Packer,
     blocks: Blocks,
     starts: Vec<u64>,
     digest: Sha256,
+    /// Whether the samples so far hold the ledger's columns; None before the first.
+    balances: Option<bool>,
 }
 
+/// The resource ledger's KPI columns of a sample (`resource_metric_values`,
+/// `rules::resources::metric_values`): initial, delivered, served, losses, remaining and reserved,
+/// of water and then of meals.
+pub type Balances = [[i64; 6]; 2];
+
+/// The first byte of a packed sample that holds `Balances`.
+const WITH_BALANCES: u8 = 1;
+
 impl MetricSamples {
-    /// Takes a sample: its line goes into the digest, and the sample is held packed.
-    pub fn push(&mut self, sample: &MetricSample, minute: i64) -> Result<()> {
+    /// Takes a sample, with the ledger's columns where the world has a ledger: its line goes into
+    /// the digest, and the sample is held packed. An error for a negative minute, and where the
+    /// ledger came or went after the first sample (the native path's recorder refuses it too).
+    pub fn push(&mut self, sample: &MetricSample, minute: i64, balances: Option<&Balances>) -> Result<()> {
+        if minute < 0 {
+            return Err(Error::Value("a sample's minute is negative".to_owned()));
+        }
+        match self.balances {
+            Some(true) if balances.is_none() => return Err(Error::unsupported("the ledger was removed")),
+            Some(false) if balances.is_some() => return Err(Error::unsupported("the ledger came late")),
+            _ => {}
+        }
         let line = engine::metric_line(sample, minute)?;
         let mut packed = Vec::with_capacity(256);
+        if balances.is_some() {
+            packed.push(WITH_BALANCES);
+        }
         put_zigzag(&mut packed, minute);
         for count in [sample.toilet_queue_length, sample.toilet_active_users] {
             put_varint(&mut packed, count as u64);
@@ -133,11 +166,15 @@ impl MetricSamples {
         ] {
             packed.extend_from_slice(&value.to_bits().to_le_bytes());
         }
+        for value in balances.into_iter().flatten().flatten() {
+            put_zigzag(&mut packed, *value);
+        }
         if !self.starts.is_empty() {
             self.digest.update(b"\n");
         }
         self.digest.update(&line);
         self.starts.push(self.blocks.push(&packed));
+        self.balances = Some(balances.is_some());
         Ok(())
     }
 
@@ -171,13 +208,13 @@ impl MetricSamples {
         self.blocks.size()
     }
 
-    /// The sample `index` and its minute, or None past the last.
-    pub fn sample(&self, index: usize) -> Result<Option<(MetricSample, i64)>> {
+    /// The sample `index`, its minute and the ledger's columns it holds, or None past the last.
+    pub fn sample(&self, index: usize) -> Result<Option<(MetricSample, i64, Option<Balances>)>> {
         let Some(&start) = self.starts.get(index) else {
             return Ok(None);
         };
-        let (sample, minute, _) = unpack_sample(&self.packer, self.blocks.at(start))?;
-        Ok(Some((sample, minute)))
+        let unpacked = unpack_sample(&self.packer, self.blocks.at(start))?;
+        Ok(Some((unpacked.sample, unpacked.minute, unpacked.balances)))
     }
 
     /// The packer and the blocks of the samples: what a Run in the browser stores (`archive`).
@@ -187,13 +224,14 @@ impl MetricSamples {
 
     /// The line of the sample `index` (`engine::metric_line`), or None past the last.
     pub fn line(&self, index: usize) -> Result<Option<Vec<u8>>> {
-        self.sample(index)?.map(|(sample, minute)| engine::metric_line(&sample, minute)).transpose()
+        self.sample(index)?.map(|(sample, minute, _)| engine::metric_line(&sample, minute)).transpose()
     }
 
     /// Samples already packed against `packer` in `blocks`, each at its start in `starts`, with
-    /// `digest` of their lines so far (a stored Run read back, `archive::Restore`, #251).
-    pub(crate) fn adopt(packer: Packer, blocks: Blocks, starts: Vec<u64>, digest: Sha256) -> Self {
-        Self { packer, blocks, starts, digest }
+    /// `digest` of their lines so far, and whether they hold the ledger's columns (a stored Run read
+    /// back, `archive::Restore`, #251).
+    pub(crate) fn adopt(packer: Packer, blocks: Blocks, starts: Vec<u64>, digest: Sha256, balances: Option<bool>) -> Self {
+        Self { packer, blocks, starts, digest, balances }
     }
 
     /// The sha256 of the lines so far joined by `\n`, in hex.
@@ -202,13 +240,35 @@ impl MetricSamples {
     }
 }
 
-/// The sample `MetricSamples` packed at the start of `bytes` against `packer`'s tables, its minute,
-/// and how many bytes it took. An error, never a panic, for bytes that are not such a sample.
-pub fn unpack_sample(packer: &Packer, bytes: &[u8]) -> Result<(MetricSample, i64, usize)> {
+/// A sample read back (`unpack_sample`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct UnpackedSample {
+    pub sample: MetricSample,
+    pub minute: i64,
+    /// The ledger's columns, where the sample holds them.
+    pub balances: Option<Balances>,
+    /// How many bytes the sample took.
+    pub used: usize,
+}
+
+/// The sample `MetricSamples` packed at the start of `bytes` against `packer`'s tables. An error,
+/// never a panic, for bytes that are not such a sample.
+pub fn unpack_sample(packer: &Packer, bytes: &[u8]) -> Result<UnpackedSample> {
     let bad = |what: &str| Error::Value(format!("not a packed sample: {what}"));
     let mut cursor = Cursor::new(bytes);
     let count = |cursor: &mut Cursor<'_>| -> Result<usize> { usize::try_from(cursor.varint()?).map_err(|_| bad("a count")) };
+    let with_balances = match bytes.first() {
+        Some(&WITH_BALANCES) => {
+            cursor.skip(1)?;
+            true
+        }
+        Some(first) if first & 1 == 1 => return Err(bad("its form")),
+        _ => false,
+    };
     let minute = cursor.zigzag()?;
+    if minute < 0 {
+        return Err(bad("its minute"));
+    }
     let toilet_queue_length = count(&mut cursor)?;
     let toilet_active_users = count(&mut cursor)?;
     let toilet_working_units = cursor.zigzag()?;
@@ -258,7 +318,16 @@ pub fn unpack_sample(packer: &Packer, bytes: &[u8]) -> Result<(MetricSample, i64
         support_wait_staff_busy_request_minutes: cursor.float()?,
         support_wait_staff_off_shift_request_minutes: cursor.float()?,
     };
-    Ok((sample, minute, cursor.position()))
+    let balances = if with_balances {
+        let mut balances: Balances = [[0; 6]; 2];
+        for value in balances.iter_mut().flatten() {
+            *value = cursor.zigzag()?;
+        }
+        Some(balances)
+    } else {
+        None
+    };
+    Ok(UnpackedSample { sample, minute, balances, used: cursor.position() })
 }
 
 impl Host for PlainHost {
@@ -314,8 +383,17 @@ impl Host for PlainHost {
         Ok(())
     }
 
+    /// The sample, with the ledger's columns where the world has a ledger (the native path's
+    /// `resource_snapshots`, #266), read as the native host reads them: after the sample, with the
+    /// world as the sample saw it.
     fn capture_metric(&mut self, sample: &MetricSample, minute: i64) -> Result<()> {
-        self.samples.push(sample, minute)
+        let balances = self.loaded.cell.with(|world| -> Result<Option<Balances>> {
+            if Holding::of_world(world)?.is_absent(LEDGER).map_err(Error::unsupported)? {
+                return Ok(None);
+            }
+            crate::rules::resources::metric_values(world).map(Some)
+        })??;
+        self.samples.push(sample, minute, balances.as_ref())
     }
 
     fn decision_sink(&self) -> Result<DecisionSink> {

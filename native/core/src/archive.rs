@@ -157,7 +157,8 @@ impl SampleReader {
     pub fn read_block(&mut self, mut bytes: &[u8]) -> Result<usize> {
         let mut read = 0;
         while !bytes.is_empty() {
-            let (sample, minute, used) = unpack_sample(&self.packer, bytes)?;
+            let unpacked = unpack_sample(&self.packer, bytes)?;
+            let (sample, minute, used) = (unpacked.sample, unpacked.minute, unpacked.used);
             if used == 0 {
                 return Err(corrupt("an empty sample"));
             }
@@ -303,6 +304,8 @@ pub struct Restore {
     sample_blocks: Vec<Vec<u8>>,
     sample_starts: Vec<u64>,
     sample_digest: Sha256,
+    /// Whether the samples read hold the ledger's columns (`MetricSamples`); None before the first.
+    sample_balances: Option<bool>,
 }
 
 /// Where a piece at `offset` of the block `index` starts (`Blocks`), or an error past them.
@@ -326,6 +329,7 @@ impl Restore {
             sample_blocks: Vec::new(),
             sample_starts: Vec::new(),
             sample_digest: Sha256::new(),
+            sample_balances: None,
         })
     }
 
@@ -374,10 +378,15 @@ impl Restore {
     pub fn read_sample_block(&mut self, bytes: &[u8]) -> Result<usize> {
         let (index, mut at, mut taken) = (self.sample_blocks.len(), 0, 0);
         while self.samples_needed() && at < bytes.len() {
-            let (sample, minute, used) = unpack_sample(&self.sample_packer, &bytes[at..])?;
+            let unpacked = unpack_sample(&self.sample_packer, &bytes[at..])?;
+            let (sample, minute, used) = (unpacked.sample, unpacked.minute, unpacked.used);
             if used == 0 {
                 return Err(corrupt("an empty sample"));
             }
+            if self.sample_balances.is_some_and(|kept| kept != unpacked.balances.is_some()) {
+                return Err(corrupt("samples with and without the ledger's columns"));
+            }
+            self.sample_balances = Some(unpacked.balances.is_some());
             if !self.sample_starts.is_empty() {
                 self.sample_digest.update(b"\n");
             }
@@ -404,7 +413,7 @@ impl Restore {
         }
         let mut log = self.log;
         log.adopt_packed(self.log_packer, Blocks::of_sealed(self.log_blocks), self.log_starts)?;
-        let samples = MetricSamples::adopt(self.sample_packer, Blocks::of_sealed(self.sample_blocks), self.sample_starts, self.sample_digest);
+        let samples = MetricSamples::adopt(self.sample_packer, Blocks::of_sealed(self.sample_blocks), self.sample_starts, self.sample_digest, self.sample_balances);
         Ok((self.point, log, samples))
     }
 }

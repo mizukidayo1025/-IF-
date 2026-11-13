@@ -724,7 +724,7 @@ fn legacy_service_point(facility_id: &str, capacity: i64, at: &V) -> Result<V> {
 // ---- The frame ----------------------------------------------------------------------------------
 
 /// `MetricSnapshot.from_world(world).csv_row()` without `source_ids_json`.
-fn kpis(sample: &MetricSample, minute: i64) -> Map {
+pub(crate) fn kpis(sample: &MetricSample, minute: i64) -> Map {
     let mut kpis = Map::new();
     let mut put = |name: &str, value: V| {
         kpis.insert(text(name), value);
@@ -752,7 +752,7 @@ fn kpis(sample: &MetricSample, minute: i64) -> Map {
 }
 
 /// The resource ledger's KPI columns (`resource_metric_values`), in their order.
-const RESOURCE_COLUMNS: [[&str; 6]; 2] = [
+pub(crate) const RESOURCE_COLUMNS: [[&str; 6]; 2] = [
     ["water_ml_initial", "water_ml_delivered", "water_ml_served", "water_ml_losses", "water_ml_remaining", "water_ml_reserved"],
     [
         "food_meal_units_initial",
