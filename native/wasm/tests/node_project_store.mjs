@@ -171,6 +171,24 @@ await refused(
   /does not end at its record's head/,
   "bundle_run_mismatch",
 );
+// With `replace`, a bundle whose stored Run does not read back leaves the Project already there as
+// it was (#273): its stored Runs are read back before the old one is removed. The files are compared
+// by their sha256: node:assert's deepEqual builds a diff of the bytes when it fails, and for files of
+// hundreds of KiB that diff takes tens of GiB.
+const fileDigests = async (tree) => {
+  const lines = [];
+  for (const [path, file] of tree.files) lines.push(`${path} ${await store.sha256Hex(file.bytes.slice(0, file.length))}`);
+  return lines.sort();
+};
+const kept = await fileDigests(empty);
+const unreadable = await repacked((e) => {
+  const data = e.get("runs/r1/branches/child/data.pack").slice();
+  data[data.length - 3] ^= 0xff;
+  e.set("runs/r1/branches/child/data.pack", data);
+});
+await assert.rejects(store.importProject({ wasm, tree: empty, bundle: unreadable, replace: true }), (error) => error.code === "bundle_run_mismatch");
+assert.deepEqual(await fileDigests(empty), kept, "the old Project is kept");
+assert.deepEqual(await responses(empty), before);
 // A file the branch's stored Run does not know is carried as it is (a later piece file).
 const extra = await repacked((e) => e.set("runs/r1/branches/main/later.bin", Uint8Array.of(1, 2, 3)));
 const carried = store.memoryTree();

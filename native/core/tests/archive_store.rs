@@ -12,6 +12,8 @@ mod support;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use sheltersim_core::canonical::{state_digest, TREE_CHUNK_ITEMS};
+use sheltersim_core::frame::Request;
 use sheltersim_core::archive::{world_part_digests, world_parts, LogReader, Restore, SampleReader, SavedPoint, SAVED_POINT_VERSION};
 use sheltersim_core::checkpoint::sha256_hex;
 use sheltersim_core::events::log::EventLog;
@@ -273,6 +275,58 @@ fn a_run_restored_at_a_saved_point_goes_on_as_the_run_did() {
         assert_eq!(digests_of(&again), end, "{name} from {minute}");
         assert_eq!(again.host.metrics_digest(), fixture["expected"]["metrics"].as_str().unwrap(), "{name}");
         assert_eq!(again.host.contracts, run.host.contracts, "{name}");
+    }
+}
+
+/// The world's digest without the log's node a Run keeps (#266): every record read again.
+fn uncached_digest(run: &PlainRun) -> String {
+    run.loaded.cell.with(|world| state_digest(world, &run.rng_state)).unwrap().unwrap()
+}
+
+/// A Run keeps its log's node between digests (#266) and reads only the records added since: its
+/// digest is the uncached one after each tick, across the log's runs of `TREE_CHUNK_ITEMS`
+/// records, and in a Run restored at a saved point, whose first digest builds the node.
+#[test]
+fn a_run_s_kept_digest_of_its_log_is_the_digest_read_again() {
+    for (name, every) in [("small_replay", 360), ("generated", 60)] {
+        let fixture = load::entry("tick_core", name);
+        let ticks = fixture["expected"]["ticks"].as_i64().unwrap();
+        let mut run = PlainRun::of_entry(&fixture).unwrap();
+        let mut stored = Stored::default();
+        let mut points = Vec::new();
+        let records = |run: &PlainRun| run.loaded.cell.with(|world| world.log().unwrap().len()).unwrap();
+        let mut runs_crossed = 0;
+        let mut last = records(&run);
+        assert_eq!(run.state_digest().unwrap(), uncached_digest(&run), "{name} at 0");
+        for at in 1..=ticks {
+            run.step().unwrap();
+            // The kept digest after every tick; the uncached one (slow) every 10 ticks and where
+            // the log closed a run of records the node held open.
+            let kept = run.state_digest().unwrap();
+            let now = records(&run);
+            let crossed = now / TREE_CHUNK_ITEMS > last / TREE_CHUNK_ITEMS && last % TREE_CHUNK_ITEMS != 0;
+            if crossed || at % 10 == 0 {
+                assert_eq!(kept, uncached_digest(&run), "{name} at {at}");
+            }
+            runs_crossed += usize::from(crossed);
+            last = now;
+            if at % 60 == 0 {
+                flush(&run, &mut stored, false);
+            }
+            if at % every == 0 {
+                points.push((at, run.saved_point().unwrap().to_bytes()));
+            }
+        }
+        flush(&run, &mut stored, true);
+        assert!(runs_crossed >= 2, "{name}: the log crossed {runs_crossed} runs of records with one open");
+        let (minute, point) = &points[points.len() / 2 - 1];
+        let mut again = restored(&fixture, point, &stored.pieces).unwrap();
+        assert_eq!(again.state_digest().unwrap(), uncached_digest(&again), "{name} restored at {minute}");
+        for at in *minute + 1..(*minute + 30).min(ticks) {
+            again.step().unwrap();
+            let frame: serde_json::Value = serde_json::from_slice(&again.frame(&Request { run_id: "run", branch_id: "main", computed_until: at, state_hash: None }).unwrap()).unwrap();
+            assert_eq!(frame["state_hash"], uncached_digest(&again).as_str(), "{name} restored, at {at}");
+        }
     }
 }
 

@@ -790,24 +790,32 @@ async function checkRecords(projectId, entries) {
   return runs;
 }
 
-/// Reads a bundle into `tree`: checks its form, every entry's sha256 and its records, writes the
-/// Project (its project.json last, so a Project read half is never listed), and reads each
-/// branch's stored Run back to its digests and its record's head. A Project with the same id is
-/// refused unless `replace`, which removes it first. Anything that does not check out is an
-/// error, and nothing of the Project is left. Returns what each branch read back to.
+/// Reads a bundle into `tree`: checks its form, every entry's sha256 and its records, reads each
+/// branch's stored Run back to its digests and its record's head, and only then writes the
+/// Project (its project.json last, so a Project read half is never listed). The stored Runs are
+/// read back from the bundle's entries in memory before `tree` is touched, so a bundle that does
+/// not check out leaves a Project already there as it was (#273). A Project with the same id is
+/// refused unless `replace`, which removes it once the bundle has checked out; if writing then
+/// fails (the store is full), the old Project is gone and nothing of the new one is left.
+/// Returns what each branch read back to.
 export async function importProject({ wasm, tree, bundle, replace = false }) {
   const { manifest, entries } = await readBundle(bundle);
   const projectId = manifest.project_id;
   const runs = await checkRecords(projectId, entries);
   if ((await tree.read([projectId, "project.json"])) !== null && !replace) fail(`project ${projectId} exists`, "project_exists");
+  const staged = memoryTree();
+  for (const [path, bytes] of entries) {
+    if (entryKind(path).kind === "run_file") await staged.write([projectId, ...path.split("/")], bytes);
+  }
+  const verified = [];
+  for (const [runId, { branches: listed }] of runs) {
+    for (const branch of listed) verified.push({ run_id: runId, ...(await verifyBranch(wasm, staged, projectId, runId, branch)) });
+  }
+  staged.files.clear();
   await tree.remove([projectId]);
   try {
     for (const [path, bytes] of entries) {
       if (path !== "project.json") await tree.write([projectId, ...path.split("/")], bytes);
-    }
-    const verified = [];
-    for (const [runId, { branches: listed }] of runs) {
-      for (const branch of listed) verified.push({ run_id: runId, ...(await verifyBranch(wasm, tree, projectId, runId, branch)) });
     }
     await tree.write([projectId, "project.json"], entries.get("project.json"));
     return { projectId, source: manifest.source ?? null, branches: verified };
