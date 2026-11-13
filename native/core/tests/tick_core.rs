@@ -283,6 +283,11 @@ fn the_plain_host_runs_each_world_to_the_native_path_s_world() {
                 assert_eq!(all[part], digest, "{name}: {part}");
             }
         }
+        // The digests read the log a record at a time (#252): each is the digest of the part's
+        // bytes, in the same order.
+        let whole: Vec<(&str, String)> =
+            run.loaded.cell.with(|world| canonical::parts(world).unwrap()).unwrap().into_iter().map(|(part, raw)| (part, sha256_hex(&raw))).collect();
+        assert_eq!(run.digests().unwrap(), whole, "{name}");
         assert_eq!(run.host.metric_lines.len() as u64, wanted["metric_count"].as_u64().unwrap(), "{name}");
         assert_eq!(run.host.metrics_digest(), wanted["metrics"].as_str().unwrap(), "{name}");
         assert_eq!(run.stepping.checks.asked.iter().filter(|question| *question == "effects").count() as i64, ticks, "{name}");
