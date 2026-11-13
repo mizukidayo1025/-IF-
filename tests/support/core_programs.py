@@ -8,6 +8,13 @@ at a minute. The core must give the same dump (`sheltersim_core::program::Effect
 same issues (`program::validate`), or refuse what the contract refuses. `programs_fixture` builds
 `programs.json`; `benchmarks/core_fixtures.py programs` writes it.
 
+A program without issues is also scheduled (#305): on a new run of its world at its minute,
+`schedule_effect_program` as a fork's `BranchRuntime.apply_effect_program` calls it, with the
+`command_log` entry it appends and the world's digests (`core_tick.world_digests`) after it and at
+the end of the Run. The core's `PlainRun::apply_effect_program` (WASM
+`Simulation.applyEffectProgram`) must give the same; a program with issues is refused with
+Python's text and the world left as it was.
+
 The worlds are `small_replay` and `generated` of `tick_core.json` (no floor plan and no
 population model; a floor plan where added toilets are placed, a program already scheduled) and
 `operations`: a generated Scenario with the gate's outages, absence and shipment
@@ -431,6 +438,34 @@ def outcome(world: Any, document: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# The runs of the worlds from minute 0, by name.
+RUNS = {"small_replay": core_tick_run, "generated": generated_run}
+
+
+def scheduled(world_name: str, minute: int, document: dict[str, Any]) -> dict[str, Any]:
+    """What `BranchRuntime.apply_effect_program` does with a program that has no issues (#305), on
+    a new run of the world at the minute: the `command_log` entry it appends, the world's digests
+    after the program is scheduled, and at the end of the world's Run."""
+    from sheltersim.events.effects import EffectProgram, schedule_effect_program
+    from support.core_tick import world_digests
+
+    world, _, engine = (operations_run if world_name == "operations" else RUNS[world_name])()
+    while world.minute_index < minute:
+        engine.step()
+    receipt = schedule_effect_program(world, EffectProgram.model_validate(copy.deepcopy(document)))
+    command = {
+        "command": "effect_program",
+        "program_id": receipt.program_id,
+        "program_hash": receipt.program_hash,
+        "event_ids": list(receipt.event_ids),
+        "minute": world.minute_index,
+    }
+    digests = world_digests(world)
+    while world.minute_index < world.duration_minutes:
+        engine.step()
+    return {"command": command, "digests": digests, "end_digests": world_digests(world)}
+
+
 def programs_fixture() -> dict[str, Any]:
     """`programs.json`: the world `operations` at minute 0 and each case's program and outcome."""
     runs = {
@@ -446,6 +481,10 @@ def programs_fixture() -> dict[str, Any]:
             engine.step()
         assert world.minute_index == minute, (name, world.minute_index)
         found = outcome(world, document)
+        if found.get("issues") == [] and all(
+            item["op"] in _PRIMITIVES for item in document["effects"]
+        ):
+            found["scheduled"] = scheduled(world_name, minute, document)
         unsupported = (
             any(
                 item["op"] not in _PRIMITIVES and item["op"] != "teleport"
@@ -482,6 +521,7 @@ def programs_fixture() -> dict[str, Any]:
             "schema_2",
         }
         assert (found is None) == refused, (name, found)
+    assert sum("scheduled" in case for case in cases) >= 10, cases
     return {
         "worlds": {"operations": entry},
         "files": {"small_replay": "tick_core", "generated": "tick_core", "operations": "programs"},
