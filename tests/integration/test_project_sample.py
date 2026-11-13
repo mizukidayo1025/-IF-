@@ -26,7 +26,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from support.core_fixtures import run_world
 
+from sheltersim.core.rng import CounterRNG
 from sheltersim.experiments.timeline import TimelineStore
 from sheltersim.storage.projects import ProjectStore
 from sheltersim.web.projects import ProjectAPI
@@ -117,6 +119,13 @@ def test_the_sample_holds_a_completed_run_and_an_approved_outage_branch(
     assert command["program_hash"] == summary["intervention"]["approved_program_hash"]
     assert main.world.facilities["toilet_01"].working_units == 1
     assert child.world.facilities["toilet_01"].working_units == 0
+
+    # The Run's first save names the random stream its engine draws from (#281): it is the world
+    # at minute 0 as a Run sets it up, the one build_browser_sample.py exports for the browser.
+    first = timeline.seek("main", 0).world
+    assert first.rng_state == CounterRNG(first.seed).metadata
+    scenario = store.scenario("sample", saved["scenario_id"], saved["scenario_version"])
+    assert first.state_digest() == run_world(scenario)[0].state_digest()
 
 
 def test_a_copy_of_the_sample_answers_the_routes_the_new_ui_opens_it_with(

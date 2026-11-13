@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from sheltersim.core.world_export import export_world
-from support.paths import CORE_TEST_DATA
+from support.paths import CORE_TEST_DATA, INITIAL_TABLE
 
 # Each fixture file under native/core/tests/data/ (its stem) and the function that builds its
 # document, as "module:function". A lane adds a file here and its builder in a support module.
@@ -60,16 +60,23 @@ FIXTURES: dict[str, str] = {
     "api_answers": "support.core_api_answers:api_answers_fixture",
     "offline_interpreter": "support.core_interpret:offline_interpreter_fixture",
     "interventions": "support.core_interventions:interventions_fixture",
+    "scenario_request": "support.core_scenario_request:scenario_request_fixture",
+    "scenario_population": "support.core_scenario_population:scenario_population_fixture",
     "summaries": "support.core_summaries:summaries_fixture",
     "programs": "support.core_programs:programs_fixture",
+    "initial_worlds": "support.core_initial:initial_worlds_fixture",
+    # Not a test's data: the table the core's minute-0 builder reads (#249), at its own path.
+    "initial_table": "support.core_initial:initial_table",
 }
+# The fixtures whose file is not under native/core/tests/data/.
+PATHS: dict[str, Path] = {"initial_table": INITIAL_TABLE}
 
 # ---- The registry ------------------------------------------------------------------------------
 
 
 def fixture_path(name: str) -> Path:
     """The file of a registered fixture."""
-    return CORE_TEST_DATA / f"{name}.json"
+    return PATHS.get(name, CORE_TEST_DATA / f"{name}.json")
 
 
 def build(name: str) -> dict[str, Any]:
