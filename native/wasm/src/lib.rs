@@ -23,6 +23,8 @@ use sheltersim_core::engine::StepError;
 use sheltersim_core::error::Error;
 use sheltersim_core::json::Encoder;
 use sheltersim_core::plain::PlainRun;
+use sheltersim_core::program::EffectProgram;
+use sheltersim_core::value::V;
 use sheltersim_core::world::WorldCell;
 use wasm_bindgen::prelude::*;
 
@@ -171,6 +173,43 @@ impl Simulation {
     pub fn state_digest(&self) -> Result<String, JsError> {
         self.run.state_digest().map_err(js_error)
     }
+}
+
+/// The summary of the world that the reading of an intervention's text is given (#302, under #292).
+#[wasm_bindgen]
+impl Simulation {
+    /// The summary of the world now (`ScenarioSummary`, `sheltersim_core::summary`), as its
+    /// canonical JSON bytes: those of `scenario_summary_from_world(world).model_dump(mode="json")`
+    /// that the server's `intervention-preview` reads. It changes nothing.
+    #[wasm_bindgen(js_name = scenarioSummary)]
+    pub fn scenario_summary(&self) -> Result<Vec<u8>, JsError> {
+        self.run.scenario_summary().map_err(js_error)
+    }
+}
+
+/// The EffectProgram of an intervention before it is scheduled (#304, under #292).
+#[wasm_bindgen]
+impl Simulation {
+    /// `validate_effect_program(world, program)` on the world now, for a program's JSON bytes:
+    /// the issues as a JSON list of strings, in Python's order and texts (`sheltersim_core::program`).
+    /// An error for a program the contract refuses or the browser does not check. It changes
+    /// nothing.
+    #[wasm_bindgen(js_name = validateEffectProgram)]
+    pub fn validate_effect_program(&mut self, program: &[u8]) -> Result<String, JsError> {
+        let program = EffectProgram::of_json(program).map_err(js_error)?;
+        let issues = self.run.validate_effect_program(&program).map_err(js_error)?;
+        let value = V::List(issues.into_iter().map(|issue| V::Str(issue.into())).collect());
+        let bytes = value.to_json().map_err(js_error)?;
+        String::from_utf8(bytes).map_err(|error| JsError::new(&error.to_string()))
+    }
+}
+
+/// `EffectProgram.model_validate(json).model_dump(mode="json")` of a program's JSON bytes, as its
+/// canonical JSON (#304): the bytes whose sha256 is the approval's hash (`approved_program_hash`).
+/// An error for a program the contract refuses (the text is the core's, not pydantic's).
+#[wasm_bindgen(js_name = effectProgramDump)]
+pub fn effect_program_dump(program: &[u8]) -> Result<Vec<u8>, JsError> {
+    EffectProgram::of_json(program).and_then(|program| program.dump_json()).map_err(js_error)
 }
 
 /// A minute given as a JS number: a whole number of minutes, not negative.
