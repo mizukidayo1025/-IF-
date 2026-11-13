@@ -1,0 +1,3431 @@
+{
+ "base": {
+  "disaster": "earthquake",
+  "evacuees": 100,
+  "municipality": "墨田区"
+ },
+ "cases": [
+  {
+   "browser": "ok",
+   "name": "minimal",
+   "python": {
+    "dump": "{\"accessible_toilet_count\":1,\"behavior_policy_id\":\"sleep-aware-utility-softmax-v2\",\"body_dynamics_policy_id\":\"body-feedback-complete-v2\",\"care_outcome_policy_id\":\"typed-care-support-response-v1\",\"default_supply_start_day\":4,\"disaster\":\"earthquake\",\"duration_days\":7.0,\"evacuation_selection\":{\"age_band_multipliers\":{},\"source_ids\":[]},\"evacuees\":100,\"facility_conditions\":[],\"facility_zones\":[],\"field_origins\":{},\"gross_area_m2\":null,\"information_policy_id\":\"evidence-aware-rumor-v1\",\"information_spread_enabled\":true,\"model_parameter_overrides\":{},\"municipality\":\"墨田区\",\"municipality_code\":null,\"operational_conditions\":{\"equipment\":[],\"infrastructure\":null,\"initial_resources\":{\"food_meal_units\":null,\"source_ids\":[],\"source_kind\":\"operator\",\"status\":\"unknown\",\"warehouse_id\":\"main_warehouse\",\"water_ml\":null,\"zone_id\":null},\"scheduled\":[],\"source_geographic_scope\":null,\"source_period\":null,\"staff_shifts\":[]},\"population_conditions\":{\"additional_access_need_rates\":{},\"care_support_need_rates\":{},\"daily_rhythms\":[],\"household_composition\":null,\"information_access_weights\":{},\"language_weights\":{},\"medical_support_rate\":null,\"medication_support_rate\":null,\"pet_count_weights\":{},\"pet_household_rate\":null,\"source_ids\":[]},\"queue_policy_id\":\"need-weighted-physical-queue-v1\",\"relationship_policy_id\":\"distance-duration-repeat-trust-v1\",\"season\":null,\"seed\":2026,\"social_policy_id\":\"expressiveness-channel-openness-v1\",\"social_propagation_enabled\":true,\"social_proximity_policy_id\":\"disabled-proximity-v1\",\"staff_count\":null,\"staff_fatigue_policy_id\":\"staff-fatigue-linear-v1\",\"staff_operations_policy_id\":\"staff-urgency-first-v1\",\"target_date\":null,\"weather_area_code\":null,\"zone_area_shares\":{},\"zone_hygiene_policy_id\":\"zone-hygiene-linear-v1\",\"zone_privacy_policy_id\":\"zone-privacy-threshold-v1\",\"zone_rest_policy_id\":\"zone-rest-multiplicative-v1\",\"zone_temperature_policy_id\":\"zone-temperature-comfort-band-v1\"}",
+    "input_sha256": "170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "form_full",
+   "python": {
+    "dump": "{\"accessible_toilet_count\":20,\"behavior_policy_id\":\"sleep-aware-utility-softmax-v2\",\"body_dynamics_policy_id\":\"body-feedback-complete-v2\",\"care_outcome_policy_id\":\"typed-care-support-response-v1\",\"default_supply_start_day\":4,\"disaster\":\"earthquake\",\"duration_days\":2.5,\"evacuation_selection\":{\"age_band_multipliers\":{},\"source_ids\":[]},\"evacuees\":100,\"facility_conditions\":[\"施設種別（利用者入力）: 学校\"],\"facility_zones\":[],\"field_origins\":{\"accessible_toilet_count\":\"user\",\"disaster\":\"user\",\"duration_days\":\"user\",\"evacuees\":\"user\",\"facility_conditions\":\"user\",\"gross_area_m2\":\"user\",\"municipality\":\"user\",\"operational_conditions\":\"user\",\"staff_count\":\"user\"},\"gross_area_m2\":820.5,\"information_policy_id\":\"evidence-aware-rumor-v1\",\"information_spread_enabled\":true,\"model_parameter_overrides\":{},\"municipality\":\"墨田区\",\"municipality_code\":null,\"operational_conditions\":{\"equipment\":[],\"infrastructure\":null,\"initial_resources\":{\"food_meal_units\":300,\"source_ids\":[\"SRC-OPERATOR-INITIAL-CONDITIONS\"],\"source_kind\":\"operator\",\"status\":\"entered\",\"warehouse_id\":\"main_warehouse\",\"water_ml\":450000,\"zone_id\":null},\"scheduled\":[],\"source_geographic_scope\":null,\"source_period\":null,\"staff_shifts\":[]},\"population_conditions\":{\"additional_access_need_rates\":{},\"care_support_need_rates\":{},\"daily_rhythms\":[],\"household_composition\":null,\"information_access_weights\":{},\"language_weights\":{},\"medical_support_rate\":null,\"medication_support_rate\":null,\"pet_count_weights\":{},\"pet_household_rate\":null,\"source_ids\":[]},\"queue_policy_id\":\"need-weighted-physical-queue-v1\",\"relationship_policy_id\":\"distance-duration-repeat-trust-v1\",\"season\":null,\"seed\":2026,\"social_policy_id\":\"expressiveness-channel-openness-v1\",\"social_propagation_enabled\":true,\"social_proximity_policy_id\":\"disabled-proximity-v1\",\"staff_count\":0,\"staff_fatigue_policy_id\":\"staff-fatigue-linear-v1\",\"staff_operations_policy_id\":\"staff-urgency-first-v1\",\"target_date\":null,\"weather_area_code\":null,\"zone_area_shares\":{},\"zone_hygiene_policy_id\":\"zone-hygiene-linear-v1\",\"zone_privacy_policy_id\":\"zone-privacy-threshold-v1\",\"zone_rest_policy_id\":\"zone-rest-multiplicative-v1\",\"zone_temperature_policy_id\":\"zone-temperature-comfort-band-v1\"}",
+    "input_sha256": "4336b19713ff2924927641832546a10c59accfb59417a94bea9079383f59d763",
+    "outcome": "ok"
+   },
+   "request": {
+    "accessible_toilet_count": 20,
+    "disaster": "earthquake",
+    "duration_days": 2.5,
+    "evacuees": 100,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 学校"
+    ],
+    "field_origins": {
+     "accessible_toilet_count": "user",
+     "disaster": "user",
+     "duration_days": "user",
+     "evacuees": "user",
+     "facility_conditions": "user",
+     "gross_area_m2": "user",
+     "municipality": "user",
+     "operational_conditions": "user",
+     "staff_count": "user"
+    },
+    "gross_area_m2": 820.5,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "food_meal_units": 300,
+      "source_kind": "operator",
+      "status": "entered",
+      "water_ml": 450000
+     }
+    },
+    "staff_count": 0
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "form_incomplete_stock",
+   "python": {
+    "dump": "{\"accessible_toilet_count\":20,\"behavior_policy_id\":\"sleep-aware-utility-softmax-v2\",\"body_dynamics_policy_id\":\"body-feedback-complete-v2\",\"care_outcome_policy_id\":\"typed-care-support-response-v1\",\"default_supply_start_day\":4,\"disaster\":\"earthquake\",\"duration_days\":2.5,\"evacuation_selection\":{\"age_band_multipliers\":{},\"source_ids\":[]},\"evacuees\":100,\"facility_conditions\":[\"施設種別（利用者入力）: 学校\"],\"facility_zones\":[],\"field_origins\":{\"accessible_toilet_count\":\"user\",\"disaster\":\"user\",\"duration_days\":\"user\",\"evacuees\":\"user\",\"facility_conditions\":\"user\",\"gross_area_m2\":\"user\",\"municipality\":\"user\",\"operational_conditions\":\"user\",\"staff_count\":\"user\"},\"gross_area_m2\":820.5,\"information_policy_id\":\"evidence-aware-rumor-v1\",\"information_spread_enabled\":true,\"model_parameter_overrides\":{},\"municipality\":\"墨田区\",\"municipality_code\":null,\"operational_conditions\":{\"equipment\":[],\"infrastructure\":null,\"initial_resources\":{\"food_meal_units\":300,\"source_ids\":[\"SRC-OPERATOR-INITIAL-CONDITIONS\"],\"source_kind\":\"operator\",\"status\":\"incomplete\",\"warehouse_id\":\"main_warehouse\",\"water_ml\":null,\"zone_id\":null},\"scheduled\":[],\"source_geographic_scope\":null,\"source_period\":null,\"staff_shifts\":[]},\"population_conditions\":{\"additional_access_need_rates\":{},\"care_support_need_rates\":{},\"daily_rhythms\":[],\"household_composition\":null,\"information_access_weights\":{},\"language_weights\":{},\"medical_support_rate\":null,\"medication_support_rate\":null,\"pet_count_weights\":{},\"pet_household_rate\":null,\"source_ids\":[]},\"queue_policy_id\":\"need-weighted-physical-queue-v1\",\"relationship_policy_id\":\"distance-duration-repeat-trust-v1\",\"season\":null,\"seed\":2026,\"social_policy_id\":\"expressiveness-channel-openness-v1\",\"social_propagation_enabled\":true,\"social_proximity_policy_id\":\"disabled-proximity-v1\",\"staff_count\":0,\"staff_fatigue_policy_id\":\"staff-fatigue-linear-v1\",\"staff_operations_policy_id\":\"staff-urgency-first-v1\",\"target_date\":null,\"weather_area_code\":null,\"zone_area_shares\":{},\"zone_hygiene_policy_id\":\"zone-hygiene-linear-v1\",\"zone_privacy_policy_id\":\"zone-privacy-threshold-v1\",\"zone_rest_policy_id\":\"zone-rest-multiplicative-v1\",\"zone_temperature_policy_id\":\"zone-temperature-comfort-band-v1\"}",
+    "input_sha256": "f26bd832012a172ebae35872915d7666b9203b545d6f59c8447e158b9f8ea008",
+    "outcome": "ok"
+   },
+   "request": {
+    "accessible_toilet_count": 20,
+    "disaster": "earthquake",
+    "duration_days": 2.5,
+    "evacuees": 100,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 学校"
+    ],
+    "field_origins": {
+     "accessible_toilet_count": "user",
+     "disaster": "user",
+     "duration_days": "user",
+     "evacuees": "user",
+     "facility_conditions": "user",
+     "gross_area_m2": "user",
+     "municipality": "user",
+     "operational_conditions": "user",
+     "staff_count": "user"
+    },
+    "gross_area_m2": 820.5,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "food_meal_units": 300,
+      "source_kind": "operator",
+      "status": "incomplete",
+      "water_ml": null
+     }
+    },
+    "staff_count": 0
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "form_ten_thousand",
+   "python": {
+    "dump": "{\"accessible_toilet_count\":1,\"behavior_policy_id\":\"sleep-aware-utility-softmax-v2\",\"body_dynamics_policy_id\":\"body-feedback-complete-v2\",\"care_outcome_policy_id\":\"typed-care-support-response-v1\",\"default_supply_start_day\":4,\"disaster\":\"earthquake\",\"duration_days\":0.5,\"evacuation_selection\":{\"age_band_multipliers\":{},\"source_ids\":[]},\"evacuees\":10000,\"facility_conditions\":[],\"facility_zones\":[],\"field_origins\":{},\"gross_area_m2\":null,\"information_policy_id\":\"evidence-aware-rumor-v1\",\"information_spread_enabled\":true,\"model_parameter_overrides\":{},\"municipality\":\"墨田区\",\"municipality_code\":null,\"operational_conditions\":{\"equipment\":[],\"infrastructure\":null,\"initial_resources\":{\"food_meal_units\":null,\"source_ids\":[],\"source_kind\":\"operator\",\"status\":\"unknown\",\"warehouse_id\":\"main_warehouse\",\"water_ml\":null,\"zone_id\":null},\"scheduled\":[],\"source_geographic_scope\":null,\"source_period\":null,\"staff_shifts\":[]},\"population_conditions\":{\"additional_access_need_rates\":{},\"care_support_need_rates\":{},\"daily_rhythms\":[],\"household_composition\":null,\"information_access_weights\":{},\"language_weights\":{},\"medical_support_rate\":null,\"medication_support_rate\":null,\"pet_count_weights\":{},\"pet_household_rate\":null,\"source_ids\":[]},\"queue_policy_id\":\"need-weighted-physical-queue-v1\",\"relationship_policy_id\":\"distance-duration-repeat-trust-v1\",\"season\":null,\"seed\":2026,\"social_policy_id\":\"expressiveness-channel-openness-v1\",\"social_propagation_enabled\":true,\"social_proximity_policy_id\":\"disabled-proximity-v1\",\"staff_count\":null,\"staff_fatigue_policy_id\":\"staff-fatigue-linear-v1\",\"staff_operations_policy_id\":\"staff-urgency-first-v1\",\"target_date\":null,\"weather_area_code\":null,\"zone_area_shares\":{},\"zone_hygiene_policy_id\":\"zone-hygiene-linear-v1\",\"zone_privacy_policy_id\":\"zone-privacy-threshold-v1\",\"zone_rest_policy_id\":\"zone-rest-multiplicative-v1\",\"zone_temperature_policy_id\":\"zone-temperature-comfort-band-v1\"}",
+    "input_sha256": "273f69ee0383546408bddb46e6e00af6e10ad67d2b272a8d727256f6d85051e2",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "duration_days": 0.5,
+    "evacuees": 10000,
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "form_no_toilets",
+   "python": {
+    "dump": "{\"accessible_toilet_count\":0,\"behavior_policy_id\":\"sleep-aware-utility-softmax-v2\",\"body_dynamics_policy_id\":\"body-feedback-complete-v2\",\"care_outcome_policy_id\":\"typed-care-support-response-v1\",\"default_supply_start_day\":4,\"disaster\":\"earthquake\",\"duration_days\":7.0,\"evacuation_selection\":{\"age_band_multipliers\":{},\"source_ids\":[]},\"evacuees\":100,\"facility_conditions\":[],\"facility_zones\":[],\"field_origins\":{},\"gross_area_m2\":null,\"information_policy_id\":\"evidence-aware-rumor-v1\",\"information_spread_enabled\":true,\"model_parameter_overrides\":{},\"municipality\":\"墨田区\",\"municipality_code\":null,\"operational_conditions\":{\"equipment\":[],\"infrastructure\":null,\"initial_resources\":{\"food_meal_units\":null,\"source_ids\":[],\"source_kind\":\"operator\",\"status\":\"unknown\",\"warehouse_id\":\"main_warehouse\",\"water_ml\":null,\"zone_id\":null},\"scheduled\":[],\"source_geographic_scope\":null,\"source_period\":null,\"staff_shifts\":[]},\"population_conditions\":{\"additional_access_need_rates\":{},\"care_support_need_rates\":{},\"daily_rhythms\":[],\"household_composition\":null,\"information_access_weights\":{},\"language_weights\":{},\"medical_support_rate\":null,\"medication_support_rate\":null,\"pet_count_weights\":{},\"pet_household_rate\":null,\"source_ids\":[]},\"queue_policy_id\":\"need-weighted-physical-queue-v1\",\"relationship_policy_id\":\"distance-duration-repeat-trust-v1\",\"season\":null,\"seed\":2026,\"social_policy_id\":\"expressiveness-channel-openness-v1\",\"social_propagation_enabled\":true,\"social_proximity_policy_id\":\"disabled-proximity-v1\",\"staff_count\":100,\"staff_fatigue_policy_id\":\"staff-fatigue-linear-v1\",\"staff_operations_policy_id\":\"staff-urgency-first-v1\",\"target_date\":null,\"weather_area_code\":null,\"zone_area_shares\":{},\"zone_hygiene_policy_id\":\"zone-hygiene-linear-v1\",\"zone_privacy_policy_id\":\"zone-privacy-threshold-v1\",\"zone_rest_policy_id\":\"zone-rest-multiplicative-v1\",\"zone_temperature_policy_id\":\"zone-temperature-comfort-band-v1\"}",
+    "input_sha256": "c981f391f443a41695fcf7ad53028fdd4aad3fd747c1052beeae2d2275c46de1",
+    "outcome": "ok"
+   },
+   "request": {
+    "accessible_toilet_count": 0,
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "staff_count": 100
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "echoed_dump",
+   "python": {
+    "dump": "{\"accessible_toilet_count\":1,\"behavior_policy_id\":\"sleep-aware-utility-softmax-v2\",\"body_dynamics_policy_id\":\"body-feedback-complete-v2\",\"care_outcome_policy_id\":\"typed-care-support-response-v1\",\"default_supply_start_day\":4,\"disaster\":\"earthquake\",\"duration_days\":7.0,\"evacuation_selection\":{\"age_band_multipliers\":{},\"source_ids\":[]},\"evacuees\":100,\"facility_conditions\":[\"ペット\",\"授乳・乳幼児\",\"個室・プライバシー\",\"車いす対応\"],\"facility_zones\":[],\"field_origins\":{\"duration_days\":\"default\",\"municipality\":\"user\",\"seed\":\"user\"},\"gross_area_m2\":null,\"information_policy_id\":\"evidence-aware-rumor-v1\",\"information_spread_enabled\":true,\"model_parameter_overrides\":{},\"municipality\":\"墨田区\",\"municipality_code\":\"13107\",\"operational_conditions\":{\"equipment\":[],\"infrastructure\":null,\"initial_resources\":{\"food_meal_units\":null,\"source_ids\":[\"SRC-OPERATOR-INITIAL-CONDITIONS\"],\"source_kind\":\"operator\",\"status\":\"incomplete\",\"warehouse_id\":\"main_warehouse\",\"water_ml\":2000,\"zone_id\":null},\"scheduled\":[],\"source_geographic_scope\":null,\"source_period\":null,\"staff_shifts\":[]},\"population_conditions\":{\"additional_access_need_rates\":{},\"care_support_need_rates\":{},\"daily_rhythms\":[],\"household_composition\":null,\"information_access_weights\":{},\"language_weights\":{},\"medical_support_rate\":null,\"medication_support_rate\":null,\"pet_count_weights\":{},\"pet_household_rate\":null,\"source_ids\":[]},\"queue_policy_id\":\"need-weighted-physical-queue-v1\",\"relationship_policy_id\":\"distance-duration-repeat-trust-v1\",\"season\":\"winter\",\"seed\":7,\"social_policy_id\":\"expressiveness-channel-openness-v1\",\"social_propagation_enabled\":true,\"social_proximity_policy_id\":\"disabled-proximity-v1\",\"staff_count\":null,\"staff_fatigue_policy_id\":\"staff-fatigue-linear-v1\",\"staff_operations_policy_id\":\"staff-urgency-first-v1\",\"target_date\":null,\"weather_area_code\":null,\"zone_area_shares\":{},\"zone_hygiene_policy_id\":\"zone-hygiene-linear-v1\",\"zone_privacy_policy_id\":\"zone-privacy-threshold-v1\",\"zone_rest_policy_id\":\"zone-rest-multiplicative-v1\",\"zone_temperature_policy_id\":\"zone-temperature-comfort-band-v1\"}",
+    "input_sha256": "affb52b7eada4372a0bde2e774e6def196692a07a47e99a63f35abebe25650a9",
+    "outcome": "ok"
+   },
+   "request": {
+    "accessible_toilet_count": 1,
+    "behavior_policy_id": "sleep-aware-utility-softmax-v2",
+    "body_dynamics_policy_id": "body-feedback-complete-v2",
+    "care_outcome_policy_id": "typed-care-support-response-v1",
+    "default_supply_start_day": 4,
+    "disaster": "earthquake",
+    "duration_days": 7.0,
+    "evacuation_selection": {
+     "age_band_multipliers": {},
+     "source_ids": []
+    },
+    "evacuees": 100,
+    "facility_conditions": [
+     "ペット",
+     "授乳・乳幼児",
+     "個室・プライバシー",
+     "車いす対応"
+    ],
+    "facility_zones": [],
+    "field_origins": {
+     "duration_days": "default",
+     "municipality": "user",
+     "seed": "user"
+    },
+    "gross_area_m2": null,
+    "information_policy_id": "evidence-aware-rumor-v1",
+    "information_spread_enabled": true,
+    "model_parameter_overrides": {},
+    "municipality": "墨田区",
+    "municipality_code": "13107",
+    "operational_conditions": {
+     "equipment": [],
+     "infrastructure": null,
+     "initial_resources": {
+      "food_meal_units": null,
+      "source_ids": [
+       "SRC-OPERATOR-INITIAL-CONDITIONS"
+      ],
+      "source_kind": "operator",
+      "status": "incomplete",
+      "warehouse_id": "main_warehouse",
+      "water_ml": 2000,
+      "zone_id": null
+     },
+     "scheduled": [],
+     "source_geographic_scope": null,
+     "source_period": null,
+     "staff_shifts": []
+    },
+    "population_conditions": {
+     "additional_access_need_rates": {},
+     "care_support_need_rates": {},
+     "daily_rhythms": [],
+     "household_composition": null,
+     "information_access_weights": {},
+     "language_weights": {},
+     "medical_support_rate": null,
+     "medication_support_rate": null,
+     "pet_count_weights": {},
+     "pet_household_rate": null,
+     "source_ids": []
+    },
+    "queue_policy_id": "need-weighted-physical-queue-v1",
+    "relationship_policy_id": "distance-duration-repeat-trust-v1",
+    "season": "winter",
+    "seed": 7,
+    "social_policy_id": "expressiveness-channel-openness-v1",
+    "social_propagation_enabled": true,
+    "social_proximity_policy_id": "disabled-proximity-v1",
+    "staff_count": null,
+    "staff_fatigue_policy_id": "staff-fatigue-linear-v1",
+    "staff_operations_policy_id": "staff-urgency-first-v1",
+    "target_date": null,
+    "weather_area_code": null,
+    "zone_area_shares": {},
+    "zone_hygiene_policy_id": "zone-hygiene-linear-v1",
+    "zone_privacy_policy_id": "zone-privacy-threshold-v1",
+    "zone_rest_policy_id": "zone-rest-multiplicative-v1",
+    "zone_temperature_policy_id": "zone-temperature-comfort-band-v1"
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "echoed_dump_merged_with_form",
+   "python": {
+    "dump": "{\"accessible_toilet_count\":1,\"behavior_policy_id\":\"sleep-aware-utility-softmax-v2\",\"body_dynamics_policy_id\":\"body-feedback-complete-v2\",\"care_outcome_policy_id\":\"typed-care-support-response-v1\",\"default_supply_start_day\":4,\"disaster\":\"earthquake\",\"duration_days\":7.0,\"evacuation_selection\":{\"age_band_multipliers\":{},\"source_ids\":[]},\"evacuees\":100,\"facility_conditions\":[\"ペット\",\"授乳・乳幼児\",\"個室・プライバシー\",\"車いす対応\"],\"facility_zones\":[],\"field_origins\":{\"duration_days\":\"default\",\"municipality\":\"user\",\"seed\":\"user\"},\"gross_area_m2\":null,\"information_policy_id\":\"evidence-aware-rumor-v1\",\"information_spread_enabled\":true,\"model_parameter_overrides\":{},\"municipality\":\"墨田区\",\"municipality_code\":\"13107\",\"operational_conditions\":{\"equipment\":[],\"infrastructure\":null,\"initial_resources\":{\"food_meal_units\":null,\"source_ids\":[\"SRC-OPERATOR-INITIAL-CONDITIONS\"],\"source_kind\":\"operator\",\"status\":\"incomplete\",\"warehouse_id\":\"main_warehouse\",\"water_ml\":2000,\"zone_id\":null},\"scheduled\":[],\"source_geographic_scope\":null,\"source_period\":null,\"staff_shifts\":[]},\"population_conditions\":{\"additional_access_need_rates\":{},\"care_support_need_rates\":{},\"daily_rhythms\":[],\"household_composition\":null,\"information_access_weights\":{},\"language_weights\":{},\"medical_support_rate\":null,\"medication_support_rate\":null,\"pet_count_weights\":{},\"pet_household_rate\":null,\"source_ids\":[]},\"queue_policy_id\":\"need-weighted-physical-queue-v1\",\"relationship_policy_id\":\"distance-duration-repeat-trust-v1\",\"season\":\"winter\",\"seed\":7,\"social_policy_id\":\"expressiveness-channel-openness-v1\",\"social_propagation_enabled\":true,\"social_proximity_policy_id\":\"disabled-proximity-v1\",\"staff_count\":0,\"staff_fatigue_policy_id\":\"staff-fatigue-linear-v1\",\"staff_operations_policy_id\":\"staff-urgency-first-v1\",\"target_date\":null,\"weather_area_code\":null,\"zone_area_shares\":{},\"zone_hygiene_policy_id\":\"zone-hygiene-linear-v1\",\"zone_privacy_policy_id\":\"zone-privacy-threshold-v1\",\"zone_rest_policy_id\":\"zone-rest-multiplicative-v1\",\"zone_temperature_policy_id\":\"zone-temperature-comfort-band-v1\"}",
+    "input_sha256": "74f78c09fa3c89a49f2bc14c1270708d7efb846c8f4c8035b573d4aec15009fd",
+    "outcome": "ok"
+   },
+   "request": {
+    "accessible_toilet_count": 1,
+    "behavior_policy_id": "sleep-aware-utility-softmax-v2",
+    "body_dynamics_policy_id": "body-feedback-complete-v2",
+    "care_outcome_policy_id": "typed-care-support-response-v1",
+    "default_supply_start_day": 4,
+    "disaster": "earthquake",
+    "duration_days": 7.0,
+    "evacuation_selection": {
+     "age_band_multipliers": {},
+     "source_ids": []
+    },
+    "evacuees": 100,
+    "facility_conditions": [
+     "ペット",
+     "授乳・乳幼児",
+     "個室・プライバシー",
+     "車いす対応"
+    ],
+    "facility_zones": [],
+    "field_origins": {
+     "duration_days": "default",
+     "municipality": "user",
+     "seed": "user"
+    },
+    "gross_area_m2": null,
+    "information_policy_id": "evidence-aware-rumor-v1",
+    "information_spread_enabled": true,
+    "model_parameter_overrides": {},
+    "municipality": "墨田区",
+    "municipality_code": "13107",
+    "operational_conditions": {
+     "equipment": [],
+     "infrastructure": null,
+     "initial_resources": {
+      "food_meal_units": null,
+      "source_ids": [
+       "SRC-OPERATOR-INITIAL-CONDITIONS"
+      ],
+      "source_kind": "operator",
+      "status": "incomplete",
+      "warehouse_id": "main_warehouse",
+      "water_ml": 2000,
+      "zone_id": null
+     },
+     "scheduled": [],
+     "source_geographic_scope": null,
+     "source_period": null,
+     "staff_shifts": []
+    },
+    "population_conditions": {
+     "additional_access_need_rates": {},
+     "care_support_need_rates": {},
+     "daily_rhythms": [],
+     "household_composition": null,
+     "information_access_weights": {},
+     "language_weights": {},
+     "medical_support_rate": null,
+     "medication_support_rate": null,
+     "pet_count_weights": {},
+     "pet_household_rate": null,
+     "source_ids": []
+    },
+    "queue_policy_id": "need-weighted-physical-queue-v1",
+    "relationship_policy_id": "distance-duration-repeat-trust-v1",
+    "season": "winter",
+    "seed": 7,
+    "social_policy_id": "expressiveness-channel-openness-v1",
+    "social_propagation_enabled": true,
+    "social_proximity_policy_id": "disabled-proximity-v1",
+    "staff_count": 0,
+    "staff_fatigue_policy_id": "staff-fatigue-linear-v1",
+    "staff_operations_policy_id": "staff-urgency-first-v1",
+    "target_date": null,
+    "weather_area_code": null,
+    "zone_area_shares": {},
+    "zone_hygiene_policy_id": "zone-hygiene-linear-v1",
+    "zone_privacy_policy_id": "zone-privacy-threshold-v1",
+    "zone_rest_policy_id": "zone-rest-multiplicative-v1",
+    "zone_temperature_policy_id": "zone-temperature-comfort-band-v1"
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "default_dump",
+   "python": {
+    "dump": "{\"accessible_toilet_count\":1,\"behavior_policy_id\":\"sleep-aware-utility-softmax-v2\",\"body_dynamics_policy_id\":\"body-feedback-complete-v2\",\"care_outcome_policy_id\":\"typed-care-support-response-v1\",\"default_supply_start_day\":4,\"disaster\":\"earthquake\",\"duration_days\":7.0,\"evacuation_selection\":{\"age_band_multipliers\":{},\"source_ids\":[]},\"evacuees\":100,\"facility_conditions\":[],\"facility_zones\":[],\"field_origins\":{},\"gross_area_m2\":null,\"information_policy_id\":\"evidence-aware-rumor-v1\",\"information_spread_enabled\":true,\"model_parameter_overrides\":{},\"municipality\":\"墨田区\",\"municipality_code\":null,\"operational_conditions\":{\"equipment\":[],\"infrastructure\":null,\"initial_resources\":{\"food_meal_units\":null,\"source_ids\":[],\"source_kind\":\"operator\",\"status\":\"unknown\",\"warehouse_id\":\"main_warehouse\",\"water_ml\":null,\"zone_id\":null},\"scheduled\":[],\"source_geographic_scope\":null,\"source_period\":null,\"staff_shifts\":[]},\"population_conditions\":{\"additional_access_need_rates\":{},\"care_support_need_rates\":{},\"daily_rhythms\":[],\"household_composition\":null,\"information_access_weights\":{},\"language_weights\":{},\"medical_support_rate\":null,\"medication_support_rate\":null,\"pet_count_weights\":{},\"pet_household_rate\":null,\"source_ids\":[]},\"queue_policy_id\":\"need-weighted-physical-queue-v1\",\"relationship_policy_id\":\"distance-duration-repeat-trust-v1\",\"season\":null,\"seed\":2026,\"social_policy_id\":\"expressiveness-channel-openness-v1\",\"social_propagation_enabled\":true,\"social_proximity_policy_id\":\"disabled-proximity-v1\",\"staff_count\":null,\"staff_fatigue_policy_id\":\"staff-fatigue-linear-v1\",\"staff_operations_policy_id\":\"staff-urgency-first-v1\",\"target_date\":null,\"weather_area_code\":null,\"zone_area_shares\":{},\"zone_hygiene_policy_id\":\"zone-hygiene-linear-v1\",\"zone_privacy_policy_id\":\"zone-privacy-threshold-v1\",\"zone_rest_policy_id\":\"zone-rest-multiplicative-v1\",\"zone_temperature_policy_id\":\"zone-temperature-comfort-band-v1\"}",
+    "input_sha256": "170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+    "outcome": "ok"
+   },
+   "request": {
+    "accessible_toilet_count": 1,
+    "behavior_policy_id": "sleep-aware-utility-softmax-v2",
+    "body_dynamics_policy_id": "body-feedback-complete-v2",
+    "care_outcome_policy_id": "typed-care-support-response-v1",
+    "default_supply_start_day": 4,
+    "disaster": "earthquake",
+    "duration_days": 7.0,
+    "evacuation_selection": {
+     "age_band_multipliers": {},
+     "source_ids": []
+    },
+    "evacuees": 100,
+    "facility_conditions": [],
+    "facility_zones": [],
+    "field_origins": {},
+    "gross_area_m2": null,
+    "information_policy_id": "evidence-aware-rumor-v1",
+    "information_spread_enabled": true,
+    "model_parameter_overrides": {},
+    "municipality": "墨田区",
+    "municipality_code": null,
+    "operational_conditions": {
+     "equipment": [],
+     "infrastructure": null,
+     "initial_resources": {
+      "food_meal_units": null,
+      "source_ids": [],
+      "source_kind": "operator",
+      "status": "unknown",
+      "warehouse_id": "main_warehouse",
+      "water_ml": null,
+      "zone_id": null
+     },
+     "scheduled": [],
+     "source_geographic_scope": null,
+     "source_period": null,
+     "staff_shifts": []
+    },
+    "population_conditions": {
+     "additional_access_need_rates": {},
+     "care_support_need_rates": {},
+     "daily_rhythms": [],
+     "household_composition": null,
+     "information_access_weights": {},
+     "language_weights": {},
+     "medical_support_rate": null,
+     "medication_support_rate": null,
+     "pet_count_weights": {},
+     "pet_household_rate": null,
+     "source_ids": []
+    },
+    "queue_policy_id": "need-weighted-physical-queue-v1",
+    "relationship_policy_id": "distance-duration-repeat-trust-v1",
+    "season": null,
+    "seed": 2026,
+    "social_policy_id": "expressiveness-channel-openness-v1",
+    "social_propagation_enabled": true,
+    "social_proximity_policy_id": "disabled-proximity-v1",
+    "staff_count": null,
+    "staff_fatigue_policy_id": "staff-fatigue-linear-v1",
+    "staff_operations_policy_id": "staff-urgency-first-v1",
+    "target_date": null,
+    "weather_area_code": null,
+    "zone_area_shares": {},
+    "zone_hygiene_policy_id": "zone-hygiene-linear-v1",
+    "zone_privacy_policy_id": "zone-privacy-threshold-v1",
+    "zone_rest_policy_id": "zone-rest-multiplicative-v1",
+    "zone_temperature_policy_id": "zone-temperature-comfort-band-v1"
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "default_dump_python_mode",
+   "python": {
+    "dump": "{\"accessible_toilet_count\":1,\"behavior_policy_id\":\"sleep-aware-utility-softmax-v2\",\"body_dynamics_policy_id\":\"body-feedback-complete-v2\",\"care_outcome_policy_id\":\"typed-care-support-response-v1\",\"default_supply_start_day\":4,\"disaster\":\"earthquake\",\"duration_days\":7.0,\"evacuation_selection\":{\"age_band_multipliers\":{},\"source_ids\":[]},\"evacuees\":100,\"facility_conditions\":[],\"facility_zones\":[],\"field_origins\":{},\"gross_area_m2\":null,\"information_policy_id\":\"evidence-aware-rumor-v1\",\"information_spread_enabled\":true,\"model_parameter_overrides\":{},\"municipality\":\"墨田区\",\"municipality_code\":null,\"operational_conditions\":{\"equipment\":[],\"infrastructure\":null,\"initial_resources\":{\"food_meal_units\":null,\"source_ids\":[],\"source_kind\":\"operator\",\"status\":\"unknown\",\"warehouse_id\":\"main_warehouse\",\"water_ml\":null,\"zone_id\":null},\"scheduled\":[],\"source_geographic_scope\":null,\"source_period\":null,\"staff_shifts\":[]},\"population_conditions\":{\"additional_access_need_rates\":{},\"care_support_need_rates\":{},\"daily_rhythms\":[],\"household_composition\":null,\"information_access_weights\":{},\"language_weights\":{},\"medical_support_rate\":null,\"medication_support_rate\":null,\"pet_count_weights\":{},\"pet_household_rate\":null,\"source_ids\":[]},\"queue_policy_id\":\"need-weighted-physical-queue-v1\",\"relationship_policy_id\":\"distance-duration-repeat-trust-v1\",\"season\":null,\"seed\":2026,\"social_policy_id\":\"expressiveness-channel-openness-v1\",\"social_propagation_enabled\":true,\"social_proximity_policy_id\":\"disabled-proximity-v1\",\"staff_count\":null,\"staff_fatigue_policy_id\":\"staff-fatigue-linear-v1\",\"staff_operations_policy_id\":\"staff-urgency-first-v1\",\"target_date\":null,\"weather_area_code\":null,\"zone_area_shares\":{},\"zone_hygiene_policy_id\":\"zone-hygiene-linear-v1\",\"zone_privacy_policy_id\":\"zone-privacy-threshold-v1\",\"zone_rest_policy_id\":\"zone-rest-multiplicative-v1\",\"zone_temperature_policy_id\":\"zone-temperature-comfort-band-v1\"}",
+    "input_sha256": "170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+    "outcome": "ok"
+   },
+   "request": {
+    "accessible_toilet_count": 1,
+    "behavior_policy_id": "sleep-aware-utility-softmax-v2",
+    "body_dynamics_policy_id": "body-feedback-complete-v2",
+    "care_outcome_policy_id": "typed-care-support-response-v1",
+    "default_supply_start_day": 4,
+    "disaster": "earthquake",
+    "duration_days": 7,
+    "evacuation_selection": {
+     "age_band_multipliers": {},
+     "source_ids": []
+    },
+    "evacuees": 100,
+    "facility_conditions": [],
+    "facility_zones": [],
+    "field_origins": {},
+    "gross_area_m2": null,
+    "information_policy_id": "evidence-aware-rumor-v1",
+    "information_spread_enabled": true,
+    "model_parameter_overrides": {},
+    "municipality": "墨田区",
+    "municipality_code": null,
+    "operational_conditions": {
+     "equipment": [],
+     "infrastructure": null,
+     "initial_resources": {
+      "food_meal_units": null,
+      "source_ids": [],
+      "source_kind": "operator",
+      "status": "unknown",
+      "warehouse_id": "main_warehouse",
+      "water_ml": null,
+      "zone_id": null
+     },
+     "scheduled": [],
+     "source_geographic_scope": null,
+     "source_period": null,
+     "staff_shifts": []
+    },
+    "population_conditions": {
+     "additional_access_need_rates": {},
+     "care_support_need_rates": {},
+     "daily_rhythms": [],
+     "household_composition": null,
+     "information_access_weights": {},
+     "language_weights": {},
+     "medical_support_rate": null,
+     "medication_support_rate": null,
+     "pet_count_weights": {},
+     "pet_household_rate": null,
+     "source_ids": []
+    },
+    "queue_policy_id": "need-weighted-physical-queue-v1",
+    "relationship_policy_id": "distance-duration-repeat-trust-v1",
+    "season": null,
+    "seed": 2026,
+    "social_policy_id": "expressiveness-channel-openness-v1",
+    "social_propagation_enabled": true,
+    "social_proximity_policy_id": "disabled-proximity-v1",
+    "staff_count": null,
+    "staff_fatigue_policy_id": "staff-fatigue-linear-v1",
+    "staff_operations_policy_id": "staff-urgency-first-v1",
+    "target_date": null,
+    "weather_area_code": null,
+    "zone_area_shares": {},
+    "zone_hygiene_policy_id": "zone-hygiene-linear-v1",
+    "zone_privacy_policy_id": "zone-privacy-threshold-v1",
+    "zone_rest_policy_id": "zone-rest-multiplicative-v1",
+    "zone_temperature_policy_id": "zone-temperature-comfort-band-v1"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "not_an_object",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": [
+    {
+     "disaster": "earthquake",
+     "evacuees": 100,
+     "municipality": "墨田区"
+    }
+   ]
+  },
+  {
+   "browser": "invalid",
+   "name": "seed_text_too_long",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "seed": "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "seed_text_longest",
+   "python": {
+    "input_sha256": "30848d19ef26a581c3065bdd5b71c853acc7d2a127108bc0a6cdd3b5c6bda5dd",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "seed": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "missing_municipality",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "missing_evacuees",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "extra_field",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "estat_area_code": "13107",
+    "evacuees": 100,
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "municipality_long",
+   "python": {
+    "input_sha256": "c94dff8e134c8d6f05694d852c3da2556cd8830bbf2ec7e67cc626eb27b189a3",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "municipality_too_long",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区区"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "disaster_too_long",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "evacuees": 100,
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "season_long",
+   "python": {
+    "input_sha256": "31dee8b0ae1c2a1ba69b09c6aa95d66c4cc17286469c5201983d28e73af226bd",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "season": "冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "season_too_long",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "season": "冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬冬"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "municipality_code_four",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "municipality_code": "1310"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "municipality_code_letters",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "municipality_code": "1310a"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "municipality_code_newline",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "municipality_code": "13107\n"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "duration_rounds_to_zero",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "duration_days": 0.0003,
+    "evacuees": 100,
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "duration_one_minute",
+   "python": {
+    "input_sha256": "9a8a705989e1b81d9db880c6c1c57937b8da41709f1ee185a248b1cacb5954c9",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "duration_days": 0.0006944444444444445,
+    "evacuees": 100,
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "duration_half_minute",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "duration_days": 0.00034722222222222224,
+    "evacuees": 100,
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "facility_conditions_text",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "facility_conditions": "ペット",
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "facility_conditions_number",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "facility_conditions": [
+     "ペット",
+     1
+    ],
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "facility_conditions_null",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "facility_conditions": null,
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "facility_conditions_empty_text",
+   "python": {
+    "input_sha256": "5cf3b5f624ee8321700aa0cf242005083347c81399875728ff9dfc68b84ee3d0",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "facility_conditions": [
+     ""
+    ],
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "field_origins_unknown_field",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "field_origins": {
+     "text": "user"
+    },
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "field_origins_itself",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "field_origins": {
+     "field_origins": "user"
+    },
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "field_origins_bad_origin",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "field_origins": {
+     "municipality": "ai"
+    },
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "field_origins_null",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "field_origins": null,
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "field_origins_every_origin",
+   "python": {
+    "input_sha256": "873ed7d5291351759d7f350c4e6b96f76e3104e15ebe3dea22a8886b67d494f4",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "field_origins": {
+     "model_parameter_overrides": "user",
+     "municipality": "llm_extracted",
+     "seed": "default"
+    },
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "policy_unknown",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "queue_policy_id": "fifo"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "policy_null",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "queue_policy_id": null
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "policy_default",
+   "python": {
+    "input_sha256": "170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "queue_policy_id": "need-weighted-physical-queue-v1"
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "propagation_true_text",
+   "python": {
+    "input_sha256": "170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "social_propagation_enabled": "yes"
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "overrides_null",
+   "python": {
+    "input_sha256": "170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "model_parameter_overrides": null,
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "overrides_list",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "model_parameter_overrides": [],
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "zones_object",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "facility_zones": {},
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "shares_list",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "zone_area_shares": []
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "dates_null",
+   "python": {
+    "input_sha256": "170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "target_date": null,
+    "weather_area_code": null
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "selection_empty",
+   "python": {
+    "input_sha256": "170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuation_selection": {},
+    "evacuees": 100,
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "selection_null",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuation_selection": null,
+    "evacuees": 100,
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "selection_extra",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuation_selection": {
+     "x": 1
+    },
+    "evacuees": 100,
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "population_empty_defaults",
+   "python": {
+    "input_sha256": "170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "population_conditions": {
+     "source_ids": []
+    }
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "population_extra",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "population_conditions": {
+     "rate": 1
+    }
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "operational_null",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": null
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "operational_empty",
+   "python": {
+    "input_sha256": "170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {}
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "operational_extra",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "stock": {}
+    }
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "operational_lists_empty",
+   "python": {
+    "input_sha256": "170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "scheduled": []
+    }
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "stock_empty",
+   "python": {
+    "input_sha256": "170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {}
+    }
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "stock_null",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": null
+    }
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "stock_unknown_with_water",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "status": "unknown",
+      "water_ml": 1
+     }
+    }
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "stock_unknown_with_ids",
+   "python": {
+    "input_sha256": "9d875c501356d3267378d0a6cc295e16c6e21f42f8f08fb35d60c76d711a2887",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "source_ids": [
+       "SRC-OPERATOR-INITIAL-CONDITIONS"
+      ]
+     }
+    }
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "stock_entered",
+   "python": {
+    "input_sha256": "94c7654deb618cafaa0991dfab1e599425f7c4297914f756ecd636a4e46510d6",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "food_meal_units": 0,
+      "status": "entered",
+      "water_ml": 0
+     }
+    }
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "stock_entered_text_numbers",
+   "python": {
+    "input_sha256": "57dae9358c385adaefc733c5d8b22e0c2e2c2bb6e331ba1bddac3267986550ae",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "food_meal_units": 3.0,
+      "status": "entered",
+      "water_ml": "2_000"
+     }
+    }
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "stock_entered_bools",
+   "python": {
+    "input_sha256": "3257f2cd402d17e601532a55e1b875d069c14281a9b563a0f96974c2fd6e689d",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "food_meal_units": false,
+      "status": "entered",
+      "water_ml": true
+     }
+    }
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "stock_entered_missing_food",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "status": "entered",
+      "water_ml": 1
+     }
+    }
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "stock_entered_negative",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "food_meal_units": 1,
+      "status": "entered",
+      "water_ml": -1
+     }
+    }
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "stock_entered_fraction",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "food_meal_units": 1,
+      "status": "entered",
+      "water_ml": 1.5
+     }
+    }
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "stock_incomplete_food",
+   "python": {
+    "input_sha256": "a4caaf6e0b599e8ff8e1312e98d39704b1f7911e95d0d95178e68d165f6f37a2",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "food_meal_units": 5,
+      "status": "incomplete"
+     }
+    }
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "stock_incomplete_none",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "status": "incomplete"
+     }
+    }
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "stock_unknown_status",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "status": "partial"
+     }
+    }
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "stock_duplicate_ids",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "food_meal_units": 1,
+      "source_ids": [
+       "SRC-OPERATOR-INITIAL-CONDITIONS",
+       "SRC-OPERATOR-INITIAL-CONDITIONS"
+      ],
+      "status": "entered",
+      "water_ml": 1
+     }
+    }
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "stock_unstable_id",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "food_meal_units": 1,
+      "source_ids": [
+       "bad id"
+      ],
+      "status": "entered",
+      "water_ml": 1
+     }
+    }
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "stock_ids_text",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "source_ids": "SRC-OPERATOR-INITIAL-CONDITIONS"
+     }
+    }
+   }
+  },
+  {
+   "browser": "ok",
+   "name": "stock_warehouse_default",
+   "python": {
+    "input_sha256": "170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "warehouse_id": "main_warehouse",
+      "zone_id": null
+     }
+    }
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "stock_warehouse_number",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "warehouse_id": 1
+     }
+    }
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "stock_source_kind_unknown",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "source_kind": "city"
+     }
+    }
+   }
+  },
+  {
+   "browser": "invalid",
+   "name": "stock_extra",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "unit": "ml"
+     }
+    }
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "policy_behavior_policy_id",
+   "python": {
+    "input_sha256": "894557910774a46d2021938ad75971ddcbf67a9bd225320e4e2cc57ad89f95f7",
+    "outcome": "ok"
+   },
+   "request": {
+    "behavior_policy_id": "utility-softmax-v1",
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "policy_body_dynamics_policy_id",
+   "python": {
+    "input_sha256": "23e3b461bb96494c312f41390d991316bc1323dbf2ac355c9712e698e9552312",
+    "outcome": "ok"
+   },
+   "request": {
+    "body_dynamics_policy_id": "body-feedback-complete-v1",
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "policy_care_outcome_policy_id",
+   "python": {
+    "input_sha256": "ebcca72fcafef64afb436ba4955aa6e512d9f396c7f5c815b6fc8040e3037bc6",
+    "outcome": "ok"
+   },
+   "request": {
+    "care_outcome_policy_id": "hygiene-support-fixed-relief-v1",
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "policy_information_policy_id",
+   "python": {
+    "input_sha256": "e2f1de3f26fbb9a8311a6858e8e50122253c759561a17b8914b63df18635177b",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "information_policy_id": "sparse-information-contact-v1",
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "policy_queue_policy_id",
+   "python": {
+    "input_sha256": "288e4506b1db8c9b8932973d94cd28e6d88dbc206856a9d9e52325955a73493b",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "queue_policy_id": "strict-fifo-queue-v1"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "policy_relationship_policy_id",
+   "python": {
+    "input_sha256": "231c4c88c50d965aa73a85678e9e9be3544e551e2f240ebb45ca9b1ae3127b86",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "relationship_policy_id": "duration-contact-trust-v1"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "policy_social_policy_id",
+   "python": {
+    "input_sha256": "e3cc0f19e733d60c8a38fa50755fa4c1a6b9a2bd2b8fb1cf4d92b98c9dcfdd6f",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "social_policy_id": "sparse-family-zone-contact-v1"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "policy_social_proximity_policy_id",
+   "python": {
+    "input_sha256": "5f8fda2a5db21889c94a43da802cd50a744e5a0e3ce05ef7132ce1b18611b383",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "social_proximity_policy_id": "distance-sampled-proximity-v1"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "policy_staff_fatigue_policy_id",
+   "python": {
+    "input_sha256": "cf7151f0ca9b201d6096a0c226f6ac99b9c69c8ee5da5369ffc341f2e1d242b7",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "staff_fatigue_policy_id": "staff-fatigue-saturating-v1"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "policy_staff_operations_policy_id",
+   "python": {
+    "input_sha256": "5b59aaaba36e3161b143eff8d12860e340afd5f994efa7ce91bceefe6a671daf",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "staff_operations_policy_id": "staff-travel-first-v1"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "policy_zone_hygiene_policy_id",
+   "python": {
+    "input_sha256": "13cf7e21369441ad8fcf8a56dcd5946f65bf4f3d8acca7ae5cd477d14d3cafde",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "zone_hygiene_policy_id": "zone-hygiene-quadratic-v1"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "policy_zone_privacy_policy_id",
+   "python": {
+    "input_sha256": "9e86d0cd7cd8fc1e06338db7686d02587d3f4418831464a2841cff8809f4812e",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "zone_privacy_policy_id": "zone-privacy-proportional-v1"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "policy_zone_rest_policy_id",
+   "python": {
+    "input_sha256": "2f43d0767fc0e1b20a864e967f0a1d8bf6add7535e032c7a3000685aaf971fba",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "zone_rest_policy_id": "zone-rest-limiting-v1"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "policy_zone_temperature_policy_id",
+   "python": {
+    "input_sha256": "e53b4a83b4866a5985968856db882f48a4f3e375903695532bf4234c0751103e",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "zone_temperature_policy_id": "zone-temperature-midpoint-v1"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "social_propagation_off",
+   "python": {
+    "input_sha256": "2df9af382f9adbe6880be0113e45a9dd08d8a620c57b6f2ba8f9036899a3c4cd",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "social_propagation_enabled": false
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "information_spread_off",
+   "python": {
+    "input_sha256": "a836b1b7e990eb0620a340c8c5facbf8244668592a53c3ed9f89c3922e61cee7",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "information_spread_enabled": "no",
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "seed_beyond_i64",
+   "python": {
+    "input_sha256": "1f9c1d0f819435d14ee4c67354934c16433ad5af462092418c57d9ec6aa785fd",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "seed": 1000000000000000000000000000000
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "seed_text_beyond_i64",
+   "python": {
+    "input_sha256": "3fa2662ea491b167dda1aa4d29105a72c59b7117496176b0f5d83143a28b2e46",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "seed": "9223372036854775808"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "target_date",
+   "python": {
+    "input_sha256": "6c8736a2e3039657323e2086f94336ece25b72bd017b7d92a72a4ab1174a5120",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "target_date": "2026-08-01"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "weather_area_code",
+   "python": {
+    "input_sha256": "ce1767c7576cb8db24c572fd4bfe84a513f00d349d6e5558ac0b757bb19e2484",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "weather_area_code": "130000"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "municipality_code_wide_digits",
+   "python": {
+    "input_sha256": "8d6152a7feeff6dc5de5f529b450fda06531178eec20c1cecf78d68217b1d717",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "municipality_code": "１３１０７"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "facility_zones",
+   "python": {
+    "input_sha256": "172b80649e7f8b4bef6f8fd83220dd0a96c49257b7c46603c7d3e2142afa8739",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "facility_zones": [
+     {
+      "action": "exclude",
+      "zone_id": "pet_area"
+     }
+    ],
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "zone_area_shares",
+   "python": {
+    "input_sha256": "8c046b1c42ff050443b02bf7fefbadbee28f690c543e43b386acdfb14f7ab35e",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "zone_area_shares": {
+     "sleeping": 0.5
+    }
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "model_parameter_overrides",
+   "python": {
+    "input_sha256": "ec8c808306383e7d91f6bef24e9e82e2ae436b39caa5c858d8d1339ce55483d7",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "model_parameter_overrides": {
+     "a.b": 1.0
+    },
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "evacuation_selection",
+   "python": {
+    "input_sha256": "0694604d8d08c8612eab51cc5090d2099218114d0914db272b3437315eaa9fb1",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuation_selection": {
+     "age_band_multipliers": {
+      "65+": 1.5
+     }
+    },
+    "evacuees": 100,
+    "municipality": "墨田区"
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "population_conditions",
+   "python": {
+    "input_sha256": "baa7b7a641ec348439208aba0e091412b4e1a0e0a037979f601d44cbdd59eedc",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "population_conditions": {
+     "pet_household_rate": 0.2
+    }
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "operational_scope",
+   "python": {
+    "input_sha256": "9534f3002b7035de2995222d0135b634425a0d9662ac5bd7794d3150e76eb299",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "source_geographic_scope": "墨田区"
+    }
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "operational_equipment",
+   "python": {
+    "input_sha256": "5e01e11e834f0e5a29890b6862ea1c50ee5435325c2d220a6fa431d20b92f2ed",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "equipment": [
+      {
+       "capacity": 2,
+       "facility_id": "toilet_1"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "stock_warehouse",
+   "python": {
+    "input_sha256": "0ca7dd147d61cc2a5a629c8b69aff1376bd453ca090a8c1719855d009b0acfe9",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "food_meal_units": 1,
+      "status": "entered",
+      "warehouse_id": "other",
+      "water_ml": 1
+     }
+    }
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "stock_zone",
+   "python": {
+    "input_sha256": "c57e7ee4f15b8226876a59444ae5b7fad7d2bb73d87c79d041ec504f9298edfa",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "food_meal_units": 1,
+      "status": "entered",
+      "water_ml": 1,
+      "zone_id": "z"
+     }
+    }
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "stock_source_kind",
+   "python": {
+    "input_sha256": "9f1233aa00f3539993879e6a6a719b854fa0912ea24df7b9329ae15746377741",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "food_meal_units": 1,
+      "source_kind": "official",
+      "status": "entered",
+      "water_ml": 1
+     }
+    }
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "stock_source_ids",
+   "python": {
+    "input_sha256": "4d8ccc3ba4330e00afe17fcde151a61dc9cede4bad1c511dac6cebf8a84ad726",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "food_meal_units": 1,
+      "source_ids": [
+       "SRC-CITY-STOCK"
+      ],
+      "status": "entered",
+      "water_ml": 1
+     }
+    }
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "stock_beyond_i64",
+   "python": {
+    "input_sha256": "3eecea2cd85fd3c5dc895622909d910861d252b4e8a5539443de8a797e038d8c",
+    "outcome": "ok"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "operational_conditions": {
+     "initial_resources": {
+      "food_meal_units": 1,
+      "status": "entered",
+      "water_ml": 1000000000000000000000000000000
+     }
+    }
+   }
+  },
+  {
+   "browser": "unsupported",
+   "name": "municipality_code_circled",
+   "python": {
+    "outcome": "invalid"
+   },
+   "request": {
+    "disaster": "earthquake",
+    "evacuees": 100,
+    "municipality": "墨田区",
+    "municipality_code": "①②③④⑤"
+   }
+  }
+ ],
+ "coercions": {
+  "accessible_toilet_count": [
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "ok:0ca359165d2a946389cd534f99a56d0d62f6c1d280c3cbef95f10ee9dd9352ac",
+   "ok:0ca359165d2a946389cd534f99a56d0d62f6c1d280c3cbef95f10ee9dd9352ac",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "invalid",
+   "ok:f7448af83e9801982bf0fbbed8a787cc706532d57e23ce811bfdd400213af8ae",
+   "ok:62058485c0b8bd439e3c9e58bdb98383d52f93b1f81690f9b6e934cab5f01fff",
+   "ok:dab7fd6616a5c679a2c9f0f49239149db683e2e372f2b6ef52eedb25ce34ed48",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:0ca359165d2a946389cd534f99a56d0d62f6c1d280c3cbef95f10ee9dd9352ac",
+   "ok:0ca359165d2a946389cd534f99a56d0d62f6c1d280c3cbef95f10ee9dd9352ac",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "invalid",
+   "invalid",
+   "ok:62058485c0b8bd439e3c9e58bdb98383d52f93b1f81690f9b6e934cab5f01fff",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "ok:0ca359165d2a946389cd534f99a56d0d62f6c1d280c3cbef95f10ee9dd9352ac",
+   "ok:d6b9f4721d2eefcd7e1c030a0c16f0b58d059c666d60ece2a0c8bd97d218b661",
+   "ok:d6b9f4721d2eefcd7e1c030a0c16f0b58d059c666d60ece2a0c8bd97d218b661",
+   "ok:d6b9f4721d2eefcd7e1c030a0c16f0b58d059c666d60ece2a0c8bd97d218b661",
+   "ok:d6b9f4721d2eefcd7e1c030a0c16f0b58d059c666d60ece2a0c8bd97d218b661",
+   "ok:d6b9f4721d2eefcd7e1c030a0c16f0b58d059c666d60ece2a0c8bd97d218b661",
+   "ok:2559c8a7465b78d111105ddd5fbe576605035ca116e37cfee37be3c1d749fe0a",
+   "ok:0ca359165d2a946389cd534f99a56d0d62f6c1d280c3cbef95f10ee9dd9352ac",
+   "ok:0ca359165d2a946389cd534f99a56d0d62f6c1d280c3cbef95f10ee9dd9352ac",
+   "ok:d6b9f4721d2eefcd7e1c030a0c16f0b58d059c666d60ece2a0c8bd97d218b661",
+   "ok:0ca359165d2a946389cd534f99a56d0d62f6c1d280c3cbef95f10ee9dd9352ac",
+   "invalid",
+   "ok:13bc49cbda8db5dab785d3304d0d350628f8169e9ab497644a8d532e82d30919",
+   "ok:13bc49cbda8db5dab785d3304d0d350628f8169e9ab497644a8d532e82d30919",
+   "ok:13bc49cbda8db5dab785d3304d0d350628f8169e9ab497644a8d532e82d30919",
+   "ok:13bc49cbda8db5dab785d3304d0d350628f8169e9ab497644a8d532e82d30919",
+   "ok:13bc49cbda8db5dab785d3304d0d350628f8169e9ab497644a8d532e82d30919",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:d6b9f4721d2eefcd7e1c030a0c16f0b58d059c666d60ece2a0c8bd97d218b661",
+   "invalid",
+   "ok:d6b9f4721d2eefcd7e1c030a0c16f0b58d059c666d60ece2a0c8bd97d218b661",
+   "ok:d6b9f4721d2eefcd7e1c030a0c16f0b58d059c666d60ece2a0c8bd97d218b661",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:f7448af83e9801982bf0fbbed8a787cc706532d57e23ce811bfdd400213af8ae",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid"
+  ],
+  "default_supply_start_day": [
+   "ok:426403516e3c16bcc8c150a61169e5a758e8f5e2884f3f2d63e0bbc7682b1329",
+   "invalid",
+   "invalid",
+   "ok:426403516e3c16bcc8c150a61169e5a758e8f5e2884f3f2d63e0bbc7682b1329",
+   "invalid",
+   "ok:e50e57687c8fbf3a1083d5283886f81e5f138135dd4839a2f37b0c869d55e026",
+   "ok:ed39ed0a388a27903df593237c803f69b50be9b68a452d148da64dcae5755d8a",
+   "ok:f9f7e914bfe9b8e9662c8d420b9d66026f0eb9dc2ed02d6663cd10231ed02225",
+   "ok:fa424095a18b8f69e4c9be5bc6dfd9603676d3b34bf09b369a5ec5c784a750c9",
+   "ok:066bcf29e78206ad8bdb8b26573c4b8a8d89db011ebbe276ee174aa4660b1370",
+   "ok:80b0b4a1aaa45c7571e995ea94a9f7a9979f40ca0e5ef43151a211d8138cd6dc",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:426403516e3c16bcc8c150a61169e5a758e8f5e2884f3f2d63e0bbc7682b1329",
+   "invalid",
+   "invalid",
+   "ok:ed39ed0a388a27903df593237c803f69b50be9b68a452d148da64dcae5755d8a",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:426403516e3c16bcc8c150a61169e5a758e8f5e2884f3f2d63e0bbc7682b1329",
+   "invalid",
+   "ok:ed80162e54415b86a9bc250accf9e3f1788019bb62d3ade956fd8307e73eda18",
+   "ok:ed80162e54415b86a9bc250accf9e3f1788019bb62d3ade956fd8307e73eda18",
+   "ok:ed80162e54415b86a9bc250accf9e3f1788019bb62d3ade956fd8307e73eda18",
+   "ok:ed80162e54415b86a9bc250accf9e3f1788019bb62d3ade956fd8307e73eda18",
+   "ok:ed80162e54415b86a9bc250accf9e3f1788019bb62d3ade956fd8307e73eda18",
+   "ok:31b7159ebfbaee00d30b0091256c820561f8857149ab05095978531b948ea687",
+   "invalid",
+   "invalid",
+   "ok:ed80162e54415b86a9bc250accf9e3f1788019bb62d3ade956fd8307e73eda18",
+   "invalid",
+   "invalid",
+   "ok:78caa4d03de5b62478fea400a60836812a709c4f6b4f22861c733f31bea34674",
+   "ok:78caa4d03de5b62478fea400a60836812a709c4f6b4f22861c733f31bea34674",
+   "ok:78caa4d03de5b62478fea400a60836812a709c4f6b4f22861c733f31bea34674",
+   "ok:78caa4d03de5b62478fea400a60836812a709c4f6b4f22861c733f31bea34674",
+   "ok:78caa4d03de5b62478fea400a60836812a709c4f6b4f22861c733f31bea34674",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:ed80162e54415b86a9bc250accf9e3f1788019bb62d3ade956fd8307e73eda18",
+   "invalid",
+   "ok:ed80162e54415b86a9bc250accf9e3f1788019bb62d3ade956fd8307e73eda18",
+   "ok:ed80162e54415b86a9bc250accf9e3f1788019bb62d3ade956fd8307e73eda18",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:e50e57687c8fbf3a1083d5283886f81e5f138135dd4839a2f37b0c869d55e026",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid"
+  ],
+  "disaster": [
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:66fa57a86894e758728e440c0d93148792f9d9887bb1401737a003e63be07e9f",
+   "ok:3f9c22d2203c5d5808dfacec2a5202d2857c511382cecef03d1eb22438dfd8a0",
+   "ok:f528f4c0f36d046db0b0254588342106cf722a1e722501cc7e39d50f2b3d1d0c",
+   "ok:d6167c18d1a14d7a8a00349bee47432d1e43b94433942402d5cb9c91f016cf21",
+   "ok:a2ea8fd7310f0c4a6ea6f3d43dbe17f3f32a379501bf1390ccabc8a3c99a87ed",
+   "ok:93bb107881f7bedabe8387488a491ed5ca1e86a4c891b622f76e8fac530405c9",
+   "ok:722b40bb82d6e418c799ba3d4f71571ec93fe6fc4fb9199213da8b1e38731f4e",
+   "ok:e7f9ab90094aa4c323db7afa627ade8a3d9b6f79e2aeed1d1c21dbef2f617786",
+   "ok:0fd38b767a47c849f16bd59c0adf9221e5f9eeeb57278714c0e87e3f0fbe215d",
+   "ok:f9816e30924995390333958ea52af5858721164e977a3acdfebe38e8cf34dea6",
+   "ok:877b9fac586f552ee2aced5640ab5598c5ff83ed2a6d25f640edecb44315c3de",
+   "ok:9083704786772f67baa875ebf234fc080225148c9eb28c28d6ba293696fd44f5",
+   "ok:7a1f1ab61a48139ea03471558ba326ea2623a7a2e2fab10f7ff0ed3ca68cc69b",
+   "ok:75522e0707efc85d14c2b4f55874ae2d20e13c39c2cc29237018a844ef67dc15",
+   "ok:24d62183bfe1076fe6c65fc5ba1372dfb4e931d37a1e90481e32d9294ea05fb6",
+   "ok:92fd56d1ad2f52187668e980326c9fd588520ed432b001267e7bdf448f04f2ff",
+   "ok:7b03bffad56cebd1ed1e53f2e39c507fabbcf08ba7f8b67be5e641507c6b20cb",
+   "ok:3cc735c757bc3677bdad953ece1f21d88072fc6b524e7c98c7f6dd4d1bad4d50",
+   "ok:46e851c6dc4615cba2ca26d61fbc1a180a1f0d26dbc24c96720aa5062db4680c",
+   "ok:77aa5f3f47d148531b33d0c0e9e657af23392f630b0af23e9843baaf52fb3787",
+   "ok:e5a78d4a4c41768480e42784d795a8d5e484edd86b69db5e056a072edc345681",
+   "ok:79cd4abc8eab6b63460e88d6b7b2f797e34bfb0a583936982e5e4044f4716f66",
+   "ok:3b4fd6b2d16982162208f03d6bc000316f9896b38d21aacbb668a62c99632085",
+   "ok:a4313a0feaf5b95215c237c6e22b0763c51eb5806d70833f1db55dbf85321a34",
+   "ok:2c293eb25fc6e9667a951fd7ae6de0f1e542c28e76b7cfcd37e161bbdd570e0f",
+   "ok:06966bf7522a51cee5c37d7a103526cc5673510fa75201abf275cd3041d18a5f",
+   "ok:47c57f18c8451e7a4a80f6c1d8196b79e26cc88381220f42c72eb51522c5c035",
+   "ok:ab744b0113184ab223dfd83a172a0df015ed5aa2b5c7a1e5a5c5846520b4b2d2",
+   "ok:d440afbf579bbedd394acdf2fff9b93b6419982469b5efe0f33f2d022ca844ad",
+   "ok:a8db6e371cd28ee02ff909af31588b7ea908de4d26b20e2c61f06f338b7492b2",
+   "ok:b31719aae9e2bf2e22a4f01e555da3c6f55cecd4f661b7e7a71b4022b515e7c0",
+   "ok:88e213ba56d0d6d99f752d6dee1e825e46871e136bb8366b2ecb8dd12bede382",
+   "ok:d9391905ff2fcb38be43a192e6d268c1c20d1684427554b95b87a6032256a70a",
+   "ok:0de4d3b90e44ce29c26bdd88583cf50cda72d4ff43f5e1ef98574b8ede4fdbb5",
+   "ok:1f1d5cbf9d3406533365ca1cad37b6683b1f65861de918b94b07479ea79f7694",
+   "ok:84c841531446e13cd3de66731896d9b943a6cbbb46833739fe63b1bca3493163",
+   "ok:17dec79f8525bbdd411ae11b5ef6f0de389fdd39bd049ae4fa9f3abfed6bd741",
+   "ok:eff78f48baf6d3ab665d3e88c33283afd40479b0a125b178d984da3bd22dfc00",
+   "ok:7b7f9f81203a13557ca403a6c6f6793de2fdca5e45e1e173462bad122016a6a8",
+   "ok:f253d9135e7da9e91cd94394b63a76835af0907ed0c4acabe925424b48bcbcc2",
+   "ok:72d4aed9758f420493402dda2950c71cbec5acc7e5462bc16776edff8d6bbf09",
+   "ok:bf88d71107058ff946fb813989258a131d6e351e795165fe6e5026cb35a2f6e7",
+   "ok:6abd270098d5a3f0d8b4b33ecc90b3e69ff8ea77f817ae9b0043091086defbcd",
+   "ok:1ec91ddd0e52d1673fc4f96dabdb9c7e678da69a868b7d0ac103a4621cec5dee",
+   "ok:215634f48b9713ee6301138536203c8115803727fae1ac8eb80b670a8ea6b82f",
+   "ok:dbcfd7b4a46a12796bccddbcdfa93c530eadac812bd1c4f3e8e4bd1fab913a87",
+   "ok:d92fb0b15792adb25eaaf81376623f7ae158ace0a1013f0561a4cbc1136981fb",
+   "ok:924a7fd2c63b92cc97327ac205c4c27ec8427799148bf2523ed86f8da1bc31f9",
+   "ok:60f84bb97bdc07d3c60d4b9d3250651afcde935fd49cc2df1d8013064a274960",
+   "ok:7acaec018d1413708d8a85082ecbc33d06bb957d53bb99046fb5ba511e090312",
+   "ok:d579ddc515242f3b69b21ef9b2a764b5851e372724de8e8e97e2a42887812534",
+   "ok:24e67adc40eada21396b9b0dc4c4172610c95d6d6325d916dfa685b8b6ad6f2c",
+   "ok:b451286e15c5279e0b4c8fd5bb585e642c03265c874ffa10830688a8c2f1c774",
+   "ok:a3eb0ce23657aac4da416223233787617beb5618a780a52a9147c0e041025d9b",
+   "ok:47b3fc38d632b242ff7797a51275c416a56b36c2d8ea7988b03476b56fb2436c",
+   "ok:66791e79fc1a5bd89c614abdb03ca923275cf1764e988399f12da25f281a71db",
+   "ok:6c8dbc5daf848e8e1889df81b9eb56253932af96bcffc8e9545b30a2ea13b8f2",
+   "ok:5294c52e55fcaad3c4dad394ccd886d95e74fbc8cbbae29da6dd8e2f69474724",
+   "ok:af6a5125e97c13cbf0b62e60351e024d54098c4f8ce8b07b47173731250dfe01",
+   "ok:163abf69a8eb8b6041e7bbdbe45b8beb9a9e71278f56c0c72e7afb3be6f334d0",
+   "ok:5480575d3533501fce32abd8d727e43ce91da3a0623b6056801f7fd096f5473e",
+   "ok:b0866ebd960462f974305bcc0a2c007f236c1e8eb5459a2defcd2c85e2539398",
+   "ok:55aef17e8b2fd7ab07ccb88b922242dbd972d66a22664159394af0aa56a3c058",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid"
+  ],
+  "duration_days": [
+   "ok:be4ac9deb31fcb8eb29f98c8168e17a29df284f662e5b5a4c08fcbfed4dbe571",
+   "invalid",
+   "invalid",
+   "ok:be4ac9deb31fcb8eb29f98c8168e17a29df284f662e5b5a4c08fcbfed4dbe571",
+   "invalid",
+   "ok:4eb406169d9d05a1175cb8b05349acc2a48f1b692de7bef19df8baf47cb84e04",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "ok:dc4e35bc53ead6ad7d895bd649132ca6192fea343ab195f9a640c63ff11c45e3",
+   "ok:376cd3d4121fbd92168579da87526c2d465ffe3f78f41f0e9fce48adba5c5719",
+   "ok:fef8aeab12feb4b09dffcbf068cfacb50e21203064d6dcd3dff5b6406a74df7e",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:be4ac9deb31fcb8eb29f98c8168e17a29df284f662e5b5a4c08fcbfed4dbe571",
+   "ok:3d619eae94f921e3159e93b40a6a523031755d64d6491d92876da6b12f9dfd8e",
+   "ok:8e3411627c79e2c891768a365fec9436d39496d7ff551c210921c0809f0ba8de",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "invalid",
+   "ok:3573f2bb0aee185cde7c952b8b62c86d2e66bf4ba809fe64925af42d33626ecb",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:be4ac9deb31fcb8eb29f98c8168e17a29df284f662e5b5a4c08fcbfed4dbe571",
+   "invalid",
+   "ok:3f4eff936b3a9bd4af56bfb64c91c388b9a51dc6d291f5980f4684996fff0e30",
+   "ok:3f4eff936b3a9bd4af56bfb64c91c388b9a51dc6d291f5980f4684996fff0e30",
+   "ok:3f4eff936b3a9bd4af56bfb64c91c388b9a51dc6d291f5980f4684996fff0e30",
+   "ok:3f4eff936b3a9bd4af56bfb64c91c388b9a51dc6d291f5980f4684996fff0e30",
+   "ok:3f4eff936b3a9bd4af56bfb64c91c388b9a51dc6d291f5980f4684996fff0e30",
+   "ok:89aa5050c5cb4003d3d5b8049e9ec27af1fad03b17b831dccb669e1f896098e2",
+   "invalid",
+   "invalid",
+   "ok:3f4eff936b3a9bd4af56bfb64c91c388b9a51dc6d291f5980f4684996fff0e30",
+   "invalid",
+   "invalid",
+   "ok:8ffa56ca4f4f947272137514f2c0571d3d524b381498ccd4521314484bd4e612",
+   "invalid",
+   "invalid",
+   "ok:8ffa56ca4f4f947272137514f2c0571d3d524b381498ccd4521314484bd4e612",
+   "invalid",
+   "ok:be4ac9deb31fcb8eb29f98c8168e17a29df284f662e5b5a4c08fcbfed4dbe571",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:3f4eff936b3a9bd4af56bfb64c91c388b9a51dc6d291f5980f4684996fff0e30",
+   "ok:3f4eff936b3a9bd4af56bfb64c91c388b9a51dc6d291f5980f4684996fff0e30",
+   "ok:3f4eff936b3a9bd4af56bfb64c91c388b9a51dc6d291f5980f4684996fff0e30",
+   "ok:3f4eff936b3a9bd4af56bfb64c91c388b9a51dc6d291f5980f4684996fff0e30",
+   "ok:3f4eff936b3a9bd4af56bfb64c91c388b9a51dc6d291f5980f4684996fff0e30",
+   "ok:9b5a68262d13bc592ea13dc606aaaf9a18ecc3301809e3febb9f3a869f99660c",
+   "ok:be4ac9deb31fcb8eb29f98c8168e17a29df284f662e5b5a4c08fcbfed4dbe571",
+   "ok:4a6db1a3fc27c70413856ad5d0e4f7d7f5256af164d1ae2ed5a96c5b80397c3e",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:c75d6f6da455313537b032ccbe194022b7be532935810fa93dd3789bcf53a626",
+   "ok:230d641f6fbb0c2c4c0b95bc1d9bf913b92633e1a0c272641d95aedd154b5210",
+   "ok:8ffa56ca4f4f947272137514f2c0571d3d524b381498ccd4521314484bd4e612",
+   "ok:8ffa56ca4f4f947272137514f2c0571d3d524b381498ccd4521314484bd4e612",
+   "ok:3d619eae94f921e3159e93b40a6a523031755d64d6491d92876da6b12f9dfd8e",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:4eb406169d9d05a1175cb8b05349acc2a48f1b692de7bef19df8baf47cb84e04",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid"
+  ],
+  "evacuees": [
+   "ok:b7f8704a68e11b2543acd5a5f5b2075c24e92ac87c4c95a519c8228723967573",
+   "invalid",
+   "invalid",
+   "ok:b7f8704a68e11b2543acd5a5f5b2075c24e92ac87c4c95a519c8228723967573",
+   "invalid",
+   "ok:142699e0f9477770a229dbcb440c8dc6c6a874647d1136fd6faa79bff37dc1d1",
+   "ok:815d1f17d81ba1295b2c363a5ba282b62e1e771d7a030ee5e2c5d45854d0887a",
+   "ok:059b718575a28b1c2323d2041eec26e172ca40cff1a2d9590b60ffde82328c73",
+   "ok:bb50b9d67323f8f23d41ad41c88ca8c66a82a8f20cd8de61fa43bf7dccb3d710",
+   "ok:5609df1defa74fc4a79299b9b69298887961766c08d49c7fa8d6203685077461",
+   "ok:cf7b2c29ec1e7a3817a9a42a31cc6175797c0d19d928300d754204d859974baa",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "ok:7f2057c77687ebe2e2327c90f11c2258b25da6fdff1c01511c5841a373823e8d",
+   "ok:b808eaebc00eb2908475486d2f624bbbfdd367e2261e9ec0f065c87ecaf3595f",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:b7f8704a68e11b2543acd5a5f5b2075c24e92ac87c4c95a519c8228723967573",
+   "invalid",
+   "invalid",
+   "ok:815d1f17d81ba1295b2c363a5ba282b62e1e771d7a030ee5e2c5d45854d0887a",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:b7f8704a68e11b2543acd5a5f5b2075c24e92ac87c4c95a519c8228723967573",
+   "invalid",
+   "ok:8382bd363b34e57488787390e58cd4711df58794a7f7b39f9db96ad79cf3f1d9",
+   "ok:8382bd363b34e57488787390e58cd4711df58794a7f7b39f9db96ad79cf3f1d9",
+   "ok:8382bd363b34e57488787390e58cd4711df58794a7f7b39f9db96ad79cf3f1d9",
+   "ok:8382bd363b34e57488787390e58cd4711df58794a7f7b39f9db96ad79cf3f1d9",
+   "ok:8382bd363b34e57488787390e58cd4711df58794a7f7b39f9db96ad79cf3f1d9",
+   "ok:ed63717fdb535a98c086f6db118626435e3ac3bfd44a45cb9de32d03f3a28af8",
+   "invalid",
+   "invalid",
+   "ok:8382bd363b34e57488787390e58cd4711df58794a7f7b39f9db96ad79cf3f1d9",
+   "invalid",
+   "ok:a6972bc911ff8582d77e0e420b655a85bdcc0cd1b49db7828c8042ab41389b67",
+   "ok:645a531ea86ce8c2a01c289cfd21aa83a335a2f6bdc97e150d5ae1ec22704480",
+   "ok:645a531ea86ce8c2a01c289cfd21aa83a335a2f6bdc97e150d5ae1ec22704480",
+   "ok:645a531ea86ce8c2a01c289cfd21aa83a335a2f6bdc97e150d5ae1ec22704480",
+   "ok:645a531ea86ce8c2a01c289cfd21aa83a335a2f6bdc97e150d5ae1ec22704480",
+   "ok:645a531ea86ce8c2a01c289cfd21aa83a335a2f6bdc97e150d5ae1ec22704480",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:8382bd363b34e57488787390e58cd4711df58794a7f7b39f9db96ad79cf3f1d9",
+   "invalid",
+   "ok:8382bd363b34e57488787390e58cd4711df58794a7f7b39f9db96ad79cf3f1d9",
+   "ok:8382bd363b34e57488787390e58cd4711df58794a7f7b39f9db96ad79cf3f1d9",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:142699e0f9477770a229dbcb440c8dc6c6a874647d1136fd6faa79bff37dc1d1",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid"
+  ],
+  "gross_area_m2": [
+   "ok:227f4a4538fdfd77d91321ee7e67ac00ba45f0e50500120297bc1846c9a50672",
+   "invalid",
+   "invalid",
+   "ok:227f4a4538fdfd77d91321ee7e67ac00ba45f0e50500120297bc1846c9a50672",
+   "invalid",
+   "ok:87023bf8f00db93a02623e7b3a9d9c4f2d54272caba88257874f1db72d9fabb4",
+   "ok:46f7f31dea7d6db31c648da815adf75190a3ff1281dd17f0ad8a43b6d5cfac59",
+   "ok:4fc19de409e816df07cff10929eef155585bef4403693592e84976bdb5ec711e",
+   "ok:b5021e17e876058eb9b697107af4838789facf20b6492b3f4b8ebd53bc2a7a13",
+   "ok:0af9cca032c2c719b6e09c627dbf291a867e67cc960d9a88c1f4ba77da6f352c",
+   "ok:96ce5b28f2efcb67ec1270e52ded38d69df7ba99958c525031b0d212cab8c6c7",
+   "ok:3116921a7fd90250a30d539509637158b3f33e8cbb6410f54a0ddc76b03d4484",
+   "ok:2ef756bc694d9f29bb4437001bccd76dea0056e648017f826045bb26f325f017",
+   "ok:b4eb1389069f3df714195147dfbe61208b6755dd2f7bf847e4d4a87f97e8f466",
+   "ok:7fdd15d6c3737a5e4bec67dfa29984f814f36336489507708f777eef2dfb8d54",
+   "ok:f7037fbae6e92e9ec51a2461c97ce92e8b65a049217cdd394a0fe73366c71337",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:227f4a4538fdfd77d91321ee7e67ac00ba45f0e50500120297bc1846c9a50672",
+   "ok:831a1089bbf7252a4496709f98d7e672e43c10cede4886d79c4dfaf0719cb5d8",
+   "ok:2d10cc751514924a1939d8800b4e7b6b3a6c01b2c1604771b19453433d2e6fa9",
+   "ok:46f7f31dea7d6db31c648da815adf75190a3ff1281dd17f0ad8a43b6d5cfac59",
+   "ok:5acffa7baa081bea11c50439aa49153925822401cc5025e5b7c337bb96b691f0",
+   "ok:033d2018dcfccf3a10e1a475874b8c0fc0abf409413ef408bba43f165068662c",
+   "ok:94eac8911d996040ef63f13755a25c5bfc5f113ef17ddcf4ab63b54f02d4d525",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "invalid",
+   "invalid",
+   "ok:227f4a4538fdfd77d91321ee7e67ac00ba45f0e50500120297bc1846c9a50672",
+   "invalid",
+   "ok:a75a29e3c265514c9ea1525b0bb165f85eecdc3b00c101c0ece4e7deecf6eba6",
+   "ok:a75a29e3c265514c9ea1525b0bb165f85eecdc3b00c101c0ece4e7deecf6eba6",
+   "ok:a75a29e3c265514c9ea1525b0bb165f85eecdc3b00c101c0ece4e7deecf6eba6",
+   "ok:a75a29e3c265514c9ea1525b0bb165f85eecdc3b00c101c0ece4e7deecf6eba6",
+   "ok:a75a29e3c265514c9ea1525b0bb165f85eecdc3b00c101c0ece4e7deecf6eba6",
+   "ok:3519d2d06ed74a97a3ee3cab44c055bce64e991129576f909625effb03e3b50f",
+   "invalid",
+   "invalid",
+   "ok:a75a29e3c265514c9ea1525b0bb165f85eecdc3b00c101c0ece4e7deecf6eba6",
+   "invalid",
+   "ok:8ffc8eff00eb9b6c1645b296786dc7443074d6e03abb643ba8d6c1f6dbce06d6",
+   "ok:64f4c888bcd505eab8583c30299240322f1f17a2ac34202a6209841d1fe57739",
+   "invalid",
+   "invalid",
+   "ok:64f4c888bcd505eab8583c30299240322f1f17a2ac34202a6209841d1fe57739",
+   "invalid",
+   "ok:227f4a4538fdfd77d91321ee7e67ac00ba45f0e50500120297bc1846c9a50672",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:a75a29e3c265514c9ea1525b0bb165f85eecdc3b00c101c0ece4e7deecf6eba6",
+   "ok:a75a29e3c265514c9ea1525b0bb165f85eecdc3b00c101c0ece4e7deecf6eba6",
+   "ok:a75a29e3c265514c9ea1525b0bb165f85eecdc3b00c101c0ece4e7deecf6eba6",
+   "ok:a75a29e3c265514c9ea1525b0bb165f85eecdc3b00c101c0ece4e7deecf6eba6",
+   "ok:a75a29e3c265514c9ea1525b0bb165f85eecdc3b00c101c0ece4e7deecf6eba6",
+   "ok:cba948c21c62f6bae66fdad5ecdfa50330fabe570f4bf42d94ac6e91cb3ca8dc",
+   "ok:227f4a4538fdfd77d91321ee7e67ac00ba45f0e50500120297bc1846c9a50672",
+   "ok:1120b9123c9ea2e75f5b01f9d83c03ab21506a797f99435a22a3d03300b66a7e",
+   "ok:3116921a7fd90250a30d539509637158b3f33e8cbb6410f54a0ddc76b03d4484",
+   "ok:3116921a7fd90250a30d539509637158b3f33e8cbb6410f54a0ddc76b03d4484",
+   "ok:3116921a7fd90250a30d539509637158b3f33e8cbb6410f54a0ddc76b03d4484",
+   "ok:50b7e1bab328cc8a0c07861fcea964d5d2673b49b283821fd989c7569fc574df",
+   "ok:4bc46b5302b94d69ec4065cb10c0a01189958270e33ace34f3728b9e59a64638",
+   "ok:64f4c888bcd505eab8583c30299240322f1f17a2ac34202a6209841d1fe57739",
+   "ok:64f4c888bcd505eab8583c30299240322f1f17a2ac34202a6209841d1fe57739",
+   "ok:831a1089bbf7252a4496709f98d7e672e43c10cede4886d79c4dfaf0719cb5d8",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:87023bf8f00db93a02623e7b3a9d9c4f2d54272caba88257874f1db72d9fabb4",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid"
+  ],
+  "information_spread_enabled": [
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "unsupported",
+   "unsupported",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "unsupported",
+   "unsupported",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "unsupported",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "invalid",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "unsupported",
+   "unsupported",
+   "unsupported",
+   "unsupported",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid"
+  ],
+  "municipality": [
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:79d69b78c168a6a10f8df82190e594a4a028d6cc308b463c593f6268982d2192",
+   "ok:1f454629a51c393bd7efc06489334fbe76b0bd4afadb32140e8205979b69e2b8",
+   "ok:2f8b5659625167ca9c40cd1d4db1ba7a4ee137330be89ca5750a616e10457727",
+   "ok:3b8865790acb7672a5eac5839024b23f90f81b8f0acad0ed902a490841046671",
+   "ok:919591be7d83813a6f88fb5ac674e440d2bae4e2afca4562fbe3f603bd964252",
+   "ok:46383a08f51804ba6a4e4151e8e3eea127389e3d1867dd68893cdf391e018901",
+   "ok:3e87661f6825aad34c14dc81692d7a246bda9e164c903ff51de677187f9fd9f5",
+   "ok:d91d0653bf365b0d08b1718b7fc3007c1f81d9110ae0ea1781f507965439aa0a",
+   "ok:6de2310b0045cf72b889a1c05867b235d293b33d3eb146da1f41b8472bf9c523",
+   "ok:35713110dc386cb264b8c986ca288ac6c1cf42429777a3fb8d98f137ec88365c",
+   "ok:3bbea64b1017a8a3321dbbd8401aaa82db3ec4306b30e4cdbca4eb88e990ca0e",
+   "ok:2a76b03dd2328678b65ab66b07586961c6092d436b9be3796ac4e41e040440f9",
+   "ok:050feb3c753ffb4911d824da2cb69e801a0c1828fb6bf54934f6ad8ed69faf79",
+   "ok:d934596e299a571316b06a723491eb73443ce51edcc48785ed49c9e264257a32",
+   "ok:b21bd05212f5eae8caa9a74c37abd6484f0214acb48fa078852f561a2ca2d70a",
+   "ok:b1b5255f1441fa35e89632673d3753527a02d12b045bbc8b0979651f93a0979f",
+   "ok:b6c53746390813fbe36205a932b0b5ce6312ae663dac90d7c5d70d15f5bd58e3",
+   "ok:ecca567ee43cdbad421e248ec1ff24f90def9d76e1c82bdf75cadc8d327b70a0",
+   "ok:7f3d1e86ac86dd8d4f46cccefb20ccce8ac4b3405d51448df1119848b1831fba",
+   "ok:eee4444c33c4f341defc5635a4aaa8f0852be1eeece4db9b31b837a6126a7006",
+   "ok:0132c23b408320d6cd18b853ef36a2e9917757becd827f4b2bac41856de74005",
+   "ok:3c59959917babea27331db7814266a27104df2be9f166e6d065bf2eb9d8ba816",
+   "ok:70f36ff9e8d6468e276eab38c3f68cf91f7384eef05d50baca9d4b2db991c5b5",
+   "ok:f8c97f03bbab4fdcfb82bfc4ce06ecee103474e92890c92d0c9974d9c6b21c38",
+   "ok:6c93d98de8c8c386556defc83533ba19dfb6e2c75dbe6cc9f5301ee16d2d1bea",
+   "ok:7ce59a70430b62bedab70437cede7b97c723eb17b23093b64f50b25578ed00bf",
+   "ok:1ca9bfbaaea8fbb2b5155a87bb1729a11f8582f0a24bdade2a75959af47795a4",
+   "ok:cbafafc2f7180eefc26662200614c930c5b738d12dd999f73fc9c422f70abab7",
+   "ok:fe66afb8f83e5273d4aaaa50ac4aac5937b1ad83506529ed77ce75fd6a6bd9ed",
+   "ok:f3a0f8b2a8ce66ce2d4b33f83ca141ebe3bd802c7b5b00b23cb804c726cc4356",
+   "ok:a9a725763da4f1adcafa35f73f5800126262a4ddd5e96b579c9f0b84f72c7b1d",
+   "ok:62853c4ff2c386a67708bd09487ea2f78d988def2d4650c382fd8314d6efba5d",
+   "ok:051bac5411f955aa20459ac824350b0f58a110adb84c3390047a3c0e7dfd0f7d",
+   "ok:463b053b877a344bf93c4c142bd295089e764724883d84dbc6dff4fc1a32038c",
+   "ok:51ad3295bb97a93eff94c54bc502b345b5d0035ee6ab429f9b731cb75f1af62a",
+   "ok:9566a1fee3db9e170731370280aea0c574d1f42e46cef597fce71269fca8fabc",
+   "ok:48792b1f9a74c6ab2909f9f2328bc1f7b253243045304c87f2187f5c61b7b7bb",
+   "ok:32fba53edb6bc43479434e7a07ae7290d2d6056f4083c7800132fe2962997dc9",
+   "ok:96c7d97c856e68556c3626a9c3ea77d0c82df4cd83ccac73fabda06f00f14d65",
+   "ok:2c8bbd33b3386d846c21e3806e4165e7e21f2118454a62105997b74093246c53",
+   "ok:627d2ceda83bc5abc4a6c18f30d5257e3f20c4d43d2490a64fc02e5d020860ce",
+   "ok:3924fda5e1a92c77f063fe43a7d712cde99f84008baac60d5b6c0abc7fccdc09",
+   "ok:b1573b78157f7cd9369f6c2ce16cb9942cc129f0fde290f51801ba2c98c41f77",
+   "ok:9aaa94a7bba110721fb2178d4344e08643ba1dd128c43527b512a1a2036c3686",
+   "ok:db2ec4486c80ad300f541ca31b360ee00b5112cd8314da3a29aeb8b65300d4c7",
+   "ok:13409404866bbe16c395f6b1408739f8563af98501c8688ecc700f876e990e14",
+   "ok:c8d91a71d3ff6d4b1a9cf9a694c5e7e7b02dea65eeab08a0d52036bf31496385",
+   "ok:5ff20ec90ea26a56659342b3c3b28dfc54725e22e4b35eea85891e82ea37470e",
+   "ok:7f7f01d733b49e8c038b8e97afce91b0430d0297163ee50b5b09bf6358064a93",
+   "ok:0ea87af894f73af4656ba351fa4b6f251c99e35d323e738879a709925eb2bd22",
+   "ok:6a95d7184d1490dbfba02eea9787bc7b826d2f11c129b82bba6e906bb5893a06",
+   "ok:dc3a717345dab84be4990bd293ef0a24c821a4c8b9659ac5e326e7aa26c6f3a6",
+   "ok:eac7f12486f34642a68a229916ae2ccc5632a91aefe8daeaad220ab000cbd5b4",
+   "ok:4ecbea155b6dd44b808e310391cbde06f7d3a44a5b87a4ba63d57176433df6f3",
+   "ok:67f809cb3b24657d25f3256a1f75b405c2921700e727e0911ea2e958071772d9",
+   "ok:d59dfffd85e2dff9e9e12857b1245dd9c0c29925585378a9f9bd74e2eb381edd",
+   "ok:bc85a26db1c68827fb090a4bb289443248627837aa660cf70279c2782c3b6cef",
+   "ok:33840fd50f3a27f4357def35f459cd9353d370afd6f690af217a13d0f3691462",
+   "ok:e7710b8a5b788c1f0e2366c180dd9135e4a4b695d3cc6bae5752a1752c1c1449",
+   "ok:3ca3ab658b15f158cd62b3b214173c49db98ac85d72bcab2c06badeadd45bbdd",
+   "ok:abbc71aa1745b3156e6e7ad61446ec3682dad4ebe191db533410e326b17db213",
+   "ok:71ac12e21ca147df09fb066852c70f34f0e272aadc46c7a65258a873fead574c",
+   "ok:b6a84dedda7502bcf62d55c5829dd5c664b9b9348d30e4518063a5584be64e43",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid"
+  ],
+  "municipality_code": [
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid"
+  ],
+  "season": [
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "ok:7f32c18b3dc11cee8f24c03f61aac8c174638a5e0a372a0aad2d67828e0e8e8f",
+   "ok:d6d09cd7e295937231b8c432edf5d05cce8c652ea44ee9946aa80345b3814d71",
+   "ok:1400abd953e1f756bbef867586c0f0eed1787d6e0e5507439dc50e7c35d80fd6",
+   "ok:22ad03d5f68854336186d49c4b21fa170fcb1c5023fe8289452a67661a2656e1",
+   "ok:cd93057062a062d63251b2be32ed6040e66f9b74677dc9a797dcee55130bfc72",
+   "ok:74db916ca054a9bbcd0bac45f233277845eaf85bea1b86108f8607e9b477b025",
+   "ok:6d62c25dcdb4c7b7b2b9abd68622aade6373f56e8975a78a33ba03e3167e25bc",
+   "ok:16bb3cda75ff61e01b8ac29d3ff740f6fb5bd859f874704cac9eee8910ec626e",
+   "ok:7a0780137a2ac9a675ab4d1fc792ba74896a1e624ab39764960ca156269de35e",
+   "ok:d2c510f6133f9697c31725290aa25b13a4debdca9b6ac8c6f13298c1382e0f41",
+   "ok:a852fdbb87f38335ef6726b8d095bbac4b7fe5dd12e97873914e0ec582dba3bf",
+   "ok:1586b17bd74c4898531af6401cb2a9fd501752923db09edaeb3f42545b0daee9",
+   "ok:7f6e9f0b52990b631229370860f40fe568ab44b1f352c0e29c342579e19f8653",
+   "ok:ef5b4a4627cd3104f9dc4d80c9fe8f57ceecd8c62f5743710256bf8776d8b661",
+   "ok:8e6926d835cda56b2466098283e8ae7905b753f38c82221138a0b7321fc367d8",
+   "ok:16b53d7f3b34e15a3434c266a3baaa667f8396f96cd86d3ab80e1dc3ed354c81",
+   "ok:4c335983f3aed66e370b61f5a19d2f05ec0a03c6f311f9e7027c0a44cd0fee9e",
+   "ok:95444f6704243ab415563b06e878ea3c425d9fd199dc11ff3c209957fd0e39cf",
+   "ok:5e664c0946dfc431990e44d99edc895e3fa320536c6a75d357f62c039f2ba554",
+   "ok:400a3a6faecb8df9b51347a5d3d8d31073821a00ae4ed66a62ba6598babf616c",
+   "ok:9c880aedb435a30541ac769d49174ce23de8ab0f0c7fc99526eaba2099136145",
+   "ok:91f41348bce0a5ef2c64a93b950136a6dd1e4f2fb9cc717ab37a159abcfac849",
+   "ok:b60962894fe24e04cf81e80b9be53f1ff6a92c82a2a442b6a2365a100e531e5c",
+   "ok:1aea8bb52d889b850e6ab57b8e868f67795c7229d305ecd081ef06136e843006",
+   "ok:5c31905953d6c7da62cfc7be84c4cb35b9d2364c6d1b6f3e4f5509f990c005f4",
+   "ok:79920084ca3661f8e98589f5678463cecb26aa67c685f47a3e6937235693d955",
+   "ok:7278bed67b1a17ec3c9fce49340971e016b77ebe2a7549998a3421dd681b1140",
+   "ok:2cca12c80c93fc4e87c859680321b28b3f53b9a97aab3bd38b33c972098c27db",
+   "ok:bc51454aed202259d5555b4fe0fd4fc28edbd3cacf4147aa5337bee9f354a4d8",
+   "ok:423b96c32a786d0f29b86d3972f8353cadf3c472b86e30b01be3d39ed4ef76c5",
+   "ok:4e8fbbcd51d5b0011e28443b24a679c60aa2b32d80d345047f0ab1c8f641915b",
+   "ok:204e6c7cf3940286adf9bcbe3004fd3949ca90d1942bf908fc6a52779c377349",
+   "ok:7b90c97459acf236d86fba7b6ff99153ef4205cb1330671ad6c789fd295d658c",
+   "ok:42af0957b009db10b450a6a7bfe748d67ccc52314fa3f5c64d15fecda6fa0cf5",
+   "ok:da4c2b8838eaea4adb215328f1aeabf65ffacb07f580e4bc7afddffc934d7d5a",
+   "ok:007925063de5579d62227e44a2f2cbf941537c8778dac73389194306bbbf900f",
+   "ok:4e0866ef43a9bc32652eebc31891a56041afbe3eeba0f7688d8502b6c6b7ff84",
+   "ok:27d420d2acc090b1adf9bf8e1ad1f29eb820e27f5ebabf6761352d01fd3a092e",
+   "ok:3a75926c776f9b1cb80f3f719650a17d673c51a1a0b2d1aea2ff20b12fa05351",
+   "ok:346d6dfecd95e10c808e97d44542200df1f2fddbff7f4bbf159f8f8c491923a3",
+   "ok:62f0f9d47b41a2d4c1dda09960698a22fcc7e3392fa5971b6efb54f02a6822fe",
+   "ok:710ac07af736eb02adfb3626b12bbaf1daac31b06ead8da22a134375041a4408",
+   "ok:5a5ff3db0bbf423398d6065822a4b01a9283ecd9a24ae35f4237af25eb0bfa2d",
+   "ok:7de4beb89bbe32fab9b001254730faad4dfd3fa30ee5a65cd99d3f7c63b8e91d",
+   "ok:064828a9046f587269d7be279ff3c9566336807579d665fd52fa340523a3b02c",
+   "ok:b72c9b66a9a14b1f77186565ef077dc362d2882d3e1fed4c47f2bce31b81082f",
+   "ok:23141634a15e4170d458468aac6b243c0cbfb8d00e45767edc6e83f09890698f",
+   "ok:9ae247f9f2d584a02ec652eef5543b5bf75cfa0297162c4c9dcef170a1295f6c",
+   "ok:53fb777ed45aa1c4cb441da38b31c0a603c90be1ce8a7222c1fb04d4e0138cce",
+   "ok:c5a31a17d542758d34f333e4cc14e6d9a690827a63b754194d49bfed5840c25b",
+   "ok:91ae6b197c6ead21cc9ee0f4f42de96fcc32ad4b426a74522f69d727936bc243",
+   "ok:7460f8d54020301b420baaf0034585b3b38473ea2ea5d982668142d9079b23b9",
+   "ok:8f62400e26f913f51d4c28dbc6d45c9da5c002ac0417a9cf02008d7c95a78f62",
+   "ok:ced40eb4c49798867ea5a24e128f4518daac7925fbe9379d8664bcd7dfb8da8f",
+   "ok:d1b3beac24ecfe5356307fb32ea48d41af65f1a44a6d86c701e7dd39cf9df86d",
+   "ok:bb22f242b647693854259bfa4197039fe8805bd0ed4848a76d874a53c3b21d5f",
+   "ok:45f4678c86af537f3c6b0a6c10ee3f8539fdf46af9e8494ec6cd813ac7e5a94f",
+   "ok:eedeebc1a0d8620e61f7169e9a50da3a64895e009378fabf8288f4cbc0c271bf",
+   "ok:cadc3a07d7f42f31e0797a616bc4a30444a6843bb5714e17415dee78db10d621",
+   "ok:b5e6d59b2b806d9c6962bc3410b7cb0f8e7bef52e828d17ae36b8c4a2f01f89a",
+   "ok:c30b81611a6031d7279c12727489aa8a86ef20e38a5624cb3ad706215cdb582c",
+   "ok:a6ff62d8c28df37da4563092e011f928be311d3c831276d8d8e013453e7edae1",
+   "ok:abeda16d01d729ead1c1e820ad6d6f0a26764c5deecdee57bce2917520889e5a",
+   "ok:ab1c2af103e50a45b6914a4a910daed239a5f12b46e1d014857eabf9aeee0179",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid"
+  ],
+  "seed": [
+   "ok:b86c1969ca0391ebd334864c7b39463c0d10a06ac775d213f8f43899cf11c221",
+   "ok:b4a1459892a321df3fe9cb508b61a38cddd15d27f7109d478c9beb5e1105f329",
+   "ok:b4a1459892a321df3fe9cb508b61a38cddd15d27f7109d478c9beb5e1105f329",
+   "ok:b86c1969ca0391ebd334864c7b39463c0d10a06ac775d213f8f43899cf11c221",
+   "invalid",
+   "ok:2362273cc21de413122cf756f50590a5825a36946a96b3243c6c61a183ae68fa",
+   "ok:30848d19ef26a581c3065bdd5b71c853acc7d2a127108bc0a6cdd3b5c6bda5dd",
+   "ok:a59c83a921dd1f30998c99896f7da26c20aa07deb520249fb8dff203e69cd495",
+   "ok:3b449262c251146411f0ce83ba5de28dd5d76268c572a187a495d434f0eb96e5",
+   "ok:d16e9d7b75dfebcbe564dd1737bab0053893201026e984583e4f3a31c63191bf",
+   "ok:68bb5f1056970df45c5242e19cdc998740bc29de1ff0efa2cfbc89b31b3667ca",
+   "ok:dd9756f79ecf5697d1392ee8dc9b47c7d4bb510f25ee09f08e9f66949933c998",
+   "ok:1ad2c3e92ff906df2312343927680b6e66bd29698826fd23e108cc185158fc17",
+   "ok:ff7af73a1f949a42061ea25ef12ed1fb84dcc91716c5c0027019293e533c38e8",
+   "ok:c3668bc5cde7eec64f2196e832b9d73c465128ce9a90838942c22eeb81ba50d8",
+   "ok:8125bfe00453251c832dc3ec3f3be41667f695cf10493cf8aeaa6aa7825c1f54",
+   "ok:eb25ca847339ef059bd4e5e40022835b5d3294a4961dcbfc02e7dbf8bf94b727",
+   "unsupported",
+   "invalid",
+   "ok:b4a1459892a321df3fe9cb508b61a38cddd15d27f7109d478c9beb5e1105f329",
+   "ok:b4a1459892a321df3fe9cb508b61a38cddd15d27f7109d478c9beb5e1105f329",
+   "ok:b86c1969ca0391ebd334864c7b39463c0d10a06ac775d213f8f43899cf11c221",
+   "invalid",
+   "invalid",
+   "ok:30848d19ef26a581c3065bdd5b71c853acc7d2a127108bc0a6cdd3b5c6bda5dd",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:38d81c8aa2aec8ca48ea8cf5236491edc71221384f76104ea7e88bb2a0870e68",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:b86c1969ca0391ebd334864c7b39463c0d10a06ac775d213f8f43899cf11c221",
+   "ok:b4a1459892a321df3fe9cb508b61a38cddd15d27f7109d478c9beb5e1105f329",
+   "ok:fdce0f7953c85662cfa752feea610a5cbbdbb4858a90792fdb350c803bd00285",
+   "ok:fdce0f7953c85662cfa752feea610a5cbbdbb4858a90792fdb350c803bd00285",
+   "ok:fdce0f7953c85662cfa752feea610a5cbbdbb4858a90792fdb350c803bd00285",
+   "ok:fdce0f7953c85662cfa752feea610a5cbbdbb4858a90792fdb350c803bd00285",
+   "ok:fdce0f7953c85662cfa752feea610a5cbbdbb4858a90792fdb350c803bd00285",
+   "ok:9a1efcb6e2e7e946cb82a51e8803d74077de46d29bd5fca5ca531f2f371a47ff",
+   "ok:b4a1459892a321df3fe9cb508b61a38cddd15d27f7109d478c9beb5e1105f329",
+   "ok:b4a1459892a321df3fe9cb508b61a38cddd15d27f7109d478c9beb5e1105f329",
+   "ok:fdce0f7953c85662cfa752feea610a5cbbdbb4858a90792fdb350c803bd00285",
+   "ok:b4a1459892a321df3fe9cb508b61a38cddd15d27f7109d478c9beb5e1105f329",
+   "ok:1c7fc5a290df57c223aac117510f5d211d969fa2e36cbcfe62015f552d6c7f32",
+   "ok:e967f0bd671e707d56fe936610342a99d2b1d3f842e2c10f7b796db9d7cbd82e",
+   "ok:e967f0bd671e707d56fe936610342a99d2b1d3f842e2c10f7b796db9d7cbd82e",
+   "ok:e967f0bd671e707d56fe936610342a99d2b1d3f842e2c10f7b796db9d7cbd82e",
+   "ok:e967f0bd671e707d56fe936610342a99d2b1d3f842e2c10f7b796db9d7cbd82e",
+   "ok:e967f0bd671e707d56fe936610342a99d2b1d3f842e2c10f7b796db9d7cbd82e",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:fdce0f7953c85662cfa752feea610a5cbbdbb4858a90792fdb350c803bd00285",
+   "invalid",
+   "ok:fdce0f7953c85662cfa752feea610a5cbbdbb4858a90792fdb350c803bd00285",
+   "ok:fdce0f7953c85662cfa752feea610a5cbbdbb4858a90792fdb350c803bd00285",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:f68b7e0ba67ee2686a946dd5ddb5d383250d2c1cd33655b104954d659750776d",
+   "unsupported",
+   "unsupported",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:2362273cc21de413122cf756f50590a5825a36946a96b3243c6c61a183ae68fa",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid"
+  ],
+  "social_propagation_enabled": [
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "unsupported",
+   "unsupported",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "unsupported",
+   "unsupported",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "unsupported",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "invalid",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "unsupported",
+   "unsupported",
+   "unsupported",
+   "unsupported",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid"
+  ],
+  "staff_count": [
+   "ok:fff030432e21ac310809303fe5e81c365094c1192e85cbcafbe237beb599b33f",
+   "ok:76eb6a5fc17942c96b9b462852b987e40c245505874dfe8817883738db0e7a06",
+   "ok:76eb6a5fc17942c96b9b462852b987e40c245505874dfe8817883738db0e7a06",
+   "ok:fff030432e21ac310809303fe5e81c365094c1192e85cbcafbe237beb599b33f",
+   "invalid",
+   "ok:dc6aa68cb14dfac70f9776214e3fe970a1ed49497df0bd7621367222c4262f74",
+   "ok:85d7c49b1676ce16b97dab71fba1a0d34eaa68d57a8226aa7979f17f1586e80d",
+   "ok:1987c918e6bc9ec8506738fe82760aa85d5d592531b34207342ea6098d44c2da",
+   "ok:582739f91673549bb25f8d634079976063c7c217238eb57fda1ca9534ff0def9",
+   "ok:77c4d96cb715325fcd2704e1aa77d8a2ff9e619b0cfadf7b72c16c27e65e6b89",
+   "ok:02e2bcf209d37801e91cdef9b7779f1c6dae63613405aa5c3dcf3a74c350c286",
+   "ok:190f07412c6f61b7848df63fdde20f3cc4757cfbdafbcfc5432eec64999eb0d0",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:76eb6a5fc17942c96b9b462852b987e40c245505874dfe8817883738db0e7a06",
+   "ok:76eb6a5fc17942c96b9b462852b987e40c245505874dfe8817883738db0e7a06",
+   "ok:fff030432e21ac310809303fe5e81c365094c1192e85cbcafbe237beb599b33f",
+   "invalid",
+   "invalid",
+   "ok:85d7c49b1676ce16b97dab71fba1a0d34eaa68d57a8226aa7979f17f1586e80d",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:170885cad55f878174928c4e925aa8bf2e29b0b6d70c92ce9bd8e3c6ea2bd681",
+   "invalid",
+   "invalid",
+   "ok:fff030432e21ac310809303fe5e81c365094c1192e85cbcafbe237beb599b33f",
+   "ok:76eb6a5fc17942c96b9b462852b987e40c245505874dfe8817883738db0e7a06",
+   "ok:67334784edda5732aa30e150a116b0d595abacbf0105a06f20d46297f955f901",
+   "ok:67334784edda5732aa30e150a116b0d595abacbf0105a06f20d46297f955f901",
+   "ok:67334784edda5732aa30e150a116b0d595abacbf0105a06f20d46297f955f901",
+   "ok:67334784edda5732aa30e150a116b0d595abacbf0105a06f20d46297f955f901",
+   "ok:67334784edda5732aa30e150a116b0d595abacbf0105a06f20d46297f955f901",
+   "ok:98241c07fd6d9c681efbae3971e3e1d3d567b4326e8161a66a5b1fc3f07a0b54",
+   "ok:76eb6a5fc17942c96b9b462852b987e40c245505874dfe8817883738db0e7a06",
+   "ok:76eb6a5fc17942c96b9b462852b987e40c245505874dfe8817883738db0e7a06",
+   "ok:67334784edda5732aa30e150a116b0d595abacbf0105a06f20d46297f955f901",
+   "ok:76eb6a5fc17942c96b9b462852b987e40c245505874dfe8817883738db0e7a06",
+   "invalid",
+   "ok:9e1c061df3c572a12874f1ae713cbba976e41d99a12e70e368936ba939381e9d",
+   "ok:9e1c061df3c572a12874f1ae713cbba976e41d99a12e70e368936ba939381e9d",
+   "ok:9e1c061df3c572a12874f1ae713cbba976e41d99a12e70e368936ba939381e9d",
+   "ok:9e1c061df3c572a12874f1ae713cbba976e41d99a12e70e368936ba939381e9d",
+   "ok:9e1c061df3c572a12874f1ae713cbba976e41d99a12e70e368936ba939381e9d",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:67334784edda5732aa30e150a116b0d595abacbf0105a06f20d46297f955f901",
+   "invalid",
+   "ok:67334784edda5732aa30e150a116b0d595abacbf0105a06f20d46297f955f901",
+   "ok:67334784edda5732aa30e150a116b0d595abacbf0105a06f20d46297f955f901",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid",
+   "ok:dc6aa68cb14dfac70f9776214e3fe970a1ed49497df0bd7621367222c4262f74",
+   "invalid",
+   "invalid",
+   "invalid",
+   "invalid"
+  ]
+ },
+ "scalars": [
+  true,
+  false,
+  0,
+  1,
+  -1,
+  2,
+  7,
+  20,
+  21,
+  90,
+  91,
+  100,
+  101,
+  10000,
+  10001,
+  100000,
+  100001,
+  1000000000000000000000000000000,
+  -1000000000000000000000000000000,
+  0.0,
+  -0.0,
+  1.0,
+  1.5,
+  2.5,
+  7.0,
+  0.0003,
+  0.0004,
+  1e-320,
+  1e+20,
+  9.2e+18,
+  9.3e+18,
+  1e+308,
+  null,
+  "",
+  " ",
+  "1",
+  "0",
+  "12",
+  " 12 ",
+  "\t12\n",
+  "12　",
+  " 12",
+  "+5",
+  "-0",
+  "-0.0",
+  "0012",
+  "00",
+  "1_000",
+  "1_0",
+  " 1_0 ",
+  "1_0 ",
+  "+1_0",
+  " +1_0 ",
+  "+_1",
+  "_1",
+  "1_",
+  "1__0",
+  "1_2.0",
+  "12.",
+  "12.0",
+  "12.000",
+  "12.0_0",
+  "12.5",
+  "1.",
+  ".5",
+  "1.e2",
+  "1e2",
+  "1E2",
+  "1e-3",
+  "1.5e1",
+  "1_e1",
+  "1e_1",
+  "1._5",
+  "1e400",
+  "1e-999",
+  "9223372036854775807",
+  "9223372036854775808",
+  "1111111111111111111111111",
+  "inf",
+  "+inf",
+  "nan",
+  "infinity",
+  "0x10",
+  "1 2",
+  "１２",
+  "١٢",
+  "true",
+  "True ",
+  "tRuE",
+  "yes",
+  "Y",
+  "on",
+  "off",
+  "f",
+  "N",
+  "no",
+  "2",
+  [],
+  [
+   1
+  ],
+  {},
+  {
+   "a": 1
+  }
+ ]
+}

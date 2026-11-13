@@ -143,6 +143,24 @@ split PR by PR; its last section sums up what is where.
   accessible toilets, staff or none, facility conditions); `FacilityDesign::dump` is its
   `model_dump(mode="json")`. The coefficients it reads are constants (`facility::coefficients`).
   `core/tests/scenario_facility.rs` checks the cases of `core/tests/data/scenario_facility.json`.
+- **A Scenario made in the browser** (#291, under #285): `scenario/` holds the pieces of
+  `InitialScenarioBuilder` that the browser runs without Python, each a function with typed input
+  and output giving what Python gives. `scenario::request` (#295) is `InitialScenarioRequest`:
+  `InitialScenarioRequest::of_json` / `of_value` validate a request as pydantic's lax mode does and
+  `dump` / `dump_json` / `input_sha256` give its `model_dump(mode="json")`; a field the screen never
+  sends, at a value other than its default, is `Refusal::Unsupported` (`browser_unsupported`).
+  `core/tests/scenario_request.rs` checks the cases of `core/tests/data/scenario_request.json`.
+  `scenario::population::generate_population` (#297) is `SyntheticPopulationGenerator.generate`
+  as the builder calls it (`PopulationInput::for_request`), with `scenario::profiles::generate_profiles`
+  (`SyntheticProfileGenerator.generate`), drawing with `rng::KeyedDraws`; `GeneratedPopulation`
+  gives each part's dump (`dump`, `population_dump`, `ProfileSet::dump`, ...).
+  `core/tests/scenario_population.rs` checks `core/tests/data/scenario_population.json`.
+  `scenario::conditions` (#298) is `with_standard_provisioning` and `Conditions::compile` /
+  `provenance_sources` / `referenced_source_ids` for the initial stock and the standard deliveries;
+  `scenario::connections::connect_generated_context` gives `population_context` and
+  `spatial_constraints` (from the editable plan's dump, without Python's walkability check);
+  `scenario::service_capacity::service_capacity_diagnostic` reads a Scenario's dump.
+  `core/tests/scenario_conditions.rs` checks `core/tests/data/scenario_conditions.json`.
 - **Scenario summary** (#302): `summary::scenario_summary` makes, from the World alone, the
   canonical JSON of `scenario_summary_from_world(world).model_dump(mode="json")`
   (`llm/natural_language.py`), the summary the reading of an intervention's text is given, as

@@ -136,3 +136,11 @@ Pythonの欄のうち、ブラウザーで意味が変わるもの：
 Pythonの索引のcursorは、問い合わせの内容ではなく、Branchの行の範囲（`HistoryIndex.search`で、問い合わせのdigestと同じ名前`scope`に後から入るSQLの条件）と先頭に結び付いています。そのため、同じBranchの別の問い合わせのcursorも受け付けます。ブラウザーも同じにしています。
 
 `native/wasm/tests/node_api_answers.mjs`が、`native/core/tests/data/api_answers.json`のRunで、serverの答えと同じbytesになることを確かめます。
+
+## ブラウザーのPDFレポート（#309）
+
+`POST …/runs/{run}/pdf-report`には、APIキーのないVMと同じ答えを返します（`native/wasm/js/browser_api.mjs`の`pdfReport`）。serverと同じ順に、欄（`branch_ids`と`minute`だけ）、範囲（1つか2つの異なるBranchと0以上の整数分。違えば409の`pdf_invalid_scope`）、Run、各Branch、計算済みの範囲（外なら409の`pdf_uncomputed_range`）を確かめ、通れば409の`pdf_analysis_offline`（「Opusの記録応答またはAPI接続が必要です。」）を返します。APIキーのないVMも分析にOpusが要るのでPDFを作りません。ブラウザーはPDFを作りません。
+
+serverと違うのは、`minute`を`5.0`のように小数の形で書いたときだけです。serverは整数でないとして`pdf_invalid_scope`にしますが、JSのJSONは`5.0`と`5`を区別しないので、ブラウザーは5分として扱います。
+
+読めないJSONの本文には、serverと同じく400の`{"error":"invalid project request"}`を返します（`code`の欄はありません）。

@@ -118,7 +118,8 @@ python benchmarks/wasm_trial_measure.py --bundle sample.shelterproj --pkg wasm-w
 | `GET runs/{run}/replay-frames`（1つの分岐） | 1〜8分のframe |
 | `GET …/history?kind=kpis`、`report`、`llm-status` | `native/wasm/js/api_answers.mjs`（上の段落）。`history`の`kpis`以外の`kind`は「未対応」 |
 | `POST runs/{run}/resume`、`POST runs/{run}/cancel` | Workerで計算する・止める（`native/wasm/js/compute.mjs`、#267、下） |
-| `POST runs/{run}/pdf-report`、`scenario-*`、`compare`、2つの分岐の`replay-frames`、`intervention-*`、`questions`、`/api/v1/projects`以外の道 | 409 `{"error": "ブラウザー版では未対応です（…）", "code": "browser_unsupported"}` |
+| `POST runs/{run}/pdf-report` | serverの確かめの後、APIキーのないVMと同じ409 `pdf_analysis_offline`（#309、[project-persistence.md](project-persistence.md#ブラウザーのpdfレポート309)） |
+| `scenario-*`、`compare`、2つの分岐の`replay-frames`、`intervention-*`、`questions`、`/api/v1/projects`以外の道 | 409 `{"error": "ブラウザー版では未対応です（…）", "code": "browser_unsupported"}` |
 
 分ごとのframeは、分岐ごとに1つ手元に置いたSimulationから作ります。後の分は、手元のSimulationを進めるほうが途中の点から戻すより安いとき（手元の分がその分以前の一番近い点以後か、差が360分以内）は進め、それ以外は`RunReader.seek`で途中の点に戻してから計算します（#251）。再生（`replay-frames`）は手元のSimulationを進めるだけで、戻しません。手元に置くSimulationは2つまでで、置き換えるものは先に解放します（WASMのメモリーは縮まないため）。digestは、Runが持つログのhashの途中の状態に増えた記録だけを足して求めます（上の段落）。
 
@@ -185,7 +186,7 @@ python scripts/serve_static_site.py ../hinanjo-if-site --port 8000
 - サーバーの機能（認証、PDF、LLMの中継）はありません。画面の「従来のデモ」（`/demo`）はサイトに含めず、ブラウザー版の`demo-v2.html`はそのリンクをstyleで隠します。`vendor/`（PDFの表示に使うpdf.js）も、`/demo-v2`が読まないので含めません。
 - 初めて開くと、例のファイル全体を取り寄せてブラウザーのOPFSに保存します（大きさと時間は#266）。OPFSを使えないブラウザー（設定やprivateの窓によっては）では、お知らせ欄に誤りを出します。
 
-サイトが画面の道に正しく答えるかは、`benchmarks/static_site_check.py`で確かめます。サイトを上のserverで配り、PlaywrightのChromiumとFirefoxで、それぞれ空のOPFSから開きます。`/`のリンクから`/demo-v2`を開き、例を読み込み、時刻の帯で分へ飛び、240×で数秒再生し、レポートの頁の時系列のグラフが出ること、ページの誤り・consoleの誤り・お知らせ欄の誤りがないことを確かめます。`--python-projects`に、`scripts/build_project_sample.py`で作ったProjectStore（例のmainと同じScenarioをPythonのProjectの経路で計算したもの）を渡すと、記録、保存した点とその間の分のtimeline、飛んだ後と続く再生の窓、いくつかの`step`とページ送りの時系列、report、llm-statusについて、ブラウザーの答えのJSONとPythonのserverの答え（同じプロセスの`ProjectAPI`）を、値の型まで比べます。違って当然の項目（置き場の大きさ、Branchの`checkpoint_hash`と時系列の`anchor_hash`・cursorの中のanchor、0分の`state_hash`）は除き、除いた項目と理由を結果に書きます。0分の`state_hash`は、PythonのProjectの経路が最初のtickの前の世界を`rng_state`がnullのまま残し、ブラウザーが始める書き出した世界は乱数の初めの状態を持つために違います。世界のほかの部分は同じで、1分からは同じです。PlaywrightとそのbrowserはProjectの依存ではないので、確かめる環境に入れます。計った時間は#266に記録しています。
+サイトが画面の道に正しく答えるかは、`benchmarks/static_site_check.py`で確かめます。サイトを上のserverで配り、PlaywrightのChromiumとFirefoxで、それぞれ空のOPFSから開きます。`/`のリンクから`/demo-v2`を開き、例を読み込み、時刻の帯で分へ飛び、240×で数秒再生し、レポートの頁の時系列のグラフが出ること、ページの誤り・consoleの誤り・お知らせ欄の誤りがないことを確かめます。`--python-projects`に、`scripts/build_project_sample.py`で作ったProjectStore（例のmainと同じScenarioをPythonのProjectの経路で計算したもの）を渡すと、記録、保存した点とその間の分のtimeline、飛んだ後と続く再生の窓、いくつかの`step`とページ送りの時系列、report、llm-statusについて、ブラウザーの答えのJSONとPythonのserverの答え（同じプロセスの`ProjectAPI`）を、値の型まで比べます。違って当然の項目（置き場の大きさ、Branchの`checkpoint_hash`と時系列の`anchor_hash`・cursorの中のanchor）は除き、除いた項目と理由を結果に書きます。0分の`state_hash`も比べます。Scenarioから作った世界は、0分から乱数の名前（`rng_state`、`CounterRNG`の`algorithm`と`seed`）を持つので（#281）、PythonのProjectの経路の最初の保存と、ブラウザーが始める書き出した世界は同じです。PlaywrightとそのbrowserはProjectの依存ではないので、確かめる環境に入れます。計った時間は#266に記録しています。
 
 `--compute pieces full`を付けると、ブラウザーで計算するRunも確かめます（#267）。どちらも空のOPFSから始めます。`pieces`は、「終了まで計算」を押し、1日を過ぎたら止め、続け、3日を過ぎたらページを閉じ、開き直して`interrupted`と先頭の分を確かめ、最後まで続けます。`full`は7日を一度に計算して時間を計ります。計算中に画面の時計が進むこと、計算したRunで分へ飛ぶ・再生する・時系列のグラフが出ること、1分・4321分・10080分のframeとKPIの時系列が例のRunとRunのID以外同じ（同じScenarioとseedから同じ世界になる）ことを確かめます。計った時間は#267に記録しています。
 
@@ -193,6 +194,25 @@ python scripts/serve_static_site.py ../hinanjo-if-site --port 8000
 SHELTERSIM_LLM_MODE=offline python scripts/build_project_sample.py sample-projects
 python benchmarks/static_site_check.py --site ../hinanjo-if-site --python-projects sample-projects --output site-check.json
 python benchmarks/static_site_check.py --site ../hinanjo-if-site --compute pieces full --output compute-check.json
+~~~
+
+画面の操作を最初から最後まで通し、APIキーのないPythonのserverと比べるのは、`benchmarks/static_site_e2e.py`です（#311）。PlaywrightのChromiumとFirefoxで、それぞれ空のOPFSから、次の5つの段を人と同じように画面で行います。
+
+1. シナリオ（scenario）：`/demo-v2?project=e2e#scenario`で「例文を使う」→プレビュー→承認（Run）、条件の入力の1例→プレビュー→承認（2つ目のRun）。続けて、1つ目のScenarioを別のIDで`POST runs`し、そのIDへ別のScenarioを`POST runs`します（409 `run_id_conflict`）。
+2. 計算（compute）：1つ目のRunを画面で最後まで計算します。1つ目のbrowserは一度に、2つ目は1日で止め、続けて最後までです（`--modes`）。
+3. 介入（intervention）：4日目14:00（5160分）で、offlineの読み取りが作る作用（職員の追加と、画面のZoneの選択肢での選び直し、トイレの追加、断水、施設の停止）と読めない文をプレビューし、「Day 4 14:00 toilet_01 outage」を適用して、子の分岐を最後まで計算します。
+4. 比較（compare）：画面の比較と、いくつかの分の`compare`、2つの分岐の再生の窓です。
+5. 振り返り（report）：レポートの頁（report、evidence、llm-status、指標の時系列）、質問（APIキーなしの決まった答え）、PDF（offlineのVMと同じ409 `pdf_analysis_offline`）です。
+
+各段で、ブラウザーの答え（画面の要求は`fetch`を包んで捕まえ、確かめの要求はページから送ります）を、同じ操作へのPythonのserverの答え（同じプロセスの`ProjectAPI`、`--work`の下の自分のProjectStore、`server.py`と同じ直列化）と、値の型まで比べます。Python側は同じ操作を同じ順に一度だけ行い、その答えを2つのbrowserで使います。比べられるように固定するもの：画面の`crypto.randomUUID`（RunとBranchのID）、地域の調べの時刻（Pythonの`datetime.now`と、ブラウザーのAPIのWorkerの`Date`）、国土地理院の住所検索（両方ともシナリオのコーパス`tests/support/scenario_corpus.py`の記録した答え）。避難所のCSVは、サイトを作ったときと同じファイルを`--shelter-csv`で渡します（なければコーパスの合成のもの）。違って当然の項目（previewとdraftのID、`checkpoint_hash`、質問の`context_id`の乱数の部分、`static_site_check.py`の除く項目）と理由は、結果に書きます。
+
+ブラウザーが`browser_unsupported`（409）で答える段は「まだない（not_available）」として止め、それを要る段を飛ばします。1の段がまだないときは、2〜5の段をサイトの例で行います（`--python-projects`に`scripts/build_project_sample.py`のProjectStoreを渡します）。比べて違う所があれば終了コードは1です。`--require-all`を付けると、すべての段がすべてのbrowserで通ったときだけ0です。`--work`はPython側の置き場で、Pythonのコード、native拡張、操作の入力と確かめる道（`PYTHON_SIDE_VERSION`を含む）が同じ間は答えを使い回します（`--fresh`でやり直します）。`--url`は公開したサイトを画面だけで確かめます（Pythonと比べず、固定もしません）。
+
+~~~shell
+systemd-run --user --scope -q -p MemoryMax=8G -p MemorySwapMax=0 \
+  python benchmarks/static_site_e2e.py --site ../hinanjo-if-site --work e2e-work \
+  --python-projects sample-projects --output e2e.json --screenshots e2e-shots
+python benchmarks/static_site_e2e.py --url https://hinanjo-if.water7.workers.dev --output e2e-url.json
 ~~~
 
 ## 設定

@@ -4,3 +4,9 @@
 //! The builder (#299) joins them.
 
 pub mod facility;
+pub mod conditions;
+pub mod connections;
+pub mod population;
+pub mod profiles;
+pub mod request;
+pub mod service_capacity;
