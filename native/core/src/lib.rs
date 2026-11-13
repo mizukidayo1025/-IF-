@@ -26,6 +26,7 @@ pub mod load;
 pub mod mathx;
 pub mod parallel;
 pub mod plain;
+pub mod program;
 pub mod rng;
 pub mod routes;
 pub mod row;
