@@ -275,6 +275,8 @@ pub fn parse_configs<T>(world: &World, parse: impl FnOnce(&V) -> read::Read<T>) 
 pub struct Derived {
     /// The configs of the two most recent stamps, the latest first.
     configs: [Option<Arc<Configs>>; 2],
+    /// The care records the world's frames read so far (`frame::CareMemo`, #264).
+    pub care_history: Option<crate::frame::CareMemo>,
 }
 
 impl Derived {

@@ -130,9 +130,12 @@ split PR by PR; its last section sums up what is where.
   the waits' routes come through the `Host`, as for the metrics phase; the log's records whose bytes
   Python took come from `Host::read_records`. Without a `state_hash` from the caller, the frame's
   is `canonical::state_digest` (`world.state_digest()`, the hash tree of a Checkpoint v2), whose log
-  is streamed into the hasher a batch of records at a time. The PyO3 entry is
-  `sheltersim_native.rules.frame.world_frame`; `PlainRun::frame` and `PlainRun::state_digest` serve
-  the browser (`Simulation.frame`, `Simulation.stateDigest`). `core/tests/frames.rs` and
+  is streamed into the hasher a batch of records at a time. Each person's care records are kept in
+  the world's `derived` (`frame::CareMemo`), so a frame reads only the records since the last one.
+  The PyO3 entry is `sheltersim_native.rules.frame.world_frame`, which `inspection/frames.py`'s
+  `world_frame` and `world_frame_bytes` call (the native path's `timeline`, `replay-frames` and
+  `compare`); `PlainRun::frame` and `PlainRun::state_digest` serve the browser
+  (`Simulation.frame`, `Simulation.stateDigest`). `core/tests/frames.rs` and
   `wasm/tests/node_frames.mjs` check the worlds of `core/tests/data/frames.json`.
 - **Saved points** (#251, for the browser only; not Python's Checkpoints): `PlainRun::saved_point`
   writes the Run at a minute as `archive::SavedPoint`, a versioned binary of the world without its

@@ -42,12 +42,19 @@ class FrameCache:
             raise StorageError("invalid checkpoint hash for frame cache")
         return self.directory / f"{checkpoint_hash}.json.gz"
 
-    def put(self, checkpoint_hash: str, frame: dict[str, Any]) -> bool:
-        """Best effort; returns False when the cache would exceed storage capacity."""
+    def put(self, checkpoint_hash: str, frame: dict[str, Any] | bytes) -> bool:
+        """Best effort; returns False when the cache would exceed storage capacity.
+
+        The frame is a dict, or its canonical JSON (`world_frame_bytes`), which is kept as it is.
+        """
         path = self._file(checkpoint_hash)
         if path.exists():
             return True
-        encoded_frame = canonical_bytes(frame)
+        if isinstance(frame, bytes):
+            # The document's frame is written as these bytes (`CanonicalEncoder.remember`).
+            encoded_frame, frame = frame, {}
+        else:
+            encoded_frame = canonical_bytes(frame)
         document = {
             "schema_version": 1,
             "projection_version": FRAME_PROJECTION_VERSION,

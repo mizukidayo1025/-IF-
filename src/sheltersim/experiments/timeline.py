@@ -465,11 +465,11 @@ class TimelineStore:
         The checkpoint is already durable; a cache failure only means readers
         reconstruct the frame as before.
         """
-        from sheltersim.inspection.frames import world_frame
+        from sheltersim.inspection.frames import world_frame_bytes
         from sheltersim.storage.frames import FrameCache
 
         try:
-            frame = world_frame(
+            frame = world_frame_bytes(
                 runtime.world,
                 run_id=self.run_id,
                 branch_id=runtime.branch_id,
