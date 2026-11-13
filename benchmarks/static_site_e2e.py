@@ -321,11 +321,53 @@ def python_pins(directory: Path, shelter_csv: Path | None) -> Iterator[None]:
             corpus.SHELTER_CSV = saved
 
 
-def pin_browser(context: Any) -> None:
-    """The browser's research pinned as Python's: the API Worker's `Date` at NOW, and the GSI
-    address search answered from the same recordings (in the service's GeoJSON form)."""
+def python_shelter_index(shelter_csv: Path | None) -> dict[str, Any] | None:
+    """The shelter index (#300) of the CSV Python's research reads under python_pins: what the
+    site's `/browser/gsi-shelter-index.json` holds when built from the same CSV, but for the time
+    and HTTP metadata of its retrieval. None before the browser's research is on main."""
+    from sheltersim.region import providers
+
+    if not hasattr(providers, "gsi_shelter_index"):
+        return None
+    with tempfile.TemporaryDirectory(prefix="sheltersim-e2e-index-") as scratch:
+        with python_pins(Path(scratch), shelter_csv):
+            snapshot = providers._get_gsi_shelter_snapshot(providers._GSI_SHELTER_CSV_URL)
+            return providers.gsi_shelter_index(snapshot)
+
+
+# The fields of the site's shelter index that tell when and how the CSV was retrieved: the site's
+# are its build's, Python's its research's (pinned), so the browser is given Python's.
+INDEX_RETRIEVAL = ("retrieved_at", "etag", "last_modified")
+
+
+def pin_browser(context: Any, index: dict[str, Any] | None, notes: list[str]) -> None:
+    """The browser's research pinned as Python's: the API Worker's `Date` at NOW, the GSI
+    address search answered from the same recordings (in the service's GeoJSON form), and the
+    site's shelter index with Python's retrieval time and metadata (`index`, when the site's is
+    of the same CSV; otherwise a note says so and the site's is served as it is)."""
     corpus = _corpus()
     now_ms = int(corpus.NOW.timestamp() * 1000)
+
+    def shelters(route: Any) -> None:
+        response = route.fetch()
+        try:
+            document = json.loads(response.text())
+        except ValueError:
+            document = None
+        if not isinstance(document, dict) or index is None:
+            route.fulfill(response=response)
+            return
+        if document.get("sha256") != index.get("sha256"):
+            note = (
+                "the site's shelter index is of another CSV than Python's research reads: build "
+                "the site with --shelter-csv of the same file"
+            )
+            if note not in notes:
+                notes.append(note)
+            route.fulfill(response=response)
+            return
+        pinned = {**document, **{key: index.get(key) for key in INDEX_RETRIEVAL}}
+        route.fulfill(response=response, body=json.dumps(pinned, ensure_ascii=False))
 
     def worker(route: Any) -> None:
         response = route.fetch()
@@ -348,6 +390,7 @@ def pin_browser(context: Any) -> None:
         )
 
     context.route("**/browser/api_worker.mjs", worker)
+    context.route("**/browser/gsi-shelter-index.json", shelters)
     context.route("https://msearch.gsi.go.jp/**", address)
 
 
@@ -629,7 +672,7 @@ class PythonSide:
         try:
             if method == "GET":
                 payload = api.get(parts, parse_qs(query))
-            elif len(parts) == 5 and parts[1] == "runs" and parts[4] == "pdf-report":
+            elif len(parts) == 4 and parts[1] == "runs" and parts[3] == "pdf-report":
                 pdf = api.pdf_reports.export(parts[0], parts[2], body)
                 return 200, f"<application/pdf, {len(pdf)} bytes>"
             else:
@@ -1510,7 +1553,13 @@ def check(
             )
             for subject in (e2e_subject(), sample_subject())
         }
-    results: dict[str, Any] = {"base": base, "browsers": {}}
+    results: dict[str, Any] = {"base": base, "browsers": {}, "notes": []}
+    shelter_index = None
+    if python is not None:
+        try:
+            shelter_index = python_shelter_index(shelter_csv)
+        except RuntimeError as error:
+            results["notes"].append(f"no shelter index: {error}")
     try:
         with sync_playwright() as playwright:
             for index, name in enumerate(browsers):
@@ -1523,7 +1572,7 @@ def check(
                     context.add_init_script(PAGE_INIT)
                     if python is not None:
                         try:
-                            pin_browser(context)
+                            pin_browser(context, shelter_index, results["notes"])
                             results["pins"] = "pinned"
                         except RuntimeError as error:
                             # Until the corpus's tooling is on main; the scenario stage then
@@ -1589,6 +1638,12 @@ def main() -> int:
     where = parser.add_mutually_exclusive_group(required=True)
     where.add_argument("--site", type=Path, help="the static site to serve and compare")
     where.add_argument("--url", help="a deployed site: screen-only checks")
+    where.add_argument(
+        "--write-corpus-csv",
+        type=Path,
+        metavar="PATH",
+        help="write the corpus's synthetic shelter CSV (build the site with it) and exit",
+    )
     parser.add_argument("--work", type=Path, help="the Python side's directory (with --site)")
     parser.add_argument("--python-projects", type=Path, help="the Python sample's ProjectStore")
     parser.add_argument("--shelter-csv", type=Path, help="the shelter CSV the site was built with")
@@ -1602,6 +1657,9 @@ def main() -> int:
     parser.add_argument("--fresh", action="store_true", help="do the Python side again")
     parser.add_argument("--require-all", action="store_true", help="fail unless every stage passed")
     arguments = parser.parse_args()
+    if arguments.write_corpus_csv:
+        arguments.write_corpus_csv.write_text(_corpus().SHELTER_CSV, encoding="utf-8")
+        return 0
     if arguments.site and arguments.work is None:
         parser.error("--site needs --work (the Python side's directory)")
     if arguments.screenshots:
@@ -1638,6 +1696,8 @@ def main() -> int:
             )
     if results["console_errors"]:
         print(f"console/page errors: {results['console_errors'][:10]}")
+    for note in results["notes"]:
+        print(f"note: {note}")
     verdict = (
         "all stages passed"
         if results["all_passed"]
