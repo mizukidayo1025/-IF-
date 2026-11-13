@@ -4,10 +4,16 @@
 //! by ID, the queue in its order, the log's records as it keeps them, the fields and `model_state`
 //! by name); the document joins them in the order of their keys, with `rng_state`, which the core's
 //! World does not hold, given by the caller.
+//!
+//! The digests (`digests`, `run_digests`) read the log a record at a time (`log_digest`) and make
+//! no copy of it: after 7 days of 100 people the log's JSON is about 300 MiB, and a copy of it,
+//! grown by doubling, took the WASM memory from 500 MiB to 1.59 GiB (#252).
 
 use std::sync::Arc;
 
-use crate::checkpoint::sha256_hex;
+use sha2::{Digest, Sha256};
+
+use crate::checkpoint::{hex, sha256_hex};
 use crate::entities::{EntityRow, Table};
 use crate::error::{Error, Result};
 use crate::json::Encoder;
@@ -46,6 +52,12 @@ fn int(value: i64) -> Vec<u8> {
 /// The canonical JSON of each top-level key of the world's document but `rng_state`, in the order
 /// of the keys.
 pub fn parts(world: &World) -> Result<Vec<(&'static str, Vec<u8>)>> {
+    parts_with(world, true)
+}
+
+/// `parts`, but `event_log`'s is empty unless `with_log`: the log is most of a long Run's
+/// document, and a digest of it reads it a record at a time instead (`log_digest`, #252).
+fn parts_with(world: &World, with_log: bool) -> Result<Vec<(&'static str, Vec<u8>)>> {
     let version = world.schema_version()?;
     let scalars = world.scalars()?;
     let mut scenario = Encoder::with_capacity(64);
@@ -76,16 +88,10 @@ pub fn parts(world: &World) -> Result<Vec<(&'static str, Vec<u8>)>> {
     }
     pending.out.push(b']');
     drop(queue);
-    let log = world.log()?;
-    let mut records = vec![b'['];
-    for index in 0..log.len() {
-        if index > 0 {
-            records.push(b',');
-        }
-        records.extend_from_slice(log.written(index).ok_or_else(|| Error::unsupported("a record without its bytes"))?);
+    let mut records = Vec::new();
+    if with_log {
+        write_log(world, |raw| records.extend_from_slice(raw))?;
     }
-    records.push(b']');
-    drop(log);
     let mut names: Vec<&Arc<str>> = Vec::new();
     for name in world.slots.names() {
         let Some(slot) = world.slots.get(name) else { continue };
@@ -129,10 +135,45 @@ pub fn parts(world: &World) -> Result<Vec<(&'static str, Vec<u8>)>> {
     ])
 }
 
+/// The canonical JSON of the log's records, `[record,record,...]`, given to `out` a piece at a
+/// time.
+fn write_log(world: &World, mut out: impl FnMut(&[u8])) -> Result<()> {
+    let log = world.log()?;
+    out(b"[");
+    for index in 0..log.len() {
+        if index > 0 {
+            out(b",");
+        }
+        out(log.written(index).ok_or_else(|| Error::unsupported("a record without its bytes"))?);
+    }
+    out(b"]");
+    Ok(())
+}
+
+/// The sha256 of the `event_log` part, in hex, read a record at a time: no copy of the whole log
+/// is made (#252).
+pub fn log_digest(world: &World) -> Result<String> {
+    let mut hasher = Sha256::new();
+    write_log(world, |raw| hasher.update(raw))?;
+    Ok(hex(&hasher.finalize()))
+}
+
+/// Each part but `event_log` as `parts` gives it, and the digest of `event_log` (`log_digest`) in
+/// its place: for the digests, which need no copy of the log.
+fn digested_parts(world: &World) -> Result<(Vec<(&'static str, Vec<u8>)>, String)> {
+    let mut all = parts_with(world, false)?;
+    all.retain(|(name, _)| *name != "event_log");
+    Ok((all, log_digest(world)?))
+}
+
 /// The sha256 of each part, in hex, by its name (the digests `tests/support/core_tick.py` writes
-/// for the parts it covers).
+/// for the parts it covers), in the order of `parts`.
 pub fn digests(world: &World) -> Result<Vec<(&'static str, String)>> {
-    Ok(parts(world)?.into_iter().map(|(name, raw)| (name, sha256_hex(&raw))).collect())
+    let (all, log) = digested_parts(world)?;
+    let mut digests: Vec<(&'static str, String)> = all.into_iter().map(|(name, raw)| (name, sha256_hex(&raw))).collect();
+    let at = digests.iter().position(|(name, _)| *name > "event_log").unwrap_or(digests.len());
+    digests.insert(at, ("event_log", log));
+    Ok(digests)
 }
 
 /// The parts `tests/support/core_tick.py` digests a Run's world by (`PARTS`), in its order; the
@@ -161,14 +202,15 @@ const SCALARS: [&str; 5] = ["schema_version", "scenario_id", "seed", "duration_m
 /// The digests of a Run's world as `tests/support/core_tick.py` writes them (`world_digests`):
 /// each part of `RUN_PARTS`, then `scalars`.
 pub fn run_digests(world: &World) -> Result<Vec<(&'static str, String)>> {
-    let mut all = parts(world)?;
+    let (mut all, mut log) = digested_parts(world)?;
     let mut take = |name: &str| -> Result<Vec<u8>> {
         let at = all.iter().position(|(part, _)| *part == name).ok_or_else(|| Error::unsupported(format!("no part {name}")))?;
         Ok(all.remove(at).1)
     };
     let mut digests = Vec::with_capacity(RUN_PARTS.len() + 1);
     for name in RUN_PARTS {
-        digests.push((name, sha256_hex(&take(name)?)));
+        let digest = if name == "event_log" { std::mem::take(&mut log) } else { sha256_hex(&take(name)?) };
+        digests.push((name, digest));
     }
     let mut scalars = vec![b'['];
     for (index, name) in SCALARS.into_iter().enumerate() {
