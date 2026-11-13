@@ -2,9 +2,9 @@
 path gives on them.
 
 For each size (people) of the trial Scenario, the generated one of the Project screen
-(`gate_scenarios.generated`, one day, seed 2026), this builds the world at minute 0 as
-`run_scenario` sets it up and writes what the core's loader reads of it
-(`sheltersim.core.world_export.export_world`) to `DIR/trial-<people>.json`. Then it runs that world
+(`gate_scenarios.generated`, one day unless `--minutes`, seed 2026), this builds the world at
+minute 0 as `run_scenario` sets it up and writes what the core's loader reads of it
+(`sheltersim.core.world_export.export_world`) to `DIR/<name>.json`. Then it runs that world
 through `TickEngine` with the native kernel for the whole day and writes, to `DIR/expected.json`,
 the digests the browser's run must give (those of `tests/support/core_tick.py`: each part of the
 world's canonical document and the metric snapshots), with the time the ticks took. Unless
@@ -13,7 +13,12 @@ world's canonical document and the metric snapshots), with the time the ticks to
 of the Run's directory on disk (Checkpoints and history), and whether its last world has the
 native path's digests.
 
-    python benchmarks/wasm_trial_worlds.py --output DIR [--sizes 20 100] [--skip-project]
+    python benchmarks/wasm_trial_worlds.py --output DIR [--sizes 20 100] [--minutes 1440]
+        [--skip-project]
+
+`--minutes` sets the Scenario's length (one day by default; 10080 for the seven days of #252). A
+world of one day is `trial-<people>`; one of whole days is `trial-<people>-<days>d`, and any other
+`trial-<people>-<minutes>m`.
 
 Run from the repository root with src on PYTHONPATH, the native extension built and
 SHELTERSIM_LLM_MODE=offline. The files are generated; they belong outside the repository.
@@ -40,6 +45,15 @@ SEED = 2026
 
 def _bytes(directory: Path) -> int:
     return sum(path.stat().st_size for path in directory.rglob("*") if path.is_file())
+
+
+def world_name(people: int, minutes: int) -> str:
+    """The name of the trial world of `people` and `minutes` (see the module's docstring)."""
+    if minutes == MINUTES:
+        return f"trial-{people}"
+    if minutes % MINUTES == 0:
+        return f"trial-{people}-{minutes // MINUTES}d"
+    return f"trial-{people}-{minutes}m"
 
 
 def native(scenario: Any, output: Path, name: str) -> dict[str, Any]:
@@ -112,6 +126,7 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--output", type=Path, required=True, help="directory to write into")
     parser.add_argument("--sizes", type=int, nargs="+", default=list(SIZES), help="people")
+    parser.add_argument("--minutes", type=int, default=MINUTES, help="the Scenario's length")
     parser.add_argument("--skip-project", action="store_true", help="skip the Project route")
     args = parser.parse_args(argv)
     sys.path.insert(0, str(ROOT / "tests"))
@@ -126,8 +141,8 @@ def main(argv: list[str] | None = None) -> None:
         tempfile.tempdir = work
         try:
             for people in args.sizes:
-                name = f"trial-{people}"
-                scenario = generated(evacuees=people, minutes=MINUTES, seed=SEED)
+                name = world_name(people, args.minutes)
+                scenario = generated(evacuees=people, minutes=args.minutes, seed=SEED)
                 result = {"evacuees": people, **native(scenario, args.output, name)}
                 if not args.skip_project:
                     result["project"] = project(
@@ -138,7 +153,11 @@ def main(argv: list[str] | None = None) -> None:
         finally:
             tempfile.tempdir = None
     document = {
-        "scenario": {"generator": "gate_scenarios.generated", "minutes": MINUTES, "seed": SEED},
+        "scenario": {
+            "generator": "gate_scenarios.generated",
+            "minutes": args.minutes,
+            "seed": SEED,
+        },
         "platform": {"python": platform.python_version(), "machine": platform.machine()},
         "worlds": worlds,
     }
