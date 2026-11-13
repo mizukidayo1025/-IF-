@@ -123,6 +123,12 @@ split PR by PR; its last section sums up what is where.
   without the feature `parallel` (one thread, decision 5). `wasm/tests/node_digests.mjs` runs the
   worlds of `core/tests/data/tick_core.json` in Node and checks the native path's digests; CI's
   lint job runs it (docs/development.md has the commands).
+- **A Project in the browser** (#265): `wasm/js/project_store.mjs` keeps the Project, Run and
+  Branch records beside each branch's stored Run (`wasm/js/run_store.mjs`, #252), answers the
+  Project routes of the screen with the Python server's JSON, and writes and reads one versioned
+  bundle file of a Project (`sheltersim-project-bundle`, version 1). `wasm/tools/build_project_bundle.mjs`
+  is the Node half of `scripts/build_browser_sample.py`; `wasm/tests/node_project_store.mjs`
+  checks a bundle's round trip and its refusals in CI.
 - **Out of the core** (decision 4): building a world from a Scenario and restoring a Checkpoint
   stay in Python and the wrapper. The whole-world validation texts (E6) and the pydantic
   contracts (E15) stay Python behind `Host`; a host without Python passes the validation and

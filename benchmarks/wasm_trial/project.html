@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Projectの書き出しと読み込み</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, sans-serif; margin: 16px; line-height: 1.5; }
+  pre { white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>Projectの書き出しと読み込み（#265）</h1>
+<p><code>?world=trial-20</code>：Pythonで書き出した世界をWorkerのWASMで計算してOPFSのProjectに残し、1つのファイルに書き出し、OPFSを消してから読み込み、digestと答えが同じかを確かめます。
+<code>?bundle=sample.shelterproj</code>：道具が作った計算済みの例を、空のOPFSに読み込みます。</p>
+<p id="status">準備中…</p>
+<pre id="result"></pre>
+<script type="module">
+// Served with, next to it: pkg/ (`wasm-bindgen --target web`), js/ (native/wasm/js),
+// project_worker.mjs, and the worlds of benchmarks/wasm_trial_worlds.py (expected.json) or a
+// bundle. benchmarks/wasm_trial_measure.py --project or --bundle serves it and reads
+// `window.projectResult`.
+const params = new URLSearchParams(location.search);
+const status = document.getElementById("status");
+
+async function main() {
+  const bundle = params.get("bundle");
+  let message = { mode: "bundle", bundleUrl: bundle && new URL(bundle, location.href).href };
+  let expected = null;
+  if (!bundle) {
+    const worlds = (await (await fetch("expected.json")).json()).worlds;
+    const name = params.get("world") ?? Object.keys(worlds)[0];
+    expected = { name, ...worlds[name] };
+    message = { mode: "roundtrip", exportUrl: new URL(worlds[name].file, location.href).href, world: null, ticks: Number(params.get("ticks") ?? "1440") };
+  }
+  const worker = new Worker(new URL("./project_worker.mjs", import.meta.url), { type: "module" });
+  const result = await new Promise((resolve) => {
+    worker.onmessage = ({ data }) => {
+      if (data.type === "progress") status.textContent = `${data.minute} / ${data.duration} 分`;
+      else resolve(data);
+    };
+    worker.onerror = (event) => resolve({ type: "error", message: event.message });
+    worker.postMessage({ ...message, pkg: new URL("./pkg/sheltersim_wasm.js", location.href).href, keep: params.get("keep") === "1" });
+  });
+  worker.terminate();
+  if (result.type === "error") throw new Error(result.message);
+  const problems = [];
+  if (expected) {
+    if (!result.verified) problems.push("the imported Run is not verified");
+    if (!result.sameAnswers) problems.push("the routes answer otherwise after the import");
+    if (result.filesWhenEmptied !== 0) problems.push("the store was not empty before the import");
+    for (const [part, digest] of Object.entries(result.partsComputed)) {
+      if (result.partsImported[part] !== digest) problems.push(`imported ${part} differs`);
+    }
+    if (result.metricsImported !== result.metricsComputed) problems.push("imported metrics differ");
+    for (const [part, digest] of Object.entries(expected.expected.world)) {
+      if (part !== "scalars" && result.partsImported[part] !== digest) problems.push(`imported ${part} is not the native path's`);
+    }
+    if (result.metricsImported !== expected.expected.metrics) problems.push("imported metrics are not the native path's");
+  } else if (!result.branches.every((branch) => branch.verified)) {
+    problems.push("a branch of the bundle is not verified");
+  }
+  window.projectResult = { userAgent: navigator.userAgent, world: expected?.name ?? null, ...result, problems };
+  document.getElementById("result").textContent = JSON.stringify(window.projectResult, null, 1);
+  status.textContent = problems.length === 0 ? "完了：一致" : "完了：不一致";
+}
+
+main().catch((error) => {
+  status.textContent = `誤り: ${error}`;
+  window.projectResult = { error: String(error) };
+});
+</script>
+</body>
+</html>
