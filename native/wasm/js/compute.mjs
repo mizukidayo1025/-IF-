@@ -409,31 +409,39 @@ export class Computing {
       console.error(error);
       job.error = String(error?.message ?? error);
     }
+    // The status, the end of the job and its lock go together, in one task of the queue (as
+    // Python's `_advance` ends under its lock), so a request after it may start the next one.
+    const end = () => {
+      if (this.jobs.get(job.key) !== job) return;
+      this.jobs.delete(job.key);
+      job.release();
+    };
     await this.api
       .enqueue(async () => {
-        state?.simulation.free();
-        const { tree } = this.api;
-        const record = await store.branchRecord(tree, job.projectId, job.runId, job.branchId);
-        await store.writeBranch(tree, job.projectId, job.runId, { ...record, status });
-        await store.setRunStatus(tree, job.projectId, job.runId, status);
-        this.done.push({
-          branch: job.key,
-          from: job.from,
-          target: job.target,
-          reached: record.computed_until,
-          status,
-          error: job.error ?? null,
-          ms: performance.now() - started,
-          tickMs: state?.tickMs ?? 0,
-          saveMs: state?.saveMs ?? 0,
-          memoryBytes: this.api.wasm.memoryBytes(),
-        });
+        try {
+          state?.simulation.free();
+          const { tree } = this.api;
+          const record = await store.branchRecord(tree, job.projectId, job.runId, job.branchId);
+          await store.writeBranch(tree, job.projectId, job.runId, { ...record, status });
+          await store.setRunStatus(tree, job.projectId, job.runId, status);
+          this.done.push({
+            branch: job.key,
+            from: job.from,
+            target: job.target,
+            reached: record.computed_until,
+            status,
+            error: job.error ?? null,
+            ms: performance.now() - started,
+            tickMs: state?.tickMs ?? 0,
+            saveMs: state?.saveMs ?? 0,
+            memoryBytes: this.api.wasm.memoryBytes(),
+          });
+        } finally {
+          end();
+        }
       })
-      .catch((error) => console.error(error))
-      .finally(() => {
-        this.jobs.delete(job.key);
-        job.release();
-      });
+      .catch((error) => console.error(error));
+    end();
     return status;
   }
 
