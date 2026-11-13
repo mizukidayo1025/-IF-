@@ -347,6 +347,18 @@ impl EventLog {
         Ok(count)
     }
 
+    /// The packer and the blocks of the records in the binary form, or None when the log is not
+    /// packed: what a Run in the browser stores (`archive`, #252 PR 6-5). A record kept as bytes
+    /// (`pack_records`) is in neither.
+    pub fn packed_store(&self) -> Option<(&Packer, &Blocks)> {
+        self.packed.as_ref().map(|packed| (&packed.packer, &packed.blocks))
+    }
+
+    /// Whether every record is in the blocks: none kept its bytes instead.
+    pub fn all_packed(&self) -> bool {
+        self.packed.as_ref().is_some_and(|packed| packed.starts.iter().all(|start| *start != NOT_PACKED))
+    }
+
     /// Whether the records are held in the binary form (`pack_records`).
     pub fn is_packed(&self) -> bool {
         self.packed.is_some()

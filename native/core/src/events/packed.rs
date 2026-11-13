@@ -109,6 +109,79 @@ impl Packer {
         &self.shapes
     }
 
+    /// Appends the tables' entries from `strings` and `shapes` on (counts of entries already
+    /// written elsewhere) to `out`, for a reader's `read_tables`: the first string's number, the
+    /// count, each text as its length and its UTF-8; then the first shape's number, the count, each
+    /// shape as its key count and its keys' numbers. All varints.
+    pub fn write_tables(&self, strings: usize, shapes: usize, out: &mut Vec<u8>) {
+        let strings = strings.min(self.texts.len());
+        let shapes = shapes.min(self.shapes.len());
+        put_varint(out, strings as u64);
+        put_varint(out, (self.texts.len() - strings) as u64);
+        for text in &self.texts[strings..] {
+            put_varint(out, text.len() as u64);
+            out.extend_from_slice(text.as_bytes());
+        }
+        put_varint(out, shapes as u64);
+        put_varint(out, (self.shapes.len() - shapes) as u64);
+        for keys in &self.shapes[shapes..] {
+            put_varint(out, keys.len() as u64);
+            for key in keys.iter() {
+                put_varint(out, u64::from(*key));
+            }
+        }
+    }
+
+    /// Adds the entries `write_tables` wrote to the tables, which must hold exactly the entries
+    /// before them: an error for bytes that are not such entries (a gap, a text twice, a key
+    /// that is no string, a shape twice), with the tables as they were.
+    pub fn read_tables(&mut self, bytes: &[u8]) -> Result<()> {
+        let mut grown = self.clone();
+        let mut cursor = Cursor::new(bytes);
+        let count = |cursor: &mut Cursor<'_>| usize::try_from(cursor.varint()?).map_err(|_| corrupt("a table's count"));
+        if count(&mut cursor)? != grown.texts.len() {
+            return Err(corrupt("strings that do not follow the table's"));
+        }
+        for _ in 0..count(&mut cursor)? {
+            let length = count(&mut cursor)?;
+            let text = std::str::from_utf8(cursor.take(length)?).map_err(|_| corrupt("a string that is not UTF-8"))?;
+            if grown.text_ids.contains_key(text) {
+                return Err(corrupt("a string the table holds already"));
+            }
+            grown.text_id(text)?;
+        }
+        if count(&mut cursor)? != grown.shapes.len() {
+            return Err(corrupt("shapes that do not follow the table's"));
+        }
+        for _ in 0..count(&mut cursor)? {
+            let length = count(&mut cursor)?;
+            let mut keys = Vec::with_capacity(length.min(cursor.rest().len()));
+            let mut names: Vec<Arc<str>> = Vec::with_capacity(keys.capacity());
+            for _ in 0..length {
+                let id = u32::try_from(cursor.varint()?).map_err(|_| corrupt("a key that is no string"))?;
+                let name = grown.texts.get(id as usize).ok_or_else(|| corrupt("a key that is no string"))?;
+                if names.contains(name) {
+                    return Err(corrupt("a shape with a key twice"));
+                }
+                names.push(name.clone());
+                keys.push(id);
+            }
+            let keys: Box<[u32]> = keys.into();
+            if grown.shape_ids.contains_key(&keys) {
+                return Err(corrupt("a shape the table holds already"));
+            }
+            let shape = u32::try_from(grown.shapes.len()).map_err(|_| Error::unsupported("more than 2^32 shapes"))?;
+            grown.shape_keys.push(names.into());
+            grown.shapes.push(keys.clone());
+            grown.shape_ids.insert(keys, shape);
+        }
+        if !cursor.rest().is_empty() {
+            return Err(corrupt("bytes after the tables"));
+        }
+        *self = grown;
+        Ok(())
+    }
+
     fn text_id(&mut self, text: &str) -> Result<u32> {
         if let Some(&id) = self.text_ids.get(text) {
             return Ok(id);
@@ -396,6 +469,10 @@ impl<'a> Reader<'a> {
 pub struct Blocks {
     blocks: Vec<Vec<u8>>,
     size: usize,
+    /// The first block a piece may still go into: a block is sealed once a later one is made, and
+    /// stays sealed after a truncation takes the later ones away, so the bytes of a sealed block
+    /// change only by a truncation that reaches into it (`sealed`, #252 PR 6-5).
+    open_from: usize,
 }
 
 /// The bytes of a block of `Blocks`.
@@ -404,9 +481,10 @@ pub const BLOCK: usize = 1 << 20;
 impl Blocks {
     /// Holds a piece: where it starts.
     pub fn push(&mut self, piece: &[u8]) -> u64 {
-        let fits = self.blocks.last().is_some_and(|block| block.len() + piece.len() <= block.capacity());
+        let fits = self.blocks.len() > self.open_from && self.blocks.last().is_some_and(|block| block.len() + piece.len() <= block.capacity());
         if !fits {
             self.blocks.push(Vec::with_capacity(BLOCK.max(piece.len())));
+            self.open_from = self.blocks.len() - 1;
         }
         let index = self.blocks.len() - 1;
         let block = &mut self.blocks[index];
@@ -445,6 +523,11 @@ impl Blocks {
     /// The blocks, in order.
     pub fn blocks(&self) -> &[Vec<u8>] {
         &self.blocks
+    }
+
+    /// How many blocks are sealed: every block but the last, which pieces may still go into.
+    pub fn sealed(&self) -> usize {
+        self.open_from.min(self.blocks.len())
     }
 }
 

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WASMの保存の計測</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, sans-serif; margin: 16px; line-height: 1.5; }
+  table { border-collapse: collapse; }
+  th, td { border: 1px solid #8888; padding: 4px 8px; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  .ok { color: #1a7f37; } .ng { color: #cf222e; }
+  pre { white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>WASMの保存の計測（#252）</h1>
+<p>Pythonで作って書き出した0分の世界を、WorkerのWASMの中核で最後まで進め、進めながらブラウザーの保存（OPFS）に残します。
+残したものを読み戻し、ネイティブの経路のdigestと比べます。<code>?world=trial-100</code>のように世界を選びます。</p>
+<p id="status">準備中…</p>
+<table id="results" hidden><tbody></tbody></table>
+<pre id="problems"></pre>
+<script type="module">
+// The page of PR 6-5 of #252. Served with, next to it: pkg/ (`wasm-bindgen --target web` of
+// sheltersim_wasm.wasm), js/ (native/wasm/js) and the outputs of benchmarks/wasm_trial_worlds.py
+// (expected.json and the worlds). benchmarks/wasm_trial_measure.py --store serves it and reads
+// `window.storeResult`.
+const params = new URLSearchParams(location.search);
+const status = document.getElementById("status");
+const table = document.getElementById("results");
+const MiB = 2 ** 20;
+
+function row(name, value) {
+  const line = table.tBodies[0].insertRow();
+  line.insertCell().textContent = name;
+  line.insertCell().textContent = value;
+  return line;
+}
+
+async function main() {
+  const expected = await (await fetch("expected.json")).json();
+  const name = params.get("world") ?? Object.keys(expected.worlds)[0];
+  const world = expected.worlds[name];
+  // Whether the browser keeps the site's data when it runs short of room. The page only looks:
+  // asking (`persist()`) waits for the user's answer in Firefox, which a measuring run never gives.
+  const persisted = navigator.storage.persisted ? await navigator.storage.persisted() : null;
+  const worker = new Worker(new URL("./js/run_worker.mjs", import.meta.url), { type: "module" });
+  const started = performance.now();
+  const message = await new Promise((resolve) => {
+    worker.onmessage = ({ data }) => {
+      if (data.type === "progress") {
+        status.textContent = `${name}: ${data.minute} / ${data.duration} 分`;
+      } else {
+        resolve(data);
+      }
+    };
+    worker.onerror = (event) => resolve({ type: "error", message: event.message });
+    worker.postMessage({
+      pkg: new URL("./pkg/sheltersim_wasm.js", location.href).href,
+      exportUrl: new URL(world.file, location.href).href,
+      run: `measure-${name}`,
+      ticks: Number(params.get("ticks") ?? "1440"),
+      keep: params.get("keep") === "1",
+    });
+  });
+  worker.terminate();
+  if (message.type === "error") throw new Error(message.message);
+  const { ran, back, estimate, memoryBytes } = message;
+  const problems = [...back.mismatches.map((part) => `read back: ${part}`)];
+  if (!back.verified) problems.push("the stored Run is not verified");
+  for (const [part, digest] of Object.entries(world.expected.world)) {
+    if (part !== "scalars" && back.parts?.[part] !== digest) problems.push(`stored ${part} is not the native path's`);
+    if (ran.digests[part] !== digest) problems.push(`${part} is not the native path's`);
+  }
+  if (back.metrics !== world.expected.metrics) problems.push("stored metrics are not the native path's");
+  const stored = Object.values(ran.sizes).reduce((sum, size) => sum + size.stored, 0);
+  const raw = Object.values(ran.sizes).reduce((sum, size) => sum + size.raw, 0);
+  table.hidden = false;
+  row("世界", name);
+  row("tick (s)", (ran.tickMs / 1000).toFixed(2));
+  row("圧縮 (s)", (ran.compressMs / 1000).toFixed(2));
+  row("書き込み (s)", (ran.writeMs / 1000).toFixed(2));
+  row("読み戻しと確認 (s)", (back.totalMs / 1000).toFixed(2));
+  row("WASMのメモリ（tickの後、MiB）", (ran.memoryBytes / MiB).toFixed(1));
+  row("WASMのメモリ（読み戻しの後、MiB）", (memoryBytes / MiB).toFixed(1));
+  row("保存（圧縮前 / 後、MiB）", `${(raw / MiB).toFixed(1)} / ${(stored / MiB).toFixed(1)}`);
+  row("ファイル（data.pack + journal、MiB）", (back.storedBytes / MiB).toFixed(1));
+  row("digest", problems.length === 0 ? "一致" : "不一致").cells[1].className = problems.length === 0 ? "ok" : "ng";
+  document.getElementById("problems").textContent = problems.join("\n");
+  status.textContent = "完了";
+  window.storeResult = {
+    userAgent: navigator.userAgent,
+    world: name,
+    persisted,
+    totalMs: performance.now() - started,
+    nativeTickSeconds: world.expected.tick_seconds,
+    ran: { tickMs: ran.tickMs, compressMs: ran.compressMs, writeMs: ran.writeMs, memoryBytes: ran.memoryBytes, sizes: ran.sizes },
+    back: { totalMs: back.totalMs, readMs: back.readMs, inflateMs: back.inflateMs, storedBytes: back.storedBytes, records: back.records, samples: back.samples, verified: back.verified, torn: back.torn },
+    memoryAfterRead: memoryBytes,
+    estimate,
+    problems,
+  };
+}
+
+main().catch((error) => {
+  status.textContent = `誤り: ${error}`;
+  window.storeResult = { error: String(error) };
+});
+</script>
+</body>
+</html>

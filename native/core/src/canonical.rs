@@ -55,6 +55,14 @@ pub fn parts(world: &World) -> Result<Vec<(&'static str, Vec<u8>)>> {
     parts_with(world, true)
 }
 
+/// Each part of `parts` but `event_log`, whose bytes are most of a long Run's document: the
+/// world a browser's Run stores beside its log (`archive::world_parts`, #252).
+pub fn parts_without_log(world: &World) -> Result<Vec<(&'static str, Vec<u8>)>> {
+    let mut all = parts_with(world, false)?;
+    all.retain(|(name, _)| *name != "event_log");
+    Ok(all)
+}
+
 /// `parts`, but `event_log`'s is empty unless `with_log`: the log is most of a long Run's
 /// document, and a digest of it reads it a record at a time instead (`log_digest`, #252).
 fn parts_with(world: &World, with_log: bool) -> Result<Vec<(&'static str, Vec<u8>)>> {

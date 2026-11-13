@@ -8,10 +8,16 @@
 //! metric samples (`metrics_digest`): what the Node test (`tests/node_digests.mjs`) and the
 //! measuring page of PR 4-5 compare with the native path's.
 //!
+//! It also hands the page what a Run stores (#252, PR 6-5; `sheltersim_core::archive`): the packed
+//! log's and samples' table entries and sealed blocks, and the world without its log; `StoredRun`
+//! reads them back to the Run's digests. The page's side is `js/run_store.mjs` and
+//! `js/run_worker.mjs`.
+//!
 //! A minute crosses the boundary as an `f64` (a JS number), not an `i64` (a `BigInt`): a world's
 //! minutes are far below 2^53.
 
-use sheltersim_core::canonical;
+use sheltersim_core::events::packed::{Blocks, Packer};
+use sheltersim_core::{archive, canonical, checkpoint};
 use sheltersim_core::engine::StepError;
 use sheltersim_core::error::Error;
 use sheltersim_core::json::Encoder;
@@ -92,6 +98,24 @@ impl Simulation {
         String::from_utf8(encoder.out).map_err(|error| JsError::new(&error.to_string()))
     }
 
+    /// The digest of each part of the world's canonical document (`canonical::digests`), as a JSON
+    /// object in the order of the parts: what a stored Run's world piece and log read back to.
+    pub fn part_digests_json(&self) -> Result<String, JsError> {
+        let digests = self.run.digests().map_err(js_error)?;
+        let mut encoder = Encoder::with_capacity(2048);
+        encoder.out.push(b'{');
+        for (index, (part, digest)) in digests.iter().enumerate() {
+            if index > 0 {
+                encoder.out.push(b',');
+            }
+            encoder.string(part);
+            encoder.out.push(b':');
+            encoder.string(digest);
+        }
+        encoder.out.push(b'}');
+        String::from_utf8(encoder.out).map_err(|error| JsError::new(&error.to_string()))
+    }
+
     /// The digest of the metric samples so far (`core_tick.py`'s `metrics_digest`).
     pub fn metrics_digest(&self) -> String {
         self.run.host.metrics_digest()
@@ -125,6 +149,175 @@ impl Simulation {
         encoder.out.push(b'}');
         String::from_utf8(encoder.out).unwrap_or_default()
     }
+}
+
+/// The pieces a Run stores (#252, PR 6-5; `sheltersim_core::archive`): the packed log's and the
+/// samples' tables and blocks, and the world at its minute without its log. The page takes, after
+/// each `advance`, the tables' new entries and the newly sealed blocks, and every block at the end.
+#[wasm_bindgen]
+impl Simulation {
+    /// The log's string and shape tables' sizes: `[strings, shapes]`.
+    pub fn log_table_counts(&self) -> Result<Vec<u32>, JsError> {
+        self.with_log_store(|packer, _| vec![packer.strings().len() as u32, packer.shapes().len() as u32])
+    }
+
+    /// The log's tables' entries from `strings` and `shapes` on (`Packer::write_tables`).
+    pub fn log_tables(&self, strings: u32, shapes: u32) -> Result<Vec<u8>, JsError> {
+        self.with_log_store(|packer, _| {
+            let mut out = Vec::new();
+            packer.write_tables(strings as usize, shapes as usize, &mut out);
+            out
+        })
+    }
+
+    /// How many of the log's blocks there are, and how many of them are sealed: `[blocks, sealed]`.
+    pub fn log_block_counts(&self) -> Result<Vec<u32>, JsError> {
+        self.with_log_store(|_, blocks| vec![blocks.blocks().len() as u32, blocks.sealed() as u32])
+    }
+
+    /// A copy of the log's block `index` (empty past the last).
+    pub fn log_block(&self, index: u32) -> Result<Vec<u8>, JsError> {
+        self.with_log_store(|_, blocks| blocks.blocks().get(index as usize).cloned().unwrap_or_default())
+    }
+
+    /// How many records the log holds.
+    pub fn log_records(&self) -> Result<f64, JsError> {
+        self.run.loaded.cell.with(|world| world.log().map(|log| log.len() as f64)).and_then(|count| count).map_err(js_error)
+    }
+
+    /// Whether every record of the log is in its blocks: none kept its bytes instead, so the stored
+    /// blocks hold the whole log.
+    pub fn log_all_packed(&self) -> Result<bool, JsError> {
+        self.run.loaded.cell.with(|world| world.log().map(|log| log.all_packed())).and_then(|packed| packed).map_err(js_error)
+    }
+
+    /// The samples' string and shape tables' sizes: `[strings, shapes]`.
+    pub fn sample_table_counts(&self) -> Vec<u32> {
+        let (packer, _) = self.run.host.samples.store();
+        vec![packer.strings().len() as u32, packer.shapes().len() as u32]
+    }
+
+    /// The samples' tables' entries from `strings` and `shapes` on.
+    pub fn sample_tables(&self, strings: u32, shapes: u32) -> Vec<u8> {
+        let (packer, _) = self.run.host.samples.store();
+        let mut out = Vec::new();
+        packer.write_tables(strings as usize, shapes as usize, &mut out);
+        out
+    }
+
+    /// How many of the samples' blocks there are, and how many are sealed: `[blocks, sealed]`.
+    pub fn sample_block_counts(&self) -> Vec<u32> {
+        let (_, blocks) = self.run.host.samples.store();
+        vec![blocks.blocks().len() as u32, blocks.sealed() as u32]
+    }
+
+    /// A copy of the samples' block `index` (empty past the last).
+    pub fn sample_block(&self, index: u32) -> Vec<u8> {
+        let (_, blocks) = self.run.host.samples.store();
+        blocks.blocks().get(index as usize).cloned().unwrap_or_default()
+    }
+
+    /// The world now without its log (`archive::world_parts`).
+    pub fn world_parts(&self) -> Result<Vec<u8>, JsError> {
+        self.run.loaded.cell.with(|world| archive::world_parts(world)).and_then(|parts| parts).map_err(js_error)
+    }
+}
+
+impl Simulation {
+    fn with_log_store<R>(&self, f: impl FnOnce(&Packer, &Blocks) -> R) -> Result<R, JsError> {
+        self.run
+            .loaded
+            .cell
+            .with(|world| -> Result<R, Error> {
+                let log = world.log()?;
+                let (packer, blocks) = log.packed_store().ok_or_else(|| Error::unsupported("the log is not packed"))?;
+                Ok(f(packer, blocks))
+            })
+            .and_then(|result| result)
+            .map_err(js_error)
+    }
+}
+
+/// A stored Run read back (`archive::LogReader`, `SampleReader`): the pieces in the order they were
+/// written, and the digests they give.
+#[wasm_bindgen]
+pub struct StoredRun {
+    log: archive::LogReader,
+    samples: archive::SampleReader,
+}
+
+#[wasm_bindgen]
+impl StoredRun {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> StoredRun {
+        StoredRun { log: archive::LogReader::new(), samples: archive::SampleReader::new() }
+    }
+
+    pub fn read_log_tables(&mut self, bytes: &[u8]) -> Result<(), JsError> {
+        self.log.read_tables(bytes).map_err(js_error)
+    }
+
+    /// How many records the block held.
+    pub fn read_log_block(&mut self, bytes: &[u8]) -> Result<u32, JsError> {
+        self.log.read_block(bytes).map(|read| read as u32).map_err(js_error)
+    }
+
+    pub fn read_sample_tables(&mut self, bytes: &[u8]) -> Result<(), JsError> {
+        self.samples.read_tables(bytes).map_err(js_error)
+    }
+
+    /// How many samples the block held.
+    pub fn read_sample_block(&mut self, bytes: &[u8]) -> Result<u32, JsError> {
+        self.samples.read_block(bytes).map(|read| read as u32).map_err(js_error)
+    }
+
+    pub fn log_records(&self) -> f64 {
+        self.log.records() as f64
+    }
+
+    /// The digest of the `event_log` part of the records read.
+    pub fn log_digest(&self) -> String {
+        self.log.digest()
+    }
+
+    pub fn sample_count(&self) -> f64 {
+        self.samples.samples() as f64
+    }
+
+    /// The digest of the metric lines of the samples read.
+    pub fn metrics_digest(&self) -> String {
+        self.samples.digest()
+    }
+}
+
+impl Default for StoredRun {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// The digest of each part a world piece holds (`archive::world_part_digests`), as a JSON object.
+#[wasm_bindgen(js_name = worldPartDigests)]
+pub fn world_part_digests(bytes: &[u8]) -> Result<String, JsError> {
+    let digests = archive::world_part_digests(bytes).map_err(js_error)?;
+    let mut encoder = Encoder::with_capacity(2048);
+    encoder.out.push(b'{');
+    for (index, (part, digest)) in digests.iter().enumerate() {
+        if index > 0 {
+            encoder.out.push(b',');
+        }
+        encoder.string(part);
+        encoder.out.push(b':');
+        encoder.string(digest);
+    }
+    encoder.out.push(b'}');
+    String::from_utf8(encoder.out).map_err(|error| JsError::new(&error.to_string()))
+}
+
+/// `hashlib.sha256(bytes).hexdigest()`: what the page's journal checks its lines and pieces by.
+#[wasm_bindgen(js_name = sha256Hex)]
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    checkpoint::sha256_hex(bytes)
 }
 
 /// The size of the WASM memory now, in bytes (`memory.buffer.byteLength`): it only grows, so read
