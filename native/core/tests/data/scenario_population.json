@@ -1,0 +1,366 @@
+{
+ "cases": [
+  {
+   "age_bands": null,
+   "composition": "default",
+   "count": 1,
+   "household_mix": null,
+   "minors": 0,
+   "name": "count_1_seed_2026",
+   "parts": {
+    "assumptions": "38f07b7d0e32546114be0df9a58c7947dbbc9dd6e25fae32ab77541bea62e9b1",
+    "household_relationships": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "person_requirements": "8a690a9a75252cdbf997dba886ab9cd4ac1d5b8025645ed8e1b274e2d57c70e8",
+    "population": "6a140ec58a6e8b51a2f4aa0f96d898fea597fc348985061351de7297e6b81de5",
+    "profile_set": "df513fb6abdb7e3a467dcbef22f2b221e9a1efa302f1801688488291cf7b912c",
+    "sources": "4c196bcd0b239332ad09a7a969256361fc30c67c2a24b55ea32736a933616a12"
+   },
+   "seed": 2026,
+   "sha256": "f2789ff0b958900193bab07abf663902e10d89e88f7bfe8c87297e975ff8aa13"
+  },
+  {
+   "age_bands": null,
+   "composition": "default",
+   "count": 2,
+   "household_mix": null,
+   "minors": 0,
+   "name": "count_2_seed_2026",
+   "parts": {
+    "assumptions": "38f07b7d0e32546114be0df9a58c7947dbbc9dd6e25fae32ab77541bea62e9b1",
+    "household_relationships": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "person_requirements": "9214aefe70d9607c533a15cb6695ef2aa847498c966ec0721d1925270abc0cbe",
+    "population": "e20ab6eed29e1394fe05af53742a85c2726f63d77d3dc5b0dd0808a96482470f",
+    "profile_set": "9069140ddafee6f64d6b5d575589a713ee7ffc0546ba5807b95fafa0b2d2c9c3",
+    "sources": "4c196bcd0b239332ad09a7a969256361fc30c67c2a24b55ea32736a933616a12"
+   },
+   "seed": 2026,
+   "sha256": "2ea9999f68dd5d17017d1d16b52d6cdf810293eaad88792afe30003e3f3dcc04"
+  },
+  {
+   "age_bands": null,
+   "composition": "default",
+   "count": 3,
+   "household_mix": null,
+   "minors": 1,
+   "name": "count_3_seed_0",
+   "parts": {
+    "assumptions": "98c51e17e7942fc53eccbd718f9c897e3b9ebdc2982018ad40b3015b1276dbf2",
+    "household_relationships": "d5b81650a18102ae80a35888cffefe73a48eb48e351d3dae849138fc0c322e43",
+    "person_requirements": "d7fbe1f0f2b044fe9302d924535208728b20948ea743a00fd5cfb5146f246429",
+    "population": "21a446443b516cd54474f2cda8482b49ed0ed516ae399976dce8842cdd3abbf9",
+    "profile_set": "8eaa15c6b80be740fbb3d66c81536ed71b570b1fec550b8014c855530b0e6053",
+    "sources": "4c196bcd0b239332ad09a7a969256361fc30c67c2a24b55ea32736a933616a12"
+   },
+   "seed": 0,
+   "sha256": "67adbd1bbbae48b461dfa3242513326c9453df3d8844699fc084ebca0a90ff73"
+  },
+  {
+   "age_bands": null,
+   "composition": "default",
+   "count": 5,
+   "household_mix": null,
+   "minors": 0,
+   "name": "count_5_seed_1",
+   "parts": {
+    "assumptions": "a75534ae9b795ce5a64036b215b66880032adb982312d322051e7ed033feefc7",
+    "household_relationships": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "person_requirements": "0c4401ed5cded04d4dff8e2e9eadc097845034db7c0dae927fbf4df6b4674c09",
+    "population": "52a56ac470578da89348aea6fab14654e7a1f0e3372286a77d1b360990acfef6",
+    "profile_set": "4c88733156d0e4ec74e8aa5a0935ce9538d3be3631f7496ec9fb22d7a3795d64",
+    "sources": "4c196bcd0b239332ad09a7a969256361fc30c67c2a24b55ea32736a933616a12"
+   },
+   "seed": 1,
+   "sha256": "e80d5dfbfb110ffcf2ef6a7a8b639dd34d1d282319daa66acaf3735a9d26c912"
+  },
+  {
+   "age_bands": null,
+   "composition": "default",
+   "count": 7,
+   "household_mix": null,
+   "minors": 1,
+   "name": "count_7_seed_2026",
+   "parts": {
+    "assumptions": "172a744c388530096147d5e9514b4a3b96996c1495e2c3deceb4303216ad4678",
+    "household_relationships": "b958f1be1137d05dae728251003cd81da5f98227d2e29ef79081b3ffa6f7c504",
+    "person_requirements": "b11008585c598038f50a866e56e0c9ae959a5a44e11f2017e1044d491268b0bc",
+    "population": "cdb45dce66ae92bedb022162b82978a3c4cd3a23804d5403ec513d1e1757d0a0",
+    "profile_set": "c55544a55d87ce0ceea2e3d681cba6f3fcdd8d64de9150b2b83309bbf0a8ca64",
+    "sources": "4c196bcd0b239332ad09a7a969256361fc30c67c2a24b55ea32736a933616a12"
+   },
+   "seed": 2026,
+   "sha256": "f94600fb7e15fe4b5567f491a21b66115418c91991da0dcbb2b8adfd88ed2507"
+  },
+  {
+   "age_bands": null,
+   "composition": "default",
+   "count": 17,
+   "household_mix": null,
+   "minors": 3,
+   "name": "count_17_seed_42",
+   "parts": {
+    "assumptions": "6c9fe5744b306cca824864460b87f3630046496e2e16fb9191a090c47ca779ab",
+    "household_relationships": "eca8443ca8cf1345b9f5423690c36ed46f98f57a10cbf01f8591205fffe9eaf8",
+    "person_requirements": "84470c7cf3960c88785fab9a6a56dad8dd86521d7ebf85706e7ee9de48942ad7",
+    "population": "63f901b03191e9d51e6d5672c847aa2cc7ac8a5e7f7ff330e76eb887092415b3",
+    "profile_set": "39686b7e60278f71a20dec2e6a8e131feec0cbd670fc6eedc6eb74971ac3e5d1",
+    "sources": "4c196bcd0b239332ad09a7a969256361fc30c67c2a24b55ea32736a933616a12"
+   },
+   "seed": 42,
+   "sha256": "b304d562f2d3668937157e13f6a391878abd7fcceac9b81727636895272e65b7"
+  },
+  {
+   "age_bands": null,
+   "composition": "default",
+   "count": 50,
+   "household_mix": null,
+   "minors": 6,
+   "name": "count_50_seed_7",
+   "parts": {
+    "assumptions": "bb51b95ec8eeaa2cc98aa17e63a87d3b48a3ded23a870206748e269a4bda6ff2",
+    "household_relationships": "9df912e3bb6f6e6fff84ffc78f8c0162ec7530ac5c75da452fa370a900295433",
+    "person_requirements": "3190f8d7356c921ad72ef9bc12aec22c64ddd99a4d109c221ff026f36607a692",
+    "population": "28a41fdcedd11062c8947e772d42cc60d3578b735a95e53adfe3b90153645dd8",
+    "profile_set": "5c4f6f6b2924750cfbc49db2b093ece09dc3b973e2d37baa99273e700cdface7",
+    "sources": "4c196bcd0b239332ad09a7a969256361fc30c67c2a24b55ea32736a933616a12"
+   },
+   "seed": 7,
+   "sha256": "3681b6242a7e05cf756cd5d29f65f8263396d7b1791859b215f0bc418c4d9b48"
+  },
+  {
+   "age_bands": null,
+   "composition": "default",
+   "count": 100,
+   "household_mix": null,
+   "minors": 14,
+   "name": "count_100_seed_2026",
+   "parts": {
+    "assumptions": "1ae5f824cab699d75c8bb7a6e0165423136b2c856fb299fac2424f0fdb2cb279",
+    "household_relationships": "3c51a8efa96eda3f03631b39a3ccd5099e367cc5ba26c396080a9939b0fc08ad",
+    "person_requirements": "c775ea75f41afce479a93de12ffccc88dc0555432b3f17b3409c326b5af4f432",
+    "population": "9213be73b0c88f8ab253f2cc4430b270b092e0351c79e574a32213a2896bdb4d",
+    "profile_set": "ee889e467e90475715035576ee1526c58bd3c8dc3c9b1e5b4d0961c38f00d0b3",
+    "sources": "4c196bcd0b239332ad09a7a969256361fc30c67c2a24b55ea32736a933616a12"
+   },
+   "seed": 2026,
+   "sha256": "72de27cb8c291c65206d56ceff0b658363de27ae176097d3e7764414f224eec9"
+  },
+  {
+   "age_bands": null,
+   "composition": "default",
+   "count": 100,
+   "household_mix": null,
+   "minors": 13,
+   "name": "count_100_seed_2027",
+   "parts": {
+    "assumptions": "ed547e858c4715dba5ff64e23f68f7caf2c191bdaa48f751278e2a0317103152",
+    "household_relationships": "8dc2683414c14b7879126514b253ea9982112fe87adefa23e11ef89732f53d03",
+    "person_requirements": "0bad054ca1ff2aed5c8ee301496d4733671eb0a51a3ca200833ccfda5e40fc50",
+    "population": "483cb4c11a97d6a4bd247f929a46ee05e46716b26a5d0841cb8a96f9f393359d",
+    "profile_set": "b39b54d30ce3b4384ed89aab5f7f36287464b477f1d8948c1bfd1c286cc0f62c",
+    "sources": "4c196bcd0b239332ad09a7a969256361fc30c67c2a24b55ea32736a933616a12"
+   },
+   "seed": 2027,
+   "sha256": "3625a920ca47d1a5e392339f9b3462ba6ad70c112493ac8ad26123973509334b"
+  },
+  {
+   "age_bands": null,
+   "composition": "default",
+   "count": 100,
+   "household_mix": null,
+   "minors": 25,
+   "name": "count_100_seed_9223372036854775807",
+   "parts": {
+    "assumptions": "1b99b1fd948c5e4b4ccc2e56b84d0066e91fe4e646db877dec2429860d003129",
+    "household_relationships": "1ed0f79383ea87541802ad4fdf63dd18266d842a1b0fcb9b7a0e87c0583608bb",
+    "person_requirements": "cfe96247d87d9ba90b13b08b3e2b7d46aa4a36ddcd917737a21d350eb01e340d",
+    "population": "7bf2d193f914939fd6c57d4b4007d4963296942e7a5b3814bc8e948ec844a5f1",
+    "profile_set": "1684ccd2d7760653399623ad377b4d55468d3258dcb00a01a8f9fa59a7519609",
+    "sources": "4c196bcd0b239332ad09a7a969256361fc30c67c2a24b55ea32736a933616a12"
+   },
+   "seed": 9223372036854775807,
+   "sha256": "10c4263591d222225471b1b978ba3e53900a20f6beb2767b903c8d6cbedc1ce7"
+  },
+  {
+   "age_bands": null,
+   "composition": "default",
+   "count": 250,
+   "household_mix": null,
+   "minors": 44,
+   "name": "count_250_seed_123456",
+   "parts": {
+    "assumptions": "590232d60b0679ad2545f50585cc800c523b026444468e8f30bd88c76db4b2b8",
+    "household_relationships": "d685950ebfb32bc47dee845a70bc1b4441d20ebe20e42c1cd980358a4c3cd6ff",
+    "person_requirements": "4203d00ba3c09dbcdbe658f1f0f1bde07434cec90656d82e1fdcc2d45bf44edb",
+    "population": "81b6777ea76d12290fe1632dcf66b417e6fb1198cc37a0c48a7f74bca7945f35",
+    "profile_set": "a13fc4d778e0b2ee01f2f0d7804b0835e55c49cd63ce8faa37ba9d1d227e6d8e",
+    "sources": "4c196bcd0b239332ad09a7a969256361fc30c67c2a24b55ea32736a933616a12"
+   },
+   "seed": 123456,
+   "sha256": "ddd3cc4354353ec18c0bbcddd508fde0b049a44db2b0912cd736e57634e0a162"
+  },
+  {
+   "age_bands": null,
+   "composition": "default",
+   "count": 1000,
+   "household_mix": null,
+   "minors": 166,
+   "name": "count_1000_seed_2026",
+   "parts": {
+    "assumptions": "4d4b129f6b836642df5ddb5b72eeed6bcc5e1529521a6120dd884bf9de26696a",
+    "household_relationships": "575e21043e762d3b3da20d1bf62390781ac184d153f5343becc36e1e5e812090",
+    "person_requirements": "cdb59f3a02d62265eb72216c330bde45a59e82bbe7b3f4fb663911471d05e617",
+    "population": "f2cf67d6b53821f4c6c70a3e70fc3790352869cbbeac2ee65678de48d4073a3d",
+    "profile_set": "1b6276f636d3f5e9537ead7558361f4d0e1f7ef28e92a17aebad694a1beb7d00",
+    "sources": "4c196bcd0b239332ad09a7a969256361fc30c67c2a24b55ea32736a933616a12"
+   },
+   "seed": 2026,
+   "sha256": "451751949c5e2c59550d9f21b500e3cfd785d81cada7b1d15ca1a9b9f455f836"
+  },
+  {
+   "age_bands": null,
+   "composition": "default",
+   "count": 10000,
+   "household_mix": null,
+   "minors": 1779,
+   "name": "count_10000_seed_2026",
+   "parts": {
+    "assumptions": "55e9c6cda7486f993624090646558036443c488429d369d5119440f90484e732",
+    "household_relationships": "49fc300ffe9c6377f02a7a2b7f36d534a3c6a435c52f2775d93c17c2f13f5070",
+    "person_requirements": "a1a937876d2fab4da3669b7d08861c46696d0fb243b6966877c47f493ce00d35",
+    "population": "8e2f2ea1b048231d2ff229d80b5f46f0ff69d0b8e05eb73fcc73c2984d8a19e5",
+    "profile_set": "6fe1b22df2f794d120b79c7ea9c1c0cc2f6a9b3e602a4990b0738fe70e221669",
+    "sources": "4c196bcd0b239332ad09a7a969256361fc30c67c2a24b55ea32736a933616a12"
+   },
+   "seed": 2026,
+   "sha256": "3ece55ee444c99eb6c67682c95fdb25776599e3ec4e73f1b23d55b8cd0543440"
+  },
+  {
+   "age_bands": [
+    {
+     "age_max": 64,
+     "age_min": 18,
+     "label": "18-64",
+     "population_count": 70,
+     "source_ids": [
+      "S1"
+     ]
+    },
+    {
+     "age_max": 100,
+     "age_min": 65,
+     "label": "65+",
+     "population_count": 30,
+     "source_ids": [
+      "S1"
+     ]
+    }
+   ],
+   "composition": "default",
+   "count": 40,
+   "household_mix": null,
+   "minors": 0,
+   "name": "adult_bands",
+   "parts": {
+    "assumptions": "c7bfc3fae6753259f956f2f83aec3c7147e12e99421a825851cdb44f69bed664",
+    "household_relationships": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "person_requirements": "84cecd08e83f4d1857b05ae57b34cc19d27c95ec2fb80121e0ee2c1f6c52d37a",
+    "population": "2844be7b953fbef671dbf3b8655a7d0402eeb532a71e5e0d53558a615fea64ed",
+    "profile_set": "0067a630a63468a4d05ac6d6b55b5ec31de6e066e4a050281e388a6f0f7076a2",
+    "sources": "934a6871ec908de501365ad8d96db8c7ddb9c85ea7864ca3222d9c8d6d1d62bc"
+   },
+   "seed": 3,
+   "sha256": "ecd94ced46e24d4276ea2601fe56022adc506e5b7739984720518c50d5348a88"
+  },
+  {
+   "age_bands": [
+    {
+     "age_max": 14,
+     "age_min": 0,
+     "label": "0-14",
+     "population_count": 12,
+     "source_ids": [
+      "S2"
+     ]
+    },
+    {
+     "age_max": 64,
+     "age_min": 15,
+     "label": "15-64",
+     "population_count": 60,
+     "source_ids": [
+      "S2"
+     ]
+    },
+    {
+     "age_max": 120,
+     "age_min": 65,
+     "label": "65+",
+     "population_count": 28,
+     "source_ids": [
+      "S3"
+     ]
+    }
+   ],
+   "composition": "default",
+   "count": 60,
+   "household_mix": null,
+   "minors": 12,
+   "name": "wide_bands",
+   "parts": {
+    "assumptions": "49dd53149a64cf74208c6946a56b290c732c6c7a930a75ebbea992f39d53cd41",
+    "household_relationships": "26cc1f5382979c035d2c9ce34eceaa32010b554f0b435799f7d6edbb4c6c7706",
+    "person_requirements": "0b0b46037472a5842af93f6f96fd8416f750b445cf180dd8cf53eafe00b74912",
+    "population": "06a78cb57e88c6ccb1327a3439a422810af68586cb20a0abab2e098d34e96c61",
+    "profile_set": "ed83692bee0340f3adc363df60f862731c9b36235e2f5fa324dcd216a5cde494",
+    "sources": "934a6871ec908de501365ad8d96db8c7ddb9c85ea7864ca3222d9c8d6d1d62bc"
+   },
+   "seed": 4,
+   "sha256": "63dfba4a648ac57ccf2ff1c6fcbfef50b8a3dd826dd26651de0bfd102f7acc64"
+  },
+  {
+   "age_bands": null,
+   "composition": "default",
+   "count": 80,
+   "household_mix": {
+    "size_weights": {
+     "1": 0.5,
+     "10": 0.25,
+     "6": 1.0
+    },
+    "source_ids": [
+     "S4"
+    ]
+   },
+   "minors": 29,
+   "name": "large_households",
+   "parts": {
+    "assumptions": "c0d8b4a50338336b63e94dfbc48a4640bf4df1310d3648ed08bca0bb8f38d356",
+    "household_relationships": "6c0fc35d97867f899be54999c797f4bed4bed691118dc5d51563e3efe0e085a4",
+    "person_requirements": "f11ff1bdbf9092251e45385820cdf5fb34bed364f3ee9ac191ffaeba3105be76",
+    "population": "619be9292a5c9703ff3d6132e3e46bcd4165d78933c793bfa07b1fb4cc021495",
+    "profile_set": "a45c3dc8e9ee7e723a727d9970c317dcd3875a6c4c2bf3eaef84c3df2aebebc3",
+    "sources": "993e1aa6f8668547f0d4ffe18b96f06f1d2c294a710c09068dcc93e4055fe189"
+   },
+   "seed": 5,
+   "sha256": "a33e539e2ada67f7e5213d710328fd0066276462a95d9781a02a9661e399fc5a"
+  },
+  {
+   "age_bands": null,
+   "composition": null,
+   "count": 30,
+   "household_mix": null,
+   "minors": 11,
+   "name": "no_templates",
+   "parts": {
+    "assumptions": "d35b7dadf61841cc9d246ee1543d8cbb07d3c21c817e4ca5213e09f8957b3f20",
+    "household_relationships": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "person_requirements": "3d29320fc198bfd88a8852e8912997be775a6791b80d312e7f6a6418a2e7ac16",
+    "population": "01b69ff45385cab10ba4431113be1976862fed57aeeab4ca3544effeb3e216ac",
+    "profile_set": "1c3226e67141bef7d36134994073095621d5f1ce778dd052f55144cd66cc451d",
+    "sources": "0bcc74db5372eac2006dd3756d7f22eda66c95af856891a955dc2e928a62dfea"
+   },
+   "seed": 6,
+   "sha256": "ccb42385983eee46d8751d5d6a9f5cc65c213694b4ffc89e4d8414771e12bdfc"
+  }
+ ]
+}
