@@ -66,6 +66,8 @@ FIXTURES: dict[str, str] = {
 }
 # The fixtures whose file is not under native/core/tests/data/.
 PATHS: dict[str, Path] = {"initial_table": INITIAL_TABLE}
+# The fixtures the core's build embeds (`include_str!`), written without spaces.
+COMPACT = frozenset({"initial_table"})
 
 # ---- The registry ------------------------------------------------------------------------------
 
@@ -82,15 +84,17 @@ def build(name: str) -> dict[str, Any]:
     return builder()
 
 
-def render(document: dict[str, Any]) -> str:
-    """The text of a fixture file."""
+def render(document: dict[str, Any], name: str | None = None) -> str:
+    """The text of a fixture file: indented, but the files the core embeds (`COMPACT`)."""
+    if name in COMPACT:
+        return json.dumps(document, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     return json.dumps(document, sort_keys=True, ensure_ascii=False, indent=1) + "\n"
 
 
 def write(name: str) -> Path:
     """Write a registered fixture again."""
     path = fixture_path(name)
-    path.write_text(render(build(name)), encoding="utf-8")
+    path.write_text(render(build(name), name), encoding="utf-8")
     return path
 
 

@@ -30,7 +30,7 @@ def _first_difference(committed: Any, made: Any, path: str = "") -> str:
 
 @pytest.mark.parametrize("name", sorted(FIXTURES))
 def test_a_core_fixture_is_what_its_builder_makes_today(name: str) -> None:
-    made = render(build(name))
+    made = render(build(name), name)
     committed = fixture_path(name).read_text(encoding="utf-8")
     if committed != made:
         where = _first_difference(json.loads(committed), json.loads(made))

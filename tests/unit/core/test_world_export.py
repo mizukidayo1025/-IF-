@@ -8,12 +8,19 @@ changes nothing of the world, and that the core's own builder of the world at mi
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Callable
 from typing import Any
 
 import pytest
-from support.core_initial import TABLE_REQUESTS, entry_text, minute_zero_entry, scenario_of
+from support.core_initial import (
+    TABLE_REQUESTS,
+    entry_text,
+    evidence_answer,
+    minute_zero_entry,
+    scenario_of,
+)
 
 from sheltersim.core.world import WorldState
 from sheltersim.core.world_export import configs_fingerprint, export_world
@@ -71,6 +78,48 @@ def test_the_core_builds_the_minute_zero_entry_python_exports(name: str) -> None
     made = sheltersim_native.initial_entry(scenario.canonical_json().encode())
 
     assert made == entry_text(minute_zero_entry(scenario))
+
+
+@pytest.mark.parametrize("name", sorted(TABLE_REQUESTS))
+def test_the_core_records_a_new_run_s_model_versions_and_evidence_as_python(name: str) -> None:
+    """`initial::model_versions` and `initial::evidence` of a generated Scenario are Python's
+    `model_signatures` and the evidence route's answer for a new Run of it (#301)."""
+    import sheltersim_native
+
+    from sheltersim.contracts.policies import model_signatures
+
+    scenario = scenario_of(TABLE_REQUESTS[name])
+    raw = scenario.canonical_json().encode()
+
+    versions = json.loads(sheltersim_native.initial_model_versions(raw))
+    assert versions == model_signatures(scenario.model_configs)
+    evidence = json.dumps(
+        evidence_answer(scenario), sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    ).encode()
+    assert sheltersim_native.initial_evidence(raw) == evidence
+
+
+def test_the_evidence_template_is_the_server_s_answer(tmp_path: Any) -> None:
+    """`core_initial.evidence_answer` is what the server's evidence route answers for a Run of
+    the Scenario (#301)."""
+    from sheltersim.storage.projects import ProjectStore
+    from sheltersim.web.projects import ProjectAPI
+
+    scenario = scenario_of({"evacuees": 3})
+    store = ProjectStore(tmp_path / "projects")
+    store.create_project("evidence")
+    saved = store.save_scenario(
+        "evidence",
+        scenario,
+        approved_hash=hashlib.sha256(scenario.canonical_json().encode()).hexdigest(),
+    )
+    store.create_run("evidence", "run-evidence", saved["scenario_id"], saved["scenario_version"])
+    api = ProjectAPI(store, recover=False)
+    try:
+        answer = api.get(["evidence", "runs", "run-evidence", "evidence"], {})
+    finally:
+        api.close()
+    assert json.loads(json.dumps(answer)) == evidence_answer(scenario)
 
 
 def test_the_core_refuses_configs_its_table_lacks_and_what_is_not_a_scenario() -> None:

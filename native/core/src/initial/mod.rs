@@ -24,6 +24,9 @@
 //! the Python tests check that the builder's Scenarios give Python's bytes.
 
 mod namespaces;
+mod records;
+
+pub use records::{evidence, model_versions};
 
 use std::sync::{Arc, OnceLock};
 
@@ -137,10 +140,14 @@ pub(crate) struct TableEntry {
     pub route_capacities: V,
     pub sections: IndexMap<Arc<str>, V>,
     pub namespaces: IndexMap<Arc<str>, V>,
+    /// `model_signatures(configs)` but the service points' signature.
+    pub model_signatures: IndexMap<Arc<str>, V>,
+    /// The evidence route's answer, without the Scenario's own parts.
+    pub evidence: IndexMap<Arc<str>, V>,
 }
 
 /// The table's version that this reader takes.
-const TABLE_SCHEMA_VERSION: i64 = 1;
+const TABLE_SCHEMA_VERSION: i64 = 2;
 
 fn read_table() -> std::result::Result<IndexMap<Arc<str>, Arc<TableEntry>>, String> {
     let json: Value = serde_json::from_str(include_str!("table.json")).map_err(|error| error.to_string())?;
@@ -148,6 +155,9 @@ fn read_table() -> std::result::Result<IndexMap<Arc<str>, Arc<TableEntry>>, Stri
         return Err("the table has another schema_version".into());
     }
     let entries = json["entries"].as_object().ok_or("the table has no entries")?;
+    let Some(V::Map(shared)) = V::from_json(&json["shared_evidence"]) else {
+        return Err("the table has no shared evidence".into());
+    };
     let mut table = IndexMap::new();
     for (fingerprint, entry) in entries {
         let map = |key: &str| match V::from_json(&entry[key]) {
@@ -159,10 +169,28 @@ fn read_table() -> std::result::Result<IndexMap<Arc<str>, Arc<TableEntry>>, Stri
             route_capacities: V::from_json(&entry["route_capacities"]).ok_or("an entry's route capacities")?,
             sections: map("sections")?,
             namespaces: map("namespaces")?,
+            model_signatures: map("model_signatures")?,
+            evidence: {
+                let mut evidence = map("evidence")?;
+                for (key, value) in &shared {
+                    if evidence.insert(key.clone(), value.clone()).is_some() {
+                        return Err(format!("an entry's evidence has the shared {key}"));
+                    }
+                }
+                evidence
+            },
         };
         table.insert(text(fingerprint), Arc::new(made));
     }
     Ok(table)
+}
+
+/// The table's entry of these configs, or `Unsupported`.
+pub(crate) fn entry_of(configs: &IndexMap<Arc<str>, V>) -> Result<Arc<TableEntry>> {
+    let fingerprint = fingerprint(configs)?;
+    table()?.get(fingerprint.as_str()).cloned().ok_or_else(|| {
+        Error::unsupported(format!("the core's table has no entry for these configs (fingerprint {fingerprint})"))
+    })
 }
 
 fn table() -> Result<&'static IndexMap<Arc<str>, Arc<TableEntry>>> {
@@ -483,10 +511,7 @@ fn sections(scenario: &Scenario, table: &TableEntry) -> Result<V> {
 /// separators=(",", ":"))`.
 pub fn entry(scenario: &[u8]) -> Result<Vec<u8>> {
     let scenario = read_scenario(scenario)?;
-    let fingerprint = fingerprint(&scenario.configs)?;
-    let table = table()?.get(fingerprint.as_str()).cloned().ok_or_else(|| {
-        Error::unsupported(format!("the core's table has no entry for these configs (fingerprint {fingerprint})"))
-    })?;
+    let table = entry_of(&scenario.configs)?;
     let world = build_world(&scenario, &table)?;
     let rng_state = vmap([("algorithm", vstr("sha256-keyed-v1")), ("seed", value_of(&scenario.seed)?)]);
     let document = crate::canonical::canonical_json(&world, &rng_state)?;
