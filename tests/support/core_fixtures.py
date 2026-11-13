@@ -59,6 +59,7 @@ FIXTURES: dict[str, str] = {
     "frames": "support.core_frames:frames_fixture",
     "api_answers": "support.core_api_answers:api_answers_fixture",
     "offline_interpreter": "support.core_interpret:offline_interpreter_fixture",
+    "summaries": "support.core_summaries:summaries_fixture",
 }
 
 # ---- The registry ------------------------------------------------------------------------------
