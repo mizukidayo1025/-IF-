@@ -37,6 +37,13 @@ for (const [name, world] of Object.entries(fixture.initial_worlds)) {
   const problems = [];
   if (entry.length !== wanted.entry_bytes) problems.push(`entry has ${entry.length} bytes, not ${wanted.entry_bytes}`);
   if (wasm.sha256Hex(entry) !== wanted.entry_sha256) problems.push("the entry is not the one Python exports");
+  const scenarioBytes = encode(world.scenario);
+  const versions = JSON.parse(wasm.modelVersions(scenarioBytes));
+  const wantedVersions = wanted.model_versions;
+  if (Object.keys(versions).length !== Object.keys(wantedVersions).length || Object.entries(wantedVersions).some(([key, value]) => versions[key] !== value)) {
+    problems.push("the model versions are not Python's");
+  }
+  if (wasm.sha256Hex(wasm.runEvidence(scenarioBytes)) !== wanted.evidence_sha256) problems.push("the evidence is not Python's");
   const simulation = new wasm.Simulation(entry);
   const initial = JSON.parse(simulation.digests_json());
   for (const [part, digest] of Object.entries(wanted.initial)) {
