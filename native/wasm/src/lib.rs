@@ -513,6 +513,27 @@ pub fn parse_scenario_text(text: &str) -> Result<String, JsError> {
     }
 }
 
+/// `InitialScenarioRequest.model_validate` of a request's JSON bytes and its
+/// `model_dump(mode="json")` (`sheltersim_core::scenario::request`, #295), as JSON:
+/// `{"request": dump, "input_sha256": sha256 of the dump's sorted JSON}` (the structured form's
+/// input hash). Errors as `parseScenarioText`'s.
+#[wasm_bindgen(js_name = scenarioRequest)]
+pub fn scenario_request(raw: &[u8]) -> Result<String, JsError> {
+    use sheltersim_core::scenario::request::{InitialScenarioRequest, Refusal};
+    match InitialScenarioRequest::of_json(raw) {
+        Ok(request) => {
+            let mut out = b"{\"input_sha256\":\"".to_vec();
+            out.extend_from_slice(request.input_sha256().as_bytes());
+            out.extend_from_slice(b"\",\"request\":");
+            out.extend_from_slice(&request.dump_json());
+            out.push(b'}');
+            String::from_utf8(out).map_err(|error| JsError::new(&error.to_string()))
+        }
+        Err(Refusal::Invalid(why)) => Err(JsError::new(&format!("invalid: {why}"))),
+        Err(Refusal::Unsupported(why)) => Err(JsError::new(&format!("unsupported: {why}"))),
+    }
+}
+
 /// `hashlib.sha256(bytes).hexdigest()`: what the page's journal checks its lines and pieces by.
 #[wasm_bindgen(js_name = sha256Hex)]
 pub fn sha256_hex(bytes: &[u8]) -> String {

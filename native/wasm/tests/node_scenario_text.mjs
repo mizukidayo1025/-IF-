@@ -50,6 +50,17 @@ for (const [name, entry] of Object.entries(corpus.cases)) {
   compared += 1;
 }
 assert.ok(compared >= 25, `only ${compared} texts compared`);
+// The structured form: each corpus case that posts only a request reads as the server read it.
+let forms = 0;
+for (const [name, entry] of Object.entries(corpus.cases)) {
+  const request = entry.body?.request;
+  if (!request || entry.body.text?.trim() || !entry.answer?.request) continue;
+  const read = JSON.parse(wasm.scenarioRequest(new TextEncoder().encode(JSON.stringify(request))));
+  assert.deepEqual({ ...read.request, field_origins: sorted(read.request.field_origins) }, { ...entry.answer.request, field_origins: sorted(entry.answer.request.field_origins) }, name);
+  forms += 1;
+}
+assert.ok(forms >= 10, `only ${forms} forms compared`);
+assert.throws(() => wasm.scenarioRequest(new TextEncoder().encode('{"evacuees": 0}')), /^Error: invalid: /);
 assert.throws(() => wasm.parseScenarioText(""), /^Error: invalid: /);
 assert.throws(() => wasm.parseScenarioText("あ".repeat(4001)), /^Error: invalid: /);
-console.log(`scenario texts: ok (${compared} corpus texts)`);
+console.log(`scenario texts: ok (${compared} corpus texts, ${forms} forms)`);
