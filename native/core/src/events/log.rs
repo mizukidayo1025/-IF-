@@ -25,7 +25,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
-use super::packed::{Packer, Unpacked};
+use super::packed::{Blocks, Packer, Unpacked};
 use super::{is_stable_id, EventRow, EventStatus};
 use crate::error::{Error, Result};
 use crate::value::V;
@@ -107,67 +107,35 @@ pub struct EventLog {
 /// Where `Packed::starts` says a record is not in the binary form: its bytes are the entry's.
 const NOT_PACKED: u64 = u64::MAX;
 
-/// The records of a log in the binary form (`events::packed`, #252): each record's packed bytes,
-/// one after another, in blocks of about `BLOCK` bytes, and where each starts. A record never
-/// spans two blocks, and blocks are not grown past their capacity: holding the records takes no
-/// copy of them and little room beyond them, where one growing buffer would double. A record whose
-/// packed form would not write its bytes again keeps its bytes in its entry instead.
+/// The records of a log in the binary form (`events::packed`, #252): each record's packed bytes, in
+/// blocks (`Blocks`), and where each starts. A record whose packed form would not write its bytes
+/// again keeps its bytes in its entry instead.
 #[derive(Clone, Debug, PartialEq)]
 struct Packed {
     packer: Packer,
-    blocks: Vec<Vec<u8>>,
-    /// Where each record starts: its block's index times 2^32 plus its offset in it, or
-    /// `NOT_PACKED`.
+    blocks: Blocks,
+    /// Where each record starts in `blocks`, or `NOT_PACKED`.
     starts: Vec<u64>,
-    /// The bytes of the records the blocks hold.
-    size: usize,
 }
-
-/// The bytes of a block of `Packed`.
-const BLOCK: usize = 1 << 20;
 
 impl Packed {
     fn new(records: usize) -> Self {
-        Self { packer: Packer::new(), blocks: Vec::new(), starts: Vec::with_capacity(records), size: 0 }
+        Self { packer: Packer::new(), blocks: Blocks::default(), starts: Vec::with_capacity(records) }
     }
 
     /// Packs a record into the blocks: where it starts, or the packer's error with nothing held.
     fn push(&mut self, event: &EventRow, realized_minute: i64, status: EventStatus, detail: Option<&str>) -> Result<u64> {
         let mut record = Vec::with_capacity(256);
         self.packer.pack(&mut record, event, realized_minute, status, detail)?;
-        let fits = self.blocks.last().is_some_and(|block| block.len() + record.len() <= block.capacity());
-        if !fits {
-            self.blocks.push(Vec::with_capacity(BLOCK.max(record.len())));
-        }
-        let index = self.blocks.len() - 1;
-        let block = &mut self.blocks[index];
-        let start = ((index as u64) << 32) | block.len() as u64;
-        block.extend_from_slice(&record);
-        self.size += record.len();
-        Ok(start)
+        Ok(self.blocks.push(&record))
     }
 
-    /// The bytes from a start to the end of its block.
     fn at(&self, start: u64) -> &[u8] {
-        let block = (start >> 32) as usize;
-        let offset = (start & 0xffff_ffff) as usize;
-        self.blocks.get(block).and_then(|block| block.get(offset..)).unwrap_or_default()
+        self.blocks.at(start)
     }
 
-    /// Lets go of the records from a start on.
     fn truncate(&mut self, start: u64) {
-        let block = (start >> 32) as usize;
-        let offset = (start & 0xffff_ffff) as usize;
-        for later in self.blocks.drain(block.saturating_add(1).min(self.blocks.len())..) {
-            self.size -= later.len();
-        }
-        if let Some(last) = self.blocks.get_mut(block) {
-            self.size -= last.len().saturating_sub(offset);
-            last.truncate(offset);
-            if last.is_empty() {
-                self.blocks.pop();
-            }
-        }
+        self.blocks.truncate(start);
     }
 }
 
@@ -388,7 +356,7 @@ impl EventLog {
     /// keys, and their counts: (bytes, strings, shapes), or None when the log is not packed.
     pub fn packed_sizes(&self) -> Option<(usize, usize, usize)> {
         let packed = self.packed.as_ref()?;
-        Some((packed.size, packed.packer.strings().len(), packed.packer.shapes().len()))
+        Some((packed.blocks.size(), packed.packer.strings().len(), packed.packer.shapes().len()))
     }
 
     /// The record at a position as it was realized, read from its packed form or its bytes; None

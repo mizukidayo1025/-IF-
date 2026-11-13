@@ -288,8 +288,12 @@ fn the_plain_host_runs_each_world_to_the_native_path_s_world() {
         let whole: Vec<(&str, String)> =
             run.loaded.cell.with(|world| canonical::parts(world).unwrap()).unwrap().into_iter().map(|(part, raw)| (part, sha256_hex(&raw))).collect();
         assert_eq!(run.digests().unwrap(), whole, "{name}");
-        assert_eq!(run.host.metric_lines.len() as u64, wanted["metric_count"].as_u64().unwrap(), "{name}");
+        assert_eq!(run.host.samples.len() as u64, wanted["metric_count"].as_u64().unwrap(), "{name}");
         assert_eq!(run.host.metrics_digest(), wanted["metrics"].as_str().unwrap(), "{name}");
+        // The samples are held packed (#252): their lines written again are the native path's.
+        let lines: Vec<Vec<u8>> = (0..run.host.samples.len()).map(|index| run.host.samples.line(index).unwrap().unwrap()).collect();
+        assert_eq!(sha256_hex(&lines.join(&b'\n')), wanted["metrics"].as_str().unwrap(), "{name}");
+        assert!(run.host.samples.line(lines.len()).unwrap().is_none());
         assert_eq!(run.stepping.checks.asked.iter().filter(|question| *question == "effects").count() as i64, ticks, "{name}");
     }
     // The generated world's EffectProgram moved four facilities: the plan was built again after each.
