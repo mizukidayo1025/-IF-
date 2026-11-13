@@ -4,8 +4,9 @@
 worlds of `tick_core.json` (`support/core_tick.py`) and the world `arrivals` of `frames.json` in
 the core, from minute 0, and check at each minute here that the core's frame
 (`sheltersim_core::frame`) has the sha256 of the frame the native path gave on the same world, and
-that the world's digest (`state_digest`) is the frame's `state_hash`. `frames_fixture` builds
-`frames.json`; `benchmarks/core_fixtures.py` writes it.
+that the world's digest (`state_digest`) is the frame's `state_hash`. The native path's frame is
+the core's too since #264; PR #270 recorded these sha256 from the Python frame, the same bytes.
+`frames_fixture` builds `frames.json`; `benchmarks/core_fixtures.py` writes it.
 
 - `small_replay` has no floor plan: its people are at their zones' display points
   (`display_only`).

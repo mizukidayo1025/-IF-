@@ -1,6 +1,5 @@
 """Bounded observational frame batches for smooth browser playback."""
 
-from copy import deepcopy
 from typing import Any
 
 from sheltersim.core.model_version import saved_point_view
@@ -48,14 +47,12 @@ def _branch_frames(
     for world, history in timeline.read_worlds(ref.branch_id, start, end):
         world.validate()
         document, _, encoder = history.documents(world, None)
-        frame = deepcopy(
-            world_frame(
-                world,
-                run_id=run_id,
-                branch_id=ref.branch_id,
-                computed_until=ref.computed_until,
-                state_hash=encoder.world_tree_digest(document),
-            )
+        frame = world_frame(
+            world,
+            run_id=run_id,
+            branch_id=ref.branch_id,
+            computed_until=ref.computed_until,
+            state_hash=encoder.world_tree_digest(document),
         )
         # A Run of another model version shows its saved points (D2) and says so.
         view = saved_point_view(world)

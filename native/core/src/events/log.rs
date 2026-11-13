@@ -499,6 +499,11 @@ impl EventLog {
     }
 
     /// Every event ID in append order.
+    /// The event ID of the record at a position.
+    pub fn event_id_at(&self, index: usize) -> Option<&str> {
+        self.entries.get(index).map(|entry| &*entry.event_id)
+    }
+
     pub fn event_ids(&self) -> impl ExactSizeIterator<Item = &str> {
         self.entries.iter().map(|entry| &*entry.event_id)
     }
