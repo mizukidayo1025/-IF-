@@ -37,6 +37,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import struct
 import sys
@@ -282,6 +283,21 @@ def shelter_index(*, csv_path: Path | None = None, fetch: bool = False) -> dict[
         raise ValueError(str(error)) from error
 
 
+# A module's static imports of modules beside it (`import … from "./x.mjs"`, `import "./x.mjs"`).
+RELATIVE_IMPORT = re.compile(r"""\bimport\b[^;'"]*?['"]\./([A-Za-z0-9_.-]+\.m?js)['"]""")
+
+
+def browser_modules() -> list[str]:
+    """BROWSER_FILES and the modules they import beside them, at any depth: a module the Worker
+    imports is on the site even when the list above does not name it."""
+    names = list(BROWSER_FILES)
+    for name in names:
+        for imported in RELATIVE_IMPORT.findall((JS / name).read_text(encoding="utf-8")):
+            if imported not in names:
+                names.append(imported)
+    return names
+
+
 def build(
     output: Path,
     *,
@@ -314,7 +330,7 @@ def build(
         browser_html((STATIC / "demo-v2.html").read_text(encoding="utf-8")), encoding="utf-8"
     )
     (output / "browser" / "pkg").mkdir(parents=True)
-    for name in BROWSER_FILES:
+    for name in browser_modules():
         shutil.copyfile(JS / name, output / "browser" / name)
     for name in PKG_FILES:
         shutil.copyfile(pkg / name, output / "browser" / "pkg" / name)

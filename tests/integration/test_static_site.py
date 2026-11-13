@@ -71,9 +71,10 @@ def site(builder: dict[str, Any], tmp_path: Path) -> tuple[Path, bytes, dict[str
 
 
 def test_the_site_holds_the_screen_the_browser_api_and_the_sample_in_parts(
-    site: tuple[Path, bytes, dict[str, Any]],
+    site: tuple[Path, bytes, dict[str, Any]], builder: dict[str, Any]
 ) -> None:
     output, bundle, summary = site
+    RELATIVE_IMPORT, JS = builder["RELATIVE_IMPORT"], builder["JS"]
     for name in ("demo-v2.css", "demo-v2.js", "demo-v2-map.js", "demo-v2-logo.jpg"):
         assert (output / name).read_bytes() == (STATIC / name).read_bytes()
     server_html = (STATIC / "demo-v2.html").read_text(encoding="utf-8")
@@ -89,6 +90,12 @@ def test_the_site_holds_the_screen_the_browser_api_and_the_sample_in_parts(
     assert browser_html.index("/browser/api_fetch.js") < browser_html.index("/demo-v2-scene.js")
     for name in ("api_fetch.js", "api_worker.mjs", "browser_api.mjs", "compute.mjs"):
         assert (output / "browser" / name).is_file()
+    # Every module the site's modules import beside them is on the site (a missing one stops the
+    # Worker from starting).
+    browser = output / "browser"
+    for module in browser.glob("*.*js"):
+        for name in RELATIVE_IMPORT.findall(module.read_text(encoding="utf-8")):
+            assert (browser / name).read_bytes() == (JS / name).read_bytes(), (module.name, name)
     assert (output / "browser" / "pkg" / "sheltersim_wasm_bg.wasm").is_file()
 
     manifest = json.loads((output / "sample" / "sample.json").read_text(encoding="utf-8"))
