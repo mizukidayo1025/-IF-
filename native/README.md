@@ -160,8 +160,17 @@ split PR by PR; its last section sums up what is where.
   `Simulation.review_metrics`; `wasm/js/api_answers.mjs` writes the answers, and
   `wasm/tests/node_api_answers.mjs` checks them against the Python server's on the Run of
   `core/tests/data/api_answers.json`.
-- **Out of the core** (decision 4): building a world from a Scenario and restoring a Checkpoint
-  stay in Python and the wrapper. The whole-world validation texts (E6) and the pydantic
+- **A Scenario's world at minute 0** (#249): `initial::entry` builds, from a Scenario's
+  canonical JSON, the bytes `export_world` writes of the world a Run starts from (the rows, the
+  queue, the stock's ledger, each person's, staff member's and zone's records, the floor plan's
+  sections, the zone neighbors). What Python derives from the configs that are the same for every
+  Scenario the screen makes (the Run's policies, the contract-parsed sections, the namespaces'
+  templates) comes from `initial/table.json`, keyed by `initial::fingerprint` of the configs
+  without their data (`DATA_CONFIGS`); `tests/support/core_initial.py` writes it. Configs the table
+  lacks are `Unsupported`. In WASM: `initialEntry`; `core/tests/initial.rs` and
+  `wasm/tests/node_initial.mjs` check `core/tests/data/initial_worlds.json`.
+- **Out of the core** (decision 4): building a world from a Scenario the screen does not make and
+  restoring a Checkpoint stay in Python and the wrapper. The whole-world validation texts (E6) and the pydantic
   contracts (E15) stay Python behind `Host`; a host without Python passes the validation and
   takes each contract's input as given (`PlainHost`) until stage 6.
 
