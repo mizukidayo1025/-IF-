@@ -347,6 +347,18 @@ impl EventLog {
         Ok(count)
     }
 
+    /// Holds the records in the binary form, already packed against `packer` in `blocks`, each at
+    /// its start in `starts` (a stored log read back, `archive::Restore`, #251): the log must have
+    /// every record added with no bytes (`add` with `has_bytes`) and not be packed yet. Records
+    /// appended after are packed into `blocks` and against `packer`, as `pack_records` would have.
+    pub fn adopt_packed(&mut self, packer: Packer, blocks: Blocks, starts: Vec<u64>) -> Result<()> {
+        if self.packed.is_some() || starts.len() != self.entries.len() || self.entries.iter().any(|entry| entry.written.is_some() || !entry.exact) {
+            return Err(Error::unsupported("the log cannot take packed records"));
+        }
+        self.packed = Some(Packed { packer, blocks, starts });
+        Ok(())
+    }
+
     /// The packer and the blocks of the records in the binary form, or None when the log is not
     /// packed: what a Run in the browser stores (`archive`, #252 PR 6-5). A record kept as bytes
     /// (`pack_records`) is in neither.

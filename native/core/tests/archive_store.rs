@@ -2,13 +2,17 @@
 //! and samples, taken as a Run goes, with the tables' new entries before them, and its last world
 //! without the log; read back in that order, they give the Run's digests. Bytes that are not such
 //! pieces are an error.
+//!
+//! Saved points (#251): the Run at a minute, restored from its saved point and the stored log's and
+//! samples' first records and samples, has the Run's digests at that minute and goes on to the
+//! Run's end with the same digests.
 
 mod support;
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use sheltersim_core::archive::{world_part_digests, world_parts, LogReader, SampleReader};
+use sheltersim_core::archive::{world_part_digests, world_parts, LogReader, Restore, SampleReader, SavedPoint, SAVED_POINT_VERSION};
 use sheltersim_core::checkpoint::sha256_hex;
 use sheltersim_core::events::log::EventLog;
 use sheltersim_core::events::packed::{Blocks, Packer, Unpacked};
@@ -205,4 +209,110 @@ fn pieces_out_of_order_or_changed_are_errors() {
     }
     let samples = &stored.pieces.iter().find(|(kind, _)| *kind == "sample_block").unwrap().1;
     assert!(SampleReader::new().read_block(samples).is_err());
+}
+
+/// The Run's digests now: each part's and the samples'.
+fn digests_of(run: &PlainRun) -> (Vec<(&'static str, String)>, String) {
+    (run.digests().unwrap(), run.host.metrics_digest())
+}
+
+/// The Run at a saved point: the saved point, then the stored pieces in order until it has the
+/// records and samples it needs.
+fn restored(fixture: &serde_json::Value, point: &[u8], pieces: &[(&'static str, Vec<u8>)]) -> sheltersim_core::error::Result<PlainRun> {
+    let mut restore = Restore::new(point)?;
+    for (kind, bytes) in pieces {
+        if !restore.log_needed() && !restore.samples_needed() {
+            break;
+        }
+        match *kind {
+            "log_tables" => restore.read_log_tables(bytes)?,
+            "log_block" => drop(restore.read_log_block(bytes)?),
+            "sample_tables" => restore.read_sample_tables(bytes)?,
+            "sample_block" => drop(restore.read_sample_block(bytes)?),
+            other => panic!("{other}"),
+        }
+    }
+    PlainRun::restore(fixture.clone(), restore)
+}
+
+/// A Run of each world of `tick_core.json` saved every `every` minutes as it goes (`small_replay`
+/// is one day, saved every 6 hours): restored at each saved point, the Run has the digests the Run
+/// had at that minute and saves the same point again; restored at a minute in the middle, it goes
+/// on to the end with the Run's digests and the native path's.
+#[test]
+fn a_run_restored_at_a_saved_point_goes_on_as_the_run_did() {
+    for (name, every) in [("small_replay", 360), ("generated", 60)] {
+        let fixture = load::entry("tick_core", name);
+        let ticks = fixture["expected"]["ticks"].as_i64().unwrap();
+        let mut run = PlainRun::of_entry(&fixture).unwrap();
+        let mut stored = Stored::default();
+        let mut points = Vec::new();
+        for at in 1..=ticks {
+            run.step().unwrap();
+            if at % 60 == 0 {
+                flush(&run, &mut stored, false);
+            }
+            if at % every == 0 {
+                points.push((at, run.saved_point().unwrap().to_bytes(), digests_of(&run)));
+            }
+        }
+        flush(&run, &mut stored, true);
+        let end = digests_of(&run);
+        assert!(points.len() >= 4, "{name}: {} saved points", points.len());
+        for (minute, point, digests) in &points {
+            let again = restored(&fixture, point, &stored.pieces).unwrap();
+            assert_eq!(again.minute().unwrap(), *minute, "{name}");
+            assert_eq!(&digests_of(&again), digests, "{name} at {minute}");
+            assert_eq!(&again.saved_point().unwrap().to_bytes(), point, "{name} at {minute}");
+        }
+        let (minute, point, _) = &points[points.len() / 2 - 1];
+        let mut again = restored(&fixture, point, &stored.pieces).unwrap();
+        for _ in *minute..ticks {
+            again.step().unwrap();
+        }
+        assert_eq!(digests_of(&again), end, "{name} from {minute}");
+        assert_eq!(again.host.metrics_digest(), fixture["expected"]["metrics"].as_str().unwrap(), "{name}");
+        assert_eq!(again.host.contracts, run.host.contracts, "{name}");
+    }
+}
+
+/// A saved point of another version, cut short or changed, and a store that ends before the saved
+/// point's records or samples, are errors, never a panic.
+#[test]
+fn saved_points_that_are_not_ones_are_errors() {
+    let fixture = load::entry("tick_core", "small_replay");
+    let mut run = PlainRun::of_entry(&fixture).unwrap();
+    for _ in 0..120 {
+        run.step().unwrap();
+    }
+    let mut stored = Stored::default();
+    flush(&run, &mut stored, true);
+    let point = run.saved_point().unwrap();
+    let bytes = point.to_bytes();
+    assert_eq!(SavedPoint::of_bytes(&bytes).unwrap(), point);
+    let mut other = bytes.clone();
+    other[4] = (SAVED_POINT_VERSION + 1) as u8;
+    let error = SavedPoint::of_bytes(&other).unwrap_err().to_string();
+    assert!(error.contains("version"), "{error}");
+    for end in [0, 3, 4, 5, 8, bytes.len() / 2, bytes.len() - 1] {
+        assert!(restored(&fixture, &bytes[..end], &stored.pieces).is_err(), "cut at {end}");
+    }
+    let mut longer = bytes.clone();
+    longer.push(0);
+    assert!(restored(&fixture, &longer, &stored.pieces).is_err());
+    for at in (0..bytes.len()).step_by(bytes.len() / 97 + 1) {
+        let mut changed = bytes.clone();
+        changed[at] ^= 0x5a;
+        let _ = restored(&fixture, &changed, &stored.pieces);
+    }
+    // Only the samples, or only the log: the store ends before the saved point's.
+    let samples: Vec<_> = stored.pieces.iter().filter(|(kind, _)| kind.starts_with("sample")).cloned().collect();
+    assert!(restored(&fixture, &bytes, &samples).is_err());
+    let log: Vec<_> = stored.pieces.iter().filter(|(kind, _)| kind.starts_with("log")).cloned().collect();
+    assert!(restored(&fixture, &bytes, &log).is_err());
+    // A saved point whose world is of another minute than its own.
+    let mut moved = point.clone();
+    moved.minute += 1;
+    assert!(restored(&fixture, &moved.to_bytes(), &stored.pieces).is_err());
+    assert!(restored(&fixture, &bytes, &stored.pieces).is_ok());
 }
