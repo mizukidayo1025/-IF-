@@ -1,0 +1,6385 @@
+{
+ "cases": [
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 1,
+    "staff_count": null
+   },
+   "length": 19486,
+   "sha256": "705314a4c454a183658f948dcdf4767bfeb1fd4425a618f9c6fac25bb74b4ddc"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 1,
+    "staff_count": 0
+   },
+   "length": 18719,
+   "sha256": "866a79064f2684581e17ff10fd65a322f6e1247f34a0bbe7d431094c174b86d6"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [],
+    "gross_area_m2": 1.0,
+    "population": 1,
+    "staff_count": null
+   },
+   "length": 21510,
+   "sha256": "ac740f9ff0c6be0907bd9ff862e606b6cc69b6c96eb9fbb865b76e411c8be443"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": 3.5,
+    "population": 2,
+    "staff_count": null
+   },
+   "length": 21873,
+   "sha256": "891f86087b85f3e671b166f8e566a8967df917db9ec16ce6230f790bf1d3e370"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "ペット"
+    ],
+    "gross_area_m2": null,
+    "population": 12,
+    "staff_count": null
+   },
+   "length": 21552,
+   "sha256": "d6daf4ea7f442d4f10d6bbe7ea01f04fb2416ff1f18400f3d5763097498e3075"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 100,
+    "staff_count": null
+   },
+   "length": 21946,
+   "sha256": "54301f73cce45dfc33830c79bc47eb9f55bc69ae16df34ee7ba82fa6b4cba895"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 学校（体育館）"
+    ],
+    "gross_area_m2": null,
+    "population": 100,
+    "staff_count": 6
+   },
+   "length": 22202,
+   "sha256": "c41579ef11042c47baebc2eda3ad2cdcc11567374271f4a3fbe95031ddeb6123"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": 50.0,
+    "population": 100,
+    "staff_count": null
+   },
+   "length": 24222,
+   "sha256": "970dfeed17feba85ca57a876e23689914fbc9510ff2b4fc0f5fcfe062c33ad78"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [],
+    "gross_area_m2": 900.0,
+    "population": 100,
+    "staff_count": null
+   },
+   "length": 22533,
+   "sha256": "ea8e13fa404ecd42066ff42284f773c384260592555fa6c6885351432e45cf31"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [],
+    "gross_area_m2": 500.0,
+    "population": 300,
+    "staff_count": null
+   },
+   "length": 36592,
+   "sha256": "d5eebe36440dc50fe42861af1bc85cdc71cab79d0ca7723e204d1ae8553a2f55"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 400,
+    "staff_count": 100
+   },
+   "length": 44887,
+   "sha256": "b5f5aac987c37d1ee05ed485d512813c5ce076c673bceae767c14b1da510cfc4"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": 100000.0,
+    "population": 500,
+    "staff_count": null
+   },
+   "length": 40321,
+   "sha256": "5cd90a04a026961140c718938e7d5dbace8a3963ef2e7e067cc3ebbd02c5fb9b"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": 3000.0,
+    "population": 2000,
+    "staff_count": null
+   },
+   "length": 80830,
+   "sha256": "dcefd56158acbea403b29ee7e2576bc17b77559b77465d32b1f31559b36dceb9"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 10000,
+    "staff_count": null
+   },
+   "length": 296731,
+   "sha256": "42d9aceac96a6a8d9cf82896ad0d720578d4d8558e532d85fb9f634f42734db6"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [
+     "ペット",
+     "授乳",
+     "個室",
+     "車いす"
+    ],
+    "gross_area_m2": null,
+    "population": 10000,
+    "staff_count": 100
+   },
+   "length": 262374,
+   "sha256": "e4d19dc567689dd83e8a9e38ae1c5ba35144a67072057b2f9c425a782269d728"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": 333.3,
+    "population": 30,
+    "staff_count": null
+   },
+   "length": 20911,
+   "sha256": "c108aca47f5db73127de44d898253a6c6add54d4aacb3d12558a26cf3a368cb3"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "ペット",
+     "授乳・乳幼児",
+     "個室・プライバシー",
+     "車いす対応"
+    ],
+    "gross_area_m2": null,
+    "population": 90,
+    "staff_count": null
+   },
+   "length": 27991,
+   "sha256": "01326e46e9088b324145dffbd9ea352df98aa8d2409cf64804d11fe454d49095"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [
+     "授乳・乳幼児",
+     "個室・プライバシー"
+    ],
+    "gross_area_m2": null,
+    "population": 60,
+    "staff_count": null
+   },
+   "length": 25277,
+   "sha256": "c09c8c8cd0577ba000579ee1ef2cd83c892a54265de2b005439675781e3b3f2e"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 40,
+    "staff_count": 0
+   },
+   "length": 19694,
+   "sha256": "bffcc194b1c7a4a37bfc3c27e791dd8ebf86033613a38cbea3fa0c44a7ae1c9b"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "車いす対応"
+    ],
+    "gross_area_m2": null,
+    "population": 25,
+    "staff_count": null
+   },
+   "length": 19528,
+   "sha256": "1ef06b86d888bb176e2a4fcdea3986447e5ddfeda063e61578b91794920c409c"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "その他の条件"
+    ],
+    "gross_area_m2": 80.0,
+    "population": 50,
+    "staff_count": 1
+   },
+   "length": 20975,
+   "sha256": "27ea50780ff530eec674557b669efe1d2cf663704b07475531fc11f2720a327e"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "ペット",
+     "privacy"
+    ],
+    "gross_area_m2": 12.5,
+    "population": 7,
+    "staff_count": 2
+   },
+   "length": 27309,
+   "sha256": "1ab42621267233082f3102214b927ae26247a5d9fd0171fa24aa6df94f1a64d4"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "授乳",
+     "infant",
+     "privacy",
+     "施設種別（利用者入力）: 学校（体育館）"
+    ],
+    "gross_area_m2": 322.0,
+    "population": 60,
+    "staff_count": 15
+   },
+   "length": 29878,
+   "sha256": "a0023f72cc2bd6bcbea9ac0741bdbe0c017080fe77b09efa4f9c466dfd22cadb"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "バリアフリー",
+     "個室"
+    ],
+    "gross_area_m2": 44166.551725,
+    "population": 53,
+    "staff_count": null
+   },
+   "length": 24170,
+   "sha256": "45638a935adfaebe2266e6f6ec2f265490a5bb8bb032ba3a95ed22b6d8fe5037"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [],
+    "gross_area_m2": 123.5,
+    "population": 40,
+    "staff_count": null
+   },
+   "length": 21342,
+   "sha256": "92edbe341ec2f0c7291074dadb4e186d171794f859b5b3d3a952aa1acc746720"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "個室・プライバシー",
+     "privacy"
+    ],
+    "gross_area_m2": null,
+    "population": 600,
+    "staff_count": 57
+   },
+   "length": 47611,
+   "sha256": "abe8d94cd0836ff1fda4f7231cfbf13659ad9cf72141a835346d40276d68102a"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [
+     "車椅子"
+    ],
+    "gross_area_m2": 8.0,
+    "population": 21,
+    "staff_count": 78
+   },
+   "length": 31181,
+   "sha256": "767f6b9e161645abaa8165846fa911edb7ac919afa3cca95a4b14636e4c2e5d9"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [],
+    "gross_area_m2": 3467.0,
+    "population": 30,
+    "staff_count": null
+   },
+   "length": 29189,
+   "sha256": "17ade4003f681345bf958c933dbab90e4b8d43d10a99f76196e52f3e17f8e3b5"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "Pet",
+     "family",
+     "個室",
+     "プライバシー"
+    ],
+    "gross_area_m2": 16.149,
+    "population": 38,
+    "staff_count": null
+   },
+   "length": 29523,
+   "sha256": "2dd0722e6520e65094fe2fffe77fd4b38ef78ecfc8674cab3ceb995166961373"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "family",
+     "Pet",
+     "施設種別（利用者入力）: 公民館"
+    ],
+    "gross_area_m2": null,
+    "population": 408,
+    "staff_count": null
+   },
+   "length": 39860,
+   "sha256": "1d0c5928a7795bb2aad054011b71dddcf8aac0bb6b32ab425c131c10e32a5c44"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 2262,
+    "staff_count": 91
+   },
+   "length": 84000,
+   "sha256": "11d0836260549af07e936a62d388eae627bdb20066c6203c1f385ee6df5c45e0"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 学校（体育館）"
+    ],
+    "gross_area_m2": null,
+    "population": 484,
+    "staff_count": null
+   },
+   "length": 39175,
+   "sha256": "dc841bd2c0d265e7ec6d0a937837d85974d98acc5a223d0ca217ab071b380fed"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 9,
+    "facility_conditions": [
+     "infant"
+    ],
+    "gross_area_m2": null,
+    "population": 50,
+    "staff_count": null
+   },
+   "length": 25934,
+   "sha256": "3e62e97e475cf23406b49d5dd954689a535f07a6f397fae2ce2a7098d0fc9972"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 17,
+    "facility_conditions": [],
+    "gross_area_m2": 35.2,
+    "population": 619,
+    "staff_count": null
+   },
+   "length": 46406,
+   "sha256": "a67dd3daf014dd6dd36bd1631e6227928947816f73bc8ab027a481cc04b447e1"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 515,
+    "staff_count": 59
+   },
+   "length": 43827,
+   "sha256": "d744d76019f9ee6d99e786ddfcf20be006c6e91cd3555aebdd4a32ab8e070441"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "車いす対応"
+    ],
+    "gross_area_m2": null,
+    "population": 16,
+    "staff_count": null
+   },
+   "length": 20062,
+   "sha256": "2e88dc0b9f47802014d2a649fd6252bf9d5b7b7d6c66cef636ee3603bb8e8432"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 公民館",
+     "乳幼児",
+     "授乳・乳幼児"
+    ],
+    "gross_area_m2": null,
+    "population": 284,
+    "staff_count": 75
+   },
+   "length": 40252,
+   "sha256": "d29d0398ac54e27615f1278271c7dd9b3d47b0f3134f65ab9f05691dd991ec51"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "車いす対応"
+    ],
+    "gross_area_m2": null,
+    "population": 112,
+    "staff_count": 86
+   },
+   "length": 33623,
+   "sha256": "dd4d7c6469bcbf7e1185add7341d6260724486fa5062e6ff7f381f66a7eae011"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [],
+    "gross_area_m2": 1.194,
+    "population": 222,
+    "staff_count": null
+   },
+   "length": 30744,
+   "sha256": "55d338c6852ab7315ffa863f2bd64a31018aa7467d2ae52e0a8c7a9bb7912c1e"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 12,
+    "facility_conditions": [
+     "バリアフリー",
+     "infant",
+     "個室"
+    ],
+    "gross_area_m2": null,
+    "population": 245,
+    "staff_count": 88
+   },
+   "length": 45945,
+   "sha256": "7c29e4c0ffe5c951efee79a3c23c47e73022400ba727464994bfce7a0c196193"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [],
+    "gross_area_m2": 336.0,
+    "population": 34,
+    "staff_count": null
+   },
+   "length": 20857,
+   "sha256": "0344a4ddff6b8c0e6dd0ca852e944daaa32ca32d6a81ead619d4e438745923c4"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "family"
+    ],
+    "gross_area_m2": 5.560039,
+    "population": 540,
+    "staff_count": 65
+   },
+   "length": 50653,
+   "sha256": "91ad6fcda3edf932a55edd2b2636b079210d411f98d1700a9b4c1772259e0aa2"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [
+     "車椅子",
+     "個室"
+    ],
+    "gross_area_m2": null,
+    "population": 302,
+    "staff_count": null
+   },
+   "length": 30356,
+   "sha256": "f09e69735261ba6ffa325bfde41490b3a6b5b58f5d16ef09380b387b2db3f9fa"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "個室・プライバシー",
+     "wheelchair"
+    ],
+    "gross_area_m2": null,
+    "population": 578,
+    "staff_count": 3
+   },
+   "length": 41313,
+   "sha256": "a866521e9f551c9d08d129e296ff1843c5f631e05537deb59f509beb4e7d09ff"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "infant",
+     "個室・プライバシー",
+     "privacy",
+     "プライバシー"
+    ],
+    "gross_area_m2": 1991.0,
+    "population": 524,
+    "staff_count": null
+   },
+   "length": 45754,
+   "sha256": "7ab7bd5aa0266d9ff43a8a1d3e05655f2f3ce8dee18dba75696d1bdaf977a908"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 19,
+    "facility_conditions": [
+     "授乳・乳幼児",
+     "授乳",
+     "ペット"
+    ],
+    "gross_area_m2": null,
+    "population": 389,
+    "staff_count": 27
+   },
+   "length": 42134,
+   "sha256": "56a27870c9fd181275e0a63a7a188bf81d81f46798f0a9607c10220d2f5d984c"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "wheelchair"
+    ],
+    "gross_area_m2": null,
+    "population": 40,
+    "staff_count": 46
+   },
+   "length": 27442,
+   "sha256": "27105e5d12999c40372cbec89c41e0c8f8c80f199b7f5cbbf53e017970495a43"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "乳幼児"
+    ],
+    "gross_area_m2": 2019.5,
+    "population": 13,
+    "staff_count": 96
+   },
+   "length": 34210,
+   "sha256": "3fd025abfcade92bbda37d9c867561ad6411010558c3474eab0d01ac2709603f"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [
+     "車椅子"
+    ],
+    "gross_area_m2": 2.745011,
+    "population": 525,
+    "staff_count": 11
+   },
+   "length": 41233,
+   "sha256": "5e946cfafca63a832720a107d7081475f701a5b34c5220770f5ffe1062cd31d8"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [],
+    "gross_area_m2": 31.679642,
+    "population": 251,
+    "staff_count": null
+   },
+   "length": 32111,
+   "sha256": "e1fe77b6924d2efba8b6a7a6f76198d5c3859f1cfd27f5bd73948bc3369bc854"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "乳幼児",
+     "施設種別（利用者入力）: 学校（体育館）",
+     "privacy"
+    ],
+    "gross_area_m2": 6.1,
+    "population": 457,
+    "staff_count": 34
+   },
+   "length": 46659,
+   "sha256": "860e04f8b43ef80e859531ef834fde7e68984e0da6f9a47c6410e1a60d093689"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [
+     "privacy",
+     "プライバシー",
+     "個室・プライバシー"
+    ],
+    "gross_area_m2": 2.0,
+    "population": 4,
+    "staff_count": 81
+   },
+   "length": 43282,
+   "sha256": "12586fb44997d37f82c4f3e999a180349c8d5b55b7255e6b59e19e8be0ba613c"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 9,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 19,
+    "staff_count": null
+   },
+   "length": 23788,
+   "sha256": "e6937145617c7f7bcb250c4c7333d1918947c0df48fd72ce2c187f2e11dac8ae"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "乳幼児",
+     "施設種別（利用者入力）: 学校（体育館）"
+    ],
+    "gross_area_m2": null,
+    "population": 54,
+    "staff_count": null
+   },
+   "length": 23351,
+   "sha256": "d6a6fb93b1178502c355e8039d00a4f9767ee2f9f13ae56da1ea5a0e0a03e363"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [
+     "授乳",
+     "Pet"
+    ],
+    "gross_area_m2": 49.0,
+    "population": 11,
+    "staff_count": null
+   },
+   "length": 25982,
+   "sha256": "e660e76739783c0b8699ccb8d3d1f707d9825908d2e2f26073c2dbdd079c6873"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 9,
+    "facility_conditions": [
+     "授乳・乳幼児"
+    ],
+    "gross_area_m2": 76.126764,
+    "population": 517,
+    "staff_count": null
+   },
+   "length": 45493,
+   "sha256": "c7e705906601f11156a8e5452dc75f87597a3b6c8633ea87ce3681f26dd26c31"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [
+     "バリアフリー"
+    ],
+    "gross_area_m2": null,
+    "population": 285,
+    "staff_count": null
+   },
+   "length": 34733,
+   "sha256": "c70066d14868d203280b5401bd2c1b1cc077fccb098fd4e9cf48d6e5d060c359"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "ペット",
+     "施設種別（利用者入力）: 公民館"
+    ],
+    "gross_area_m2": null,
+    "population": 149,
+    "staff_count": null
+   },
+   "length": 26631,
+   "sha256": "950897b3b2add9485032e7bbfda21fc53ccae60a97c3bbcca2b253a0abc2d74a"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "family",
+     "Pet",
+     "infant"
+    ],
+    "gross_area_m2": null,
+    "population": 385,
+    "staff_count": null
+   },
+   "length": 39064,
+   "sha256": "2219ff6a0428d69586481b14c22b51943095e0c99819e0f04f5c38643f0e3fe1"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [
+     "授乳・乳幼児",
+     "車いす対応"
+    ],
+    "gross_area_m2": 17801.0,
+    "population": 46,
+    "staff_count": null
+   },
+   "length": 22708,
+   "sha256": "0ba6de71ffe358406327b611a963a98d07bd34b603167455828c55db788c9ec3"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "個室"
+    ],
+    "gross_area_m2": null,
+    "population": 60,
+    "staff_count": null
+   },
+   "length": 23490,
+   "sha256": "13a8e399d3c07f19fc1f899c0370057e645c6661bc996353755ab15f87a36bfd"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "授乳"
+    ],
+    "gross_area_m2": 1248.0,
+    "population": 16,
+    "staff_count": null
+   },
+   "length": 22661,
+   "sha256": "23babeed14355f5718739c21a252b84c4a2ce0cb313402e48194f6b1851b0346"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "車椅子",
+     "infant"
+    ],
+    "gross_area_m2": null,
+    "population": 595,
+    "staff_count": null
+   },
+   "length": 44450,
+   "sha256": "98a59780f12c552758f507dd98ce52386f480d4231f14583c4bd9c7123c69a40"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 557,
+    "staff_count": null
+   },
+   "length": 41221,
+   "sha256": "dca5efea791f401eacea3456912eef53b8719ec27ec3b077fc7583b8d46db08a"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "個室",
+     "授乳・乳幼児",
+     "プライバシー",
+     "infant"
+    ],
+    "gross_area_m2": null,
+    "population": 16,
+    "staff_count": null
+   },
+   "length": 24369,
+   "sha256": "4c412993a402394f517fcdb1a0ea551dd2407ba4fca5468dc3b51191f014eabf"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [
+     "授乳",
+     "施設種別（利用者入力）: 公民館"
+    ],
+    "gross_area_m2": 1000.476348,
+    "population": 5,
+    "staff_count": null
+   },
+   "length": 21890,
+   "sha256": "d3a79d772bdc86fcdd3dd276563f139f5e8b6c5c6bc5b07e56038d25b6ebe12a"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [],
+    "gross_area_m2": 20427.7,
+    "population": 255,
+    "staff_count": null
+   },
+   "length": 29689,
+   "sha256": "21b3c467739a2024ab000bfff88a222dd77a06125e4ee65ae4d4b083b1fbe130"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 18,
+    "facility_conditions": [
+     "車いす対応",
+     "乳幼児"
+    ],
+    "gross_area_m2": 6969.0,
+    "population": 562,
+    "staff_count": 95
+   },
+   "length": 53421,
+   "sha256": "6eff1746dbc04765b1eee7093b1ad7825f5d76d63ec7757fdc5ce0628952e822"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "車いす対応"
+    ],
+    "gross_area_m2": 4952.0,
+    "population": 389,
+    "staff_count": null
+   },
+   "length": 35594,
+   "sha256": "ffc5899816466ba0c7e5b747d54b22d8cd53663f2cd7c837f16ce34d20b685c7"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "授乳・乳幼児"
+    ],
+    "gross_area_m2": null,
+    "population": 457,
+    "staff_count": null
+   },
+   "length": 40126,
+   "sha256": "869bd1e1bd85a8f94f9ed09dd418f2cf53ef6e1dad76627fe5be6f2676280bf7"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "車いす対応",
+     "授乳・乳幼児",
+     "施設種別（利用者入力）: 公民館"
+    ],
+    "gross_area_m2": 34109.0,
+    "population": 8,
+    "staff_count": null
+   },
+   "length": 23420,
+   "sha256": "afed355ea94e62eb373dfef195665dd37fe65fb700436e899751b824ba6499a4"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 414,
+    "staff_count": null
+   },
+   "length": 35912,
+   "sha256": "e5487c722c68ddabfaf4f28936cbf2b5c76a9482f91d43f6d325fd7910cea729"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "Pet"
+    ],
+    "gross_area_m2": null,
+    "population": 1544,
+    "staff_count": 76
+   },
+   "length": 68038,
+   "sha256": "72971e7dc8041b079dd970d1f164f64ab769afe90beeebc786f6a82b1fdb8b37"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [
+     "バリアフリー"
+    ],
+    "gross_area_m2": null,
+    "population": 320,
+    "staff_count": 16
+   },
+   "length": 31009,
+   "sha256": "5b3bdf7c9ae207c64a4795f4f0a79032c27c6c054f4a6921c87262ec596b7302"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [],
+    "gross_area_m2": 3.0,
+    "population": 35,
+    "staff_count": null
+   },
+   "length": 24320,
+   "sha256": "c389db7ba4f37e8bcf113a2c4ab0ab8c9ed0a62bfd3903f682c465f02d7633eb"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 1363,
+    "staff_count": null
+   },
+   "length": 63930,
+   "sha256": "cbc5cde2efad26713396257f8f91923f20cec457f2df6440926970f3105d5811"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "infant"
+    ],
+    "gross_area_m2": null,
+    "population": 44,
+    "staff_count": 58
+   },
+   "length": 29636,
+   "sha256": "0c81c2dc07e60b02f32425f0b3625310bbc1f1cc9690a15545233537ac0670d4"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 242,
+    "staff_count": 20
+   },
+   "length": 34679,
+   "sha256": "bc3e5cc938526126673979a962e08bdde21ec96c9b823fc4e3e277c253d2f83a"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "ペット",
+     "乳幼児",
+     "施設種別（利用者入力）: 学校（体育館）",
+     "個室・プライバシー"
+    ],
+    "gross_area_m2": null,
+    "population": 7,
+    "staff_count": null
+   },
+   "length": 27155,
+   "sha256": "1e2a90c2ca689f34dd64e4a72501e80a564ed1361670819c0a909669594503bd"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "wheelchair",
+     "プライバシー",
+     "ペット",
+     "個室・プライバシー"
+    ],
+    "gross_area_m2": null,
+    "population": 111,
+    "staff_count": null
+   },
+   "length": 27677,
+   "sha256": "9ff838fbec4aaf576d6ad2e233acb4d81b2e5efd53c728349660327df2ddb671"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 7,
+    "facility_conditions": [
+     "車椅子",
+     "wheelchair",
+     "family"
+    ],
+    "gross_area_m2": null,
+    "population": 29,
+    "staff_count": 6
+   },
+   "length": 25417,
+   "sha256": "8ca3d3810f017e661308b2d1441ae64e5bfffa5f18b9475677c037b962a5be28"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [
+     "wheelchair",
+     "family"
+    ],
+    "gross_area_m2": null,
+    "population": 5,
+    "staff_count": null
+   },
+   "length": 19976,
+   "sha256": "573d483a7d9cac1b0120707c5cda570a9209ff2ea1f22e875ef8eda0ee736f8b"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [
+     "privacy",
+     "施設種別（利用者入力）: 学校（体育館）",
+     "車椅子",
+     "乳幼児"
+    ],
+    "gross_area_m2": 18.6,
+    "population": 215,
+    "staff_count": null
+   },
+   "length": 35646,
+   "sha256": "ccdf99c78d0233b9582c0a1545e011c9ba7d2494417606e34f9d07da07753045"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "ペット",
+     "privacy",
+     "授乳・乳幼児"
+    ],
+    "gross_area_m2": null,
+    "population": 14,
+    "staff_count": 60
+   },
+   "length": 33338,
+   "sha256": "aa881a43c7402182b52325b7f669020c57f02f56e80050f99f1dc900d614f8ee"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 10,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 23,
+    "staff_count": null
+   },
+   "length": 23857,
+   "sha256": "f012052ec0b68eb2626f722f9b14876f437365ffa1e3b045b446ceda9e57c401"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 9,
+    "facility_conditions": [
+     "Pet"
+    ],
+    "gross_area_m2": 8527.0,
+    "population": 493,
+    "staff_count": null
+   },
+   "length": 42534,
+   "sha256": "d4b6ec3f43b3bbf9181f4156a8bdf5ffed8ccf598d36163860d63b86c2229ab1"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 学校（体育館）",
+     "授乳",
+     "個室",
+     "privacy"
+    ],
+    "gross_area_m2": null,
+    "population": 417,
+    "staff_count": 3
+   },
+   "length": 38455,
+   "sha256": "5b14239f5af2dcfca4175d003d9eada3694b0accb392d234881c7563ce85ffc6"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 公民館",
+     "授乳"
+    ],
+    "gross_area_m2": null,
+    "population": 11,
+    "staff_count": 8
+   },
+   "length": 23499,
+   "sha256": "ff6c66367a5d844260d5cfdb5fc064b4c3379dd449a2d91ae0a993d4f56abb53"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [],
+    "gross_area_m2": 95511.0,
+    "population": 2,
+    "staff_count": null
+   },
+   "length": 19588,
+   "sha256": "8c08d138a9eb80a7a63da2937be24ccd92bf02857bb84860e6f0d9d91b53f157"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [
+     "ペット",
+     "車椅子"
+    ],
+    "gross_area_m2": null,
+    "population": 39,
+    "staff_count": null
+   },
+   "length": 22487,
+   "sha256": "8f38458456b9cb1b06e8cc5b821e9d876ba0f7319bc5146b0835687e61278e1c"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "車いす対応"
+    ],
+    "gross_area_m2": null,
+    "population": 14,
+    "staff_count": null
+   },
+   "length": 20050,
+   "sha256": "3a6bc16f5bd1bff00114480797a1d93e22a68b3e5dfcab6a84745dac06a3e2a3"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "family",
+     "バリアフリー",
+     "個室"
+    ],
+    "gross_area_m2": null,
+    "population": 162,
+    "staff_count": null
+   },
+   "length": 29696,
+   "sha256": "caf2130b4ea2155d6551ca361c835026a008c128641eeb997d72944a38f6ee31"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 313,
+    "staff_count": null
+   },
+   "length": 35341,
+   "sha256": "c01bfbb2f28a1bfe762e2ba3b897d4509ad3cf2d0e8db1c8d44921137b85840c"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "車椅子",
+     "family",
+     "Pet"
+    ],
+    "gross_area_m2": null,
+    "population": 391,
+    "staff_count": null
+   },
+   "length": 38996,
+   "sha256": "c3e598d2d34c17c5e2b4a62b8af47b4c44abf0fef89db1b89f8a33d077090313"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "プライバシー"
+    ],
+    "gross_area_m2": null,
+    "population": 147,
+    "staff_count": 64
+   },
+   "length": 33543,
+   "sha256": "ba8a3ad6df88ff00465639eb75312f788195524b26e9dcd4be601170ce2f7a88"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "family",
+     "個室"
+    ],
+    "gross_area_m2": null,
+    "population": 6097,
+    "staff_count": 76
+   },
+   "length": 171627,
+   "sha256": "abb767ea001ffdfa6c910ba8c755a06c9b46a06257ce57696e3adfd7074ec9df"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [],
+    "gross_area_m2": 17450.0,
+    "population": 18,
+    "staff_count": null
+   },
+   "length": 28696,
+   "sha256": "77f0072d231a75e73b0a6a14ce983144e82209d6f46616f6b3f6f0153e9eae9c"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 14,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 4209,
+    "staff_count": 100
+   },
+   "length": 127534,
+   "sha256": "d59781a3dfd11fb4c52f5d132ce682ea5871036cb8797e7617648ded611f04f3"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 6,
+    "staff_count": null
+   },
+   "length": 20404,
+   "sha256": "6c5f80953ddbc5255d65d3e9c184c8ddeb640f0492b0d6e02b84de96e99951f5"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "バリアフリー"
+    ],
+    "gross_area_m2": 39816.515984,
+    "population": 44,
+    "staff_count": 6
+   },
+   "length": 21340,
+   "sha256": "8d9b87e43b9486a76b8366da5383a7388d0c320da3eeba80c5c58bb1760e8ece"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "乳幼児",
+     "ペット",
+     "infant"
+    ],
+    "gross_area_m2": 2.7,
+    "population": 56,
+    "staff_count": 22
+   },
+   "length": 30356,
+   "sha256": "aaf1b56d3289284d2d1aa132d79fe1955a7f982ac5088826795fd3bd2c01e153"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "ペット"
+    ],
+    "gross_area_m2": 39.009201,
+    "population": 400,
+    "staff_count": 13
+   },
+   "length": 38793,
+   "sha256": "8699f4b34b075dcf397e7040a0a6371cbad8821aeef41258a2426cae47d364c7"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "バリアフリー"
+    ],
+    "gross_area_m2": 3.0,
+    "population": 1057,
+    "staff_count": null
+   },
+   "length": 57384,
+   "sha256": "f9471050e9757376b120042c6c58f70fb79a212608286084c7d4846a27028743"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 17,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 168,
+    "staff_count": 29
+   },
+   "length": 34015,
+   "sha256": "dd1e8fe72a3dd81fb93f5cab95cab171ac8189470183a16de9efa48e17e9fd96"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "個室・プライバシー"
+    ],
+    "gross_area_m2": null,
+    "population": 20,
+    "staff_count": null
+   },
+   "length": 21691,
+   "sha256": "32a6bcb6d38dc9ac7181b7d96c784fc12ba4f1e0aaaa51ac53c7cb1234d6a3a6"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 537,
+    "staff_count": null
+   },
+   "length": 42140,
+   "sha256": "59a5b60acea82d91a24ff18415c9180dc2757a737c3c54d374814732e9dd3b75"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 公民館",
+     "ペット"
+    ],
+    "gross_area_m2": 1406.366005,
+    "population": 438,
+    "staff_count": 45
+   },
+   "length": 43025,
+   "sha256": "aa8cd0470518a1bbb8b9538b249593d603c6ca5b966c37230adc4a22f1fd8aec"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "授乳・乳幼児",
+     "プライバシー",
+     "Pet"
+    ],
+    "gross_area_m2": null,
+    "population": 18,
+    "staff_count": 71
+   },
+   "length": 34828,
+   "sha256": "d2daed32290ebf3b756415abb71530f4268201b1bc89441ab32b1cf6f83a44a6"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "車椅子"
+    ],
+    "gross_area_m2": null,
+    "population": 562,
+    "staff_count": 59
+   },
+   "length": 45030,
+   "sha256": "771999fe57e7382914e0e531f618686dda1878d5635a221107090c9a815d2e3b"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "infant",
+     "個室",
+     "バリアフリー",
+     "family"
+    ],
+    "gross_area_m2": 29820.227002,
+    "population": 25,
+    "staff_count": 40
+   },
+   "length": 29300,
+   "sha256": "759cc839c13ba1a1d5f5d74b5be78947fd975fe2da4ad0f2f48f0f875389e03c"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 学校（体育館）",
+     "車椅子",
+     "授乳・乳幼児"
+    ],
+    "gross_area_m2": null,
+    "population": 361,
+    "staff_count": 79
+   },
+   "length": 43698,
+   "sha256": "f7f4fece2e92d48404e0f0d8f936819900971a1ea2763508b568f7fbc74de121"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "wheelchair",
+     "授乳"
+    ],
+    "gross_area_m2": null,
+    "population": 381,
+    "staff_count": 30
+   },
+   "length": 37423,
+   "sha256": "cdeb93964cfd74ad75bca86fe6a2e1a79415632b5abb87bb01c8f89e05a499f2"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "車椅子",
+     "個室",
+     "バリアフリー"
+    ],
+    "gross_area_m2": 27965.0,
+    "population": 568,
+    "staff_count": null
+   },
+   "length": 44992,
+   "sha256": "2fbf1a35eaf624d0d06f8f288a175798e33b0bd555b13b78e8962906b1a718f8"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [
+     "乳幼児"
+    ],
+    "gross_area_m2": 29122.054659,
+    "population": 295,
+    "staff_count": 14
+   },
+   "length": 37887,
+   "sha256": "e63f41aee04fd42b1f420505ac7ee82ffb5b12849bdaf5566dbcfe8e7acb200b"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [],
+    "gross_area_m2": 5046.29926,
+    "population": 45,
+    "staff_count": null
+   },
+   "length": 22394,
+   "sha256": "ccce0c4576a95050d6285482dc60b0e731fab53b7721163b1442f323fdbcd5d5"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 公民館",
+     "ペット",
+     "授乳"
+    ],
+    "gross_area_m2": null,
+    "population": 54,
+    "staff_count": null
+   },
+   "length": 25822,
+   "sha256": "61c3f1661f6552f532bba9da4719ea24969113a5d6d7dcfc541ee2b4139eb2bc"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "プライバシー",
+     "授乳",
+     "施設種別（利用者入力）: 公民館"
+    ],
+    "gross_area_m2": 44.3,
+    "population": 396,
+    "staff_count": null
+   },
+   "length": 42370,
+   "sha256": "7bf0f9fd4a89367453b8e449b8b9e1bbfadb8ff86f823a6650a0118e16f5e11b"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "バリアフリー"
+    ],
+    "gross_area_m2": null,
+    "population": 952,
+    "staff_count": null
+   },
+   "length": 51738,
+   "sha256": "2506a4c62d99eecaf58a5bf4ee3b93e661b8148b62f07a45dcb9e2bb9632550d"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [],
+    "gross_area_m2": 13.0,
+    "population": 41,
+    "staff_count": null
+   },
+   "length": 31067,
+   "sha256": "7755908e090676a78f12f33bf60a081d1054d14ae7ece1946ae231b0c4445bbe"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [
+     "乳幼児",
+     "施設種別（利用者入力）: 公民館",
+     "ペット",
+     "プライバシー"
+    ],
+    "gross_area_m2": null,
+    "population": 302,
+    "staff_count": null
+   },
+   "length": 37382,
+   "sha256": "e8c0979cf8a90d702fdb1c241af8d9f4c2210bf8246bf7f764a4579c32173a2e"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "個室・プライバシー",
+     "個室",
+     "乳幼児"
+    ],
+    "gross_area_m2": null,
+    "population": 20,
+    "staff_count": 15
+   },
+   "length": 25463,
+   "sha256": "d60222e263dab5923ecfe72648668c53ba8ca47e957b16ce6bafbfe680ece5a7"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "wheelchair"
+    ],
+    "gross_area_m2": null,
+    "population": 562,
+    "staff_count": null
+   },
+   "length": 41958,
+   "sha256": "575dbd271c2f065c783e172f154f9a3233dc78632333a029e9381c846dadf6ce"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "個室",
+     "授乳"
+    ],
+    "gross_area_m2": 1106.0,
+    "population": 196,
+    "staff_count": null
+   },
+   "length": 31621,
+   "sha256": "bd63d0c6f1c265639498a8b345d3637e050d58c6a54df2e863e271c13d76d84e"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 公民館",
+     "個室"
+    ],
+    "gross_area_m2": null,
+    "population": 119,
+    "staff_count": 66
+   },
+   "length": 33171,
+   "sha256": "c8fe30b84627fc9aedd53486e66544aaa495d331c17038a2bc8455837cfc6e6c"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 292,
+    "staff_count": null
+   },
+   "length": 30238,
+   "sha256": "f5b578685714dddd7ef78b3d716fd29410872f5cb3083ee62233b6c49fff84dd"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [],
+    "gross_area_m2": 22.236988,
+    "population": 2912,
+    "staff_count": 90
+   },
+   "length": 100210,
+   "sha256": "8a15bb016833f26c01522251c34b3fa1ef7781e1bdca5c1b53fdbd83d221840a"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 5369,
+    "staff_count": null
+   },
+   "length": 172891,
+   "sha256": "e547ae32694136f8bb0aab03921e3c8a3ed1dd2b26eb14ddb301584be21d771b"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": 35063.388924,
+    "population": 10,
+    "staff_count": null
+   },
+   "length": 20083,
+   "sha256": "dd156f597052aa1e10bb4ff51dc6f57d439cc109523e43a420b8683423e1cbe9"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 4,
+    "facility_conditions": [
+     "wheelchair",
+     "授乳・乳幼児",
+     "施設種別（利用者入力）: 公民館",
+     "車いす対応"
+    ],
+    "gross_area_m2": 5441.6,
+    "population": 23,
+    "staff_count": null
+   },
+   "length": 23737,
+   "sha256": "bbfe202c378b9072a3a1125455277c22df3ae61314c30b05408660195c2b27dc"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 4,
+    "facility_conditions": [
+     "車いす対応",
+     "乳幼児",
+     "プライバシー"
+    ],
+    "gross_area_m2": null,
+    "population": 34,
+    "staff_count": null
+   },
+   "length": 25847,
+   "sha256": "09bb15c3c6f1851835e25c2b8d97541980d9081ccd052f4baf9852f517935ba1"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": 681.0,
+    "population": 195,
+    "staff_count": null
+   },
+   "length": 27515,
+   "sha256": "7c2fb0838abd8776875c12c34cae9ae1a0c1c87aa9c6f9835df5f7e28da06d83"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "プライバシー",
+     "バリアフリー",
+     "ペット"
+    ],
+    "gross_area_m2": 7.8,
+    "population": 633,
+    "staff_count": null
+   },
+   "length": 50378,
+   "sha256": "570a50b1fe15d04ab097d3c8b4d80ca96441686a111fc7e22c78e5b364ae9254"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "授乳",
+     "個室",
+     "family"
+    ],
+    "gross_area_m2": null,
+    "population": 48,
+    "staff_count": null
+   },
+   "length": 24383,
+   "sha256": "17cdb0b0c79b9710656d6f9fa619f8021173876aec5ca81cda64a3ebc8fa4675"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "ペット",
+     "授乳・乳幼児"
+    ],
+    "gross_area_m2": null,
+    "population": 11,
+    "staff_count": 78
+   },
+   "length": 34434,
+   "sha256": "1228e6a74de2eb1dbc47ef2e5a46119e5ec194fd23f30575f603fd1bee4be2b9"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "infant"
+    ],
+    "gross_area_m2": null,
+    "population": 7248,
+    "staff_count": 95
+   },
+   "length": 195584,
+   "sha256": "0664ddbed9d986d3804412dbf887353b2f5c016a809a5ee010086874d2361164"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 17,
+    "staff_count": null
+   },
+   "length": 20437,
+   "sha256": "cb513361290e523f43ae8d7c70a0467a802a5d0a7b7363c7da3692f298f0d4d9"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "family",
+     "infant",
+     "車椅子",
+     "プライバシー"
+    ],
+    "gross_area_m2": null,
+    "population": 145,
+    "staff_count": null
+   },
+   "length": 28628,
+   "sha256": "e96a6738c31c7db97698ce16016eed8d9666e1849718112704dd574b79873cba"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "バリアフリー"
+    ],
+    "gross_area_m2": 251.4,
+    "population": 5020,
+    "staff_count": null
+   },
+   "length": 163930,
+   "sha256": "20816c58b3a65ba1ce8668bfeb5cee898c51bf37bb5017bc4a731e673ddc68d3"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "family",
+     "乳幼児",
+     "個室・プライバシー",
+     "Pet"
+    ],
+    "gross_area_m2": 2.968,
+    "population": 1117,
+    "staff_count": 6
+   },
+   "length": 61386,
+   "sha256": "a3bce283285825ed301628f5f1a2e6a4eba511b80e52153b8fc15021d0c00ea6"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": 41793.121,
+    "population": 273,
+    "staff_count": null
+   },
+   "length": 30776,
+   "sha256": "0969a8ca137b2d252d18d43e3f2d47b131a3467226d1782d2569863c3529c638"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "車いす対応",
+     "Pet",
+     "wheelchair"
+    ],
+    "gross_area_m2": null,
+    "population": 22,
+    "staff_count": null
+   },
+   "length": 22139,
+   "sha256": "f632ef4ace8d618da45c1b67160d05fc606b5ac9f70b9518e400d4643c963f33"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 23,
+    "staff_count": 86
+   },
+   "length": 30376,
+   "sha256": "3d0e56ea501de826e1c52e6dd1cc433be7cade139bbadce47822ec8c5b3b4757"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 225,
+    "staff_count": 90
+   },
+   "length": 37728,
+   "sha256": "a53fd29515709d756e60e78331598216369c0113c5f73fc4ab2fa3d2d35403fb"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [],
+    "gross_area_m2": 5871.477533,
+    "population": 365,
+    "staff_count": null
+   },
+   "length": 34795,
+   "sha256": "c30eeae30489611d7c6d100518dc87576a0d7676f667506161e55119b3acdcec"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 67,
+    "staff_count": null
+   },
+   "length": 22936,
+   "sha256": "f77d1909629fe06fb62316da118016a6b65b553e78e5465be04cb0583777836f"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "privacy"
+    ],
+    "gross_area_m2": null,
+    "population": 480,
+    "staff_count": 64
+   },
+   "length": 45299,
+   "sha256": "d3bed76dfb09345ef3ed96eb68f880c032a5f8198b64386fd2e86cfda32824b0"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 学校（体育館）",
+     "授乳・乳幼児",
+     "車いす対応",
+     "個室"
+    ],
+    "gross_area_m2": null,
+    "population": 11,
+    "staff_count": 11
+   },
+   "length": 25583,
+   "sha256": "7bcdf6c7cd31cf453cf4147cc2bb89390aeb0beb45986865b6dfed5a787dfa2c"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 114,
+    "staff_count": null
+   },
+   "length": 24110,
+   "sha256": "bcdd32d6806556128e16aa7382fb43c435b19f3ba1c31e4a6773149d3774c51e"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "乳幼児",
+     "ペット"
+    ],
+    "gross_area_m2": null,
+    "population": 307,
+    "staff_count": null
+   },
+   "length": 35072,
+   "sha256": "7b0bb78610bdd05d683e9757439303dd6d70e589831b74b5e3e94beb4448d962"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "ペット",
+     "infant",
+     "family",
+     "授乳・乳幼児"
+    ],
+    "gross_area_m2": 1400.954725,
+    "population": 21,
+    "staff_count": null
+   },
+   "length": 24331,
+   "sha256": "41f7e7b0f1c894f4425b79adb76c4b3fad4dafe57c96d8fbc3fe019ea4e7ed09"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "車いす対応"
+    ],
+    "gross_area_m2": null,
+    "population": 1225,
+    "staff_count": null
+   },
+   "length": 59318,
+   "sha256": "fc0021d6802b7e1d2c57f25c37bafea89ace8cbab3a59b74e0743a8046d87043"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "family"
+    ],
+    "gross_area_m2": null,
+    "population": 46,
+    "staff_count": 97
+   },
+   "length": 35238,
+   "sha256": "d8ce63a0eb2a9e0e57fd51f184963ba44d7a8ce7b60e5dea037640dda34ce9d8"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 公民館",
+     "乳幼児",
+     "プライバシー",
+     "infant"
+    ],
+    "gross_area_m2": 5595.072,
+    "population": 48,
+    "staff_count": 34
+   },
+   "length": 37624,
+   "sha256": "1f09ebf7db4e8d527ed36c374301fcd51c06965b4ed1b0088f57e3ea7574cf9d"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "プライバシー",
+     "乳幼児",
+     "施設種別（利用者入力）: 公民館",
+     "Pet"
+    ],
+    "gross_area_m2": 97650.018,
+    "population": 569,
+    "staff_count": null
+   },
+   "length": 49433,
+   "sha256": "0ecee49962e499617cb495d20342a7ec52906834db61428c9efbd01207be12a3"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "授乳",
+     "授乳・乳幼児"
+    ],
+    "gross_area_m2": 196.366555,
+    "population": 26,
+    "staff_count": 54
+   },
+   "length": 29784,
+   "sha256": "147744675dead850e33148e3851b7a88a4b1cfe29c0618a5e259fe950c044d4b"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "プライバシー",
+     "個室"
+    ],
+    "gross_area_m2": 142.8,
+    "population": 268,
+    "staff_count": 11
+   },
+   "length": 32822,
+   "sha256": "c8300869f6bc9e0e247d6dffc72dcaaa0a91c5b973d7399a8d7401b6ede96139"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [
+     "授乳"
+    ],
+    "gross_area_m2": null,
+    "population": 50,
+    "staff_count": 22
+   },
+   "length": 33180,
+   "sha256": "fbcc59271f3bcc9e32e3fb60a9c6e16f52f8a53620f4ee8ffcdb22feb50d9673"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 学校（体育館）",
+     "個室・プライバシー",
+     "車いす対応"
+    ],
+    "gross_area_m2": null,
+    "population": 11,
+    "staff_count": null
+   },
+   "length": 21996,
+   "sha256": "67b5d84960b58134fdfeca4ad9e1790c66d4e1354f81e1cd5e82efa272f0e480"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "privacy",
+     "施設種別（利用者入力）: 公民館"
+    ],
+    "gross_area_m2": null,
+    "population": 579,
+    "staff_count": null
+   },
+   "length": 44188,
+   "sha256": "c539a427608d882aa933b6ca49edf91379b245dc97062994d1e6e7e9ee0b4052"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 3809,
+    "staff_count": 92
+   },
+   "length": 117444,
+   "sha256": "a9a137b3fbca3cbeb67f22881eb2fea504062dd05798d646bef42542e948dd96"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 学校（体育館）"
+    ],
+    "gross_area_m2": 7.399337,
+    "population": 33,
+    "staff_count": null
+   },
+   "length": 22660,
+   "sha256": "0e0fcc5d205267b39dce39ad5e3b00e9c2254981ecc2f52e8a828ec5d54ba513"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [],
+    "gross_area_m2": 1.1,
+    "population": 24,
+    "staff_count": null
+   },
+   "length": 23904,
+   "sha256": "2d24e1ccd152ad751d54f1a4d4bf1978ce2da4d543be270a7a1fcc5daec868ab"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "ペット"
+    ],
+    "gross_area_m2": 170.8,
+    "population": 294,
+    "staff_count": null
+   },
+   "length": 34388,
+   "sha256": "43a046941500d961dfeb8bee63368d8e4417deab84bc891e16e0c58b71e6fbf3"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "privacy",
+     "車いす対応"
+    ],
+    "gross_area_m2": null,
+    "population": 5,
+    "staff_count": 40
+   },
+   "length": 26236,
+   "sha256": "4473b5a8374635f87c0821a27be8e07ff2ddb1c6d168857aa1557a04280f2701"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 1849,
+    "staff_count": null
+   },
+   "length": 76442,
+   "sha256": "4e6ff7b367a2e6dfb569ae7e5b55cd4728f2a83c4f25329aab85129cb84a6479"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "個室"
+    ],
+    "gross_area_m2": 5.0,
+    "population": 460,
+    "staff_count": 49
+   },
+   "length": 46170,
+   "sha256": "04ec9aa760db3f14153abcd25acd097813f83d7d0341cad5e24a414890e42750"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "privacy",
+     "個室",
+     "バリアフリー"
+    ],
+    "gross_area_m2": null,
+    "population": 185,
+    "staff_count": 16
+   },
+   "length": 29165,
+   "sha256": "bd9caf60792f235ca96134e2288e479025c3762d2fcae974db7beb4727f9b422"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "授乳・乳幼児"
+    ],
+    "gross_area_m2": 168.695776,
+    "population": 1226,
+    "staff_count": null
+   },
+   "length": 62629,
+   "sha256": "ab79e61630c3e58071972e907eb56318b60b790d97d43f393d4be6d1c1b9bd2a"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 公民館"
+    ],
+    "gross_area_m2": null,
+    "population": 277,
+    "staff_count": null
+   },
+   "length": 30059,
+   "sha256": "28928b2d386fc467000150bad06884b88ef7e5337005d2c8aa8fb8d637efdcb8"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [
+     "wheelchair",
+     "Pet",
+     "family"
+    ],
+    "gross_area_m2": null,
+    "population": 510,
+    "staff_count": null
+   },
+   "length": 45216,
+   "sha256": "13e18b459858e896bcd06580fc7d02a3e5940f03896d21af32beaefbd850908e"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [],
+    "gross_area_m2": 73866.0,
+    "population": 43,
+    "staff_count": null
+   },
+   "length": 20582,
+   "sha256": "c387156ca32e5a286dbb6355e2544a07fcf7fedc556234dfcb36165e8e93ff79"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "授乳",
+     "乳幼児",
+     "授乳・乳幼児",
+     "車椅子"
+    ],
+    "gross_area_m2": null,
+    "population": 595,
+    "staff_count": 56
+   },
+   "length": 47300,
+   "sha256": "e581cdbf94c7ec738e08170f548e635e66514239a090733c4214deb5182e9450"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [
+     "授乳",
+     "車いす対応"
+    ],
+    "gross_area_m2": null,
+    "population": 34,
+    "staff_count": null
+   },
+   "length": 22081,
+   "sha256": "ff72d39fef9e74a9742d046fff4066bb8c52b305a541491af4906fd6f969b956"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [
+     "Pet",
+     "wheelchair",
+     "個室・プライバシー"
+    ],
+    "gross_area_m2": null,
+    "population": 1,
+    "staff_count": null
+   },
+   "length": 23376,
+   "sha256": "63a408e4d5b5b696632e58989f47e53f7a7522e005fcee268c7b86851f42c876"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": 9767.5,
+    "population": 37,
+    "staff_count": null
+   },
+   "length": 20529,
+   "sha256": "c52393768e3d4552e11870c8a55a9eb1fcf4777d6ea7f1b0056e1539e18e3cac"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "授乳・乳幼児"
+    ],
+    "gross_area_m2": 2489.6,
+    "population": 2846,
+    "staff_count": 92
+   },
+   "length": 98752,
+   "sha256": "f8366990aa22ceb0e974b618eae3186a633260ff42b77e75307314ce64a69d13"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 学校（体育館）"
+    ],
+    "gross_area_m2": null,
+    "population": 22,
+    "staff_count": null
+   },
+   "length": 20764,
+   "sha256": "ee153b011cb1ec7abb7c8959646f5abeb1b0ce8a710f6046f8adc49bb2cd7723"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 28,
+    "staff_count": 16
+   },
+   "length": 21689,
+   "sha256": "43069a09af9c5dc6972f8cf7162a58343c140544d4607ea9793286bd173637d4"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "infant"
+    ],
+    "gross_area_m2": null,
+    "population": 510,
+    "staff_count": null
+   },
+   "length": 42128,
+   "sha256": "d69504eab32a4b30eab40203468978df3a176f7b955d5dcfd586986077af929d"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "infant",
+     "授乳",
+     "Pet",
+     "授乳・乳幼児"
+    ],
+    "gross_area_m2": null,
+    "population": 366,
+    "staff_count": 26
+   },
+   "length": 38499,
+   "sha256": "7d0b8af15ead8ddce46d3c3282b7526f48fb27fb1b238460fd7dc19457c9a69e"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "プライバシー",
+     "施設種別（利用者入力）: 公民館",
+     "wheelchair"
+    ],
+    "gross_area_m2": 1623.6,
+    "population": 1365,
+    "staff_count": null
+   },
+   "length": 66622,
+   "sha256": "17a6d531e9af59af024bfdbee90ec6b9f0149f594dc1338f8f69fe42b8b259e9"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "infant",
+     "プライバシー",
+     "family"
+    ],
+    "gross_area_m2": null,
+    "population": 506,
+    "staff_count": 71
+   },
+   "length": 49288,
+   "sha256": "aed10159d32ca4baf9dc2a5d80c46aa1fd5102ee7ab93dd0c1c0837177427fed"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 公民館",
+     "個室・プライバシー",
+     "wheelchair"
+    ],
+    "gross_area_m2": null,
+    "population": 44,
+    "staff_count": null
+   },
+   "length": 22435,
+   "sha256": "c0565d3a2d5bf01ca028c09a5f99841ff281fa2dc61f35216818839fb2e2786d"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "infant"
+    ],
+    "gross_area_m2": null,
+    "population": 191,
+    "staff_count": null
+   },
+   "length": 28353,
+   "sha256": "200d146299e8de9e18012454f1d35c6aac20fe94820d3229fb5f03dfe12efd9f"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [
+     "車椅子"
+    ],
+    "gross_area_m2": 33966.906,
+    "population": 162,
+    "staff_count": null
+   },
+   "length": 32730,
+   "sha256": "417dcebe05d4d10c640d275070f3ec37a4b90108c4f53c418bd2dd02edaa1079"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 9,
+    "facility_conditions": [
+     "個室"
+    ],
+    "gross_area_m2": 219.4,
+    "population": 173,
+    "staff_count": null
+   },
+   "length": 31788,
+   "sha256": "5c47ca23003062c7eded4389936dabbf358b379ea96e2bb7a46032f43d3b3d57"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "Pet",
+     "車椅子",
+     "family"
+    ],
+    "gross_area_m2": 45.026,
+    "population": 15,
+    "staff_count": 80
+   },
+   "length": 37373,
+   "sha256": "69fc8606b5a2e71dc8df66283adc0ffc57fd8024dd51c6aed22322fcfbd5909b"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": 25702.469,
+    "population": 256,
+    "staff_count": null
+   },
+   "length": 29767,
+   "sha256": "3177a70b285b2964e3410561556a252a067d2162517e25e14001a2206484a4e8"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 学校（体育館）"
+    ],
+    "gross_area_m2": 21660.0,
+    "population": 490,
+    "staff_count": null
+   },
+   "length": 40566,
+   "sha256": "8040b1db5d314c180ebec02fb7c854d0b3ffb3b9760df8187362103dea4a48ac"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "プライバシー"
+    ],
+    "gross_area_m2": 381.201,
+    "population": 2,
+    "staff_count": null
+   },
+   "length": 24456,
+   "sha256": "c5251d1f7fb866fdc140fe565c02f40a0fe7b6a8d0cc2cf7f23ed910088f0c14"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 255,
+    "staff_count": null
+   },
+   "length": 28940,
+   "sha256": "1eb9aeca03e60d62717b09de9288a4bc69242689ed20c777c559a42a53836745"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 42,
+    "staff_count": null
+   },
+   "length": 20328,
+   "sha256": "08e4ae34db31fccbf10358307a85b4c1824361e38e9c6cc0e99d05fa7ce7b08c"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "Pet",
+     "車いす対応",
+     "個室・プライバシー"
+    ],
+    "gross_area_m2": null,
+    "population": 16,
+    "staff_count": 33
+   },
+   "length": 27715,
+   "sha256": "d26595fcdc0e5bb82403f62d4f45a0af54b8f3859e66acb13fa9753a493bc234"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "privacy"
+    ],
+    "gross_area_m2": 67.33295,
+    "population": 48,
+    "staff_count": null
+   },
+   "length": 25163,
+   "sha256": "47ec6b338b661567d7cffd12dcfb4caec5d037e1f9e821e014ffce04ee4443b3"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 公民館"
+    ],
+    "gross_area_m2": null,
+    "population": 21,
+    "staff_count": 90
+   },
+   "length": 31028,
+   "sha256": "e642d9a8bc0329014fa4df4d723fa4a6f9ed4a57a4497e91007dc2b37df875a9"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "車椅子"
+    ],
+    "gross_area_m2": 2132.0,
+    "population": 56,
+    "staff_count": null
+   },
+   "length": 21538,
+   "sha256": "5d634aa0b14f8e6457a82a78f78f870c9b2666a040c0cbf818754761ea685250"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "車いす対応",
+     "Pet"
+    ],
+    "gross_area_m2": 67.0,
+    "population": 43,
+    "staff_count": 70
+   },
+   "length": 33135,
+   "sha256": "70463ebdf82d3358f32951fb890345ab443abec0f6a7d6fb45ed24df62d224bf"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [],
+    "gross_area_m2": 20539.6,
+    "population": 3991,
+    "staff_count": null
+   },
+   "length": 135215,
+   "sha256": "d5501997dadb8f93eaac16c187db3351caff70d4ff90f8a4b143d0751fca73a7"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "授乳・乳幼児",
+     "infant"
+    ],
+    "gross_area_m2": 36.0,
+    "population": 385,
+    "staff_count": 79
+   },
+   "length": 47158,
+   "sha256": "cd33cd0359279c1b5969b638f5d1fd32827aab673723438b373a679f94177cc4"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "車椅子"
+    ],
+    "gross_area_m2": 14.3,
+    "population": 469,
+    "staff_count": null
+   },
+   "length": 41243,
+   "sha256": "557056390f752696c6c20691bbea1c38cb1da9b46edd9f14913a3821caaff424"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "wheelchair",
+     "個室",
+     "バリアフリー"
+    ],
+    "gross_area_m2": null,
+    "population": 43,
+    "staff_count": null
+   },
+   "length": 24514,
+   "sha256": "ca295fb64d3352b9d15fb63063e36e49441ca63abdbeb36efb16b1a29b66da00"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "車椅子",
+     "wheelchair",
+     "車いす対応",
+     "ペット"
+    ],
+    "gross_area_m2": null,
+    "population": 217,
+    "staff_count": null
+   },
+   "length": 30600,
+   "sha256": "4db20bf9273e5c9d4f86a88748ee608ff1d7d892d21f4a8f5c5b872b0fa91eca"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "授乳",
+     "wheelchair"
+    ],
+    "gross_area_m2": 2668.438031,
+    "population": 50,
+    "staff_count": null
+   },
+   "length": 24614,
+   "sha256": "99007d810b6d847d8729dd4bb64c23c87c1ae63f2818f368f00292af9568686d"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "privacy",
+     "wheelchair"
+    ],
+    "gross_area_m2": null,
+    "population": 41,
+    "staff_count": null
+   },
+   "length": 23114,
+   "sha256": "c7c9fddcd9c87b5c90e5d4267b9563e80aac5bad95a21149bec732b737dfaa17"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 公民館",
+     "wheelchair"
+    ],
+    "gross_area_m2": null,
+    "population": 4608,
+    "staff_count": 76
+   },
+   "length": 134389,
+   "sha256": "aa5714ce0d1ac407cdfca8d36be39590d1b8ecc24e788b9dc843a179fa97336e"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "バリアフリー",
+     "個室"
+    ],
+    "gross_area_m2": 88.1,
+    "population": 25,
+    "staff_count": null
+   },
+   "length": 23239,
+   "sha256": "8625a65ece65e2b15e5ae32068d752c46ab94d0944aab784603767f341bca097"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "wheelchair"
+    ],
+    "gross_area_m2": 94490.0,
+    "population": 12,
+    "staff_count": 89
+   },
+   "length": 31694,
+   "sha256": "62253e7bfef8cdf51ce92cc60c16eca6eda40f4e66a4b7d859899708eeec2683"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [
+     "family"
+    ],
+    "gross_area_m2": null,
+    "population": 11,
+    "staff_count": 73
+   },
+   "length": 30337,
+   "sha256": "6eea6b86593680388f6e714aff1f257e98d9d69774069ea91bea06778586d653"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "授乳",
+     "施設種別（利用者入力）: 公民館"
+    ],
+    "gross_area_m2": 844.0,
+    "population": 52,
+    "staff_count": null
+   },
+   "length": 23572,
+   "sha256": "2ee01fa240272469c1091448531f37ff1fe6e2136a7df18aa79be07fb4acf7ba"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 11,
+    "facility_conditions": [],
+    "gross_area_m2": 162.313738,
+    "population": 45,
+    "staff_count": 73
+   },
+   "length": 34754,
+   "sha256": "96850a7d8e5509655482b8ae0151b0576469a891d6b7a69e5e06f695e275a5ef"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 15,
+    "facility_conditions": [
+     "個室",
+     "授乳",
+     "ペット"
+    ],
+    "gross_area_m2": 397.3,
+    "population": 58,
+    "staff_count": 66
+   },
+   "length": 43037,
+   "sha256": "c9f6ba16cf691182587ff59bcec547d80c0d8c1c9e02a7d7a3b01c784be31ec6"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [],
+    "gross_area_m2": 4333.275119,
+    "population": 44,
+    "staff_count": 21
+   },
+   "length": 23204,
+   "sha256": "4b93d3c68096eeb1cb2e9770de7728b842d0117df916c927b3e75ce1861ce0ff"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "個室・プライバシー"
+    ],
+    "gross_area_m2": 11661.6,
+    "population": 322,
+    "staff_count": null
+   },
+   "length": 35476,
+   "sha256": "8455d15307eec4bd8f39861242e5cbba59b5482605b0717074484e85db1be0dc"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "バリアフリー"
+    ],
+    "gross_area_m2": 58637.376673,
+    "population": 517,
+    "staff_count": null
+   },
+   "length": 41241,
+   "sha256": "07e109a962b4d40dcfadf6d5682cc14036ad3cc0ee419f02a7df46f4541ec63e"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 592,
+    "staff_count": null
+   },
+   "length": 42447,
+   "sha256": "b0a61dd6d3227e1ab71fb45ca2647cf56f0055cac9876b1afd84b68fa7019dbf"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "infant",
+     "施設種別（利用者入力）: 学校（体育館）"
+    ],
+    "gross_area_m2": 182.0,
+    "population": 621,
+    "staff_count": 1
+   },
+   "length": 43662,
+   "sha256": "c9c3750c34627733055049d89972e1edf58bdb736d863fbf04079c01bafb6ab0"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "wheelchair"
+    ],
+    "gross_area_m2": null,
+    "population": 444,
+    "staff_count": 10
+   },
+   "length": 35993,
+   "sha256": "d8e4b1c80611a1e0d7f5e8c0d9c4f9113b1e4dec64f2560fb0d38d5e6c140607"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 学校（体育館）",
+     "施設種別（利用者入力）: 公民館",
+     "プライバシー",
+     "乳幼児"
+    ],
+    "gross_area_m2": 442.7,
+    "population": 710,
+    "staff_count": null
+   },
+   "length": 51517,
+   "sha256": "03579e9e717284e310da8a58b5a2530692f1d2252549883a453146ad63aefa1a"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [
+     "wheelchair"
+    ],
+    "gross_area_m2": null,
+    "population": 380,
+    "staff_count": null
+   },
+   "length": 34376,
+   "sha256": "c40859fc629682f21ebbe9ac4e5cfcd6440367dc71e8848f57ee1fa8827da1a1"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "privacy",
+     "ペット",
+     "バリアフリー",
+     "infant"
+    ],
+    "gross_area_m2": 563.573822,
+    "population": 353,
+    "staff_count": 60
+   },
+   "length": 46256,
+   "sha256": "08e17bb9afab80ee2edcaac6b8b60eee9effff5b826a3448cb18929cb548c8e2"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [],
+    "gross_area_m2": 2.496,
+    "population": 24,
+    "staff_count": 10
+   },
+   "length": 24592,
+   "sha256": "d64894201212e3628169134529beb24a87c028ad29a9c4ed1dd2608cb0aca1ec"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "プライバシー",
+     "バリアフリー"
+    ],
+    "gross_area_m2": 5.6,
+    "population": 52,
+    "staff_count": null
+   },
+   "length": 25374,
+   "sha256": "83240c4ea8ae3daa3995cff5fe58f8ecdd9120fd6d65de84b16e5958c8fe5b7a"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "プライバシー"
+    ],
+    "gross_area_m2": 358.0,
+    "population": 2341,
+    "staff_count": null
+   },
+   "length": 92731,
+   "sha256": "c38a26b1935979b18cfdc25a6b398e1bbb96ac6136ab1512aec9e8db72a54dee"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "Pet",
+     "授乳",
+     "車いす対応",
+     "infant"
+    ],
+    "gross_area_m2": null,
+    "population": 20,
+    "staff_count": null
+   },
+   "length": 24744,
+   "sha256": "5f04e65eecdff71ddcfee6c8d9a9c9b1801de71beedccf8bcef5ae607df342ea"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [
+     "授乳・乳幼児"
+    ],
+    "gross_area_m2": null,
+    "population": 4327,
+    "staff_count": 22
+   },
+   "length": 126706,
+   "sha256": "f2d2712acbfb7a01fedf2420664d4a91d0bbd646b1764adb5a67d1fd3486f6d7"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "family"
+    ],
+    "gross_area_m2": null,
+    "population": 44,
+    "staff_count": null
+   },
+   "length": 23089,
+   "sha256": "9712a8985c0b0acababfa4db1d176ad7eaa102799e2c622ba22cc80c5ece2de4"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [
+     "車椅子"
+    ],
+    "gross_area_m2": null,
+    "population": 31,
+    "staff_count": null
+   },
+   "length": 20630,
+   "sha256": "e4cc79a15186942183ca30a5d38d8ba27acd8d909a9ee2efb5a3aa70f00ba005"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [
+     "個室・プライバシー",
+     "乳幼児",
+     "ペット"
+    ],
+    "gross_area_m2": null,
+    "population": 23,
+    "staff_count": null
+   },
+   "length": 34599,
+   "sha256": "505167b9bc407010b55cb6a06687e8fe1a4532cde8ce6b88fff47b2ee3b6e845"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 17,
+    "facility_conditions": [
+     "個室・プライバシー",
+     "施設種別（利用者入力）: 公民館",
+     "family"
+    ],
+    "gross_area_m2": null,
+    "population": 42,
+    "staff_count": null
+   },
+   "length": 32515,
+   "sha256": "69804bb5bcccf1a8803a983a6b585918db461a78fe837a541187be92212a6e14"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 4,
+    "staff_count": 28
+   },
+   "length": 24570,
+   "sha256": "7b07d77fdeea84c3bf5dcfe95fa855e5b9afd5957ae95b2c51671a2160fbc4cf"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "授乳",
+     "family",
+     "施設種別（利用者入力）: 学校（体育館）"
+    ],
+    "gross_area_m2": 5347.0,
+    "population": 37,
+    "staff_count": null
+   },
+   "length": 24754,
+   "sha256": "a5c4d4339ef84fe01398d2ee8ad030822b5561e343861914d725d6fb5ed006da"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "wheelchair",
+     "infant",
+     "family",
+     "Pet"
+    ],
+    "gross_area_m2": null,
+    "population": 159,
+    "staff_count": null
+   },
+   "length": 28937,
+   "sha256": "c7a2a81fcf0955afad221c3c96e80c83f1fdcb5d866f6e2604fe3a3ebc3b88ba"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [],
+    "gross_area_m2": 1168.0,
+    "population": 18,
+    "staff_count": null
+   },
+   "length": 19448,
+   "sha256": "bddbb8a263f72ec6cdbc1403780c1e27bddb4d63f705df70b587e61e77ddf0a6"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "車いす対応"
+    ],
+    "gross_area_m2": 16.8,
+    "population": 30,
+    "staff_count": null
+   },
+   "length": 24272,
+   "sha256": "b3ea4f43a570cedf3cbbc9d070a5f1228a2ee8138169a6c6de2c819bce31c21b"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [],
+    "gross_area_m2": 32.018,
+    "population": 411,
+    "staff_count": null
+   },
+   "length": 38636,
+   "sha256": "2bde94792427899834008fbe0a52e328126e7d27962c3758089b6f39f359f241"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 2,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 10,
+    "staff_count": null
+   },
+   "length": 19975,
+   "sha256": "2db459017df1a2e29c816f55cfcd26329668508208044a4327832bae1d0a8851"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "車いす対応",
+     "施設種別（利用者入力）: 公民館",
+     "privacy",
+     "授乳・乳幼児"
+    ],
+    "gross_area_m2": 12714.1,
+    "population": 501,
+    "staff_count": 65
+   },
+   "length": 49502,
+   "sha256": "8e5d5dd629439a7637b2963eb016db1045bb23bce2b79609eaaf5f1e537f82b2"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "車いす対応"
+    ],
+    "gross_area_m2": 1015.0,
+    "population": 596,
+    "staff_count": 74
+   },
+   "length": 48681,
+   "sha256": "74b8e4281b375059ac3888300fd90781611ae276cf5d8bce27f4b2c1dd4bce61"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "車いす対応"
+    ],
+    "gross_area_m2": null,
+    "population": 56,
+    "staff_count": 55
+   },
+   "length": 29419,
+   "sha256": "d20db777d1e8ecc0d7e0f9c6239048988659b1f583c6e0fc5c2fd1ea7d98390b"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 26,
+    "staff_count": null
+   },
+   "length": 19511,
+   "sha256": "7334e8390e567459fb1c0038f31e2e5a0463b8bc2a41cf8afc31eec1bc415cac"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "プライバシー",
+     "infant",
+     "個室・プライバシー"
+    ],
+    "gross_area_m2": null,
+    "population": 140,
+    "staff_count": null
+   },
+   "length": 28676,
+   "sha256": "acab568c45926f28ed8e87437f329afb83c03e80831973d9e9626bb2a0af6ea6"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [],
+    "gross_area_m2": 1.947442,
+    "population": 25,
+    "staff_count": 71
+   },
+   "length": 39495,
+   "sha256": "39c892f4bb7cc9862c3bb3e4e0c2fd4eb834185d7ce829186515dc37897f2492"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 4,
+    "staff_count": null
+   },
+   "length": 18967,
+   "sha256": "b14842789a076c601aa3c93958f9ada0f5d0081e4ceb727057c8dd0108054ffc"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 3,
+    "facility_conditions": [
+     "バリアフリー",
+     "授乳"
+    ],
+    "gross_area_m2": null,
+    "population": 372,
+    "staff_count": 42
+   },
+   "length": 38710,
+   "sha256": "f727fe9bde59f993ef002cdcb2058c89eafe67dd9fab91650a0f64e8998f342b"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [
+     "プライバシー",
+     "施設種別（利用者入力）: 公民館",
+     "Pet",
+     "乳幼児"
+    ],
+    "gross_area_m2": 2631.679447,
+    "population": 49,
+    "staff_count": 41
+   },
+   "length": 40681,
+   "sha256": "51ed007d311dd586def9ba187232b8bc6223956078a87f0ebfcac26ebf5d5318"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 学校（体育館）",
+     "車椅子"
+    ],
+    "gross_area_m2": null,
+    "population": 208,
+    "staff_count": null
+   },
+   "length": 26997,
+   "sha256": "fc863f442822ed1dc7948610f389ae48dc916d73e86ce7ac9a3168a7dc26c88e"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 学校（体育館）",
+     "ペット",
+     "バリアフリー"
+    ],
+    "gross_area_m2": null,
+    "population": 7459,
+    "staff_count": 44
+   },
+   "length": 196997,
+   "sha256": "a52308a217f178259861fdb59baa68ebdb56fa91c39d4cb91eb7b7dc019924ec"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 536,
+    "staff_count": 47
+   },
+   "length": 43231,
+   "sha256": "76b559d0a44ee3735a983c323c7fdbfd5dcacb4f53d54a5fd9dbc5f995247532"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [
+     "乳幼児",
+     "個室",
+     "車いす対応",
+     "施設種別（利用者入力）: 公民館"
+    ],
+    "gross_area_m2": 8.1,
+    "population": 63,
+    "staff_count": null
+   },
+   "length": 36584,
+   "sha256": "38410ab94603d3bd19350747e77a3adc63332ec937615ec019f2d97fdd19586d"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 14,
+    "facility_conditions": [
+     "個室",
+     "車いす対応"
+    ],
+    "gross_area_m2": 31.0,
+    "population": 2,
+    "staff_count": null
+   },
+   "length": 30213,
+   "sha256": "a5c25c7845a2665fdb4580cccde7deea05190ddfb708f2492ce13286f93171ca"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 478,
+    "staff_count": null
+   },
+   "length": 38388,
+   "sha256": "9b0014f85cddd08b0efbb0b7c88e3f5d59dacf3a5b8f783f3113ba56585215e4"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 0,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 52,
+    "staff_count": null
+   },
+   "length": 20834,
+   "sha256": "f38a7dd5a88f9e4af2b1f472f083a266ff82510c93f299a59b09dcd835995d46"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "ペット",
+     "バリアフリー",
+     "個室・プライバシー"
+    ],
+    "gross_area_m2": 7618.575,
+    "population": 38,
+    "staff_count": 26
+   },
+   "length": 27675,
+   "sha256": "bfbc1c7cb550c73701b079aac2cd57770e33371e55bb6eba6aa3a51e7ae42c18"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 公民館",
+     "乳幼児",
+     "プライバシー"
+    ],
+    "gross_area_m2": 5851.895,
+    "population": 490,
+    "staff_count": null
+   },
+   "length": 44789,
+   "sha256": "7fc9783f2b867930ac39de2c59b8e2cef4909a48395b2d3d5b452c78e2d24327"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 6,
+    "facility_conditions": [
+     "乳幼児"
+    ],
+    "gross_area_m2": null,
+    "population": 364,
+    "staff_count": null
+   },
+   "length": 36222,
+   "sha256": "cabe81bb65075fc2ab1e789d87d2d98f46a8ff84ff080f8f1b1da17c53e58561"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 1,
+    "facility_conditions": [
+     "infant"
+    ],
+    "gross_area_m2": 2.0,
+    "population": 4,
+    "staff_count": null
+   },
+   "length": 24349,
+   "sha256": "8cd3d5150c436c4ac49e45ad99580c23b5cb55e6df5fcc7e66a68d7afbb3a859"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [
+     "授乳・乳幼児"
+    ],
+    "gross_area_m2": null,
+    "population": 28,
+    "staff_count": 96
+   },
+   "length": 42963,
+   "sha256": "c5d5faf1929e883c7dc6d1a7740186e89698cd9fb29d93c7015e5e5af3a41624"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 14,
+    "facility_conditions": [
+     "施設種別（利用者入力）: 公民館"
+    ],
+    "gross_area_m2": 4088.7,
+    "population": 28,
+    "staff_count": 59
+   },
+   "length": 34012,
+   "sha256": "303bd913d78b9faef5bce451eef018af57b38d9ee49eb2cf09b80fc576181b80"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [],
+    "gross_area_m2": null,
+    "population": 9080,
+    "staff_count": null
+   },
+   "length": 272900,
+   "sha256": "661979ecd36482b390c0dd825d2b855964014de1d6b12be8062f83b58071fb80"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 20,
+    "facility_conditions": [
+     "プライバシー",
+     "infant"
+    ],
+    "gross_area_m2": 10.9,
+    "population": 466,
+    "staff_count": null
+   },
+   "length": 47286,
+   "sha256": "e22a15f6930c910fe7a5ee8da1a9779a2492c2a08046cb48e6cb5ecbbabaf02a"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "プライバシー"
+    ],
+    "gross_area_m2": null,
+    "population": 9,
+    "staff_count": null
+   },
+   "length": 23624,
+   "sha256": "55fa2d57c7280c06a16fbc45ea22850c545e9e1ad8d298489252b7d6e4ae1d56"
+  },
+  {
+   "input": {
+    "accessible_toilet_count": 5,
+    "facility_conditions": [
+     "privacy",
+     "プライバシー"
+    ],
+    "gross_area_m2": null,
+    "population": 26,
+    "staff_count": null
+   },
+   "length": 23684,
+   "sha256": "0fb1a6f58ddec108aed2cbbb2d945fb63423fccbfbe3d32b2a723151dc861c38"
+  }
+ ],
+ "constants": {
+  "accessible_route_min_width_m": 1.8,
+  "hunger_action_threshold": 0.7,
+  "hunger_growth": 0.0005,
+  "hunger_relief": 0.5,
+  "hydration_action_threshold": 0.25,
+  "hydration_growth_per_minute": 0.001,
+  "hydration_relief": 0.35,
+  "operating_minutes_per_day": 960,
+  "people_per_toilet_initial": 50,
+  "planning_toilet_uses_per_person_day": 5,
+  "resource_service_minutes": 5,
+  "target_utilization": 0.8,
+  "toilet_maximum_minutes": 8,
+  "toilet_minimum_minutes": 4
+ },
+ "samples": {
+  "one_tiny_area": {
+   "assumptions": [
+    {
+     "id": "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+     "reason": "Generic rectangular synthetic model for editing; no official or real facility floor plan supplied.",
+     "source_id": "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+     "subject": "standard_shelter_layout",
+     "value": {
+      "area_basis": "operator_entered",
+      "aspect_ratio": 1.5,
+      "corridor_depth_m": 0.20412414523193154,
+      "equipment_overrides": [],
+      "facility_conditions": [],
+      "frontage_widened_zones": [],
+      "gross_area_m2": 1.0,
+      "minimum_generated_route_width_m": 0.06123724356957945,
+      "minimum_zone_frontage_m": 1.8,
+      "route_speed_m_per_minute": 60,
+      "sleeping_usable_area_m2": 0.4185,
+      "target_accessible_route_width_m": 1.8,
+      "typed_zone_conditions": [],
+      "zone_shares": {
+       "food": 0.08,
+       "intake": 0.05,
+       "medical": 0.06,
+       "quiet": 0.08,
+       "sleeping": 0.62,
+       "staff": 0.05,
+       "toilet": 0.06
+      }
+     }
+    },
+    {
+     "id": "ASM-SHELTER-AREA-HEURISTIC-V1",
+     "reason": "Usable sleeping area divided by a visible 3.5 m²/person planning heuristic; not a legal code or suitability determination. When a source capacity is supplied, the lower of the two values is used.",
+     "source_id": "ASM-SHELTER-AREA-HEURISTIC-V1",
+     "subject": "planning_occupancy_density",
+     "value": {
+      "area_based_capacity": 0,
+      "area_density_m2_per_person": 3.5,
+      "capacity_used": 0,
+      "sleeping_usable_area_m2": 0.4185
+     }
+    },
+    {
+     "id": "ASM-SHELTER-STAFFING-HEURISTIC-V2",
+     "reason": "One general staff member per 100 requested occupants (minimum one) plus one station-based staff member per water or meal station, in that station's zone; an entered total keeps at least one general staff member. Not an operational staffing standard.",
+     "source_id": "ASM-SHELTER-STAFFING-HEURISTIC-V2",
+     "subject": "synthetic_staff_count",
+     "value": {
+      "entered_total": null,
+      "general_staff": 1,
+      "station_staff": 2,
+      "station_staff_zone_ids": [
+       "food"
+      ],
+      "total": 3
+     }
+    },
+    {
+     "id": "ASM-SHELTER-TOILET-HEURISTIC-V2",
+     "reason": "The larger of the entered accessible toilets plus one per 50 occupants (Cabinet Office initial planning figure) and the units the modeled daily use needs at the target load, capped at 20.",
+     "source_id": "ASM-SHELTER-TOILET-HEURISTIC-V2",
+     "subject": "synthetic_toilet_count",
+     "value": {
+      "accessible_toilets": 0,
+      "demand_units": 1,
+      "maximum": 20,
+      "planning_standard_units": 1,
+      "total": 1
+     }
+    },
+    {
+     "id": "ASM-SHELTER-SERVICE-STATIONS-V1",
+     "reason": "Units that keep the modeled daily water and meal demand within the target load (at least one each); no public standard sets station counts.",
+     "source_id": "ASM-SHELTER-SERVICE-STATIONS-V1",
+     "subject": "synthetic_service_station_count",
+     "value": {
+      "meal_distribution": 1,
+      "water_station": 1
+     }
+    }
+   ],
+   "capacity_supported": 0,
+   "editable_geometry": {
+    "equipment_footprints": [],
+    "height_m": 0.8164965809277261,
+    "obstacles": [],
+    "openings": [
+     {
+      "end": {
+       "x": 0.4817329827473584,
+       "y": 0.20412414523193154
+      },
+      "opening_id": "opening_sleeping_corridor",
+      "opening_kind": "doorway",
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "start": {
+       "x": 0.2776088375154268,
+       "y": 0.20412414523193154
+      },
+      "wall_id": "wall_corridor_partition",
+      "width_m": 0.20412414523193154
+     },
+     {
+      "end": {
+       "x": 0.8573214099741123,
+       "y": 0.20412414523193154
+      },
+      "opening_id": "opening_quiet_corridor",
+      "opening_kind": "doorway",
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "start": {
+       "x": 0.7593418202627852,
+       "y": 0.20412414523193154
+      },
+      "wall_id": "wall_corridor_partition",
+      "width_m": 0.09797958971132711
+     },
+     {
+      "end": {
+       "x": 0.9308061022576076,
+       "y": 0.20412414523193154
+      },
+      "opening_id": "opening_medical_corridor",
+      "opening_kind": "doorway",
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "start": {
+       "x": 0.8573214099741123,
+       "y": 0.20412414523193154
+      },
+      "wall_id": "wall_corridor_partition",
+      "width_m": 0.07348469228349533
+     },
+     {
+      "end": {
+       "x": 1.0287856919689347,
+       "y": 0.20412414523193154
+      },
+      "opening_id": "opening_food_corridor",
+      "opening_kind": "doorway",
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "start": {
+       "x": 0.9308061022576076,
+       "y": 0.20412414523193154
+      },
+      "wall_id": "wall_corridor_partition",
+      "width_m": 0.09797958971132711
+     },
+     {
+      "end": {
+       "x": 1.1022703842524302,
+       "y": 0.20412414523193154
+      },
+      "opening_id": "opening_toilet_corridor",
+      "opening_kind": "doorway",
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "start": {
+       "x": 1.0287856919689347,
+       "y": 0.20412414523193154
+      },
+      "wall_id": "wall_corridor_partition",
+      "width_m": 0.07348469228349533
+     },
+     {
+      "end": {
+       "x": 1.1635076278220093,
+       "y": 0.20412414523193154
+      },
+      "opening_id": "opening_intake_corridor",
+      "opening_kind": "doorway",
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "start": {
+       "x": 1.10227038425243,
+       "y": 0.20412414523193154
+      },
+      "wall_id": "wall_corridor_partition",
+      "width_m": 0.06123724356957945
+     },
+     {
+      "end": {
+       "x": 1.2247448713915887,
+       "y": 0.20412414523193154
+      },
+      "opening_id": "opening_staff_corridor",
+      "opening_kind": "doorway",
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "start": {
+       "x": 1.1635076278220093,
+       "y": 0.20412414523193154
+      },
+      "wall_id": "wall_corridor_partition",
+      "width_m": 0.06123724356957945
+     }
+    ],
+    "route_openings": [
+     {
+      "opening_id": "opening_sleeping_corridor",
+      "route_id": "route_corridor_sleeping"
+     },
+     {
+      "opening_id": "opening_sleeping_corridor",
+      "route_id": "route_sleeping_corridor"
+     },
+     {
+      "opening_id": "opening_quiet_corridor",
+      "route_id": "route_corridor_quiet"
+     },
+     {
+      "opening_id": "opening_quiet_corridor",
+      "route_id": "route_quiet_corridor"
+     },
+     {
+      "opening_id": "opening_medical_corridor",
+      "route_id": "route_corridor_medical"
+     },
+     {
+      "opening_id": "opening_medical_corridor",
+      "route_id": "route_medical_corridor"
+     },
+     {
+      "opening_id": "opening_food_corridor",
+      "route_id": "route_corridor_food"
+     },
+     {
+      "opening_id": "opening_food_corridor",
+      "route_id": "route_food_corridor"
+     },
+     {
+      "opening_id": "opening_toilet_corridor",
+      "route_id": "route_corridor_toilet"
+     },
+     {
+      "opening_id": "opening_toilet_corridor",
+      "route_id": "route_toilet_corridor"
+     },
+     {
+      "opening_id": "opening_intake_corridor",
+      "route_id": "route_corridor_intake"
+     },
+     {
+      "opening_id": "opening_intake_corridor",
+      "route_id": "route_intake_corridor"
+     },
+     {
+      "opening_id": "opening_staff_corridor",
+      "route_id": "route_corridor_staff"
+     },
+     {
+      "opening_id": "opening_staff_corridor",
+      "route_id": "route_staff_corridor"
+     }
+    ],
+    "schema_version": 1,
+    "walls": [
+     {
+      "end": {
+       "x": 1.224744871391589,
+       "y": 0.0
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "start": {
+       "x": 0.0,
+       "y": 0.0
+      },
+      "wall_id": "exterior_north"
+     },
+     {
+      "end": {
+       "x": 1.224744871391589,
+       "y": 0.8164965809277261
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "start": {
+       "x": 1.224744871391589,
+       "y": 0.0
+      },
+      "wall_id": "exterior_east"
+     },
+     {
+      "end": {
+       "x": 0.0,
+       "y": 0.8164965809277261
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "start": {
+       "x": 1.224744871391589,
+       "y": 0.8164965809277261
+      },
+      "wall_id": "exterior_south"
+     },
+     {
+      "end": {
+       "x": 0.0,
+       "y": 0.0
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "start": {
+       "x": 0.0,
+       "y": 0.8164965809277261
+      },
+      "wall_id": "exterior_west"
+     },
+     {
+      "end": {
+       "x": 1.224744871391589,
+       "y": 0.20412414523193154
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "start": {
+       "x": 0.0,
+       "y": 0.20412414523193154
+      },
+      "wall_id": "wall_corridor_partition"
+     },
+     {
+      "end": {
+       "x": 0.7593418202627852,
+       "y": 0.8164965809277261
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "start": {
+       "x": 0.7593418202627852,
+       "y": 0.20412414523193154
+      },
+      "wall_id": "partition_zone_01"
+     },
+     {
+      "end": {
+       "x": 0.8573214099741123,
+       "y": 0.8164965809277261
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "start": {
+       "x": 0.8573214099741123,
+       "y": 0.20412414523193154
+      },
+      "wall_id": "partition_zone_02"
+     },
+     {
+      "end": {
+       "x": 0.9308061022576076,
+       "y": 0.8164965809277261
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "start": {
+       "x": 0.9308061022576076,
+       "y": 0.20412414523193154
+      },
+      "wall_id": "partition_zone_03"
+     },
+     {
+      "end": {
+       "x": 1.0287856919689347,
+       "y": 0.8164965809277261
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "start": {
+       "x": 1.0287856919689347,
+       "y": 0.20412414523193154
+      },
+      "wall_id": "partition_zone_04"
+     },
+     {
+      "end": {
+       "x": 1.10227038425243,
+       "y": 0.8164965809277261
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "start": {
+       "x": 1.10227038425243,
+       "y": 0.20412414523193154
+      },
+      "wall_id": "partition_zone_05"
+     },
+     {
+      "end": {
+       "x": 1.1635076278220093,
+       "y": 0.8164965809277261
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "start": {
+       "x": 1.1635076278220093,
+       "y": 0.20412414523193154
+      },
+      "wall_id": "partition_zone_06"
+     }
+    ],
+    "width_m": 1.224744871391589
+   },
+   "facilities": [
+    {
+     "capacity": 1,
+     "id": "intake_desk",
+     "kind": "intake",
+     "working_units": null,
+     "zone_id": "intake"
+    },
+    {
+     "capacity": 1,
+     "id": "meal_distribution_main",
+     "kind": "meal_distribution",
+     "working_units": null,
+     "zone_id": "food"
+    },
+    {
+     "capacity": 1,
+     "id": "medical_desk",
+     "kind": "medical_support",
+     "working_units": null,
+     "zone_id": "medical"
+    },
+    {
+     "capacity": 1,
+     "id": "quiet_support",
+     "kind": "quiet_space",
+     "working_units": null,
+     "zone_id": "quiet"
+    },
+    {
+     "capacity": 1,
+     "id": "toilet_01",
+     "kind": "toilet",
+     "working_units": 1,
+     "zone_id": "toilet"
+    },
+    {
+     "capacity": 1,
+     "id": "water_station_main",
+     "kind": "water_station",
+     "working_units": null,
+     "zone_id": "food"
+    }
+   ],
+   "geometry": {
+    "arrival_approach_routes": [],
+    "facility_points": {
+     "intake_desk": {
+      "x": 1.1237034195017828,
+      "y": 0.7062695425024832
+     },
+     "meal_distribution_main": {
+      "x": 0.9634659654947166,
+      "y": 0.7062695425024832
+     },
+     "medical_desk": {
+      "x": 0.8830410522733356,
+      "y": 0.7062695425024832
+     },
+     "quiet_support": {
+      "x": 0.7936346766617497,
+      "y": 0.7062695425024832
+     },
+     "toilet_01": {
+      "x": 1.054505334268158,
+      "y": 0.7062695425024832
+     },
+     "water_station_main": {
+      "x": 0.9961258287318256,
+      "y": 0.7062695425024832
+     }
+    },
+    "height_m": 0.8164965809277261,
+    "origin": "top_left",
+    "routes": [
+     {
+      "accessible": false,
+      "edge_id": "route_corridor_food",
+      "points": [
+       {
+        "x": 0.6123724356957945,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 0.9797958971132712,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 0.9797958971132712,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 0.9797958971132712,
+        "y": 0.5103103630798288
+       }
+      ],
+      "width_m": 0.09797958971132711
+     },
+     {
+      "accessible": false,
+      "edge_id": "route_corridor_intake",
+      "points": [
+       {
+        "x": 0.6123724356957945,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 1.1328890060372196,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 1.1328890060372196,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 1.1328890060372196,
+        "y": 0.5103103630798288
+       }
+      ],
+      "width_m": 0.06123724356957945
+     },
+     {
+      "accessible": false,
+      "edge_id": "route_corridor_medical",
+      "points": [
+       {
+        "x": 0.6123724356957945,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 0.89406375611586,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 0.89406375611586,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 0.89406375611586,
+        "y": 0.5103103630798288
+       }
+      ],
+      "width_m": 0.07348469228349533
+     },
+     {
+      "accessible": false,
+      "edge_id": "route_corridor_quiet",
+      "points": [
+       {
+        "x": 0.6123724356957945,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 0.8083316151184488,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 0.8083316151184488,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 0.8083316151184488,
+        "y": 0.5103103630798288
+       }
+      ],
+      "width_m": 0.09797958971132711
+     },
+     {
+      "accessible": false,
+      "edge_id": "route_corridor_sleeping",
+      "points": [
+       {
+        "x": 0.6123724356957945,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 0.3796709101313926,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 0.3796709101313926,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 0.3796709101313926,
+        "y": 0.5103103630798288
+       }
+      ],
+      "width_m": 0.20412414523193154
+     },
+     {
+      "accessible": false,
+      "edge_id": "route_corridor_staff",
+      "points": [
+       {
+        "x": 0.6123724356957945,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 1.194126249606799,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 1.194126249606799,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 1.194126249606799,
+        "y": 0.5103103630798288
+       }
+      ],
+      "width_m": 0.06123724356957945
+     },
+     {
+      "accessible": false,
+      "edge_id": "route_corridor_toilet",
+      "points": [
+       {
+        "x": 0.6123724356957945,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 1.0655280381106822,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 1.0655280381106822,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 1.0655280381106822,
+        "y": 0.5103103630798288
+       }
+      ],
+      "width_m": 0.07348469228349533
+     },
+     {
+      "accessible": false,
+      "edge_id": "route_food_corridor",
+      "points": [
+       {
+        "x": 0.9797958971132712,
+        "y": 0.5103103630798288
+       },
+       {
+        "x": 0.9797958971132712,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 0.9797958971132712,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 0.6123724356957945,
+        "y": 0.10206207261596577
+       }
+      ],
+      "width_m": 0.09797958971132711
+     },
+     {
+      "accessible": false,
+      "edge_id": "route_intake_corridor",
+      "points": [
+       {
+        "x": 1.1328890060372196,
+        "y": 0.5103103630798288
+       },
+       {
+        "x": 1.1328890060372196,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 1.1328890060372196,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 0.6123724356957945,
+        "y": 0.10206207261596577
+       }
+      ],
+      "width_m": 0.06123724356957945
+     },
+     {
+      "accessible": false,
+      "edge_id": "route_medical_corridor",
+      "points": [
+       {
+        "x": 0.89406375611586,
+        "y": 0.5103103630798288
+       },
+       {
+        "x": 0.89406375611586,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 0.89406375611586,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 0.6123724356957945,
+        "y": 0.10206207261596577
+       }
+      ],
+      "width_m": 0.07348469228349533
+     },
+     {
+      "accessible": false,
+      "edge_id": "route_quiet_corridor",
+      "points": [
+       {
+        "x": 0.8083316151184488,
+        "y": 0.5103103630798288
+       },
+       {
+        "x": 0.8083316151184488,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 0.8083316151184488,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 0.6123724356957945,
+        "y": 0.10206207261596577
+       }
+      ],
+      "width_m": 0.09797958971132711
+     },
+     {
+      "accessible": false,
+      "edge_id": "route_sleeping_corridor",
+      "points": [
+       {
+        "x": 0.3796709101313926,
+        "y": 0.5103103630798288
+       },
+       {
+        "x": 0.3796709101313926,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 0.3796709101313926,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 0.6123724356957945,
+        "y": 0.10206207261596577
+       }
+      ],
+      "width_m": 0.20412414523193154
+     },
+     {
+      "accessible": false,
+      "edge_id": "route_staff_corridor",
+      "points": [
+       {
+        "x": 1.194126249606799,
+        "y": 0.5103103630798288
+       },
+       {
+        "x": 1.194126249606799,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 1.194126249606799,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 0.6123724356957945,
+        "y": 0.10206207261596577
+       }
+      ],
+      "width_m": 0.06123724356957945
+     },
+     {
+      "accessible": false,
+      "edge_id": "route_toilet_corridor",
+      "points": [
+       {
+        "x": 1.0655280381106822,
+        "y": 0.5103103630798288
+       },
+       {
+        "x": 1.0655280381106822,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 1.0655280381106822,
+        "y": 0.10206207261596577
+       },
+       {
+        "x": 0.6123724356957945,
+        "y": 0.10206207261596577
+       }
+      ],
+      "width_m": 0.07348469228349533
+     }
+    ],
+    "schema_version": 1,
+    "service_points": [
+     {
+      "access": {
+       "accessibility": "unknown",
+       "required_access_tags": [],
+       "required_staff_skills": []
+      },
+      "facility_id": "intake_desk",
+      "id": "legacy-service:788cc82320ce4b6e07a59965",
+      "point_m": {
+       "x": 1.1237034195017828,
+       "y": 0.7062695425024832
+      },
+      "queue_id": "intake_desk",
+      "schema_version": 1,
+      "service_capacity": 1
+     },
+     {
+      "access": {
+       "accessibility": "unknown",
+       "required_access_tags": [],
+       "required_staff_skills": []
+      },
+      "facility_id": "meal_distribution_main",
+      "id": "legacy-service:4483648d70d51dce47b29586",
+      "point_m": {
+       "x": 0.9634659654947166,
+       "y": 0.7062695425024832
+      },
+      "queue_id": "meal_distribution_main",
+      "schema_version": 1,
+      "service_capacity": 1
+     },
+     {
+      "access": {
+       "accessibility": "unknown",
+       "required_access_tags": [],
+       "required_staff_skills": []
+      },
+      "facility_id": "medical_desk",
+      "id": "legacy-service:24a22dc837f7add348c91a46",
+      "point_m": {
+       "x": 0.8830410522733356,
+       "y": 0.7062695425024832
+      },
+      "queue_id": "medical_desk",
+      "schema_version": 1,
+      "service_capacity": 1
+     },
+     {
+      "access": {
+       "accessibility": "unknown",
+       "required_access_tags": [],
+       "required_staff_skills": []
+      },
+      "facility_id": "quiet_support",
+      "id": "legacy-service:1a50d56190f3f558ae2e7fd5",
+      "point_m": {
+       "x": 0.7936346766617497,
+       "y": 0.7062695425024832
+      },
+      "queue_id": "quiet_support",
+      "schema_version": 1,
+      "service_capacity": 1
+     },
+     {
+      "access": {
+       "accessibility": "unknown",
+       "required_access_tags": [],
+       "required_staff_skills": []
+      },
+      "facility_id": "toilet_01",
+      "id": "legacy-service:650608e8abd263c7ffed0b32",
+      "point_m": {
+       "x": 1.054505334268158,
+       "y": 0.7062695425024832
+      },
+      "queue_id": "toilet_01",
+      "schema_version": 1,
+      "service_capacity": 1
+     },
+     {
+      "access": {
+       "accessibility": "unknown",
+       "required_access_tags": [],
+       "required_staff_skills": []
+      },
+      "facility_id": "water_station_main",
+      "id": "legacy-service:efc8fc0c9793f65a86378d94",
+      "point_m": {
+       "x": 0.9961258287318256,
+       "y": 0.7062695425024832
+      },
+      "queue_id": "water_station_main",
+      "schema_version": 1,
+      "service_capacity": 1
+     }
+    ],
+    "source_ids": [
+     "ASM-SHELTER-AREA-HEURISTIC-V1",
+     "ASM-SHELTER-SERVICE-STATIONS-V1",
+     "ASM-SHELTER-STAFFING-HEURISTIC-V2",
+     "ASM-SHELTER-TOILET-HEURISTIC-V2",
+     "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+     "SRC-OPERATOR-AREA"
+    ],
+    "source_kind": "inferred",
+    "units": "m",
+    "width_m": 1.224744871391589,
+    "zones": [
+     {
+      "polygon": [
+       {
+        "x": 0.0,
+        "y": 0.0
+       },
+       {
+        "x": 1.224744871391589,
+        "y": 0.0
+       },
+       {
+        "x": 1.224744871391589,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 0.0,
+        "y": 0.20412414523193154
+       }
+      ],
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "usable_area_m2": 0.225,
+      "zone_id": "corridor"
+     },
+     {
+      "polygon": [
+       {
+        "x": 0.0,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 0.7593418202627852,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 0.7593418202627852,
+        "y": 0.8164965809277261
+       },
+       {
+        "x": 0.0,
+        "y": 0.8164965809277261
+       }
+      ],
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "usable_area_m2": 0.41850000000000004,
+      "zone_id": "sleeping"
+     },
+     {
+      "polygon": [
+       {
+        "x": 0.7593418202627852,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 0.8573214099741123,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 0.8573214099741123,
+        "y": 0.8164965809277261
+       },
+       {
+        "x": 0.7593418202627852,
+        "y": 0.8164965809277261
+       }
+      ],
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "usable_area_m2": 0.05400000000000002,
+      "zone_id": "quiet"
+     },
+     {
+      "polygon": [
+       {
+        "x": 0.8573214099741123,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 0.9308061022576076,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 0.9308061022576076,
+        "y": 0.8164965809277261
+       },
+       {
+        "x": 0.8573214099741123,
+        "y": 0.8164965809277261
+       }
+      ],
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "usable_area_m2": 0.04049999999999998,
+      "zone_id": "medical"
+     },
+     {
+      "polygon": [
+       {
+        "x": 0.9308061022576076,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 1.0287856919689347,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 1.0287856919689347,
+        "y": 0.8164965809277261
+       },
+       {
+        "x": 0.9308061022576076,
+        "y": 0.8164965809277261
+       }
+      ],
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "usable_area_m2": 0.05399999999999996,
+      "zone_id": "food"
+     },
+     {
+      "polygon": [
+       {
+        "x": 1.0287856919689347,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 1.10227038425243,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 1.10227038425243,
+        "y": 0.8164965809277261
+       },
+       {
+        "x": 1.0287856919689347,
+        "y": 0.8164965809277261
+       }
+      ],
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "usable_area_m2": 0.04049999999999998,
+      "zone_id": "toilet"
+     },
+     {
+      "polygon": [
+       {
+        "x": 1.10227038425243,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 1.1635076278220093,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 1.1635076278220093,
+        "y": 0.8164965809277261
+       },
+       {
+        "x": 1.10227038425243,
+        "y": 0.8164965809277261
+       }
+      ],
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "usable_area_m2": 0.03374999999999996,
+      "zone_id": "intake"
+     },
+     {
+      "polygon": [
+       {
+        "x": 1.1635076278220093,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 1.224744871391589,
+        "y": 0.20412414523193154
+       },
+       {
+        "x": 1.224744871391589,
+        "y": 0.8164965809277261
+       },
+       {
+        "x": 1.1635076278220093,
+        "y": 0.8164965809277261
+       }
+      ],
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+       "SRC-OPERATOR-AREA"
+      ],
+      "usable_area_m2": 0.033750000000000085,
+      "zone_id": "staff"
+     }
+    ]
+   },
+   "observations": [
+    {
+     "basis": "operator_entered",
+     "source_ids": [
+      "SRC-OPERATOR-AREA"
+     ],
+     "subject": "facility_gross_area_m2",
+     "value": 1.0
+    }
+   ],
+   "requested_population": 1,
+   "staff": [
+    {
+     "id": "staff_001",
+     "skills": [
+      "support",
+      "intake",
+      "information",
+      "water_service",
+      "meal_service",
+      "medical_support"
+     ],
+     "zone_id": "staff"
+    },
+    {
+     "id": "staff_002",
+     "skills": [
+      "water_service",
+      "meal_service"
+     ],
+     "zone_id": "food"
+    },
+    {
+     "id": "staff_003",
+     "skills": [
+      "water_service",
+      "meal_service"
+     ],
+     "zone_id": "food"
+    }
+   ],
+   "warnings": [
+    "入力人数1人に対し、避難スペースの参考収容数は0人です。実際の利用可能面積を確認してください。",
+    "標準モデルの共用通路または居室出入口は1.8 m未満です。一部の生成経路はアクセシブル経路として扱っていません。",
+    "平面形状、1.8 m通路、面積配分、設備数は標準モデルの仮定です。実施設の図面・法令適合・避難安全性を示しません。",
+    "食料・飲料水の在庫量は施設数から推定していません。在庫を入力しない場合の既定量はScenarioの仮定として記録します。",
+    "選択施設の出典値を使っていますが、長さ・ゾーン・設備配置は実図面ではなく編集可能な概略推定です。"
+   ],
+   "zone_edges": [
+    {
+     "closed": false,
+     "from_zone_id": "corridor",
+     "id": "route_corridor_food",
+     "to_zone_id": "food",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "corridor",
+     "id": "route_corridor_intake",
+     "to_zone_id": "intake",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "corridor",
+     "id": "route_corridor_medical",
+     "to_zone_id": "medical",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "corridor",
+     "id": "route_corridor_quiet",
+     "to_zone_id": "quiet",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "corridor",
+     "id": "route_corridor_sleeping",
+     "to_zone_id": "sleeping",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "corridor",
+     "id": "route_corridor_staff",
+     "to_zone_id": "staff",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "corridor",
+     "id": "route_corridor_toilet",
+     "to_zone_id": "toilet",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "food",
+     "id": "route_food_corridor",
+     "to_zone_id": "corridor",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "intake",
+     "id": "route_intake_corridor",
+     "to_zone_id": "corridor",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "medical",
+     "id": "route_medical_corridor",
+     "to_zone_id": "corridor",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "quiet",
+     "id": "route_quiet_corridor",
+     "to_zone_id": "corridor",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "sleeping",
+     "id": "route_sleeping_corridor",
+     "to_zone_id": "corridor",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "staff",
+     "id": "route_staff_corridor",
+     "to_zone_id": "corridor",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "toilet",
+     "id": "route_toilet_corridor",
+     "to_zone_id": "corridor",
+     "travel_minutes": 1
+    }
+   ],
+   "zones": [
+    {
+     "capacity": null,
+     "display_x": 100.0,
+     "display_y": 100.0,
+     "id": "corridor",
+     "name": "共用通路"
+    },
+    {
+     "capacity": 0,
+     "display_x": 100.0,
+     "display_y": 260.0,
+     "id": "sleeping",
+     "name": "避難スペース"
+    },
+    {
+     "capacity": 1,
+     "display_x": 100.0,
+     "display_y": 380.0,
+     "id": "quiet",
+     "name": "静養スペース"
+    },
+    {
+     "capacity": 1,
+     "display_x": 100.0,
+     "display_y": 500.0,
+     "id": "medical",
+     "name": "救護スペース"
+    },
+    {
+     "capacity": 1,
+     "display_x": 100.0,
+     "display_y": 620.0,
+     "id": "food",
+     "name": "食事・給水スペース"
+    },
+    {
+     "capacity": 1,
+     "display_x": 100.0,
+     "display_y": 740.0,
+     "id": "toilet",
+     "name": "トイレ"
+    },
+    {
+     "capacity": 1,
+     "display_x": 100.0,
+     "display_y": 860.0,
+     "id": "intake",
+     "name": "受付"
+    },
+    {
+     "capacity": 1,
+     "display_x": 100.0,
+     "display_y": 980.0,
+     "id": "staff",
+     "name": "運営本部"
+    }
+   ]
+  },
+  "twelve_with_pets": {
+   "assumptions": [
+    {
+     "id": "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+     "reason": "Generic rectangular synthetic model for editing; no official or real facility floor plan supplied.",
+     "source_id": "ASM-STANDARD-SHELTER-GEOMETRY-V1",
+     "subject": "standard_shelter_layout",
+     "value": {
+      "area_basis": "planning_heuristic",
+      "aspect_ratio": 1.5,
+      "corridor_depth_m": 1.8,
+      "equipment_overrides": [],
+      "facility_conditions": [
+       "ペット"
+      ],
+      "frontage_widened_zones": [
+       "quiet",
+       "medical",
+       "food",
+       "toilet",
+       "intake",
+       "staff",
+       "pet"
+      ],
+      "gross_area_m2": 210.0,
+      "minimum_generated_route_width_m": 1.8,
+      "minimum_zone_frontage_m": 1.8,
+      "route_speed_m_per_minute": 60,
+      "sleeping_usable_area_m2": 46.483162773436575,
+      "target_accessible_route_width_m": 1.8,
+      "typed_zone_conditions": [],
+      "zone_shares": {
+       "food": 0.10141851056742199,
+       "intake": 0.10141851056742199,
+       "medical": 0.10141851056742199,
+       "pet": 0.10141851056742199,
+       "quiet": 0.10141851056742199,
+       "sleeping": 0.2900704260280461,
+       "staff": 0.10141851056742199,
+       "toilet": 0.10141851056742199
+      }
+     }
+    },
+    {
+     "id": "ASM-SHELTER-AREA-HEURISTIC-V1",
+     "reason": "Usable sleeping area divided by a visible 3.5 m²/person planning heuristic; not a legal code or suitability determination. When a source capacity is supplied, the lower of the two values is used.",
+     "source_id": "ASM-SHELTER-AREA-HEURISTIC-V1",
+     "subject": "planning_occupancy_density",
+     "value": {
+      "area_based_capacity": 13,
+      "area_density_m2_per_person": 3.5,
+      "capacity_used": 13,
+      "sleeping_usable_area_m2": 46.483162773436575
+     }
+    },
+    {
+     "id": "ASM-SHELTER-STAFFING-HEURISTIC-V2",
+     "reason": "One general staff member per 100 requested occupants (minimum one) plus one station-based staff member per water or meal station, in that station's zone; an entered total keeps at least one general staff member. Not an operational staffing standard.",
+     "source_id": "ASM-SHELTER-STAFFING-HEURISTIC-V2",
+     "subject": "synthetic_staff_count",
+     "value": {
+      "entered_total": null,
+      "general_staff": 1,
+      "station_staff": 2,
+      "station_staff_zone_ids": [
+       "food"
+      ],
+      "total": 3
+     }
+    },
+    {
+     "id": "ASM-SHELTER-TOILET-HEURISTIC-V2",
+     "reason": "The larger of the entered accessible toilets plus one per 50 occupants (Cabinet Office initial planning figure) and the units the modeled daily use needs at the target load, capped at 20.",
+     "source_id": "ASM-SHELTER-TOILET-HEURISTIC-V2",
+     "subject": "synthetic_toilet_count",
+     "value": {
+      "accessible_toilets": 1,
+      "demand_units": 1,
+      "maximum": 20,
+      "planning_standard_units": 1,
+      "total": 2
+     }
+    },
+    {
+     "id": "ASM-SHELTER-SERVICE-STATIONS-V1",
+     "reason": "Units that keep the modeled daily water and meal demand within the target load (at least one each); no public standard sets station counts.",
+     "source_id": "ASM-SHELTER-SERVICE-STATIONS-V1",
+     "subject": "synthetic_service_station_count",
+     "value": {
+      "meal_distribution": 1,
+      "water_station": 1
+     }
+    }
+   ],
+   "capacity_supported": 13,
+   "editable_geometry": {
+    "equipment_footprints": [],
+    "height_m": 11.83215956619923,
+    "obstacles": [],
+    "openings": [
+     {
+      "end": {
+       "x": 3.4741196746494243,
+       "y": 1.8
+      },
+      "opening_id": "opening_sleeping_corridor",
+      "opening_kind": "doorway",
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "start": {
+       "x": 1.6741196746494245,
+       "y": 1.8
+      },
+      "wall_id": "wall_corridor_partition",
+      "width_m": 1.8
+     },
+     {
+      "end": {
+       "x": 6.9482393492988495,
+       "y": 1.8
+      },
+      "opening_id": "opening_quiet_corridor",
+      "opening_kind": "doorway",
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "start": {
+       "x": 5.148239349298849,
+       "y": 1.8
+      },
+      "wall_id": "wall_corridor_partition",
+      "width_m": 1.8
+     },
+     {
+      "end": {
+       "x": 8.74823934929885,
+       "y": 1.8
+      },
+      "opening_id": "opening_medical_corridor",
+      "opening_kind": "doorway",
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "start": {
+       "x": 6.948239349298849,
+       "y": 1.8
+      },
+      "wall_id": "wall_corridor_partition",
+      "width_m": 1.8
+     },
+     {
+      "end": {
+       "x": 10.54823934929885,
+       "y": 1.8
+      },
+      "opening_id": "opening_food_corridor",
+      "opening_kind": "doorway",
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "start": {
+       "x": 8.74823934929885,
+       "y": 1.8
+      },
+      "wall_id": "wall_corridor_partition",
+      "width_m": 1.8
+     },
+     {
+      "end": {
+       "x": 12.34823934929885,
+       "y": 1.8
+      },
+      "opening_id": "opening_toilet_corridor",
+      "opening_kind": "doorway",
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "start": {
+       "x": 10.54823934929885,
+       "y": 1.8
+      },
+      "wall_id": "wall_corridor_partition",
+      "width_m": 1.8
+     },
+     {
+      "end": {
+       "x": 14.148239349298851,
+       "y": 1.8
+      },
+      "opening_id": "opening_intake_corridor",
+      "opening_kind": "doorway",
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "start": {
+       "x": 12.34823934929885,
+       "y": 1.8
+      },
+      "wall_id": "wall_corridor_partition",
+      "width_m": 1.8
+     },
+     {
+      "end": {
+       "x": 15.948239349298852,
+       "y": 1.8
+      },
+      "opening_id": "opening_staff_corridor",
+      "opening_kind": "doorway",
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "start": {
+       "x": 14.148239349298851,
+       "y": 1.8
+      },
+      "wall_id": "wall_corridor_partition",
+      "width_m": 1.8
+     },
+     {
+      "end": {
+       "x": 17.74823934929885,
+       "y": 1.8
+      },
+      "opening_id": "opening_pet_corridor",
+      "opening_kind": "doorway",
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "start": {
+       "x": 15.94823934929885,
+       "y": 1.8
+      },
+      "wall_id": "wall_corridor_partition",
+      "width_m": 1.8
+     }
+    ],
+    "route_openings": [
+     {
+      "opening_id": "opening_sleeping_corridor",
+      "route_id": "route_corridor_sleeping"
+     },
+     {
+      "opening_id": "opening_sleeping_corridor",
+      "route_id": "route_sleeping_corridor"
+     },
+     {
+      "opening_id": "opening_quiet_corridor",
+      "route_id": "route_corridor_quiet"
+     },
+     {
+      "opening_id": "opening_quiet_corridor",
+      "route_id": "route_quiet_corridor"
+     },
+     {
+      "opening_id": "opening_medical_corridor",
+      "route_id": "route_corridor_medical"
+     },
+     {
+      "opening_id": "opening_medical_corridor",
+      "route_id": "route_medical_corridor"
+     },
+     {
+      "opening_id": "opening_food_corridor",
+      "route_id": "route_corridor_food"
+     },
+     {
+      "opening_id": "opening_food_corridor",
+      "route_id": "route_food_corridor"
+     },
+     {
+      "opening_id": "opening_toilet_corridor",
+      "route_id": "route_corridor_toilet"
+     },
+     {
+      "opening_id": "opening_toilet_corridor",
+      "route_id": "route_toilet_corridor"
+     },
+     {
+      "opening_id": "opening_intake_corridor",
+      "route_id": "route_corridor_intake"
+     },
+     {
+      "opening_id": "opening_intake_corridor",
+      "route_id": "route_intake_corridor"
+     },
+     {
+      "opening_id": "opening_staff_corridor",
+      "route_id": "route_corridor_staff"
+     },
+     {
+      "opening_id": "opening_staff_corridor",
+      "route_id": "route_staff_corridor"
+     },
+     {
+      "opening_id": "opening_pet_corridor",
+      "route_id": "route_corridor_pet"
+     },
+     {
+      "opening_id": "opening_pet_corridor",
+      "route_id": "route_pet_corridor"
+     }
+    ],
+    "schema_version": 1,
+    "walls": [
+     {
+      "end": {
+       "x": 17.74823934929885,
+       "y": 0.0
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "start": {
+       "x": 0.0,
+       "y": 0.0
+      },
+      "wall_id": "exterior_north"
+     },
+     {
+      "end": {
+       "x": 17.74823934929885,
+       "y": 11.83215956619923
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "start": {
+       "x": 17.74823934929885,
+       "y": 0.0
+      },
+      "wall_id": "exterior_east"
+     },
+     {
+      "end": {
+       "x": 0.0,
+       "y": 11.83215956619923
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "start": {
+       "x": 17.74823934929885,
+       "y": 11.83215956619923
+      },
+      "wall_id": "exterior_south"
+     },
+     {
+      "end": {
+       "x": 0.0,
+       "y": 0.0
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "start": {
+       "x": 0.0,
+       "y": 11.83215956619923
+      },
+      "wall_id": "exterior_west"
+     },
+     {
+      "end": {
+       "x": 17.74823934929885,
+       "y": 1.8
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "start": {
+       "x": 0.0,
+       "y": 1.8
+      },
+      "wall_id": "wall_corridor_partition"
+     },
+     {
+      "end": {
+       "x": 5.148239349298849,
+       "y": 11.83215956619923
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "start": {
+       "x": 5.148239349298849,
+       "y": 1.8
+      },
+      "wall_id": "partition_zone_01"
+     },
+     {
+      "end": {
+       "x": 6.948239349298849,
+       "y": 11.83215956619923
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "start": {
+       "x": 6.948239349298849,
+       "y": 1.8
+      },
+      "wall_id": "partition_zone_02"
+     },
+     {
+      "end": {
+       "x": 8.74823934929885,
+       "y": 11.83215956619923
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "start": {
+       "x": 8.74823934929885,
+       "y": 1.8
+      },
+      "wall_id": "partition_zone_03"
+     },
+     {
+      "end": {
+       "x": 10.54823934929885,
+       "y": 11.83215956619923
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "start": {
+       "x": 10.54823934929885,
+       "y": 1.8
+      },
+      "wall_id": "partition_zone_04"
+     },
+     {
+      "end": {
+       "x": 12.34823934929885,
+       "y": 11.83215956619923
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "start": {
+       "x": 12.34823934929885,
+       "y": 1.8
+      },
+      "wall_id": "partition_zone_05"
+     },
+     {
+      "end": {
+       "x": 14.148239349298851,
+       "y": 11.83215956619923
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "start": {
+       "x": 14.148239349298851,
+       "y": 1.8
+      },
+      "wall_id": "partition_zone_06"
+     },
+     {
+      "end": {
+       "x": 15.948239349298852,
+       "y": 11.83215956619923
+      },
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "start": {
+       "x": 15.948239349298852,
+       "y": 1.8
+      },
+      "wall_id": "partition_zone_07"
+     }
+    ],
+    "width_m": 17.74823934929885
+   },
+   "facilities": [
+    {
+     "capacity": 1,
+     "id": "accessible_toilet_01",
+     "kind": "toilet",
+     "working_units": 1,
+     "zone_id": "toilet"
+    },
+    {
+     "capacity": 1,
+     "id": "intake_desk",
+     "kind": "intake",
+     "working_units": null,
+     "zone_id": "intake"
+    },
+    {
+     "capacity": 1,
+     "id": "meal_distribution_main",
+     "kind": "meal_distribution",
+     "working_units": null,
+     "zone_id": "food"
+    },
+    {
+     "capacity": 1,
+     "id": "medical_desk",
+     "kind": "medical_support",
+     "working_units": null,
+     "zone_id": "medical"
+    },
+    {
+     "capacity": 1,
+     "id": "pet_area",
+     "kind": "pet_support",
+     "working_units": null,
+     "zone_id": "pet"
+    },
+    {
+     "capacity": 1,
+     "id": "quiet_support",
+     "kind": "quiet_space",
+     "working_units": null,
+     "zone_id": "quiet"
+    },
+    {
+     "capacity": 1,
+     "id": "toilet_01",
+     "kind": "toilet",
+     "working_units": 1,
+     "zone_id": "toilet"
+    },
+    {
+     "capacity": 1,
+     "id": "water_station_main",
+     "kind": "water_station",
+     "working_units": null,
+     "zone_id": "food"
+    }
+   ],
+   "geometry": {
+    "arrival_approach_routes": [],
+    "facility_points": {
+     "accessible_toilet_01": {
+      "x": 11.14823934929885,
+      "y": 10.02637084428337
+     },
+     "intake_desk": {
+      "x": 12.978239349298851,
+      "y": 10.02637084428337
+     },
+     "meal_distribution_main": {
+      "x": 9.348239349298849,
+      "y": 10.02637084428337
+     },
+     "medical_desk": {
+      "x": 7.5782393492988485,
+      "y": 10.02637084428337
+     },
+     "pet_area": {
+      "x": 16.57823934929885,
+      "y": 10.02637084428337
+     },
+     "quiet_support": {
+      "x": 5.778239349298849,
+      "y": 10.02637084428337
+     },
+     "toilet_01": {
+      "x": 11.748239349298851,
+      "y": 10.02637084428337
+     },
+     "water_station_main": {
+      "x": 9.94823934929885,
+      "y": 10.02637084428337
+     }
+    },
+    "height_m": 11.83215956619923,
+    "origin": "top_left",
+    "routes": [
+     {
+      "accessible": true,
+      "edge_id": "route_corridor_food",
+      "points": [
+       {
+        "x": 8.874119674649425,
+        "y": 0.9
+       },
+       {
+        "x": 9.64823934929885,
+        "y": 0.9
+       },
+       {
+        "x": 9.64823934929885,
+        "y": 1.8
+       },
+       {
+        "x": 9.64823934929885,
+        "y": 6.816079783099616
+       }
+      ],
+      "width_m": 1.8
+     },
+     {
+      "accessible": true,
+      "edge_id": "route_corridor_intake",
+      "points": [
+       {
+        "x": 8.874119674649425,
+        "y": 0.9
+       },
+       {
+        "x": 13.248239349298851,
+        "y": 0.9
+       },
+       {
+        "x": 13.248239349298851,
+        "y": 1.8
+       },
+       {
+        "x": 13.248239349298851,
+        "y": 6.816079783099616
+       }
+      ],
+      "width_m": 1.8
+     },
+     {
+      "accessible": true,
+      "edge_id": "route_corridor_medical",
+      "points": [
+       {
+        "x": 8.874119674649425,
+        "y": 0.9
+       },
+       {
+        "x": 7.848239349298849,
+        "y": 0.9
+       },
+       {
+        "x": 7.848239349298849,
+        "y": 1.8
+       },
+       {
+        "x": 7.848239349298849,
+        "y": 6.816079783099616
+       }
+      ],
+      "width_m": 1.8
+     },
+     {
+      "accessible": true,
+      "edge_id": "route_corridor_pet",
+      "points": [
+       {
+        "x": 8.874119674649425,
+        "y": 0.9
+       },
+       {
+        "x": 16.84823934929885,
+        "y": 0.9
+       },
+       {
+        "x": 16.84823934929885,
+        "y": 1.8
+       },
+       {
+        "x": 16.84823934929885,
+        "y": 6.816079783099616
+       }
+      ],
+      "width_m": 1.8
+     },
+     {
+      "accessible": true,
+      "edge_id": "route_corridor_quiet",
+      "points": [
+       {
+        "x": 8.874119674649425,
+        "y": 0.9
+       },
+       {
+        "x": 6.048239349298848,
+        "y": 0.9
+       },
+       {
+        "x": 6.048239349298848,
+        "y": 1.8
+       },
+       {
+        "x": 6.048239349298848,
+        "y": 6.816079783099616
+       }
+      ],
+      "width_m": 1.8
+     },
+     {
+      "accessible": true,
+      "edge_id": "route_corridor_sleeping",
+      "points": [
+       {
+        "x": 8.874119674649425,
+        "y": 0.9
+       },
+       {
+        "x": 2.5741196746494244,
+        "y": 0.9
+       },
+       {
+        "x": 2.5741196746494244,
+        "y": 1.8
+       },
+       {
+        "x": 2.5741196746494244,
+        "y": 6.816079783099616
+       }
+      ],
+      "width_m": 1.8
+     },
+     {
+      "accessible": true,
+      "edge_id": "route_corridor_staff",
+      "points": [
+       {
+        "x": 8.874119674649425,
+        "y": 0.9
+       },
+       {
+        "x": 15.048239349298852,
+        "y": 0.9
+       },
+       {
+        "x": 15.048239349298852,
+        "y": 1.8
+       },
+       {
+        "x": 15.048239349298852,
+        "y": 6.816079783099616
+       }
+      ],
+      "width_m": 1.8
+     },
+     {
+      "accessible": true,
+      "edge_id": "route_corridor_toilet",
+      "points": [
+       {
+        "x": 8.874119674649425,
+        "y": 0.9
+       },
+       {
+        "x": 11.44823934929885,
+        "y": 0.9
+       },
+       {
+        "x": 11.44823934929885,
+        "y": 1.8
+       },
+       {
+        "x": 11.44823934929885,
+        "y": 6.816079783099616
+       }
+      ],
+      "width_m": 1.8
+     },
+     {
+      "accessible": true,
+      "edge_id": "route_food_corridor",
+      "points": [
+       {
+        "x": 9.64823934929885,
+        "y": 6.816079783099616
+       },
+       {
+        "x": 9.64823934929885,
+        "y": 1.8
+       },
+       {
+        "x": 9.64823934929885,
+        "y": 0.9
+       },
+       {
+        "x": 8.874119674649425,
+        "y": 0.9
+       }
+      ],
+      "width_m": 1.8
+     },
+     {
+      "accessible": true,
+      "edge_id": "route_intake_corridor",
+      "points": [
+       {
+        "x": 13.248239349298851,
+        "y": 6.816079783099616
+       },
+       {
+        "x": 13.248239349298851,
+        "y": 1.8
+       },
+       {
+        "x": 13.248239349298851,
+        "y": 0.9
+       },
+       {
+        "x": 8.874119674649425,
+        "y": 0.9
+       }
+      ],
+      "width_m": 1.8
+     },
+     {
+      "accessible": true,
+      "edge_id": "route_medical_corridor",
+      "points": [
+       {
+        "x": 7.848239349298849,
+        "y": 6.816079783099616
+       },
+       {
+        "x": 7.848239349298849,
+        "y": 1.8
+       },
+       {
+        "x": 7.848239349298849,
+        "y": 0.9
+       },
+       {
+        "x": 8.874119674649425,
+        "y": 0.9
+       }
+      ],
+      "width_m": 1.8
+     },
+     {
+      "accessible": true,
+      "edge_id": "route_pet_corridor",
+      "points": [
+       {
+        "x": 16.84823934929885,
+        "y": 6.816079783099616
+       },
+       {
+        "x": 16.84823934929885,
+        "y": 1.8
+       },
+       {
+        "x": 16.84823934929885,
+        "y": 0.9
+       },
+       {
+        "x": 8.874119674649425,
+        "y": 0.9
+       }
+      ],
+      "width_m": 1.8
+     },
+     {
+      "accessible": true,
+      "edge_id": "route_quiet_corridor",
+      "points": [
+       {
+        "x": 6.048239349298848,
+        "y": 6.816079783099616
+       },
+       {
+        "x": 6.048239349298848,
+        "y": 1.8
+       },
+       {
+        "x": 6.048239349298848,
+        "y": 0.9
+       },
+       {
+        "x": 8.874119674649425,
+        "y": 0.9
+       }
+      ],
+      "width_m": 1.8
+     },
+     {
+      "accessible": true,
+      "edge_id": "route_sleeping_corridor",
+      "points": [
+       {
+        "x": 2.5741196746494244,
+        "y": 6.816079783099616
+       },
+       {
+        "x": 2.5741196746494244,
+        "y": 1.8
+       },
+       {
+        "x": 2.5741196746494244,
+        "y": 0.9
+       },
+       {
+        "x": 8.874119674649425,
+        "y": 0.9
+       }
+      ],
+      "width_m": 1.8
+     },
+     {
+      "accessible": true,
+      "edge_id": "route_staff_corridor",
+      "points": [
+       {
+        "x": 15.048239349298852,
+        "y": 6.816079783099616
+       },
+       {
+        "x": 15.048239349298852,
+        "y": 1.8
+       },
+       {
+        "x": 15.048239349298852,
+        "y": 0.9
+       },
+       {
+        "x": 8.874119674649425,
+        "y": 0.9
+       }
+      ],
+      "width_m": 1.8
+     },
+     {
+      "accessible": true,
+      "edge_id": "route_toilet_corridor",
+      "points": [
+       {
+        "x": 11.44823934929885,
+        "y": 6.816079783099616
+       },
+       {
+        "x": 11.44823934929885,
+        "y": 1.8
+       },
+       {
+        "x": 11.44823934929885,
+        "y": 0.9
+       },
+       {
+        "x": 8.874119674649425,
+        "y": 0.9
+       }
+      ],
+      "width_m": 1.8
+     }
+    ],
+    "schema_version": 1,
+    "service_points": [
+     {
+      "access": {
+       "accessibility": "unknown",
+       "required_access_tags": [],
+       "required_staff_skills": []
+      },
+      "facility_id": "accessible_toilet_01",
+      "id": "legacy-service:d34bc5076754a08e28331f68",
+      "point_m": {
+       "x": 11.14823934929885,
+       "y": 10.02637084428337
+      },
+      "queue_id": "accessible_toilet_01",
+      "schema_version": 1,
+      "service_capacity": 1
+     },
+     {
+      "access": {
+       "accessibility": "unknown",
+       "required_access_tags": [],
+       "required_staff_skills": []
+      },
+      "facility_id": "intake_desk",
+      "id": "legacy-service:788cc82320ce4b6e07a59965",
+      "point_m": {
+       "x": 12.978239349298851,
+       "y": 10.02637084428337
+      },
+      "queue_id": "intake_desk",
+      "schema_version": 1,
+      "service_capacity": 1
+     },
+     {
+      "access": {
+       "accessibility": "unknown",
+       "required_access_tags": [],
+       "required_staff_skills": []
+      },
+      "facility_id": "meal_distribution_main",
+      "id": "legacy-service:4483648d70d51dce47b29586",
+      "point_m": {
+       "x": 9.348239349298849,
+       "y": 10.02637084428337
+      },
+      "queue_id": "meal_distribution_main",
+      "schema_version": 1,
+      "service_capacity": 1
+     },
+     {
+      "access": {
+       "accessibility": "unknown",
+       "required_access_tags": [],
+       "required_staff_skills": []
+      },
+      "facility_id": "medical_desk",
+      "id": "legacy-service:24a22dc837f7add348c91a46",
+      "point_m": {
+       "x": 7.5782393492988485,
+       "y": 10.02637084428337
+      },
+      "queue_id": "medical_desk",
+      "schema_version": 1,
+      "service_capacity": 1
+     },
+     {
+      "access": {
+       "accessibility": "unknown",
+       "required_access_tags": [],
+       "required_staff_skills": []
+      },
+      "facility_id": "pet_area",
+      "id": "legacy-service:140a6a60b3113e244d7099f2",
+      "point_m": {
+       "x": 16.57823934929885,
+       "y": 10.02637084428337
+      },
+      "queue_id": "pet_area",
+      "schema_version": 1,
+      "service_capacity": 1
+     },
+     {
+      "access": {
+       "accessibility": "unknown",
+       "required_access_tags": [],
+       "required_staff_skills": []
+      },
+      "facility_id": "quiet_support",
+      "id": "legacy-service:1a50d56190f3f558ae2e7fd5",
+      "point_m": {
+       "x": 5.778239349298849,
+       "y": 10.02637084428337
+      },
+      "queue_id": "quiet_support",
+      "schema_version": 1,
+      "service_capacity": 1
+     },
+     {
+      "access": {
+       "accessibility": "unknown",
+       "required_access_tags": [],
+       "required_staff_skills": []
+      },
+      "facility_id": "toilet_01",
+      "id": "legacy-service:650608e8abd263c7ffed0b32",
+      "point_m": {
+       "x": 11.748239349298851,
+       "y": 10.02637084428337
+      },
+      "queue_id": "toilet_01",
+      "schema_version": 1,
+      "service_capacity": 1
+     },
+     {
+      "access": {
+       "accessibility": "unknown",
+       "required_access_tags": [],
+       "required_staff_skills": []
+      },
+      "facility_id": "water_station_main",
+      "id": "legacy-service:efc8fc0c9793f65a86378d94",
+      "point_m": {
+       "x": 9.94823934929885,
+       "y": 10.02637084428337
+      },
+      "queue_id": "water_station_main",
+      "schema_version": 1,
+      "service_capacity": 1
+     }
+    ],
+    "source_ids": [
+     "ASM-SHELTER-AREA-HEURISTIC-V1",
+     "ASM-SHELTER-SERVICE-STATIONS-V1",
+     "ASM-SHELTER-STAFFING-HEURISTIC-V2",
+     "ASM-SHELTER-TOILET-HEURISTIC-V2",
+     "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+    ],
+    "source_kind": "synthetic",
+    "units": "m",
+    "width_m": 17.74823934929885,
+    "zones": [
+     {
+      "polygon": [
+       {
+        "x": 0.0,
+        "y": 0.0
+       },
+       {
+        "x": 17.74823934929885,
+        "y": 0.0
+       },
+       {
+        "x": 17.74823934929885,
+        "y": 1.8
+       },
+       {
+        "x": 0.0,
+        "y": 1.8
+       }
+      ],
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "usable_area_m2": 28.75214774586414,
+      "zone_id": "corridor"
+     },
+     {
+      "polygon": [
+       {
+        "x": 0.0,
+        "y": 1.8
+       },
+       {
+        "x": 5.148239349298849,
+        "y": 1.8
+       },
+       {
+        "x": 5.148239349298849,
+        "y": 11.83215956619923
+       },
+       {
+        "x": 0.0,
+        "y": 11.83215956619923
+       }
+      ],
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "usable_area_m2": 46.483162773436575,
+      "zone_id": "sleeping"
+     },
+     {
+      "polygon": [
+       {
+        "x": 5.148239349298849,
+        "y": 1.8
+       },
+       {
+        "x": 6.948239349298849,
+        "y": 1.8
+       },
+       {
+        "x": 6.948239349298849,
+        "y": 11.83215956619923
+       },
+       {
+        "x": 5.148239349298849,
+        "y": 11.83215956619923
+       }
+      ],
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "usable_area_m2": 16.252098497242752,
+      "zone_id": "quiet"
+     },
+     {
+      "polygon": [
+       {
+        "x": 6.948239349298849,
+        "y": 1.8
+       },
+       {
+        "x": 8.74823934929885,
+        "y": 1.8
+       },
+       {
+        "x": 8.74823934929885,
+        "y": 11.83215956619923
+       },
+       {
+        "x": 6.948239349298849,
+        "y": 11.83215956619923
+       }
+      ],
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "usable_area_m2": 16.25209849724276,
+      "zone_id": "medical"
+     },
+     {
+      "polygon": [
+       {
+        "x": 8.74823934929885,
+        "y": 1.8
+       },
+       {
+        "x": 10.54823934929885,
+        "y": 1.8
+       },
+       {
+        "x": 10.54823934929885,
+        "y": 11.83215956619923
+       },
+       {
+        "x": 8.74823934929885,
+        "y": 11.83215956619923
+       }
+      ],
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "usable_area_m2": 16.25209849724276,
+      "zone_id": "food"
+     },
+     {
+      "polygon": [
+       {
+        "x": 10.54823934929885,
+        "y": 1.8
+       },
+       {
+        "x": 12.34823934929885,
+        "y": 1.8
+       },
+       {
+        "x": 12.34823934929885,
+        "y": 11.83215956619923
+       },
+       {
+        "x": 10.54823934929885,
+        "y": 11.83215956619923
+       }
+      ],
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "usable_area_m2": 16.25209849724276,
+      "zone_id": "toilet"
+     },
+     {
+      "polygon": [
+       {
+        "x": 12.34823934929885,
+        "y": 1.8
+       },
+       {
+        "x": 14.148239349298851,
+        "y": 1.8
+       },
+       {
+        "x": 14.148239349298851,
+        "y": 11.83215956619923
+       },
+       {
+        "x": 12.34823934929885,
+        "y": 11.83215956619923
+       }
+      ],
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "usable_area_m2": 16.25209849724276,
+      "zone_id": "intake"
+     },
+     {
+      "polygon": [
+       {
+        "x": 14.148239349298851,
+        "y": 1.8
+       },
+       {
+        "x": 15.948239349298852,
+        "y": 1.8
+       },
+       {
+        "x": 15.948239349298852,
+        "y": 11.83215956619923
+       },
+       {
+        "x": 14.148239349298851,
+        "y": 11.83215956619923
+       }
+      ],
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "usable_area_m2": 16.25209849724276,
+      "zone_id": "staff"
+     },
+     {
+      "polygon": [
+       {
+        "x": 15.948239349298852,
+        "y": 1.8
+       },
+       {
+        "x": 17.74823934929885,
+        "y": 1.8
+       },
+       {
+        "x": 17.74823934929885,
+        "y": 11.83215956619923
+       },
+       {
+        "x": 15.948239349298852,
+        "y": 11.83215956619923
+       }
+      ],
+      "source_ids": [
+       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
+      ],
+      "usable_area_m2": 16.252098497242727,
+      "zone_id": "pet"
+     }
+    ]
+   },
+   "observations": [],
+   "requested_population": 12,
+   "staff": [
+    {
+     "id": "staff_001",
+     "skills": [
+      "support",
+      "intake",
+      "information",
+      "water_service",
+      "meal_service",
+      "medical_support"
+     ],
+     "zone_id": "staff"
+    },
+    {
+     "id": "staff_002",
+     "skills": [
+      "water_service",
+      "meal_service"
+     ],
+     "zone_id": "food"
+    },
+    {
+     "id": "staff_003",
+     "skills": [
+      "water_service",
+      "meal_service"
+     ],
+     "zone_id": "food"
+    }
+   ],
+   "warnings": [
+    "出入口幅1.8 mを確保するため、次のゾーンの面積配分を広げ、その分を避難スペースから差し引きました: quiet、medical、food、toilet、intake、staff、pet",
+    "平面形状、1.8 m通路、面積配分、設備数は標準モデルの仮定です。実施設の図面・法令適合・避難安全性を示しません。",
+    "食料・飲料水の在庫量は施設数から推定していません。在庫を入力しない場合の既定量はScenarioの仮定として記録します。"
+   ],
+   "zone_edges": [
+    {
+     "closed": false,
+     "from_zone_id": "corridor",
+     "id": "route_corridor_food",
+     "to_zone_id": "food",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "corridor",
+     "id": "route_corridor_intake",
+     "to_zone_id": "intake",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "corridor",
+     "id": "route_corridor_medical",
+     "to_zone_id": "medical",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "corridor",
+     "id": "route_corridor_pet",
+     "to_zone_id": "pet",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "corridor",
+     "id": "route_corridor_quiet",
+     "to_zone_id": "quiet",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "corridor",
+     "id": "route_corridor_sleeping",
+     "to_zone_id": "sleeping",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "corridor",
+     "id": "route_corridor_staff",
+     "to_zone_id": "staff",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "corridor",
+     "id": "route_corridor_toilet",
+     "to_zone_id": "toilet",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "food",
+     "id": "route_food_corridor",
+     "to_zone_id": "corridor",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "intake",
+     "id": "route_intake_corridor",
+     "to_zone_id": "corridor",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "medical",
+     "id": "route_medical_corridor",
+     "to_zone_id": "corridor",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "pet",
+     "id": "route_pet_corridor",
+     "to_zone_id": "corridor",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "quiet",
+     "id": "route_quiet_corridor",
+     "to_zone_id": "corridor",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "sleeping",
+     "id": "route_sleeping_corridor",
+     "to_zone_id": "corridor",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "staff",
+     "id": "route_staff_corridor",
+     "to_zone_id": "corridor",
+     "travel_minutes": 1
+    },
+    {
+     "closed": false,
+     "from_zone_id": "toilet",
+     "id": "route_toilet_corridor",
+     "to_zone_id": "corridor",
+     "travel_minutes": 1
+    }
+   ],
+   "zones": [
+    {
+     "capacity": null,
+     "display_x": 100.0,
+     "display_y": 100.0,
+     "id": "corridor",
+     "name": "共用通路"
+    },
+    {
+     "capacity": 13,
+     "display_x": 100.0,
+     "display_y": 260.0,
+     "id": "sleeping",
+     "name": "避難スペース"
+    },
+    {
+     "capacity": 12,
+     "display_x": 100.0,
+     "display_y": 380.0,
+     "id": "quiet",
+     "name": "静養スペース"
+    },
+    {
+     "capacity": 12,
+     "display_x": 100.0,
+     "display_y": 500.0,
+     "id": "medical",
+     "name": "救護スペース"
+    },
+    {
+     "capacity": 12,
+     "display_x": 100.0,
+     "display_y": 620.0,
+     "id": "food",
+     "name": "食事・給水スペース"
+    },
+    {
+     "capacity": 12,
+     "display_x": 100.0,
+     "display_y": 740.0,
+     "id": "toilet",
+     "name": "トイレ"
+    },
+    {
+     "capacity": 12,
+     "display_x": 100.0,
+     "display_y": 860.0,
+     "id": "intake",
+     "name": "受付"
+    },
+    {
+     "capacity": 12,
+     "display_x": 100.0,
+     "display_y": 980.0,
+     "id": "staff",
+     "name": "運営本部"
+    },
+    {
+     "capacity": 12,
+     "display_x": 100.0,
+     "display_y": 1100.0,
+     "id": "pet",
+     "name": "ペット同行スペース"
+    }
+   ]
+  }
+ }
+}
