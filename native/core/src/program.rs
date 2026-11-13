@@ -1165,3 +1165,268 @@ fn toilet_placement(world: &World, additions: &[(String, Arc<str>, i64)], placem
     }
     Ok(Vec::new())
 }
+
+// ---- schedule_effect_program ---------------------------------------------------------------------------
+
+/// What scheduling a program gives back (`ScheduledEffectProgram`), with the branch's minute: the
+/// `command_log` entry of `BranchRuntime.apply_effect_program` but its `"command"`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Receipt {
+    pub program_id: Arc<str>,
+    pub program_hash: String,
+    pub event_ids: Vec<Arc<str>>,
+    pub minute: i64,
+}
+
+impl Receipt {
+    /// `{"command": "effect_program", "program_id", "program_hash", "event_ids", "minute"}`, as
+    /// `BranchRuntime.apply_effect_program` appends it to the branch's `command_log`.
+    pub fn command(&self) -> V {
+        object([
+            ("command", V::Str(Arc::from("effect_program"))),
+            ("program_id", string(&self.program_id)),
+            ("program_hash", V::Str(Arc::from(self.program_hash.as_str()))),
+            ("event_ids", ids(&self.event_ids)),
+            ("minute", V::Int(self.minute)),
+        ])
+    }
+}
+
+fn sha256_text(text: &str) -> String {
+    crate::checkpoint::sha256_hex(text.as_bytes())
+}
+
+/// `_modifier_id`: `modifier-` and the first 32 hex digits of `sha256(f"{program}:{effect}")`.
+fn modifier_id(program_id: &str, effect_id: &str) -> Arc<str> {
+    Arc::from(format!("modifier-{}", &sha256_text(&format!("{program_id}:{effect_id}"))[..32]))
+}
+
+/// The parameters' dump with the model's defaults (`parameters_model.model_validate(...)
+/// .model_dump(mode="json")`), for the operators whose payload holds them.
+fn parameters_dump(effect: &Effect, parameters: &Parameters) -> Map {
+    let V::Map(given) = &effect.parameters else { return Map::new() };
+    let mut dump = Map::new();
+    let mut put = |name: &str, value: V| {
+        dump.insert(Arc::from(name), value);
+    };
+    match &*effect.op {
+        "add_staff" | "add_toilet" => put("count", V::Int(parameters.count)),
+        "add_evacuees" => {
+            put("count", V::Int(parameters.count));
+            put("household_size", given.get("household_size").cloned().unwrap_or(V::Int(1)));
+            put("mobility", given.get("mobility").cloned().unwrap_or_else(|| V::Str(Arc::from("independent"))));
+            put("language", given.get("language").cloned().unwrap_or_else(|| V::Str(Arc::from("ja"))));
+            put("admission_zone_ids", ids(&parameters.admission_zone_ids));
+            put("approach_route_id", optional(&parameters.approach_route_id));
+            put("person_context_overrides", V::List(Vec::new()));
+        }
+        "depart_evacuees" => {
+            put("count", V::Int(parameters.count));
+            put("include_initial", given.get("include_initial").cloned().unwrap_or(V::Bool(false)));
+        }
+        _ => {}
+    }
+    dump
+}
+
+/// `_projected_facility_units`: the working units a facility modifier sets, the program's earlier
+/// modifiers of the facility in force.
+fn projected_units(world: &World, program: &EffectProgram, target: &Effect) -> Result<i64> {
+    let facility_id = target.target_selector.target_id.as_deref().unwrap_or_default();
+    let current = world.rows()?.facilities.get(facility_id).ok_or_else(|| Error::Key(facility_id.to_owned()))?.working_units;
+    let duration = world.duration_minutes()?;
+    let mut effects: Vec<&Effect> = program.effects.iter().collect();
+    effects.sort_by(|first, second| first.start_minute.cmp(&second.start_minute).then_with(|| first.effect_id.as_bytes().cmp(second.effect_id.as_bytes())));
+    let mut active: Vec<(i64, i64)> = Vec::new();
+    for effect in effects {
+        if &*effect.op != "facility_outage" || effect.target_selector.target_id.as_deref() != Some(facility_id) {
+            continue;
+        }
+        active.retain(|(end, _)| *end > effect.start_minute);
+        let available = active.iter().map(|(_, units)| *units).fold(current, i64::min);
+        let requested = available - parameters(effect)?.units;
+        if effect.effect_id == target.effect_id {
+            return Ok(requested);
+        }
+        active.push((effect.end_minute.unwrap_or(duration), requested));
+    }
+    Err(Error::Value(format!("facility modifier effect {} was not found", py_repr(&target.effect_id))))
+}
+
+/// `schedule_effect_program(world, program)` as `BranchRuntime.apply_effect_program` calls it: the
+/// program checked (`validate`; its issues are the error, joined as Python joins them), then its
+/// record and its start and expiry events written to the world, all or none. The world's own check
+/// after the writes (`candidate.validate()`, E6 of #250) is not run.
+pub fn schedule(world: &mut World, program: &EffectProgram, placement: &mut Placement<'_>) -> Result<Receipt> {
+    let issues = validate(world, program, placement)?;
+    if !issues.is_empty() {
+        return Err(Error::Value(format!("EffectProgram could not be scheduled: {}", issues.join("; "))));
+    }
+    let snapshot = world.snapshot();
+    match schedule_on(world, program) {
+        Ok(receipt) => Ok(receipt),
+        Err(error) => {
+            world.restore(snapshot);
+            Err(match error {
+                Error::Value(text) => Error::Value(format!("EffectProgram could not be scheduled: {text}")),
+                other => other,
+            })
+        }
+    }
+}
+
+/// `_schedule_on`: the writes, for the six operators.
+fn schedule_on(world: &World, program: &EffectProgram) -> Result<Receipt> {
+    use crate::events::EventKind;
+    use crate::rules::kit::{new_event, Events, NewEvent};
+    use crate::state::effect_program::Program;
+
+    let minute = world.minute_index()?;
+    let program_hash = crate::checkpoint::sha256_hex(&program.dump_json()?);
+    let source_text_hash = sha256_text(&program.source_text);
+    let provenance = program.compiler_provenance.dump();
+    if !has(world, EFFECT_PROGRAM)? {
+        world.start_namespace(
+            EFFECT_PROGRAM,
+            Box::new(EffectProgramRow { schema_version: 1, programs: Default::default(), active_facility_modifiers: Default::default() }),
+        )?;
+    }
+    {
+        let mut state = world.row_mut::<EffectProgramRow>(EFFECT_PROGRAM)?;
+        state.programs.insert(
+            program.program_id.clone(),
+            Program {
+                program_hash: Arc::from(program_hash.as_str()),
+                source_text_hash: Arc::from(source_text_hash.as_str()),
+                narrative: program.narrative.clone(),
+                compiler_provenance: provenance.clone(),
+                assumptions: V::List(program.assumptions.iter().map(Assumption::dump).collect()),
+                support_mode: program.support_mode.clone(),
+                effect_ids: program.effects.iter().map(|effect| effect.effect_id.clone()).collect(),
+                operators: program.effects.iter().map(|effect| (effect.effect_id.clone(), effect.op.clone())).collect(),
+                scheduled_event_ids: Vec::new(),
+            },
+        );
+    }
+    let events = Events::of(world)?;
+    let mut event_ids: Vec<Arc<str>> = Vec::new();
+    let mut make = |effect: &Effect, due: i64, event_type: &str, payload: Map, phase: &str, priority: i64, causation: Option<Arc<str>>| -> Result<Arc<str>> {
+        let sequence = events.allocate_sequence()?;
+        let event_id: Arc<str> = Arc::from(format!("effect-event-{sequence}"));
+        let mut marker = Map::new();
+        let mut put = |name: &str, value: V| {
+            marker.insert(Arc::from(name), value);
+        };
+        put("program_id", string(&program.program_id));
+        put("effect_id", string(&effect.effect_id));
+        put("op", string(&effect.op));
+        put("source_text_hash", V::Str(Arc::from(source_text_hash.as_str())));
+        put("compiler_provenance", provenance.clone());
+        put("assumption_ids", ids(&effect.assumption_ids));
+        put("policy_dependencies", ids(&effect.policy_dependencies));
+        put("units", string(&effect.units));
+        put("phase", V::Str(Arc::from(phase)));
+        if phase == "start" {
+            if let Some(guard) = &effect.guard {
+                put("guard", guard.dump());
+            }
+        }
+        let row = new_event(NewEvent {
+            event_id: event_id.clone(),
+            kind: EventKind::Intervention,
+            due_minute: due,
+            priority,
+            sequence,
+            event_type: Arc::from(event_type),
+            payload,
+            source_id: Some(effect.source_id.clone()),
+            causation_id: causation.or_else(|| effect.causation_id.clone()),
+            provenance: [(Arc::from(EFFECT_PROGRAM), V::Map(marker))].into_iter().collect(),
+        })?;
+        events.schedule(row).map_err(Error::from)?;
+        world.row_mut::<EffectProgramRow>(EFFECT_PROGRAM)?.programs.get_mut(&*program.program_id).ok_or_else(|| Error::Runtime("the program left its state".to_owned()))?.scheduled_event_ids.push(event_id.clone());
+        event_ids.push(event_id.clone());
+        Ok(event_id)
+    };
+    let mut effects: Vec<&Effect> = program.effects.iter().collect();
+    effects.sort_by(|first, second| first.start_minute.cmp(&second.start_minute).then_with(|| first.effect_id.as_bytes().cmp(second.effect_id.as_bytes())));
+    for effect in effects {
+        let parameters = parameters(effect)?;
+        let target = effect.target_selector.target_id.clone().ok_or_else(|| Error::Runtime("an effect without its target".to_owned()))?;
+        let head = |extra: &[(&str, V)]| -> Map {
+            let mut payload = Map::new();
+            payload.insert(Arc::from("program_id"), string(&program.program_id));
+            payload.insert(Arc::from("effect_id"), string(&effect.effect_id));
+            for (name, value) in extra {
+                payload.insert(Arc::from(*name), value.clone());
+            }
+            payload
+        };
+        match &*effect.op {
+            "facility_outage" => {
+                let units = projected_units(world, program, effect)?;
+                let modifier = V::Str(modifier_id(&program.program_id, &effect.effect_id));
+                let start = make(
+                    effect,
+                    effect.start_minute,
+                    "effect_program_apply",
+                    head(&[("modifier_id", modifier.clone()), ("facility_id", V::Str(target.clone())), ("working_units", V::Int(units))]),
+                    "start",
+                    0,
+                    None,
+                )?;
+                if let Some(end) = effect.end_minute {
+                    make(effect, end, "effect_program_expire", head(&[("modifier_id", modifier), ("facility_id", V::Str(target.clone()))]), "expiry", 20, Some(start))?;
+                }
+            }
+            "water_outage" => {
+                let outage_id: Arc<str> = Arc::from(format!("outage-{}", &sha256_text(&format!("{}:{}:water", program.program_id, effect.effect_id))[..32]));
+                let zone = &*effect.target_selector.kind == "zone";
+                let mut payload = Map::new();
+                payload.insert(Arc::from("outage_id"), V::Str(outage_id.clone()));
+                payload.insert(Arc::from(if zone { "zone_id" } else { "facility_id" }), V::Str(target.clone()));
+                let start = make(effect, effect.start_minute, "water_outage", payload, "start", 0, None)?;
+                let mut restore = V::Null;
+                if let Some(end) = effect.end_minute.filter(|end| *end < world.duration_minutes().unwrap_or(i64::MAX)) {
+                    let mut payload = Map::new();
+                    payload.insert(Arc::from("outage_id"), V::Str(outage_id.clone()));
+                    restore = V::Str(make(effect, end, "water_restored", payload, "expiry", 10, Some(start.clone()))?);
+                }
+                let mut state = world.row_mut::<ValueRow>("operational_events_v1")?;
+                let V::Map(state) = &mut state.0 else { return Err(Error::unsupported("operational_events_v1 is not a dict")) };
+                let Some(V::Map(outages)) = state.get_mut("water_outages") else {
+                    return Err(Error::unsupported("the water outages are not a dict"));
+                };
+                if outages.contains_key(&outage_id) {
+                    return Err(Error::Value(format!("water outage ID collision for {}", py_repr(&outage_id))));
+                }
+                outages.insert(
+                    outage_id,
+                    object([
+                        ("target_kind", V::Str(Arc::from(if zone { "zone" } else { "facility" }))),
+                        ("target_id", V::Str(target.clone())),
+                        ("outage_event_id", V::Str(start)),
+                        ("restore_event_id", restore),
+                        ("active", V::Bool(false)),
+                    ]),
+                );
+            }
+            "add_staff" | "add_toilet" => {
+                let mut payload = head(&[
+                    ("modifier_id", V::Str(modifier_id(&program.program_id, &effect.effect_id))),
+                    ("op", string(&effect.op)),
+                    ("zone_id", V::Str(target.clone())),
+                ]);
+                payload.extend(parameters_dump(effect, &parameters));
+                make(effect, effect.start_minute, "effect_program_structure", payload, "start", 0, None)?;
+            }
+            "add_evacuees" | "depart_evacuees" => {
+                let mut payload = head(&[("op", string(&effect.op)), ("zone_id", V::Str(target.clone()))]);
+                payload.extend(parameters_dump(effect, &parameters));
+                make(effect, effect.start_minute, "effect_program_population", payload, "start", 0, None)?;
+            }
+            _ => return Err(Error::unsupported("an operator the offline reading of a text never makes")),
+        }
+    }
+    Ok(Receipt { program_id: program.program_id.clone(), program_hash, event_ids, minute })
+}

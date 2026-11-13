@@ -156,7 +156,10 @@ split PR by PR; its last section sums up what is where.
   text makes, with Python's texts, and `Unsupported` for the others. `PlainRun::validate_effect_program`
   places added toilets on a fork of the world. In WASM: `effectProgramDump`,
   `Simulation.validateEffectProgram`. `core/tests/programs.rs` and `wasm/tests/node_programs.mjs`
-  check the cases of `core/tests/data/programs.json`.
+  check the cases of `core/tests/data/programs.json`. `program::schedule` is
+  `schedule_effect_program` (#305): the program's record and events written, all or none, and its
+  receipt the `command_log` entry `BranchRuntime.apply_effect_program` appends
+  (`PlainRun::apply_effect_program`, `Simulation.applyEffectProgram`).
 - **Saved points** (#251, for the browser only; not Python's Checkpoints): `PlainRun::saved_point`
   writes the Run at a minute as `archive::SavedPoint`, a versioned binary of the world without its
   log (`archive::world_parts`), the counts of the log's records and the metric samples, and the
