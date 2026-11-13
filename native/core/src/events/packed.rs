@@ -479,6 +479,15 @@ pub struct Blocks {
 pub const BLOCK: usize = 1 << 20;
 
 impl Blocks {
+    /// Blocks that hold `blocks` as they are, each sealed: a piece pushed after them goes into a new
+    /// block. For pieces read back from a store (`archive::Restore`, #251), whose starts are their
+    /// block's index and their offset in it.
+    pub fn of_sealed(blocks: Vec<Vec<u8>>) -> Self {
+        let size = blocks.iter().map(Vec::len).sum();
+        let open_from = blocks.len();
+        Self { blocks, size, open_from }
+    }
+
     /// Holds a piece: where it starts.
     pub fn push(&mut self, piece: &[u8]) -> u64 {
         let fits = self.blocks.len() > self.open_from && self.blocks.last().is_some_and(|block| block.len() + piece.len() <= block.capacity());

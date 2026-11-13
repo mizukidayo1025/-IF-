@@ -30,7 +30,7 @@ use crate::checkpoint::{hex, sha256_hex};
 use crate::engine;
 use crate::error::{Error, Result};
 use crate::events::log::EventLog;
-use crate::events::packed::{put_varint, put_zigzag, Cursor, Packer};
+use crate::events::packed::{put_varint, put_zigzag, Blocks, Cursor, Packer};
 use crate::plain::{unpack_sample, MetricSamples};
 use crate::world::World;
 
@@ -288,34 +288,55 @@ pub fn world_document(bytes: &[u8]) -> Result<Map<String, Value>> {
 /// The Run at a saved point, read back: the saved point, then the stored log's and samples'
 /// tables and blocks in the order they were written, of which it keeps the first records and
 /// samples up to the saved point's counts (blocks are not cut at minutes). `PlainRun::restore`
-/// then builds the Run. The log and the samples are packed again as they are taken, as the Run
-/// packed them, so the restored Run's own store starts from them (a Branch's, #267).
+/// then builds the Run. The records and samples are kept as they were packed, against the tables
+/// read, in the blocks read (the last cut after the last one kept); the log's indexes are made
+/// again from each record. A restored Run appends to them, so it can store its own blocks from
+/// there (a Branch's, #267).
 #[derive(Debug)]
 pub struct Restore {
     pub point: SavedPoint,
     log_packer: Packer,
-    pub(crate) log: EventLog,
+    log: EventLog,
+    log_blocks: Vec<Vec<u8>>,
+    log_starts: Vec<u64>,
     sample_packer: Packer,
-    pub(crate) samples: MetricSamples,
+    sample_blocks: Vec<Vec<u8>>,
+    sample_starts: Vec<u64>,
+    sample_digest: Sha256,
+}
+
+/// Where a piece at `offset` of the block `index` starts (`Blocks`), or an error past them.
+fn start(index: usize, offset: usize) -> Result<u64> {
+    match (u32::try_from(index), u32::try_from(offset)) {
+        (Ok(index), Ok(offset)) => Ok((u64::from(index) << 32) | u64::from(offset)),
+        _ => Err(corrupt("a block too large")),
+    }
 }
 
 impl Restore {
     /// A restore of the saved point of `bytes` (`SavedPoint::of_bytes`).
     pub fn new(bytes: &[u8]) -> Result<Self> {
-        let point = SavedPoint::of_bytes(bytes)?;
-        let mut log = EventLog::new();
-        log.pack_records()?;
-        Ok(Self { point, log_packer: Packer::new(), log, sample_packer: Packer::new(), samples: MetricSamples::default() })
+        Ok(Self {
+            point: SavedPoint::of_bytes(bytes)?,
+            log_packer: Packer::new(),
+            log: EventLog::new(),
+            log_blocks: Vec::new(),
+            log_starts: Vec::new(),
+            sample_packer: Packer::new(),
+            sample_blocks: Vec::new(),
+            sample_starts: Vec::new(),
+            sample_digest: Sha256::new(),
+        })
     }
 
     /// Whether the log has fewer records than the saved point's.
     pub fn log_needed(&self) -> bool {
-        (self.log.len() as u64) < self.point.records
+        (self.log_starts.len() as u64) < self.point.records
     }
 
     /// Whether there are fewer samples than the saved point's.
     pub fn samples_needed(&self) -> bool {
-        (self.samples.len() as u64) < self.point.samples
+        (self.sample_starts.len() as u64) < self.point.samples
     }
 
     /// The log's tables' new entries (`Packer::write_tables`).
@@ -324,18 +345,22 @@ impl Restore {
     }
 
     /// The records of a block, up to the saved point's count: how many were taken.
-    pub fn read_log_block(&mut self, mut bytes: &[u8]) -> Result<usize> {
-        let mut taken = 0;
-        while self.log_needed() && !bytes.is_empty() {
-            let (record, used) = self.log_packer.unpack(bytes)?;
+    pub fn read_log_block(&mut self, bytes: &[u8]) -> Result<usize> {
+        let (index, mut at, mut taken) = (self.log_blocks.len(), 0, 0);
+        while self.log_needed() && at < bytes.len() {
+            let (record, used) = self.log_packer.unpack(&bytes[at..])?;
             if used == 0 {
                 return Err(corrupt("an empty record"));
             }
-            if self.log.append_row(&record.event, record.realized_minute, record.status, record.detail.as_deref())? != 0 {
+            if self.log.add(record.event.index_fields(record.realized_minute, record.status), true, None) != 0 {
                 return Err(corrupt("a record's event ID or sequence twice"));
             }
+            self.log_starts.push(start(index, at)?);
+            at += used;
             taken += 1;
-            bytes = &bytes[used..];
+        }
+        if taken > 0 {
+            self.log_blocks.push(bytes[..at].to_vec());
         }
         Ok(taken)
     }
@@ -346,17 +371,40 @@ impl Restore {
     }
 
     /// The samples of a block, up to the saved point's count: how many were taken.
-    pub fn read_sample_block(&mut self, mut bytes: &[u8]) -> Result<usize> {
-        let mut taken = 0;
-        while self.samples_needed() && !bytes.is_empty() {
-            let (sample, minute, used) = unpack_sample(&self.sample_packer, bytes)?;
+    pub fn read_sample_block(&mut self, bytes: &[u8]) -> Result<usize> {
+        let (index, mut at, mut taken) = (self.sample_blocks.len(), 0, 0);
+        while self.samples_needed() && at < bytes.len() {
+            let (sample, minute, used) = unpack_sample(&self.sample_packer, &bytes[at..])?;
             if used == 0 {
                 return Err(corrupt("an empty sample"));
             }
-            self.samples.push(&sample, minute)?;
+            if !self.sample_starts.is_empty() {
+                self.sample_digest.update(b"\n");
+            }
+            self.sample_digest.update(engine::metric_line(&sample, minute)?);
+            self.sample_starts.push(start(index, at)?);
+            at += used;
             taken += 1;
-            bytes = &bytes[used..];
+        }
+        if taken > 0 {
+            self.sample_blocks.push(bytes[..at].to_vec());
         }
         Ok(taken)
+    }
+
+    /// The saved point, its log and its samples: an error where fewer records or samples were
+    /// read than the saved point's.
+    pub(crate) fn into_parts(self) -> Result<(SavedPoint, EventLog, MetricSamples)> {
+        let short = |what: &str| Error::Value(format!("not a saved point's Run: the stored {what} end before the saved point's"));
+        if self.log_needed() {
+            return Err(short("records"));
+        }
+        if self.samples_needed() {
+            return Err(short("samples"));
+        }
+        let mut log = self.log;
+        log.adopt_packed(self.log_packer, Blocks::of_sealed(self.log_blocks), self.log_starts)?;
+        let samples = MetricSamples::adopt(self.sample_packer, Blocks::of_sealed(self.sample_blocks), self.sample_starts, self.sample_digest);
+        Ok((self.point, log, samples))
     }
 }

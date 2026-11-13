@@ -190,6 +190,12 @@ impl MetricSamples {
         self.sample(index)?.map(|(sample, minute)| engine::metric_line(&sample, minute)).transpose()
     }
 
+    /// Samples already packed against `packer` in `blocks`, each at its start in `starts`, with
+    /// `digest` of their lines so far (a stored Run read back, `archive::Restore`, #251).
+    pub(crate) fn adopt(packer: Packer, blocks: Blocks, starts: Vec<u64>, digest: Sha256) -> Self {
+        Self { packer, blocks, starts, digest }
+    }
+
     /// The sha256 of the lines so far joined by `\n`, in hex.
     pub fn digest(&self) -> String {
         hex(&self.digest.clone().finalize())
@@ -411,14 +417,7 @@ impl PlainRun {
     /// error where `restore` holds fewer records or samples than the saved point, or the world is
     /// not of the saved point's minute.
     pub fn restore(mut entry: Value, restore: Restore) -> Result<Self> {
-        let Restore { point, log, samples, .. } = restore;
-        let short = |what: &str| Error::Value(format!("not a saved point's Run: the stored {what} end before the saved point's"));
-        if log.len() as u64 != point.records || !log.all_packed() {
-            return Err(short("records"));
-        }
-        if samples.len() as u64 != point.samples {
-            return Err(short("samples"));
-        }
+        let (point, log, samples) = restore.into_parts()?;
         let entry_object = entry.as_object_mut().ok_or_else(|| Error::Value("not an exported world: the entry is not a dict".to_owned()))?;
         entry_object.insert("world".to_owned(), Value::Object(archive::world_document(&point.world)?));
         let loaded = Rc::new(load::loaded(&entry)?);
