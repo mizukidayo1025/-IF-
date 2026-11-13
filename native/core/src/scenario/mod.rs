@@ -8,4 +8,5 @@ pub mod connections;
 pub mod population;
 pub mod profiles;
 pub mod request;
+pub mod text;
 pub mod service_capacity;

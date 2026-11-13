@@ -144,6 +144,13 @@ split PR by PR; its last section sums up what is where.
   `dump` / `dump_json` / `input_sha256` give its `model_dump(mode="json")`; a field the screen never
   sends, at a value other than its default, is `Refusal::Unsupported` (`browser_unsupported`).
   `core/tests/scenario_request.rs` checks the cases of `core/tests/data/scenario_request.json`.
+  `scenario::text` (#294) is `parse_scenario_text` with the offline router: the rules' regular
+  expressions matched by hand as Python's `re` matches them (`\d`, `\s`, `\w` from
+  `text/classes.rs`, which `tools/regex_classes_table.py` writes from CPython; `re.IGNORECASE`'s
+  `İ ı ſ K`), the fallback checked against the prompt's lengths, the request through
+  `scenario::request`. In WASM: `parseScenarioText`. `tests/unit/llm/test_region_prepare.py`
+  compares it with Python on the corpus's texts and edge cases; `wasm/tests/node_scenario_text.mjs`
+  on the corpus.
   `scenario::population::generate_population` (#297) is `SyntheticPopulationGenerator.generate`
   as the builder calls it (`PopulationInput::for_request`), with `scenario::profiles::generate_profiles`
   (`SyntheticProfileGenerator.generate`), drawing with `rng::KeyedDraws`; `GeneratedPopulation`
