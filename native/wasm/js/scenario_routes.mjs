@@ -198,6 +198,9 @@ export class ScenarioRoutes {
     const text = document.text;
     if (typeof text !== "string") throw refused("scenario text must be a string");
     let request = null;
+    // The builder reads the request as Python's builder does: the form's as posted (a field left
+    // out keeps the model's default, `duration_days` 7, an int), the text parser's dump otherwise.
+    let posted = false;
     let inputSha256;
     let extractionSource;
     let parseWarnings = [];
@@ -220,13 +223,15 @@ export class ScenarioRoutes {
         throw coreError(error, "文の読み取り");
       }
       const parsed = JSON.parse(parsedText);
-      request = truthy(document.request) ? formRequest().request : parsed.request === null ? null : new RawJson(rawMember(parsedText, "request", "source"));
+      posted = truthy(document.request);
+      request = posted ? formRequest().request : parsed.request === null ? null : new RawJson(rawMember(parsedText, "request", "source"));
       inputSha256 = parsed.input_sha256;
       extractionSource = parsed.source;
       parseWarnings = parsed.warnings;
       missingFields = parsed.missing_fields;
     } else if (truthy(document.request)) {
       const read = formRequest();
+      posted = true;
       request = read.request;
       inputSha256 = read.input_sha256;
       extractionSource = "structured_form";
@@ -257,7 +262,8 @@ export class ScenarioRoutes {
     const requestText = request.text;
     let built;
     try {
-      built = this.wasm.buildScenario(encoder.encode(requestText), encoder.encode(researched.text), inputSha256, extractionSource);
+      const asBuilt = posted ? JSON.stringify(document.request) : requestText;
+      built = this.wasm.buildScenario(encoder.encode(asBuilt), encoder.encode(researched.text), inputSha256, extractionSource);
     } catch (error) {
       throw coreError(error, "シナリオの組み立て");
     }
