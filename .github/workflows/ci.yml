@@ -176,3 +176,5 @@ jobs:
           node native/wasm/tests/node_api_answers.mjs "$RUNNER_TEMP/pkg"
           node native/wasm/tests/node_browser_api.mjs "$RUNNER_TEMP/pkg"
           node native/wasm/tests/node_compute.mjs "$RUNNER_TEMP/pkg"
+          node native/wasm/tests/node_summaries.mjs "$RUNNER_TEMP/pkg"
+          node native/wasm/tests/node_programs.mjs "$RUNNER_TEMP/pkg"

@@ -509,6 +509,55 @@ impl PlainRun {
         crate::frame::frame(&self.loaded.cell, &mut self.host, &request, &self.rng_state)
     }
 
+    /// The summary of the world now that the reading of an intervention's text is given
+    /// (`summary::scenario_summary`, #302): its canonical JSON. It changes nothing.
+    pub fn scenario_summary(&self) -> Result<Vec<u8>> {
+        self.loaded.cell.with(|world| crate::summary::scenario_summary(world))?
+    }
+
+    /// `validate_effect_program(world, program)` on the world now (`program::validate`, #304): the
+    /// issues, in Python's order and texts. It changes nothing: the toilets an addition would place
+    /// are placed on a copy of the world, on the floor plan of that copy.
+    pub fn validate_effect_program(&mut self, program: &crate::program::EffectProgram) -> Result<Vec<String>> {
+        let enabled = self.placement_enabled()?;
+        let host = &mut self.host;
+        let mut plan = |world: &crate::world::World| -> Result<Arc<Geo>> {
+            let overlay = load::overlay(world)?;
+            host.plans.plan(&host.sections, overlay.as_ref())
+        };
+        let mut placement = crate::program::Placement { enabled, plan: &mut plan };
+        self.loaded.cell.with(|world| crate::program::validate(world, program, &mut placement))?
+    }
+
+    /// `schedule_effect_program(world, program)` on the world now, as a fork's
+    /// `BranchRuntime.apply_effect_program` calls it (`program::schedule`, #305): the program's
+    /// record and events are written, all or none, and the receipt says what was scheduled.
+    pub fn apply_effect_program(&mut self, program: &crate::program::EffectProgram) -> Result<crate::program::Receipt> {
+        let enabled = self.placement_enabled()?;
+        let host = &mut self.host;
+        let mut plan = |world: &crate::world::World| -> Result<Arc<Geo>> {
+            let overlay = load::overlay(world)?;
+            host.plans.plan(&host.sections, overlay.as_ref())
+        };
+        let mut placement = crate::program::Placement { enabled, plan: &mut plan };
+        self.loaded.cell.with(|world| crate::program::schedule(world, program, &mut placement))?
+    }
+
+    /// `installed_facility_placement_enabled(world)`.
+    fn placement_enabled(&mut self) -> Result<bool> {
+        let holding = crate::rules::kit::holding(&self.loaded.cell, &mut self.host)?;
+        let schema = crate::rules::kit::kept_section_value(
+            &self.loaded.cell,
+            &mut self.host,
+            &holding,
+            SectionId::OverlaySchema,
+            |configs| &configs.overlay_schema,
+            crate::config::overlay::overlay_schema,
+        )?;
+        let overlay = holding.held(crate::rules::overlay::OVERLAY_KEY, "the overlay is not held as its row");
+        crate::rules::overlay::placement_enabled(&schema, &overlay)
+    }
+
     /// `world.state_digest()` (`canonical::state_digest`) of the world now. The log's node is kept
     /// between calls, so a call reads only the records added since the last
     /// (`canonical::state_digest_with`).
