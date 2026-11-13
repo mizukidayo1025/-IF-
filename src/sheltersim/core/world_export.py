@@ -345,3 +345,82 @@ def sections(world: Any) -> dict[str, Any]:
         "overlay_rooms": _overlay_rooms(configs),
         "extensions_enabled": _extensions_enabled(configs),
     }
+
+
+# ---- What the core's minute-0 builder takes from Python (#249) ----------------------------------
+#
+# The core builds the entry of a Scenario's world at minute 0 itself (`native/core/src/initial/`,
+# for the browser, #285): the rows, the namespaces' records of each person, staff member and zone,
+# the floor plan's sections, the zone neighbors. What it does not compute (the Run's
+# `policies_document`, the sections Python's contracts parse, the namespaces' configs) it reads
+# from a table that Python writes (`native/core/src/initial/table.json`, by
+# `tests/support/core_initial.py`), keyed by a fingerprint of the configs that leaves out the
+# configs that hold the Scenario's own data. A Scenario whose fingerprint the table lacks is
+# refused there.
+
+# The configs whose contents are the Scenario's own data (its floor plan and its people): the
+# fingerprint keeps only that they are there. Every other config is the same for every Scenario the
+# Scenario screen makes, and so is what Python derives from them.
+DATA_CONFIGS = ("facility_geometry", "population", "population_context", "spatial_constraints")
+# The sections the core makes from the Scenario (the contracts' dumps of the configs as they are).
+DATA_SECTIONS = ("facility_geometry", "spatial_constraints")
+# The namespaces the core makes whole, from the Scenario's stock, events, staff and floor plan.
+DATA_NAMESPACES = ("resource_ledger_v1", "operational_events_v1", "facility_queues_v1")
+# The members of a namespace that hold a record per person, staff member or zone: the core fills
+# them in; the table holds the rest of the namespace (its template), with these empty.
+ENTITY_MEMBERS = {
+    "agent_dynamics_v1": ("agents",),
+    "body_state_v1": ("agents",),
+    "information_spread_v1": ("beliefs", "query_pressure"),
+    "movement_v1": ("positions", "staff_positions"),
+    "population_dynamics_v1": ("initial_agent_ids", "profile_traits"),
+    "population_presence_v1": ("people",),
+    "psychological_distress_v1": ("agents",),
+    "staff_dynamics_v1": ("staff",),
+    "staff_operations_v1": ("staff", "zones"),
+}
+
+
+def _canonical_text(value: Any) -> str:
+    return json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+    )
+
+
+def configs_fingerprint(configs: dict[str, Any]) -> str:
+    """The sha256 of the canonical JSON of the configs, each of `DATA_CONFIGS` there as `true`."""
+    import hashlib
+
+    masked = {key: True if key in DATA_CONFIGS else value for key, value in configs.items()}
+    return hashlib.sha256(_canonical_text(masked).encode("utf-8")).hexdigest()
+
+
+def initial_table_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    """What the core's builder reads from the table for an entry `export_world` wrote of a world at
+    minute 0 with its controller: the Run's policies and route capacities, the sections but
+    `DATA_SECTIONS` (the tick plan without `independent_queues`, which the floor plan decides),
+    and each namespace but `DATA_NAMESPACES`, its `ENTITY_MEMBERS` emptied."""
+    sections = {
+        name: section for name, section in entry["sections"].items() if name not in DATA_SECTIONS
+    }
+    plan = sections["tick_plan"]
+    if "value" in plan:
+        sections["tick_plan"] = {
+            "value": {
+                key: value for key, value in plan["value"].items() if key != "independent_queues"
+            }
+        }
+    namespaces = {}
+    for name, state in entry["world"]["model_state"].items():
+        if name in DATA_NAMESPACES:
+            continue
+        template = dict(state)
+        for member in ENTITY_MEMBERS.get(name, ()):
+            template[member] = type(template[member])()
+        namespaces[name] = template
+    return {
+        "policies": entry["run"]["policies"],
+        "route_capacities": entry["run"]["route_capacities"],
+        "sections": sections,
+        "namespaces": namespaces,
+    }

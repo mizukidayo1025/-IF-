@@ -20,7 +20,10 @@ The site is served at the root of its domain, as the screen loads `/demo-v2.css`
                             Cloudflare Pages, GitHub Pages and Netlify do; for others see the docs)
     /demo-v2.css, /demo-v2*.js, /demo-v2-logo.jpg   the screen's files
     /LICENSE.txt            the repository's LICENSE
-    /browser/               api_fetch.js, api_worker.mjs and the modules it imports, pkg/ (WASM)
+    /browser/               api_fetch.js, api_worker.mjs and the modules it imports, pkg/ (WASM),
+                            gsi-shelter-index.json (the shelter CSV's sha256, metadata and
+                            municipality names, for the regional research; with --shelter-csv
+                            or --fetch-shelters)
     /sample/sample.json     the sample's manifest (browser_api.mjs's SAMPLE_FORMAT) and its parts,
                             sample.shelterproj.000, .001, … of at most --part-mib MiB each
 
@@ -63,8 +66,13 @@ BROWSER_FILES = (
     "browser_api.mjs",
     "compute.mjs",
     "project_store.mjs",
+    "research.mjs",
     "run_store.mjs",
 )
+# What the browser's regional research reads of the GSI national shelter CSV, which it does not
+# download (no CORS; research.mjs, #300): written from a copy of the CSV (--shelter-csv) or from
+# the CSV downloaded at build time (--fetch-shelters).
+SHELTER_INDEX = "gsi-shelter-index.json"
 PKG_FILES = ("sheltersim_wasm.js", "sheltersim_wasm_bg.wasm")
 # The Run the browser makes beside the sample's, to compute itself (compute.mjs's COMPUTE_RUN).
 COMPUTE_RUN = "run-browser-compute"
@@ -248,6 +256,32 @@ def split_bundle(bundle: Path, directory: Path, part_bytes: int) -> dict[str, An
     return manifest
 
 
+def shelter_index(*, csv_path: Path | None = None, fetch: bool = False) -> dict[str, Any] | None:
+    """`gsi_shelter_index` of a copy of the national shelter CSV (read now, without HTTP
+    metadata) or of the CSV downloaded now; None with neither."""
+    from datetime import UTC, datetime
+
+    from sheltersim.region import providers
+
+    if csv_path is not None:
+        raw = csv_path.read_bytes()
+        try:
+            text = raw.decode("utf-8-sig")
+        except UnicodeDecodeError as error:
+            raise ValueError("the shelter CSV is not UTF-8") from error
+        snapshot = providers.GsiCsvSnapshot(
+            sha256=hashlib.sha256(raw).hexdigest(), retrieved_at=datetime.now(UTC), text=text
+        )
+    elif fetch:
+        snapshot = providers._get_gsi_shelter_snapshot(providers._GSI_SHELTER_CSV_URL)
+    else:
+        return None
+    try:
+        return providers.gsi_shelter_index(snapshot)
+    except providers.RegionProviderError as error:
+        raise ValueError(str(error)) from error
+
+
 def build(
     output: Path,
     *,
@@ -256,6 +290,7 @@ def build(
     run_id: str | None = None,
     branch_id: str = "main",
     part_mib: int = 16,
+    shelters: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Assemble the site in `output`; a summary of what it holds."""
     output = output.resolve()
@@ -283,6 +318,11 @@ def build(
         shutil.copyfile(JS / name, output / "browser" / name)
     for name in PKG_FILES:
         shutil.copyfile(pkg / name, output / "browser" / "pkg" / name)
+    if shelters is not None:
+        (output / "browser" / SHELTER_INDEX).write_text(
+            json.dumps(shelters, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+            encoding="utf-8",
+        )
     (output / "sample").mkdir()
     manifest = split_bundle(bundle, output / "sample", part_mib * 2**20)
     query = urlencode({"project": project_id, "run": run_id, "branch": branch_id})
@@ -313,6 +353,10 @@ def build(
         },
         "sample": {key: manifest[key] for key in ("project_id", "bytes", "sha256")}
         | {"parts": len(manifest["parts"])},
+        "shelter_index": None
+        if shelters is None
+        else {key: shelters[key] for key in ("sha256", "retrieved_at", "invalid_record_count")}
+        | {"municipality_codes": len(shelters["codes"])},
     }
 
 
@@ -332,8 +376,23 @@ def main() -> int:
     parser.add_argument(
         "--part-mib", type=int, default=16, help="the largest part of the sample, in MiB"
     )
+    shelter = parser.add_mutually_exclusive_group()
+    shelter.add_argument(
+        "--shelter-csv", type=Path, help="a copy of the GSI national shelter CSV (mergeFromCity_1)"
+    )
+    shelter.add_argument(
+        "--fetch-shelters",
+        action="store_true",
+        help="download the GSI national shelter CSV now (11.7 MB)",
+    )
     arguments = parser.parse_args()
     try:
+        shelters = shelter_index(csv_path=arguments.shelter_csv, fetch=arguments.fetch_shelters)
+        if shelters is None:
+            print(
+                "no shelter index: the site's Scenario preview answers browser_unsupported",
+                file=sys.stderr,
+            )
         summary = build(
             arguments.output,
             pkg=arguments.pkg,
@@ -341,6 +400,7 @@ def main() -> int:
             run_id=arguments.run,
             branch_id=arguments.branch,
             part_mib=arguments.part_mib,
+            shelters=shelters,
         )
     except (OSError, ValueError) as error:
         print(error, file=sys.stderr)

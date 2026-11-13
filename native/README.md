@@ -137,6 +137,31 @@ split PR by PR; its last section sums up what is where.
   `compare`); `PlainRun::frame` and `PlainRun::state_digest` serve the browser
   (`Simulation.frame`, `Simulation.stateDigest`). `core/tests/frames.rs` and
   `wasm/tests/node_frames.mjs` check the worlds of `core/tests/data/frames.json`.
+- **A Scenario made in the browser** (#291, under #285): `scenario/` holds the pieces of
+  `InitialScenarioBuilder` that the browser runs without Python, each a function with typed input
+  and output giving what Python gives. `scenario::request` (#295) is `InitialScenarioRequest`:
+  `InitialScenarioRequest::of_json` / `of_value` validate a request as pydantic's lax mode does and
+  `dump` / `dump_json` / `input_sha256` give its `model_dump(mode="json")`; a field the screen never
+  sends, at a value other than its default, is `Refusal::Unsupported` (`browser_unsupported`).
+  `core/tests/scenario_request.rs` checks the cases of `core/tests/data/scenario_request.json`.
+  `scenario::text` (#294) is `parse_scenario_text` with the offline router: the rules' regular
+  expressions matched by hand as Python's `re` matches them (`\d`, `\s`, `\w` from
+  `text/classes.rs`, which `tools/regex_classes_table.py` writes from CPython; `re.IGNORECASE`'s
+  `İ ı ſ K`), the fallback checked against the prompt's lengths, the request through
+  `scenario::request`. In WASM: `parseScenarioText`. `tests/unit/llm/test_region_prepare.py`
+  compares it with Python on the corpus's texts and edge cases; `wasm/tests/node_scenario_text.mjs`
+  on the corpus.
+  `scenario::population::generate_population` (#297) is `SyntheticPopulationGenerator.generate`
+  as the builder calls it (`PopulationInput::for_request`), with `scenario::profiles::generate_profiles`
+  (`SyntheticProfileGenerator.generate`), drawing with `rng::KeyedDraws`; `GeneratedPopulation`
+  gives each part's dump (`dump`, `population_dump`, `ProfileSet::dump`, ...).
+  `core/tests/scenario_population.rs` checks `core/tests/data/scenario_population.json`.
+  `scenario::conditions` (#298) is `with_standard_provisioning` and `Conditions::compile` /
+  `provenance_sources` / `referenced_source_ids` for the initial stock and the standard deliveries;
+  `scenario::connections::connect_generated_context` gives `population_context` and
+  `spatial_constraints` (from the editable plan's dump, without Python's walkability check);
+  `scenario::service_capacity::service_capacity_diagnostic` reads a Scenario's dump.
+  `core/tests/scenario_conditions.rs` checks `core/tests/data/scenario_conditions.json`.
 - **Scenario summary** (#302): `summary::scenario_summary` makes, from the World alone, the
   canonical JSON of `scenario_summary_from_world(world).model_dump(mode="json")`
   (`llm/natural_language.py`), the summary the reading of an intervention's text is given, as
@@ -196,8 +221,21 @@ split PR by PR; its last section sums up what is where.
   two branches with `interpret::kpi_differences` (WASM `kpiDifferences`, #307), and
   `wasm/js/questions.mjs` the offline answer to a question (#308). `wasm/tests/node_interventions.mjs`
   checks the answers against the Python server's in `core/tests/data/interventions.json`.
-- **Out of the core** (decision 4): building a world from a Scenario and restoring a Checkpoint
-  stay in Python and the wrapper. The whole-world validation texts (E6) and the pydantic
+- **A Scenario's world at minute 0** (#249): `initial::entry` builds, from a Scenario's
+  canonical JSON, the bytes `export_world` writes of the world a Run starts from (the rows, the
+  queue, the stock's ledger, each person's, staff member's and zone's records, the floor plan's
+  sections, the zone neighbors). What Python derives from the configs that are the same for every
+  Scenario the screen makes (the Run's policies, the contract-parsed sections, the namespaces'
+  templates) comes from `initial/table.json`, keyed by `initial::fingerprint` of the configs
+  without their data (`DATA_CONFIGS`); `tests/support/core_initial.py` writes it. Configs the table
+  lacks are `Unsupported`. In WASM: `initialEntry`; `core/tests/initial.rs` and
+  `wasm/tests/node_initial.mjs` check `core/tests/data/initial_worlds.json`. A new Run's records
+  come from the same table (#301): `initial::model_versions` (`model_signatures`, with the floor
+  plan's service-point signature computed) and `initial::evidence` (the evidence route's answer,
+  with the Scenario's sources, assumptions and research limits); in WASM `modelVersions` and
+  `runEvidence`.
+- **Out of the core** (decision 4): building a world from a Scenario the screen does not make and
+  restoring a Checkpoint stay in Python and the wrapper. The whole-world validation texts (E6) and the pydantic
   contracts (E15) stay Python behind `Host`; a host without Python passes the validation and
   takes each contract's input as given (`PlainHost`) until stage 6.
 

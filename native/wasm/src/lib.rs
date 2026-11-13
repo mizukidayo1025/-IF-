@@ -514,6 +514,85 @@ pub fn world_part_digests(bytes: &[u8]) -> Result<String, JsError> {
     String::from_utf8(encoder.out).map_err(|error| JsError::new(&error.to_string()))
 }
 
+/// What the server's `scenario-preview` reads of a Scenario text without an API key
+/// (`sheltersim_core::scenario::text::parse`, #294), as JSON: `request` (its dump, or null),
+/// `missing_fields`, `source`, `warnings` and `input_sha256`. An error whose message starts with
+/// `invalid: ` is what Python refuses (the server's 400); `unsupported: `, what the browser does
+/// not compute.
+#[wasm_bindgen(js_name = parseScenarioText)]
+pub fn parse_scenario_text(text: &str) -> Result<String, JsError> {
+    use sheltersim_core::scenario::request::Refusal;
+    match sheltersim_core::scenario::text::parse(text) {
+        Ok(parsed) => {
+            let bytes = parsed.to_value().to_json().map_err(js_error)?;
+            String::from_utf8(bytes).map_err(|error| JsError::new(&error.to_string()))
+        }
+        Err(Refusal::Invalid(why)) => Err(JsError::new(&format!("invalid: {why}"))),
+        Err(Refusal::Unsupported(why)) => Err(JsError::new(&format!("unsupported: {why}"))),
+    }
+}
+
+/// `InitialScenarioRequest.model_validate` of a request's JSON bytes and its
+/// `model_dump(mode="json")` (`sheltersim_core::scenario::request`, #295), as JSON:
+/// `{"request": dump, "input_sha256": sha256 of the dump's sorted JSON}` (the structured form's
+/// input hash). Errors as `parseScenarioText`'s.
+#[wasm_bindgen(js_name = scenarioRequest)]
+pub fn scenario_request(raw: &[u8]) -> Result<String, JsError> {
+    use sheltersim_core::scenario::request::{InitialScenarioRequest, Refusal};
+    match InitialScenarioRequest::of_json(raw) {
+        Ok(request) => {
+            let mut out = b"{\"input_sha256\":\"".to_vec();
+            out.extend_from_slice(request.input_sha256().as_bytes());
+            out.extend_from_slice(b"\",\"request\":");
+            out.extend_from_slice(&request.dump_json());
+            out.push(b'}');
+            String::from_utf8(out).map_err(|error| JsError::new(&error.to_string()))
+        }
+        Err(Refusal::Invalid(why)) => Err(JsError::new(&format!("invalid: {why}"))),
+        Err(Refusal::Unsupported(why)) => Err(JsError::new(&format!("unsupported: {why}"))),
+    }
+}
+
+/// Python's `str.casefold` (`sheltersim_core::text::casefold`): what the regional research compares
+/// names with (`js/research.mjs`, #300).
+#[wasm_bindgen]
+pub fn casefold(text: &str) -> String {
+    sheltersim_core::text::casefold(text).into_owned()
+}
+
+/// The entry of a Scenario's world at minute 0, from the Scenario's canonical JSON
+/// (`sheltersim_core::initial::entry`, #249): the bytes Python's `export_world` writes of it, which
+/// `new Simulation(entry)` runs. What the core does not build (a Scenario whose configs its table
+/// lacks, and the like) is an error whose message starts with `unsupported: `; any other error is
+/// input that is not a Scenario.
+#[wasm_bindgen(js_name = initialEntry)]
+pub fn initial_entry(scenario: &[u8]) -> Result<Vec<u8>, JsError> {
+    sheltersim_core::initial::entry(scenario).map_err(initial_error)
+}
+
+/// The `model_versions` of a new Run of a Scenario (`sheltersim_core::initial::model_versions`,
+/// #301), as JSON: `model_signatures(scenario.model_configs)`. Errors as `initialEntry`'s.
+#[wasm_bindgen(js_name = modelVersions)]
+pub fn model_versions(scenario: &[u8]) -> Result<String, JsError> {
+    let value = sheltersim_core::initial::model_versions(scenario).map_err(initial_error)?;
+    String::from_utf8(value.to_json().map_err(js_error)?).map_err(|error| JsError::new(&error.to_string()))
+}
+
+/// The evidence route's answer of a new Run of a Scenario (`sheltersim_core::initial::evidence`,
+/// #301), as canonical JSON bytes: what the Run's `evidence.json` holds. Errors as
+/// `initialEntry`'s.
+#[wasm_bindgen(js_name = runEvidence)]
+pub fn run_evidence(scenario: &[u8]) -> Result<Vec<u8>, JsError> {
+    sheltersim_core::initial::evidence(scenario).map_err(initial_error)
+}
+
+fn initial_error(error: Error) -> JsError {
+    match error {
+        Error::Unsupported(reason) => JsError::new(&format!("unsupported: {reason}")),
+        other => js_error(other),
+    }
+}
+
 /// `hashlib.sha256(bytes).hexdigest()`: what the page's journal checks its lines and pieces by.
 #[wasm_bindgen(js_name = sha256Hex)]
 pub fn sha256_hex(bytes: &[u8]) -> String {

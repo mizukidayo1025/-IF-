@@ -388,6 +388,146 @@
   "status": 200,
   "to": "kind=kpis&end=140&limit=5"
  },
+ "pdf_cases": [
+  {
+   "answer": "{\"code\":\"pdf_analysis_offline\",\"error\":\"pdf_analysis_offline: Opusの記録応答またはAPI接続が必要です。\"}",
+   "body": "{\"branch_ids\":[\"main\"],\"minute\":100}",
+   "run_id": "r",
+   "status": 409
+  },
+  {
+   "answer": "{\"code\":\"pdf_analysis_offline\",\"error\":\"pdf_analysis_offline: Opusの記録応答またはAPI接続が必要です。\"}",
+   "body": "{\"branch_ids\":[\"main\"],\"minute\":150}",
+   "run_id": "r",
+   "status": 409
+  },
+  {
+   "answer": "{\"code\":\"pdf_analysis_offline\",\"error\":\"pdf_analysis_offline: Opusの記録応答またはAPI接続が必要です。\"}",
+   "body": "{\"branch_ids\":[\"main\"],\"minute\":0}",
+   "run_id": "r",
+   "status": 409
+  },
+  {
+   "answer": "{\"code\":\"pdf_uncomputed_range\",\"error\":\"pdf_uncomputed_range: 指定時刻は共通の計算済み範囲外です。\"}",
+   "body": "{\"branch_ids\":[\"main\"],\"minute\":151}",
+   "run_id": "r",
+   "status": 409
+  },
+  {
+   "answer": "{\"code\":\"pdf_invalid_scope\",\"error\":\"pdf_invalid_scope: 単一BranchまたはA/Bの2分岐と整数分を指定してください。\"}",
+   "body": "{\"branch_ids\":[\"main\"],\"minute\":-1}",
+   "run_id": "r",
+   "status": 409
+  },
+  {
+   "answer": "{\"code\":\"pdf_invalid_scope\",\"error\":\"pdf_invalid_scope: 単一BranchまたはA/Bの2分岐と整数分を指定してください。\"}",
+   "body": "{\"branch_ids\":[\"main\"],\"minute\":true}",
+   "run_id": "r",
+   "status": 409
+  },
+  {
+   "answer": "{\"code\":\"pdf_invalid_scope\",\"error\":\"pdf_invalid_scope: 単一BranchまたはA/Bの2分岐と整数分を指定してください。\"}",
+   "body": "{\"branch_ids\":[\"main\"],\"minute\":\"1\"}",
+   "run_id": "r",
+   "status": 409
+  },
+  {
+   "answer": "{\"code\":\"pdf_invalid_scope\",\"error\":\"pdf_invalid_scope: 単一BranchまたはA/Bの2分岐と整数分を指定してください。\"}",
+   "body": "{\"branch_ids\":[\"main\"],\"minute\":null}",
+   "run_id": "r",
+   "status": 409
+  },
+  {
+   "answer": "{\"code\":\"pdf_invalid_scope\",\"error\":\"pdf_invalid_scope: 単一BranchまたはA/Bの2分岐と整数分を指定してください。\"}",
+   "body": "{\"branch_ids\":[],\"minute\":1}",
+   "run_id": "r",
+   "status": 409
+  },
+  {
+   "answer": "{\"code\":\"pdf_invalid_scope\",\"error\":\"pdf_invalid_scope: 単一BranchまたはA/Bの2分岐と整数分を指定してください。\"}",
+   "body": "{\"branch_ids\":[\"main\",\"main\"],\"minute\":1}",
+   "run_id": "r",
+   "status": 409
+  },
+  {
+   "answer": "{\"code\":\"pdf_invalid_scope\",\"error\":\"pdf_invalid_scope: 単一BranchまたはA/Bの2分岐と整数分を指定してください。\"}",
+   "body": "{\"branch_ids\":[\"main\",\"a\",\"b\"],\"minute\":1}",
+   "run_id": "r",
+   "status": 409
+  },
+  {
+   "answer": "{\"code\":\"pdf_invalid_scope\",\"error\":\"pdf_invalid_scope: 単一BranchまたはA/Bの2分岐と整数分を指定してください。\"}",
+   "body": "{\"branch_ids\":\"main\",\"minute\":1}",
+   "run_id": "r",
+   "status": 409
+  },
+  {
+   "answer": "{\"code\":\"pdf_invalid_scope\",\"error\":\"pdf_invalid_scope: 単一BranchまたはA/Bの2分岐と整数分を指定してください。\"}",
+   "body": "{\"branch_ids\":[1],\"minute\":1}",
+   "run_id": "r",
+   "status": 409
+  },
+  {
+   "answer": "{\"code\":\"storage_conflict\",\"error\":\"request fields do not match this operation\"}",
+   "body": "{\"branch_ids\":[\"main\"]}",
+   "run_id": "r",
+   "status": 409
+  },
+  {
+   "answer": "{\"code\":\"storage_conflict\",\"error\":\"request fields do not match this operation\"}",
+   "body": "{\"branch_ids\":[\"main\"],\"minute\":1,\"extra\":1}",
+   "run_id": "r",
+   "status": 409
+  },
+  {
+   "answer": "{\"code\":\"storage_conflict\",\"error\":\"saved artifact is missing or corrupt\"}",
+   "body": "{\"branch_ids\":[\"nope\"],\"minute\":1}",
+   "run_id": "r",
+   "status": 409
+  },
+  {
+   "answer": "{\"code\":\"storage_conflict\",\"error\":\"saved artifact is missing or corrupt\"}",
+   "body": "{\"branch_ids\":[\"main\",\"nope\"],\"minute\":1}",
+   "run_id": "r",
+   "status": 409
+  },
+  {
+   "answer": "{\"code\":\"storage_conflict\",\"error\":\"invalid artifact identifier\"}",
+   "body": "{\"branch_ids\":[\"../x\"],\"minute\":1}",
+   "run_id": "r",
+   "status": 409
+  },
+  {
+   "answer": "{\"code\":\"pdf_uncomputed_range\",\"error\":\"pdf_uncomputed_range: 指定時刻は共通の計算済み範囲外です。\"}",
+   "body": "{\"branch_ids\":[\"main\"],\"minute\":100000000000000000000}",
+   "run_id": "r",
+   "status": 409
+  },
+  {
+   "answer": "{\"code\":\"storage_conflict\",\"error\":\"saved artifact is missing or corrupt\"}",
+   "body": "{\"branch_ids\":[\"main\"],\"minute\":1}",
+   "run_id": "nope",
+   "status": 409
+  },
+  {
+   "answer": "{\"code\":\"storage_conflict\",\"error\":\"project request must be an object\"}",
+   "body": "[1]",
+   "run_id": "r",
+   "status": 409
+  },
+  {
+   "answer": "{\"error\":\"invalid project request\"}",
+   "body": "{bad",
+   "run_id": "r",
+   "status": 400
+  },
+  {
+   "answer": "{\"code\":\"storage_conflict\",\"error\":\"project request exceeds the body limit\"}",
+   "body": "",
+   "run_id": "r",
+   "status": 409
+  }
+ ],
  "run": {
   "branch_id": "main",
   "evacuees": 12,
