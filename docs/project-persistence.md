@@ -137,6 +137,33 @@ Pythonの索引のcursorは、問い合わせの内容ではなく、Branchの�
 
 `native/wasm/tests/node_api_answers.mjs`が、`native/core/tests/data/api_answers.json`のRunで、serverの答えと同じbytesになることを確かめます。
 
+## ブラウザーの介入と子の分岐（#306）
+
+画面の「ここから別の『もしも』を試す」の`POST …/branches/{branch}/intervention-preview`と`intervention-apply`に、APIキーのないVMと同じ答えを返します（`native/wasm/js/interventions.mjs`）。
+
+- プレビューは、Branchのその分の世界から要約（`Simulation.scenarioSummary`、#302）を作り、文をAPIキーなしで読み取ります（`compileInterventionOffline`、#303）。案が`compiled`なら、そのEffectProgram（`effectProgramDump`、#304）を世界で確かめ（`validateEffectProgram`）、承認のhash（programの正規のJSONのsha256）と下書きの`preview_id`を足します。下書きはProjectのフォルダーの`drafts/<preview_id>.json`に置き、Projectの1つのファイル（bundle）には入れません。下書きに伏せるべき文（連絡先、鍵）があれば、serverと同じく409で断ります。
+- 適用は、下書きと承認のhashを確かめ、serverのprocessのworkerと同じ`{"status": "running", "branch_id", "minute"}`を返します。子の分岐は答えの前に作ります。親をその分に戻し、プレビューが見た状態（`state_hash`）と同じことを確かめ、programを予定に入れ（`Simulation.applyEffectProgram`、#305）、子の保存したRunを書きます。結果は、serverと同じくRunの記録（`GET runs/{run}`）の`last_fork`（`{"status": "created", "branch_id", "minute", "state_hash"}`か`{"status": "failed", "error", "code"}`）で返します。子の記録は`paused`、`fork_minute`と`computed_until`は分岐の分です。続きは`resume`で計算します。
+- 子の保存したRunは、形`sheltersim-browser-run-v4`です。`run`の行に`fork_minute`と`parent_branch_id`を持ち、その次の`fork`の行に分岐の元（`fork_origin`：親、分、分岐前の世界のdigest、親の先頭）、予定に入れたprogramの正規のJSON、承認のhash、受領（Pythonの`command_log`に足す記録）を持ちます。部分は、親の0分の世界（親の部分を圧縮したまま写します）、分岐の分までのログと標本の表と塊、programを予定に入れた後の分岐の分の途中の点です。親の記録を写すので、子は親の分岐までの大きさを持ちます（親の部分を参照して小さくするのは後の課題です）。分岐の分より前の分は、このRunの分ではありません（`RunReader.seek`が断ります）。
+
+serverと違うのは次のところです。
+
+| 欄・動き | ブラウザー |
+|---|---|
+| 型つきの`program`のプレビュー | 分の確かめの後、409の`browser_unsupported`（画面は送りません。pydanticの誤りの文は作りません） |
+| `preview_id` | serverと同じく乱数（uuid4の16進） |
+| 適用の間のRunの状態 | 子は答えの前にできるので、Runが`running`になることはありません。ほかの分岐の計算中も、serverの2つのworkerの数には数えません |
+| `last_fork` | serverと同じく、そのページのWorkerが覚えます。ページを閉じると消えます |
+
+`native/wasm/tests/node_interventions.mjs`が、`native/core/tests/data/interventions.json`（`tests/support/core_interventions.py`が、processのworkerのserverで作ります）のRunで、プレビュー（読み取れる文、あいまいな文、読めない文、範囲の外、伏せる文、serverの誤り）、適用とその誤り、`last_fork`のあるRunの記録、最後まで計算した子のframeと指標の時系列が、serverと同じbytesになることを確かめます（`preview_id`と各Branchの先頭は伏せます）。
+
+## ブラウザーの比較と質問（#307、#308）
+
+`GET runs/{run}/compare?branch_ids=&minute=`と2つの分岐の`GET runs/{run}/replay-frames`は、serverと同じ比較を返します（`native/wasm/js/comparison.mjs`）。各分岐のその分のframe、共通の計算済みの範囲、各分岐の分岐の受領（`fork_origin`。子の保存したRunの`fork`の行から読みます。分岐で作っていない分岐は`null`）、同じ元を持つか、最初の分岐からの指標の差です。差は中核が求めます（`kpiDifferences`）。整数どうしの差は整数、小数を含む差は小数で、Pythonと同じ書き方になります。受領の`checkpoint_hash`は、子を作ったときの親の先頭（目録の行のsha256）で、serverのCheckpointのhashではありません。
+
+`POST …/branches/{branch}/questions`は、APIキーのないVMと同じ答えを返します（`native/wasm/js/questions.mjs`）。serverと同じ順に、要求の欄、質問の長さ、分、人、比べる分岐（計算が終わった分岐か、その分のframeにその人がいるか、比較の確かめ）を確かめ、「Claude APIが利用できないため、結果に関する質問へ回答できません。…」と、質問の文脈（`context`）とそのid（`context_id`）を返します。idは、文脈の正規のJSONのsha256の先頭32桁と24桁の乱数で、要求が同じ文脈のidを渡したときはそれを使います。会話はBranchのフォルダーの`conversations.jsonl`に1行ずつ残し、質問はserverと同じく連絡先と人などの名前を伏せた文にします（中核の`questionText`）。serverと違うのは、`history_query`（画面は送りません）を、分の確かめの後に409の`browser_unsupported`で断ることです。
+
+`native/wasm/tests/node_interventions.mjs`が、同じRunで、比較と2つの分岐の再生（受領の`checkpoint_hash`は伏せます）と、質問の答え（`context_id`の乱数の部分は伏せます）と残した質問が、serverと同じになることを確かめます。
+
 ## ブラウザーのPDFレポート（#309）
 
 `POST …/runs/{run}/pdf-report`には、APIキーのないVMと同じ答えを返します（`native/wasm/js/browser_api.mjs`の`pdfReport`）。serverと同じ順に、欄（`branch_ids`と`minute`だけ）、範囲（1つか2つの異なるBranchと0以上の整数分。違えば409の`pdf_invalid_scope`）、Run、各Branch、計算済みの範囲（外なら409の`pdf_uncomputed_range`）を確かめ、通れば409の`pdf_analysis_offline`（「Opusの記録応答またはAPI接続が必要です。」）を返します。APIキーのないVMも分析にOpusが要るのでPDFを作りません。ブラウザーはPDFを作りません。
@@ -144,3 +171,5 @@ Pythonの索引のcursorは、問い合わせの内容ではなく、Branchの�
 serverと違うのは、`minute`を`5.0`のように小数の形で書いたときだけです。serverは整数でないとして`pdf_invalid_scope`にしますが、JSのJSONは`5.0`と`5`を区別しないので、ブラウザーは5分として扱います。
 
 読めないJSONの本文には、serverと同じく400の`{"error":"invalid project request"}`を返します（`code`の欄はありません）。
+
+`native/wasm/tests/node_api_answers.mjs`が1つの分岐の確かめを、`node_interventions.mjs`が子と2つの分岐（共通の範囲の外を含む）の確かめを、serverの答えと比べます。

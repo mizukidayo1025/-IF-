@@ -212,6 +212,15 @@ split PR by PR; its last section sums up what is where.
   written by `tools/interpret_tables.py` and checked by pytest. In WASM:
   `compileInterventionOffline`; `core/tests/interpret.rs` checks it against Python's answers in
   `core/tests/data/offline_interpreter.json`.
+- **Interventions in the browser** (#306): `wasm/js/interventions.mjs` answers
+  `intervention-preview` and `intervention-apply` with the offline compiler, the EffectProgram's
+  checks and `Simulation.applyEffectProgram`, and stores a child branch's Run in format
+  `sheltersim-browser-run-v4` (`wasm/js/run_store.mjs`: the Run starts at the fork). The core adds
+  `interpret::merge_objects`, `document_redacts` and `question_text` (WASM `mergeJson`,
+  `documentRedacts`, `questionText`); `wasm/js/comparison.mjs` answers `compare` and the replay of
+  two branches with `interpret::kpi_differences` (WASM `kpiDifferences`, #307), and
+  `wasm/js/questions.mjs` the offline answer to a question (#308). `wasm/tests/node_interventions.mjs`
+  checks the answers against the Python server's in `core/tests/data/interventions.json`.
 - **A Scenario's world at minute 0** (#249): `initial::entry` builds, from a Scenario's
   canonical JSON, the bytes `export_world` writes of the world a Run starts from (the rows, the
   queue, the stock's ledger, each person's, staff member's and zone's records, the floor plan's

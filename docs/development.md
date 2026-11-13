@@ -69,7 +69,7 @@ Scenarioから0分の世界を作る処理も、中核にあります（`shelter
 
 中核は、ブラウザーのRunを途中の分から計算し直せるよう、その分の状態を残し（`PlainRun::saved_point`）、そこから戻せます（`archive::Restore`、`PlainRun::restore`、#251）。残す点（`archive::SavedPoint`）は、版つきのbinaryで、ログ以外の世界（`archive::world_parts`）と、その分までのログの記録と指標の標本の数、契約の数え（`PlainHost::contracts`）を持ちます。乱数は世界のseedから決まり、IDの採番・予定イベント・モデルの状態は世界の部分にあります。図面は世界のoverlayから作り直し、活動中の行動はログから作り直します（Pythonの`active_action_index`と同じ）。ログと標本は写しません。戻すときは、保存したログと標本の表と塊を順に読み、残す点の数までを取ります。PythonのCheckpointとは互換にしません（#263）。別の版の残す点は読まず、誤りにします。`native/core/tests/archive_store.rs`が、1日のRunの6時間ごとの点に戻して同じdigestになること、途中の点から終わりまで進めて同じdigestになることを確かめます。
 
-ブラウザーのRunは、途中の点を`saved`の部分として、既定で6時間（360分）ごとと最後に残します（`runAndStore`の`saveEvery`、0で残さない。#263）。目録の行は、点の分、記録と標本の数、点の版、その記録と標本を持つ塊の数を持ちます。分へ飛ぶときは（`RunReader.open`のあと`seek(minute)`）、その分以前で一番近い点に戻し、保存したログと標本を点の数まで読んでから、残りの分（最大359 tick）を計算します。点がなければ0分の世界から計算します。この形は`sheltersim-browser-run-v3`です（#266）。v3では、資源の台帳のある世界の指標の標本が、その時点の台帳の指標の列（水と食事の初期量・配送・提供・損失・残り・予約。ネイティブの経路の`resource_snapshots`）も持ちます。台帳の列を持つ標本は1 byte目が1で、持たない標本は前と同じ形です（1 byte目は分のzigzagで偶数）。v3の前の`v2`（#251）と、途中の点のない`v1`（#252）のRunも読み、v1で飛ぶときは0分から計算します。ほかの形と別の版の点は誤りにします。Nodeのテスト`native/wasm/tests/node_saved_points.mjs`は、メモリーの置き場で、各点、点の間、最初の点の前、終わりの分へ飛んで、止めずに進めたRunと同じdigestになることを確かめます。100人・7日で計った大きさと時間は#251に記録しています。
+ブラウザーのRunは、途中の点を`saved`の部分として、既定で6時間（360分）ごとと最後に残します（`runAndStore`の`saveEvery`、0で残さない。#263）。目録の行は、点の分、記録と標本の数、点の版、その記録と標本を持つ塊の数を持ちます。分へ飛ぶときは（`RunReader.open`のあと`seek(minute)`）、その分以前で一番近い点に戻し、保存したログと標本を点の数まで読んでから、残りの分（最大359 tick）を計算します。点がなければ0分の世界から計算します。この形は`sheltersim-browser-run-v3`です（#266）。v3では、資源の台帳のある世界の指標の標本が、その時点の台帳の指標の列（水と食事の初期量・配送・提供・損失・残り・予約。ネイティブの経路の`resource_snapshots`）も持ちます。台帳の列を持つ標本は1 byte目が1で、持たない標本は前と同じ形です（1 byte目は分のzigzagで偶数）。介入の子の分岐（#306）を保存できるよう、今書く形は`sheltersim-browser-run-v4`です。v4はv3に、分岐で作ったRunを足した形です（[project-persistence.md](project-persistence.md#ブラウザーの介入と子の分岐306)）。v3のRunもそのまま読み、続けて計算できます。v3の前の`v2`（#251）と、途中の点のない`v1`（#252）のRunも読み、v1で飛ぶときは0分から計算します。ほかの形と別の版の点は誤りにします。Nodeのテスト`native/wasm/tests/node_saved_points.mjs`は、メモリーの置き場で、各点、点の間、最初の点の前、終わりの分へ飛んで、止めずに進めたRunと同じdigestになることを確かめます。100人・7日で計った大きさと時間は#251に記録しています。
 
 ブラウザーでの時間とメモリは、試しの世界（Projectの画面の生成Scenario、1日、seed 2026、20人と100人）で計ります。`benchmarks/wasm_trial_worlds.py`が0分の世界を書き出し、ネイティブの経路のdigestと時間を記録します。`benchmarks/wasm_trial_measure.py`は、計測のページ（`benchmarks/wasm_trial/index.html`）をPlaywrightのChromiumとFirefoxで開き、WASMで同じ世界を進めます。Playwrightとそのbrowserはprojectの依存ではないので、計る環境に入れます。書き出しと結果は生成物なので、リポジトリーの外に置きます。
 
@@ -126,8 +126,11 @@ python benchmarks/wasm_trial_measure.py --bundle sample.shelterproj --pkg wasm-w
 | `GET runs/{run}/replay-frames`（1つの分岐） | 1〜8分のframe |
 | `GET …/history?kind=kpis`、`report`、`llm-status` | `native/wasm/js/api_answers.mjs`（上の段落）。`history`の`kpis`以外の`kind`は「未対応」 |
 | `POST runs/{run}/resume`、`POST runs/{run}/cancel` | Workerで計算する・止める（`native/wasm/js/compute.mjs`、#267、下） |
+| `POST …/branches/{branch}/intervention-preview`、`intervention-apply` | APIキーのないVMと同じ介入のプレビューと、子の分岐を作る適用（`native/wasm/js/interventions.mjs`、#306）。`GET runs/{run}`は`last_fork`も返します |
+| `GET runs/{run}/compare`、2つの分岐の`GET runs/{run}/replay-frames` | 比較（`native/wasm/js/comparison.mjs`、#307）。差は中核が求めます（`kpiDifferences`） |
+| `POST …/branches/{branch}/questions` | APIキーのないVMと同じ決まった答え（`native/wasm/js/questions.mjs`、#308） |
 | `POST runs/{run}/pdf-report` | serverの確かめの後、APIキーのないVMと同じ409 `pdf_analysis_offline`（#309、[project-persistence.md](project-persistence.md#ブラウザーのpdfレポート309)） |
-| `scenario-*`、`compare`、2つの分岐の`replay-frames`、`intervention-*`、`questions`、`/api/v1/projects`以外の道 | 409 `{"error": "ブラウザー版では未対応です（…）", "code": "browser_unsupported"}` |
+| `scenario-*`、`/api/v1/projects`以外の道 | 409 `{"error": "ブラウザー版では未対応です（…）", "code": "browser_unsupported"}` |
 
 分ごとのframeは、分岐ごとに1つ手元に置いたSimulationから作ります。後の分は、手元のSimulationを進めるほうが途中の点から戻すより安いとき（手元の分がその分以前の一番近い点以後か、差が360分以内）は進め、それ以外は`RunReader.seek`で途中の点に戻してから計算します（#251）。再生（`replay-frames`）は手元のSimulationを進めるだけで、戻しません。手元に置くSimulationは2つまでで、置き換えるものは先に解放します（WASMのメモリーは縮まないため）。digestは、Runが持つログのhashの途中の状態に増えた記録だけを足して求めます（上の段落）。
 

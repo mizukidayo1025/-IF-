@@ -251,6 +251,39 @@ def _answer(request: dict[str, Any]) -> str:
     return hashlib.sha256(_canonical(result.model_dump(mode="json")).encode()).hexdigest()
 
 
+# Texts for what the routes around the compiler copy (#306, #308): whether `safe_document` redacts
+# a draft's text, and the question a result question stores.
+SAFETY_TEXTS: tuple[str, ...] = (
+    "Day 4 14:00 toilet_01 outage",
+    "連絡先 test@example.com",
+    "model@v1.2",
+    "a@b.cc",
+    "x@ｙ.ｃｏｍ",
+    "key sk-ant-abcdefghijklmn here",
+    "task-1234567890123 sk-12",
+    "Authorization: Bearer abc.def",
+    "BEARER",
+    "電話 090-1234-5678",
+    "+81 90-1234-5678",
+    "2026-10-14",
+    "03 1234 5678",
+    "Day 2 0312345678901 add staff",
+    "agent A001 さんの様子",
+    "person_42 と staff:7 は? 田中さん、山田様 RUN-12",
+    "branch main で ABC123 は",
+    "  何が起きた?  ",
+    "x\x01y\tz",
+    "ﾄｲﾚ ①",
+)
+
+
+def _question_text(question: str) -> str:
+    from sheltersim.llm.natural_language import _sanitize_narrative
+    from sheltersim.web.results_chat import _REDACT_ENTITY
+
+    return _REDACT_ENTITY.sub("[selected entity]", _sanitize_narrative(question)).strip()
+
+
 def offline_interpreter_fixture() -> dict[str, Any]:
     summaries = _summaries()
     cases = []
@@ -282,4 +315,10 @@ def offline_interpreter_fixture() -> dict[str, Any]:
             "scenario_summary": summaries[case["summary"]],
         }
         case["answer"] = _answer(request)
-    return {"summaries": summaries, "cases": cases}
+    from sheltersim.storage.projects import safe_document
+
+    safety = [
+        {"text": text, "redacts": safe_document(text) != text, "question": _question_text(text)}
+        for text in SAFETY_TEXTS
+    ]
+    return {"summaries": summaries, "cases": cases, "safety": safety}

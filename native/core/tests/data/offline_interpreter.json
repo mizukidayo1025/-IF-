@@ -4425,6 +4425,108 @@
    "text": "Day 2 add 2 staff"
   }
  ],
+ "safety": [
+  {
+   "question": "Day 4 14:00 [selected entity] outage",
+   "redacts": false,
+   "text": "Day 4 14:00 toilet_01 outage"
+  },
+  {
+   "question": "連絡先 [redacted-email]",
+   "redacts": true,
+   "text": "連絡先 test@example.com"
+  },
+  {
+   "question": "model@[selected entity].2",
+   "redacts": false,
+   "text": "model@v1.2"
+  },
+  {
+   "question": "[redacted-email]",
+   "redacts": true,
+   "text": "a@b.cc"
+  },
+  {
+   "question": "[redacted-email]",
+   "redacts": true,
+   "text": "x@ｙ.ｃｏｍ"
+  },
+  {
+   "question": "key sk-ant-abcdefghijklmn here",
+   "redacts": true,
+   "text": "key sk-ant-abcdefghijklmn here"
+  },
+  {
+   "question": "task-[redacted-phone] [selected entity]",
+   "redacts": true,
+   "text": "task-1234567890123 sk-12"
+  },
+  {
+   "question": "Authorization: Bearer abc.def",
+   "redacts": true,
+   "text": "Authorization: Bearer abc.def"
+  },
+  {
+   "question": "BEARER",
+   "redacts": false,
+   "text": "BEARER"
+  },
+  {
+   "question": "電話 [redacted-phone]",
+   "redacts": true,
+   "text": "電話 090-1234-5678"
+  },
+  {
+   "question": "+81 90-1234-5678",
+   "redacts": true,
+   "text": "+81 90-1234-5678"
+  },
+  {
+   "question": "2026-10-14",
+   "redacts": false,
+   "text": "2026-10-14"
+  },
+  {
+   "question": "[redacted-phone]",
+   "redacts": true,
+   "text": "03 1234 5678"
+  },
+  {
+   "question": "Day 2 [redacted-phone] add staff",
+   "redacts": false,
+   "text": "Day 2 0312345678901 add staff"
+  },
+  {
+   "question": "[selected entity] さんの様子",
+   "redacts": false,
+   "text": "agent A001 さんの様子"
+  },
+  {
+   "question": "[selected entity] と [selected entity] は? [selected entity]、[selected entity] [selected entity]",
+   "redacts": false,
+   "text": "person_42 と staff:7 は? 田中さん、山田様 RUN-12"
+  },
+  {
+   "question": "[selected entity] で [selected entity] は",
+   "redacts": false,
+   "text": "branch main で ABC123 は"
+  },
+  {
+   "question": "何が起きた?",
+   "redacts": false,
+   "text": "  何が起きた?  "
+  },
+  {
+   "question": "x y\tz",
+   "redacts": false,
+   "text": "x\u0001y\tz"
+  },
+  {
+   "question": "トイレ 1",
+   "redacts": false,
+   "text": "ﾄｲﾚ ①"
+  }
+ ],
  "summaries": {
   "empty": {
    "agent_count": 0,

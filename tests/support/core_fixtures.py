@@ -59,6 +59,7 @@ FIXTURES: dict[str, str] = {
     "frames": "support.core_frames:frames_fixture",
     "api_answers": "support.core_api_answers:api_answers_fixture",
     "offline_interpreter": "support.core_interpret:offline_interpreter_fixture",
+    "interventions": "support.core_interventions:interventions_fixture",
     "scenario_request": "support.core_scenario_request:scenario_request_fixture",
     "scenario_population": "support.core_scenario_population:scenario_population_fixture",
     "scenario_conditions": "support.core_scenario_conditions:scenario_conditions_fixture",

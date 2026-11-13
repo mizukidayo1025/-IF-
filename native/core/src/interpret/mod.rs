@@ -936,3 +936,114 @@ pub fn compile_offline(request: &[u8]) -> Result<Vec<u8>> {
     ]);
     canonical(&result)
 }
+
+// ---- What the routes around the compiler need (#306, #308) -------------------------------------
+
+/// The canonical JSON of the object `base` with the fields of the object `extra` put in (an
+/// answer the core wrote, with the route's fields added; a float keeps its digits).
+pub fn merge_objects(base: &[u8], extra: &[u8]) -> Result<Vec<u8>> {
+    let read = |bytes: &[u8]| -> Result<IndexMap<Arc<str>, V>> {
+        let json: serde_json::Value = serde_json::from_slice(bytes).map_err(|_| bad("not JSON"))?;
+        match V::from_json(&json) {
+            Some(V::Map(map)) => Ok(map),
+            _ => Err(bad("not a JSON object")),
+        }
+    };
+    let mut map = read(base)?;
+    for (key, value) in read(extra)? {
+        map.insert(key, value);
+    }
+    canonical(&V::Map(map))
+}
+
+static SECRET: text::Pattern = text::Pattern::new_raw(
+    r"(?i:sk-(?:ant-)?[A-Za-z0-9_-]{12,}|Bearer[\s\x1c-\x1f]+[^\s\x1c-\x1f]+|(?:(?:(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])|(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_]))[^\s\x1c-\x1f@]+@[^\s\x1c-\x1f@]+\.[\p{L}\p{Nl}\p{No}]{2,}(?:(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])|(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_]))))",
+);
+static SECRET_WITHOUT_ADDRESS: text::Pattern =
+    text::Pattern::new_raw(r"(?i:sk-(?:ant-)?[A-Za-z0-9_-]{12,}|Bearer[\s\x1c-\x1f]+[^\s\x1c-\x1f]+)");
+static PHONE_NUMBER: text::Pattern =
+    text::Pattern::new(r"(?<!\w)(?:\+\d{1,3}[ -])?\d{2,4}[- ]\d{2,4}[- ]\d{3,4}(?!\w)", false);
+
+/// Whether `safe_document` (src/sheltersim/storage/projects.py `_redact`) changes the text: it
+/// holds an API key, a bearer token, an e-mail address or a phone number.
+pub fn redacts(value: &str) -> Result<bool> {
+    let secret = if value.contains('@') {
+        text::found(SECRET.get()?, value)?
+    } else {
+        let folded = crate::text::casefold(value);
+        (folded.contains("sk-") || folded.contains("bearer")) && text::found(SECRET_WITHOUT_ADDRESS.get()?, value)?
+    };
+    Ok(secret || text::found(PHONE_NUMBER.get()?, value)?)
+}
+
+/// Whether `safe_document(document) != document` for a JSON document of strings, numbers and
+/// containers whose keys are not private: some string of it is redacted.
+pub fn document_redacts(document: &[u8]) -> Result<bool> {
+    fn walk(value: &V) -> Result<bool> {
+        Ok(match value {
+            V::Str(text) => redacts(text)?,
+            V::List(items) => {
+                for item in items {
+                    if walk(item)? {
+                        return Ok(true);
+                    }
+                }
+                false
+            }
+            V::Map(map) => {
+                for item in map.values() {
+                    if walk(item)? {
+                        return Ok(true);
+                    }
+                }
+                false
+            }
+            _ => false,
+        })
+    }
+    let json: serde_json::Value = serde_json::from_slice(document).map_err(|_| bad("not JSON"))?;
+    walk(&V::from_json(&json).ok_or_else(|| bad("a number Python does not read"))?)
+}
+
+static REDACT_ENTITY: text::Pattern = text::Pattern::new(
+    r"\b(?:agent|person|staff|group|event|run|branch)[ _:#-]*[A-Za-z0-9_.:-]{1,80}\b|\b[A-Z]{1,8}[-_:]?\d{1,8}\b|[\x{4e00}-\x{9fff}]{1,4}(?:さん|様|氏)",
+    true,
+);
+
+/// The question a result question stores (src/sheltersim/web/results_chat.py `_ask`):
+/// `_REDACT_ENTITY.sub("[selected entity]", _sanitize_narrative(question)).strip()`. The route
+/// then puts "[selected entity]" for the request's own IDs.
+pub fn question_text(question: &str) -> Result<String> {
+    let sanitized = sanitize(question)?;
+    Ok(text::strip(&text::blank(REDACT_ENTITY.get()?, &sanitized, "[selected entity]")?).to_owned())
+}
+
+/// The `metrics` of a comparison's difference (src/sheltersim/web/replay.py
+/// `comparison_projection`) of the frame `other` from the frame `base`, as canonical JSON: for each
+/// KPI of `base` that is an int or a float in both, `other`'s minus `base`'s, an int when both are
+/// ints, else a float, as Python subtracts them (#307).
+pub fn kpi_differences(base: &[u8], other: &[u8]) -> Result<Vec<u8>> {
+    let kpis = |bytes: &[u8]| -> Result<IndexMap<Arc<str>, V>> {
+        let json: serde_json::Value = serde_json::from_slice(bytes).map_err(|_| bad("not JSON"))?;
+        match V::from_json(&json) {
+            Some(V::Map(mut frame)) => match frame.shift_remove("kpis") {
+                Some(V::Map(kpis)) => Ok(kpis),
+                _ => Err(bad("a frame without kpis")),
+            },
+            _ => Err(bad("a frame that is not an object")),
+        }
+    };
+    let (base, other) = (kpis(base)?, kpis(other)?);
+    let mut metrics = IndexMap::new();
+    for (key, value) in &base {
+        let difference = match (other.get(key), value) {
+            (Some(V::Int(a)), V::Int(b)) => V::Int(a.checked_sub(*b).ok_or_else(|| bad("a difference past i64"))?),
+            (Some(V::Int(a)), V::Float(b)) => V::Float(*a as f64 - b),
+            (Some(V::Float(a)), V::Int(b)) => V::Float(a - *b as f64),
+            (Some(V::Float(a)), V::Float(b)) => V::Float(a - b),
+            _ => continue,
+        };
+        metrics.insert(key.clone(), difference);
+    }
+    canonical(&V::Map(metrics))
+}

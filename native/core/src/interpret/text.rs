@@ -103,17 +103,29 @@ pub(super) fn compile(python: &str, ignore_case: bool) -> Result<Regex> {
 pub(super) struct Pattern {
     python: &'static str,
     ignore_case: bool,
+    raw: bool,
     cell: OnceLock<std::result::Result<Regex, String>>,
 }
 
 impl Pattern {
     pub(super) const fn new(python: &'static str, ignore_case: bool) -> Self {
-        Self { python, ignore_case, cell: OnceLock::new() }
+        Self { python, ignore_case, raw: false, cell: OnceLock::new() }
+    }
+
+    /// A pattern already in the regex crate's syntax, with Python's classes written out.
+    pub(super) const fn new_raw(pattern: &'static str) -> Self {
+        Self { python: pattern, ignore_case: false, raw: true, cell: OnceLock::new() }
     }
 
     pub(super) fn get(&self) -> Result<&Regex> {
         self.cell
-            .get_or_init(|| compile(self.python, self.ignore_case).map_err(|error| error.to_string()))
+            .get_or_init(|| {
+                if self.raw {
+                    RegexBuilder::new(self.python).backtrack_limit(100_000_000).build().map_err(|error| error.to_string())
+                } else {
+                    compile(self.python, self.ignore_case).map_err(|error| error.to_string())
+                }
+            })
             .as_ref()
             .map_err(|error| Error::unsupported(error.clone()))
     }

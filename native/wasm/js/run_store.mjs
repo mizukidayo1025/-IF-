@@ -26,9 +26,18 @@
 // version, and how many log and sample blocks hold those records and samples (`log_blocks`,
 // `sample_blocks`): the blocks there were when it was saved, the last of them maybe not stored yet.
 //
-// Formats: "sheltersim-browser-run-v3" (#266) is written: a metric sample of a world with a
-// resource ledger also holds the ledger's KPI columns (`MetricSamples` of the core), which the
-// API's KPI history answers with. "sheltersim-browser-run-v2" (#251) is the same without them, and
+// Formats: "sheltersim-browser-run-v4" (#306) is written. It is v3 with the Run of a branch made by
+// a fork (an intervention's child): such a Run starts at the fork's minute. Its "run" line also
+// holds `fork_minute` and `parent_branch_id`, a "fork" line after it holds the fork (its origin
+// in the parent, the EffectProgram applied and the receipt), and its pieces are the parent's
+// exported world at minute 0, the log's and samples' tables and blocks up to the fork's minute,
+// and a saved point at the fork's minute after the program was applied; the Run goes on from there.
+// A minute before the fork's is not one of it (`RunReader.seek` refuses it). A Run without
+// `fork_minute` is a Run from minute 0, as in v3.
+// "sheltersim-browser-run-v3" (#266), still read and gone on from, is the same without forks: a
+// metric sample of a world with a resource ledger also holds the ledger's KPI columns
+// (`MetricSamples` of the core), which the API's KPI history answers with.
+// "sheltersim-browser-run-v2" (#251) is v3 without those columns, and
 // "sheltersim-browser-run-v1" (#252) also without saved points; both are still read (seeking in v1
 // computes from minute 0), but the KPI history refuses them. Any other is an error. The log and the samples are only appended to, so a saved point holds no copy of them:
 // seeking (`RunReader.seek`) restores the nearest saved point at or before the minute from it and
@@ -43,13 +52,18 @@
 // `wasm` is the module wasm-bindgen made of sheltersim_wasm (any target): its Simulation,
 // StoredRun, Restore, worldPartDigests and sha256Hex.
 
-export const FORMAT = "sheltersim-browser-run-v3";
+export const FORMAT = "sheltersim-browser-run-v4";
+/// The format of #266, without forks: read and gone on from, never written.
+export const FORMAT_V3 = "sheltersim-browser-run-v3";
 /// The format of #252, without saved points: read, never written.
 export const FORMAT_V1 = "sheltersim-browser-run-v1";
 /// The format of #251, whose samples do not hold the ledger's columns: read, never written.
 export const FORMAT_V2 = "sheltersim-browser-run-v2";
 /// The formats this code reads.
-export const FORMATS = [FORMAT_V1, FORMAT_V2, FORMAT];
+export const FORMATS = [FORMAT_V1, FORMAT_V2, FORMAT_V3, FORMAT];
+/// The formats whose samples hold the ledger's columns: the KPI history answers them and a
+/// computation goes on in them.
+export const CURRENT_FORMATS = [FORMAT_V3, FORMAT];
 /// Minutes between saved points by default: 6 hours (#263).
 export const SAVE_EVERY = 360;
 const DATA = "data.pack";
@@ -328,6 +342,8 @@ export async function readAndVerify({ wasm, backend }) {
           end = line;
           break;
         }
+        // A fork's line (v4) holds no piece.
+        if (line.kind === "fork" && lines[0].format === FORMAT) continue;
         let at = performance.now();
         const stored = data.read(line.offset, line.length);
         readMs += performance.now() - at;
@@ -449,6 +465,11 @@ export class RunReader {
     return this.lines[0];
   }
 
+  /// The minute the Run starts at: the fork's minute of a branch made by a fork, else 0.
+  forkMinute() {
+    return this.run.fork_minute ?? 0;
+  }
+
   /// The minute the Run's clock is complete at.
   duration() {
     return this.run.duration_minutes;
@@ -493,8 +514,8 @@ export class RunReader {
   /// minute it was computed from, and the time restoring and computing took.
   async seek(minute) {
     const { wasm } = this;
-    if (!Number.isInteger(minute) || minute < 0 || minute > this.duration()) {
-      throw new Error(`minute ${minute} is not one of the Run (0 to ${this.duration()})`);
+    if (!Number.isInteger(minute) || minute < this.forkMinute() || minute > this.duration()) {
+      throw new Error(`minute ${minute} is not one of the Run (${this.forkMinute()} to ${this.duration()})`);
     }
     const started = performance.now();
     const point = this.savedPoints().filter((line) => line.minute <= minute).at(-1) ?? null;

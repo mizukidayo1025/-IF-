@@ -40,7 +40,7 @@
 
 import { ApiError } from "./api_answers.mjs";
 import * as store from "./project_store.mjs";
-import { FORMAT, RunReader, RunWriter, SAVE_EVERY, writeEnd } from "./run_store.mjs";
+import { CURRENT_FORMATS, FORMAT, RunReader, RunWriter, SAVE_EVERY, writeEnd } from "./run_store.mjs";
 
 /// The id of the Run the site offers to compute, beside the sample's.
 export const COMPUTE_RUN = "run-browser-compute";
@@ -113,7 +113,8 @@ export function journalHeads(entries) {
   entries.forEach(({ entry, sha }, index) => {
     if (entry.kind === "log_block") logBlocks += 1;
     else if (entry.kind === "sample_block") sampleBlocks += 1;
-    else if (entry.kind === "export") heads.push({ minute: 0, sha, index, kind: "export" });
+    // A branch made by a fork (#306) starts at its saved point at the fork's minute.
+    else if (entry.kind === "export" && !(entries[0]?.entry.fork_minute > 0)) heads.push({ minute: 0, sha, index, kind: "export" });
     else if (entry.kind === "saved" && entry.log_blocks <= logBlocks && entry.sample_blocks <= sampleBlocks) heads.push({ minute: entry.minute, sha, index, kind: "saved" });
     else if (entry.kind === "end") heads.push({ minute: entry.minute, sha, index, kind: "end" });
   });
@@ -454,7 +455,7 @@ export class Computing {
     const reader = await RunReader.open({ wasm, backend });
     let sought;
     try {
-      if (reader.run.format !== FORMAT) throw new Error(`browser_run_outdated: the branch was stored as ${reader.run.format}; compute it again`);
+      if (!CURRENT_FORMATS.includes(reader.run.format)) throw new Error(`browser_run_outdated: the branch was stored as ${reader.run.format}; compute it again`);
       sought = await reader.seek(head.minute);
     } finally {
       reader.close();
