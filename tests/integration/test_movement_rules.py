@@ -668,6 +668,6 @@ def test_the_validator_takes_nothing_the_python_rule_refuses(
 # once from the Python rule at 2d8fb46, on Linux.
 ANSWERS = {
     "test_each_tick_of_a_run_is_python_s_bit_for_bit": (
-        "c07261ceec95d56c03e8db39d52d994e92e09e711c71a35dab25a17540610392"
+        "2901640ba74176555a31b4c92a91465f617ded299f2e6ab28327397d43486510"
     ),
 }

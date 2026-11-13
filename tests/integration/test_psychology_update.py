@@ -50,7 +50,7 @@ FULL = BodyDynamicsFormula("body-feedback-complete-v1", "S")
 # update phase's Python steps at 45a9bc9), as sha256 of the answers' texts, recorded once on Linux.
 ANSWERS: dict[str, str] = {
     "group": ("8208a4d334ad6307d11d306de2f41d0e887637e1df88c54fba09b2942a1a427e"),
-    "ticks": ("44646ce1fe7fd7bc0bdc7c90f2941716a9434c143f0cfac618c89118819b6d19"),
+    "ticks": ("4e9528d572ee93ae876a304a0a031f1fcffefbf1cfad93c66fbb6a1b3d8e28f2"),
     "writing-False": ("bf2dd829482d2419d163e4dce6974edf2d1de8ac0f403fef9a18753109db07b1"),
     "writing-True": ("9d710b4c06f9ad84cf9edb3bbd773aa90a0ec8b92100d5a7cf540739d512597f"),
 }

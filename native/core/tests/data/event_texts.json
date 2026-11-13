@@ -1,6 +1,6 @@
 {
  "canonical_sha256": {
-  "small": "deac7bfba0af4649e09aeb076f9f59eccae696d8ad93da0f738b8160a9c7b515"
+  "small": "b1767c3005fe0fbe0266771abe2477c64ba32b9bc0c420b4407b82ddd0185268"
  },
  "cases": {
   "a_delay_s_texts_are_python_s": [
@@ -11243,17 +11243,10 @@
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "resource_service_complete",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "moving",
         "start_minute": 0,
-        "start_needs": {
-         "fatigue": 0.5692506322013796,
-         "hunger": 0.8276342046961999,
-         "hydration_need": 0.001,
-         "hygiene_need": 8e-05,
-         "sleep_debt_minutes": 205.14222759249665,
-         "toilet_urgency": 0.48006218480808616
-        },
+        "start_needs": {},
         "target_id": "meal_distribution_main",
         "transition": "completed",
         "transition_minute": 9
@@ -11388,17 +11381,10 @@
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "toilet_service_complete",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "moving",
         "start_minute": 0,
-        "start_needs": {
-         "fatigue": 0.06329928486435384,
-         "hunger": 0.026115816358124277,
-         "hydration_need": 0.001,
-         "hygiene_need": 8e-05,
-         "sleep_debt_minutes": 22.999742551167383,
-         "toilet_urgency": 0.705628461624468
-        },
+        "start_needs": {},
         "target_id": "accessible_toilet_01",
         "transition": "completed",
         "transition_minute": 11
@@ -11621,17 +11607,10 @@
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "staff_support_complete",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "seeking_help",
         "start_minute": 0,
-        "start_needs": {
-         "fatigue": 0.4200553920699942,
-         "hunger": 0.44505517774895803,
-         "hydration_need": 0.001,
-         "hygiene_need": 8e-05,
-         "sleep_debt_minutes": 151.4319411451979,
-         "toilet_urgency": 0.8093693011700799
-        },
+        "start_needs": {},
         "target_id": "support-1f35c22dd47d70682865bdab",
         "transition": "completed",
         "transition_minute": 12
@@ -11829,17 +11808,10 @@
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "toilet_service_complete",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "moving",
         "start_minute": 0,
-        "start_needs": {
-         "fatigue": 0.289657036280807,
-         "hunger": 0.048990682022117524,
-         "hydration_need": 0.001,
-         "hygiene_need": 8e-05,
-         "sleep_debt_minutes": 104.48853306109052,
-         "toilet_urgency": 0.5569265558453603
-        },
+        "start_needs": {},
         "target_id": "toilet_01",
         "transition": "completed",
         "transition_minute": 13
@@ -12003,19 +11975,12 @@
         "action_id": "action-59",
         "activity": "moving",
         "agent_id": "A002",
-        "current_needs": {
-         "fatigue": 0.58125063220138,
-         "hunger": 0.3351342046961994,
-         "hydration_need": 0.016000000000000007,
-         "hygiene_need": 0.0012800455000000004,
-         "sleep_debt_minutes": 212.64222759249665,
-         "toilet_urgency": 0.49506218480808617
-        },
+        "current_needs": {},
         "duration_minutes": 0,
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "scheduled_decision",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "moving",
         "start_minute": 15,
         "start_needs": {
@@ -12063,19 +12028,12 @@
         "action_id": "action-61",
         "activity": "idle",
         "agent_id": "A003",
-        "current_needs": {
-         "fatigue": 0.07529928486435376,
-         "hunger": 0.03361581635812428,
-         "hydration_need": 0.016000000000000007,
-         "hygiene_need": 0.0004000975000000001,
-         "sleep_debt_minutes": 30.499742551167383,
-         "toilet_urgency": 0.005
-        },
+        "current_needs": {},
         "duration_minutes": 0,
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "scheduled_decision",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "idle",
         "start_minute": 15,
         "start_needs": {
@@ -12123,19 +12081,12 @@
         "action_id": "action-63",
         "activity": "moving",
         "agent_id": "A008",
-        "current_needs": {
-         "fatigue": 0.43205539206999455,
-         "hunger": 0.45255517774895804,
-         "hydration_need": 0.016000000000000007,
-         "hygiene_need": 0.0012800455000000004,
-         "sleep_debt_minutes": 158.9319411451979,
-         "toilet_urgency": 0.8243693011700799
-        },
+        "current_needs": {},
         "duration_minutes": 0,
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "scheduled_decision",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "moving",
         "start_minute": 15,
         "start_needs": {
@@ -12290,17 +12241,10 @@
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "toilet_service_complete",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "moving",
         "start_minute": 0,
-        "start_needs": {
-         "fatigue": 0.34083028505632457,
-         "hunger": 0.24159144498122487,
-         "hydration_need": 0.001,
-         "hygiene_need": 8e-05,
-         "sleep_debt_minutes": 122.91090262027683,
-         "toilet_urgency": 0.827760819534379
-        },
+        "start_needs": {},
         "target_id": "accessible_toilet_01",
         "transition": "completed",
         "transition_minute": 16
@@ -12338,19 +12282,12 @@
         "action_id": "action-67",
         "activity": "idle",
         "agent_id": "A004",
-        "current_needs": {
-         "fatigue": 0.3024570362808074,
-         "hunger": 0.05699068202211753,
-         "hydration_need": 0.017000000000000008,
-         "hygiene_need": 0.00032007549999999997,
-         "sleep_debt_minutes": 112.48853306109052,
-         "toilet_urgency": 0.004
-        },
+        "current_needs": {},
         "duration_minutes": 0,
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "scheduled_decision",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "idle",
         "start_minute": 16,
         "start_needs": {
@@ -12881,17 +12818,10 @@
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "social_interaction",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "idle",
         "start_minute": 15,
-        "start_needs": {
-         "fatigue": 0.07529928486435376,
-         "hunger": 0.03361581635812428,
-         "hydration_need": 0.016000000000000007,
-         "hygiene_need": 0.0004000975000000001,
-         "sleep_debt_minutes": 30.499742551167383,
-         "toilet_urgency": 0.005
-        },
+        "start_needs": {},
         "target_id": "A006",
         "transition": "completed",
         "transition_minute": 20
@@ -12929,19 +12859,12 @@
         "action_id": "action-78",
         "activity": "idle",
         "agent_id": "A003",
-        "current_needs": {
-         "fatigue": 0.07929928486435374,
-         "hunger": 0.03611581635812428,
-         "hydration_need": 0.02100000000000001,
-         "hygiene_need": 0.000800255,
-         "sleep_debt_minutes": 32.99974255116739,
-         "toilet_urgency": 0.010000000000000002
-        },
+        "current_needs": {},
         "duration_minutes": 0,
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "scheduled_decision",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "idle",
         "start_minute": 20,
         "start_needs": {
@@ -12989,19 +12912,12 @@
         "action_id": "action-80",
         "activity": "idle",
         "agent_id": "A005",
-        "current_needs": {
-         "fatigue": 0.356830285056325,
-         "hunger": 0.2515914449812249,
-         "hydration_need": 0.02100000000000001,
-         "hygiene_need": 0.00040011349999999996,
-         "sleep_debt_minutes": 132.91090262027683,
-         "toilet_urgency": 0.005
-        },
+        "current_needs": {},
         "duration_minutes": 0,
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "scheduled_decision",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "idle",
         "start_minute": 20,
         "start_needs": {
@@ -13141,17 +13057,10 @@
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "social_interaction",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "idle",
         "start_minute": 16,
-        "start_needs": {
-         "fatigue": 0.3024570362808074,
-         "hunger": 0.05699068202211753,
-         "hydration_need": 0.017000000000000008,
-         "hygiene_need": 0.00032007549999999997,
-         "sleep_debt_minutes": 112.48853306109052,
-         "toilet_urgency": 0.004
-        },
+        "start_needs": {},
         "target_id": "A006",
         "transition": "completed",
         "transition_minute": 21
@@ -13189,19 +13098,12 @@
         "action_id": "action-82",
         "activity": "resting",
         "agent_id": "A004",
-        "current_needs": {
-         "fatigue": 0.3084570362808075,
-         "hunger": 0.05949068202211753,
-         "hydration_need": 0.022000000000000013,
-         "hygiene_need": 0.0007202435000000001,
-         "sleep_debt_minutes": 114.98853306109052,
-         "toilet_urgency": 0.009000000000000001
-        },
+        "current_needs": {},
         "duration_minutes": 0,
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "scheduled_decision",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "resting",
         "start_minute": 21,
         "start_needs": {
@@ -23183,19 +23085,12 @@
         "action_id": "action-2",
         "activity": "seeking_help",
         "agent_id": "A001",
-        "current_needs": {
-         "fatigue": 0.49845994579558833,
-         "hunger": 0.9799616646381297,
-         "hydration_need": 0.001,
-         "hygiene_need": 8e-05,
-         "sleep_debt_minutes": 179.6575804864118,
-         "toilet_urgency": 0.1876529940393592
-        },
+        "current_needs": {},
         "duration_minutes": 0,
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "scheduled_decision",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "seeking_help",
         "start_minute": 0,
         "start_needs": {
@@ -23235,19 +23130,12 @@
         "action_id": "action-4",
         "activity": "moving",
         "agent_id": "A002",
-        "current_needs": {
-         "fatigue": 0.5692506322013796,
-         "hunger": 0.8276342046961999,
-         "hydration_need": 0.001,
-         "hygiene_need": 8e-05,
-         "sleep_debt_minutes": 205.14222759249665,
-         "toilet_urgency": 0.48006218480808616
-        },
+        "current_needs": {},
         "duration_minutes": 0,
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "scheduled_decision",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "moving",
         "start_minute": 0,
         "start_needs": {
@@ -23287,19 +23175,12 @@
         "action_id": "action-6",
         "activity": "moving",
         "agent_id": "A003",
-        "current_needs": {
-         "fatigue": 0.06329928486435384,
-         "hunger": 0.026115816358124277,
-         "hydration_need": 0.001,
-         "hygiene_need": 8e-05,
-         "sleep_debt_minutes": 22.999742551167383,
-         "toilet_urgency": 0.705628461624468
-        },
+        "current_needs": {},
         "duration_minutes": 0,
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "scheduled_decision",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "moving",
         "start_minute": 0,
         "start_needs": {
@@ -23339,19 +23220,12 @@
         "action_id": "action-8",
         "activity": "moving",
         "agent_id": "A004",
-        "current_needs": {
-         "fatigue": 0.289657036280807,
-         "hunger": 0.048990682022117524,
-         "hydration_need": 0.001,
-         "hygiene_need": 8e-05,
-         "sleep_debt_minutes": 104.48853306109052,
-         "toilet_urgency": 0.5569265558453603
-        },
+        "current_needs": {},
         "duration_minutes": 0,
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "scheduled_decision",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "moving",
         "start_minute": 0,
         "start_needs": {
@@ -23391,19 +23265,12 @@
         "action_id": "action-10",
         "activity": "moving",
         "agent_id": "A005",
-        "current_needs": {
-         "fatigue": 0.34083028505632457,
-         "hunger": 0.24159144498122487,
-         "hydration_need": 0.001,
-         "hygiene_need": 8e-05,
-         "sleep_debt_minutes": 122.91090262027683,
-         "toilet_urgency": 0.827760819534379
-        },
+        "current_needs": {},
         "duration_minutes": 0,
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "scheduled_decision",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "moving",
         "start_minute": 0,
         "start_needs": {
@@ -23488,19 +23355,12 @@
         "action_id": "action-13",
         "activity": "seeking_help",
         "agent_id": "A006",
-        "current_needs": {
-         "fatigue": 0.0638683675432566,
-         "hunger": 0.18697556452727773,
-         "hydration_need": 0.001,
-         "hygiene_need": 8e-05,
-         "sleep_debt_minutes": 23.20461231557238,
-         "toilet_urgency": 0.6997823538371716
-        },
+        "current_needs": {},
         "duration_minutes": 0,
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "scheduled_decision",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "seeking_help",
         "start_minute": 0,
         "start_needs": {
@@ -23585,19 +23445,12 @@
         "action_id": "action-16",
         "activity": "seeking_help",
         "agent_id": "A007",
-        "current_needs": {
-         "fatigue": 0.3347024611611126,
-         "hunger": 0.6901800994924098,
-         "hydration_need": 0.001,
-         "hygiene_need": 8e-05,
-         "sleep_debt_minutes": 120.70488601800052,
-         "toilet_urgency": 0.23379163292521432
-        },
+        "current_needs": {},
         "duration_minutes": 0,
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "scheduled_decision",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "seeking_help",
         "start_minute": 0,
         "start_needs": {
@@ -23682,19 +23535,12 @@
         "action_id": "action-19",
         "activity": "seeking_help",
         "agent_id": "A008",
-        "current_needs": {
-         "fatigue": 0.4200553920699942,
-         "hunger": 0.44505517774895803,
-         "hydration_need": 0.001,
-         "hygiene_need": 8e-05,
-         "sleep_debt_minutes": 151.4319411451979,
-         "toilet_urgency": 0.8093693011700799
-        },
+        "current_needs": {},
         "duration_minutes": 0,
         "model_id": "applied-action-lifecycle-v2",
         "model_source_id": "ASM-ACTION-LIFECYCLE-V1",
         "reason_code": "scheduled_decision",
-        "schema_version": 1,
+        "schema_version": 2,
         "start_activity": "seeking_help",
         "start_minute": 0,
         "start_needs": {

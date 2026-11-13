@@ -402,4 +402,4 @@ def test_an_index_reads_a_row_of_bytes_as_its_dict(
             for row, text in zip(rows, index.payload_texts(db, rows), strict=True)
         ]
     assert records and any(row[0] == "actions" for row in records)
-    _python_s(records, "8c860d77903353f7")
+    _python_s(records, "16086b85e9045ce3")

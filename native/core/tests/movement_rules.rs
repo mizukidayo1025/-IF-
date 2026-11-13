@@ -124,7 +124,7 @@ fn a_walk_along_two_edges_both_ways() {
     change(&case, |row| row.journeys.get_mut(agent).unwrap().route_zone_ids.reverse());
     last_updated(&case, started);
     walk(&mut case, started + 1).unwrap();
-    assert_eq!(case.hex(), "c2c3e6d9dd47041246b9f1ed4d36b1e921bcf0c36fd4887cb0c0cd7e01c44538");
+    assert_eq!(case.hex(), "5888ca86f5b05e7eb2830c6ab23a518c5cdcc9eccc9ddb4d16649e611e857029");
 }
 
 /// Pytest digest `bcfb106dc3be`.
@@ -133,7 +133,7 @@ fn someone_with_no_position_gets_one_first() {
     let (mut case, test) = setup("someone_with_no_position_gets_one_first");
     let minute = case.minute();
     walk(&mut case, minute).unwrap();
-    assert_eq!(case.hex(), "c984db8c74eed8558b990d76391bd65080da1315629438c38d9a7498e7df32b9");
+    assert_eq!(case.hex(), "cc87af281b93421eb18cf2deb0f517a7488e6b20d1aee4648ca7251ae089d83f");
     let doc = case.doc();
     assert!(state(&doc)["positions"].get(s(&test["agent"])).is_some());
     assert!(int(&state(&doc)["last_updated_minute"]) >= minute);
@@ -146,7 +146,7 @@ fn in_service_and_sleeping_stand_at_their_places() {
     let (mut case, test) = setup("in_service_and_sleeping_stand_at_their_places");
     let minute = case.minute();
     walk(&mut case, minute).unwrap();
-    assert_eq!(case.hex(), "f22cddc09ac7a0edf762679d2dae8db4da49143c63f6b7faa21cbd5e452a4983");
+    assert_eq!(case.hex(), "bbda7626709123f7efc0391ded5e5799228a74995626f94406034393dd6ecb4b");
     assert_eq!(state(&case.doc())["positions"][s(&test["sleeper"])]["point"], json!({"x": 3.25, "y": 4.125}));
     // A bed that isn't two floats is refused, with nothing changed: a room's bed points are
     // Point2D's floats, so only a hand-made state has one.
@@ -198,7 +198,7 @@ fn a_room_walk_follows_its_points_and_stops_at_what_blocks_them() {
         doc["model_state"][MOVEMENT]["last_updated_minute"] = json!(started - 1);
     });
     assert_eq!(walk(&mut case, started), Ok(vec![text(agent)]));
-    assert_eq!(case.hex(), "9bb4fbfd793ef7da3537d2af2127cd421f7caa0bcf95a00ed91be1b40c03f807");
+    assert_eq!(case.hex(), "053cedd1c15ce4aa3f9650f5e6a8c43e9d784cc5fe9fbfe9c961606112136ec8");
 }
 
 // ---- finish_movement ---------------------------------------------------------------------------------

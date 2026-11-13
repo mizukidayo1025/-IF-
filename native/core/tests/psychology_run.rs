@@ -42,7 +42,7 @@ use support::{cases, TestHost};
 /// `PSYCHOLOGY_DELTAS` of `test_native_kernels.py`.
 const PSYCHOLOGY_DELTAS: &str = "842c8f23bf0c3e3ce2a8b971ca3bc742cc6c263cedaa52918c04e2e6d3ba7d9d";
 /// `ANSWERS["ticks"]` of `test_psychology_row.py`.
-const TICKS: &str = "b8b2abdff9bf5cd8869cf24ed87f45c335bd6161d273e6684364b4eb9aa6ea15";
+const TICKS: &str = "fe85fda26cad60572bea948b335dadb049ca64df5b21b88737d44d4785171ae9";
 
 fn generated() -> (Value, Rc<Loaded>, TestHost) {
     let entry = cases::entry("generated_texts", "generated");

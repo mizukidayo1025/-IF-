@@ -415,7 +415,7 @@ fn a_care_transition_is_python_s() {
     let call = &calls("a_care_transition_is_python_s", 1)[0];
     let mut loading = Loading::of(&call["world"]);
     append_transitions(&mut loading, &call["transitions"]).unwrap();
-    assert_eq!(&sha256_hex(loading.canonical().as_bytes())[..16], "48233b1d7f135f38");
+    assert_eq!(&sha256_hex(loading.canonical().as_bytes())[..16], "4d4cd613a943dd2a");
     let document = loading.document();
     check_facts(&document, &call["expect"]);
     let head = at(&document, &[Value::from("model_state"), "shared_operations_v1".into(), "support_requests".into(), "support-t1".into()]).unwrap();
@@ -491,14 +491,14 @@ fn asked(applied: &Applied) -> (Option<&str>, i64, bool) {
 #[test]
 fn what_a_seek_reads_of_a_person_is_python_s() {
     let digests = [
-        "c5be58f02678f201",
-        "329e2b40ba6c27a4",
-        "46e64d8b01857657",
-        "52b2800b7ef2dcaa",
-        "73ec193ea280b9e5",
-        "8c731c29090de51a",
-        "bf1c44cef49105bf",
-        "de285d70a054864b",
+        "3577412dda5be40c",
+        "b2aec716721dd837",
+        "30d581e60610ce75",
+        "cfd933c69b47f61b",
+        "1f49289412673da2",
+        "24537a62519023b5",
+        "d61fd2f8c5afdc44",
+        "ab1c7cd0f610314c",
     ];
     for (call, wanted) in calls("what_a_seek_reads_of_a_person_is_python_s", 8).iter().zip(digests) {
         let (applied, digest, _) = seek(call);
@@ -511,7 +511,7 @@ fn what_a_seek_reads_of_a_person_is_python_s() {
 /// its `world_digest` `5d20d2e22d7a…` (seek_help) and `9f3389377a05…` (seek_information), passed.
 #[test]
 fn a_seek_is_python_s() {
-    let digests = ["65852c772e0c04ba", "917be0a1b57a7952"];
+    let digests = ["46f9441bd237dc0b", "d26a051a688ff46c"];
     for (call, wanted) in calls("a_seek_is_python_s", 2).iter().zip(digests) {
         let (applied, digest, document) = seek(call);
         assert_eq!(asked(&applied), (Some(REQUEST), 12, true));
@@ -530,7 +530,7 @@ fn a_seek_in_cooldown_counts_as_rejected() {
     let (applied, digest, document) = seek(call);
     assert_eq!(asked(&applied), (None, 12, false));
     assert!(at(&document, &[Value::from("metric_state"), "support_request_rejected_count".into()]).unwrap().as_f64().unwrap() >= 1.0);
-    assert_eq!(digest, "da8e007cb8b81f34");
+    assert_eq!(digest, "51b75ffbda42d798");
 }
 
 /// Recorded from the core in #225 lane M4; on the same kernel the pytest test of the same name, with
@@ -540,7 +540,7 @@ fn a_seek_reaches_the_information_rule_above_its_threshold() {
     let call = &calls("a_seek_reaches_the_information_rule_above_its_threshold", 1)[0];
     let (applied, digest, _) = seek(call);
     assert_eq!(asked(&applied), (Some(REQUEST), 12, true));
-    assert_eq!(digest, "b14b0be780f2748f");
+    assert_eq!(digest, "783cc67d6c33a53a");
 }
 
 // ---- the timeout ---------------------------------------------------------------------------------
@@ -764,30 +764,30 @@ fn a_restoration_of_no_outage_says_python_s_text() {
 /// returned and left (`records_digest`), which test_handler_rest_rules.py pinned from the deleted
 /// rule (model version 2 re-recorded some, from the kernels of that model).
 const CARE_DIGESTS: [(&str, &str, &str); 24] = [
-    ("hygiene-support-fixed-relief-v1", "caregiver_assistance", "1987d4097e4710cb"),
-    ("hygiene-support-fixed-relief-v1", "dependent_assistance", "1a9d433c78951f5e"),
-    ("hygiene-support-fixed-relief-v1", "hygiene_support", "2f3da6602096c23d"),
-    ("hygiene-support-fixed-relief-v1", "language_access", "4e7fe34cefd5355c"),
-    ("hygiene-support-fixed-relief-v1", "medical_assessment", "18337c9a5f235364"),
-    ("hygiene-support-fixed-relief-v1", "medication_support", "f1d13d0f64c9e3f4"),
-    ("hygiene-support-fixed-relief-v1", "mobility_assistance", "46b1d42c482cbf2a"),
-    ("hygiene-support-fixed-relief-v1", "privacy_accommodation", "f419db9fdea9a452"),
-    ("hygiene-support-proportional-relief-v1", "caregiver_assistance", "a32a24f02bf6a57a"),
-    ("hygiene-support-proportional-relief-v1", "dependent_assistance", "505ac668012822d4"),
-    ("hygiene-support-proportional-relief-v1", "hygiene_support", "4dad6e5e9970edb5"),
-    ("hygiene-support-proportional-relief-v1", "language_access", "a4561ca27263e9fb"),
-    ("hygiene-support-proportional-relief-v1", "medical_assessment", "7d60a45dcdf111e4"),
-    ("hygiene-support-proportional-relief-v1", "medication_support", "a75e3bbdb4ec6f29"),
-    ("hygiene-support-proportional-relief-v1", "mobility_assistance", "ad8fbf05cf6cdd6b"),
-    ("hygiene-support-proportional-relief-v1", "privacy_accommodation", "c34fce4f7dffd6a5"),
-    ("typed-care-support-response-v1", "caregiver_assistance", "0d9431b83fb0297e"),
-    ("typed-care-support-response-v1", "dependent_assistance", "ed8fe5ca10c1ecff"),
-    ("typed-care-support-response-v1", "hygiene_support", "17f03d8a675567de"),
-    ("typed-care-support-response-v1", "language_access", "099cf836befe8471"),
-    ("typed-care-support-response-v1", "medical_assessment", "e09dc238d5b650a6"),
-    ("typed-care-support-response-v1", "medication_support", "4e2c51f45b6a1a39"),
-    ("typed-care-support-response-v1", "mobility_assistance", "cee9ead6f200553d"),
-    ("typed-care-support-response-v1", "privacy_accommodation", "1b9bcc532e3e0b13"),
+    ("hygiene-support-fixed-relief-v1", "caregiver_assistance", "81e48ab9b68232ec"),
+    ("hygiene-support-fixed-relief-v1", "dependent_assistance", "5574059f51f389dc"),
+    ("hygiene-support-fixed-relief-v1", "hygiene_support", "b6f572df6044eddc"),
+    ("hygiene-support-fixed-relief-v1", "language_access", "8786e5e4161be69d"),
+    ("hygiene-support-fixed-relief-v1", "medical_assessment", "282d7186863ef39b"),
+    ("hygiene-support-fixed-relief-v1", "medication_support", "4d9983de142b0360"),
+    ("hygiene-support-fixed-relief-v1", "mobility_assistance", "487ba4781f32438f"),
+    ("hygiene-support-fixed-relief-v1", "privacy_accommodation", "a77ef41a75d64664"),
+    ("hygiene-support-proportional-relief-v1", "caregiver_assistance", "570b9808eee1ef34"),
+    ("hygiene-support-proportional-relief-v1", "dependent_assistance", "cf7679c5677685cd"),
+    ("hygiene-support-proportional-relief-v1", "hygiene_support", "5a5972846519c45f"),
+    ("hygiene-support-proportional-relief-v1", "language_access", "f92d9feb6f767a72"),
+    ("hygiene-support-proportional-relief-v1", "medical_assessment", "d28c133517b555e6"),
+    ("hygiene-support-proportional-relief-v1", "medication_support", "09f886637923e75f"),
+    ("hygiene-support-proportional-relief-v1", "mobility_assistance", "d48a1015592e3a1c"),
+    ("hygiene-support-proportional-relief-v1", "privacy_accommodation", "54d5eeaf26d65d2a"),
+    ("typed-care-support-response-v1", "caregiver_assistance", "15e48ae4645a2a9d"),
+    ("typed-care-support-response-v1", "dependent_assistance", "ba1d90685a0ca96c"),
+    ("typed-care-support-response-v1", "hygiene_support", "9eb2ecb9ebf798f2"),
+    ("typed-care-support-response-v1", "language_access", "dc2ceb45740c9cca"),
+    ("typed-care-support-response-v1", "medical_assessment", "350f4b14a0bf7801"),
+    ("typed-care-support-response-v1", "medication_support", "822f2ec5a07501bd"),
+    ("typed-care-support-response-v1", "mobility_assistance", "096a3c82e2d7234c"),
+    ("typed-care-support-response-v1", "privacy_accommodation", "aa6ac71ad006d932"),
 ];
 
 /// The care of a call, and the digest of what it returned and left.
@@ -819,7 +819,7 @@ fn a_kind_a_selected_formula_decides_is_python_s() {
 fn care_with_a_dependent_is_python_s() {
     let call = &calls("care_with_a_dependent_is_python_s", 1)[0];
     let (records, digest) = care(call);
-    assert_eq!(digest, "db56eb17db46e325");
+    assert_eq!(digest, "1aaa2e06433b2a25");
     let payload = payload_of(&records[0]);
     assert_eq!(payload["outcome_observation"], "observed_change");
     let people: std::collections::BTreeSet<&str> = payload["state_changes"].as_array().unwrap().iter().map(|change| s(&change["entity_id"])).collect();
@@ -847,14 +847,14 @@ fn a_care_delta_1_percent_off_shows() {
 #[test]
 fn care_without_configured_amounts_uses_the_formula_s_defaults() {
     let digests = [
-        ("caregiver_assistance", "6782c3b5aa910906"),
-        ("dependent_assistance", "2b5392f76fd1210e"),
-        ("hygiene_support", "dd9fad59b0f334ee"),
-        ("language_access", "8528e38368e870f6"),
-        ("medical_assessment", "76cc3b0c71350b04"),
-        ("medication_support", "ea57248cd1f89cb5"),
-        ("mobility_assistance", "6694a4446d3f747b"),
-        ("privacy_accommodation", "80b5e9af9dd35591"),
+        ("caregiver_assistance", "be980048d184e9ef"),
+        ("dependent_assistance", "7c76ba100f33c6e0"),
+        ("hygiene_support", "fe11fae3dc4a53c8"),
+        ("language_access", "1a8694275defe196"),
+        ("medical_assessment", "f0cff3adddb6b51c"),
+        ("medication_support", "aebddd5ba5d6ee02"),
+        ("mobility_assistance", "fa4a3e6c98a7f87d"),
+        ("privacy_accommodation", "cd03d9dccf359e55"),
     ];
     let calls = calls("care_without_configured_amounts_uses_the_formula_s_defaults", 8);
     for (kind, wanted) in digests {
@@ -879,7 +879,7 @@ fn ingest_of_a_record_of_this_tick_is_python_s() {
     let document = loading.document();
     let last = at(&document, &[Value::from("model_state"), "shared_operations_v1".into(), "history".into(), Value::from(-1), "event_id".into()]);
     assert_eq!(last, Some(&call["event"]["event_id"]));
-    assert_eq!(digest(&V::Str(Arc::from(loading.canonical()))), "9d84ddda5f8d0fd2");
+    assert_eq!(digest(&V::Str(Arc::from(loading.canonical()))), "df5f83d1b598fa8a");
     let once = loading.parts();
     ingest(&mut loading);
     unchanged(&once, &loading);
