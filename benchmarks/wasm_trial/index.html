@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WASM試作の計測</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, sans-serif; margin: 16px; line-height: 1.5; }
+  table { border-collapse: collapse; }
+  th, td { border: 1px solid #8888; padding: 4px 8px; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  .ok { color: #1a7f37; } .ng { color: #cf222e; }
+  pre { white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>WASM試作の計測（#244）</h1>
+<p>Pythonで作って書き出した0分の世界を、ブラウザーのWASMの中核で1日分進め、ネイティブの経路のdigestと比べます。
+<code>?world=trial-20</code>のように世界を選び、<code>&amp;repeat=3</code>で回数を指定します。</p>
+<p id="status">準備中…</p>
+<table id="results" hidden>
+  <thead><tr><th>世界</th><th>回</th><th>読み込み (ms)</th><th>tick (s)</th><th>tick数</th><th>WASMのメモリ (MiB)</th><th>digest</th></tr></thead>
+  <tbody></tbody>
+</table>
+<pre id="problems"></pre>
+<script type="module">
+// The page of PR 4-5 of #244. Served with, next to it: pkg/ (`wasm-bindgen --target web` of
+// sheltersim_wasm.wasm) and the outputs of benchmarks/wasm_trial_worlds.py (expected.json and
+// trial-<people>.json). benchmarks/wasm_trial_measure.py serves it and reads `window.trialResult`.
+import init, { Simulation, memoryBytes } from "./pkg/sheltersim_wasm.js";
+
+const params = new URLSearchParams(location.search);
+const repeat = Number(params.get("repeat") ?? "1");
+const status = document.getElementById("status");
+const rows = document.querySelector("#results tbody");
+const problemsOut = document.getElementById("problems");
+const MiB = 2 ** 20;
+
+async function main() {
+  const started = performance.now();
+  await init();
+  const initMs = performance.now() - started;
+  const expected = await (await fetch("expected.json")).json();
+  const names = params.get("world") ? [params.get("world")] : Object.keys(expected.worlds);
+  const result = { userAgent: navigator.userAgent, initMs, memoryAfterInit: memoryBytes(), worlds: {} };
+  document.getElementById("results").hidden = false;
+  for (const name of names) {
+    const world = expected.worlds[name];
+    const bytes = new Uint8Array(await (await fetch(world.file)).arrayBuffer());
+    const runs = [];
+    for (let index = 0; index < repeat; index += 1) {
+      status.textContent = `${name}: ${index + 1}回目を実行中…`;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const loadStarted = performance.now();
+      const simulation = new Simulation(bytes);
+      const loadMs = performance.now() - loadStarted;
+      const tickStarted = performance.now();
+      const ticks = simulation.advance(world.expected.ticks);
+      const tickSeconds = (performance.now() - tickStarted) / 1000;
+      const digests = JSON.parse(simulation.digests_json());
+      const problems = [];
+      for (const [part, digest] of Object.entries(world.expected.world)) {
+        if (digests[part] !== digest) problems.push(`${part}: ${digests[part]} != ${digest}`);
+      }
+      if (simulation.metric_count() !== world.expected.metric_count) problems.push(`metric_count ${simulation.metric_count()}`);
+      if (simulation.metrics_digest() !== world.expected.metrics) problems.push(`metrics ${simulation.metrics_digest()}`);
+      const run = { loadMs, tickSeconds, ticks, memoryBytes: memoryBytes(), contracts: JSON.parse(simulation.contracts_json()), problems };
+      simulation.free();
+      runs.push(run);
+      const row = rows.insertRow();
+      for (const value of [name, index + 1, loadMs.toFixed(1), tickSeconds.toFixed(3), ticks, (run.memoryBytes / MiB).toFixed(1)]) {
+        row.insertCell().textContent = value;
+      }
+      const verdict = row.insertCell();
+      verdict.textContent = problems.length === 0 ? "一致" : "不一致";
+      verdict.className = problems.length === 0 ? "ok" : "ng";
+      if (problems.length > 0) problemsOut.textContent += `${name} (${index + 1}): ${problems.join("\n")}\n`;
+    }
+    result.worlds[name] = { entryBytes: bytes.byteLength, nativeTickSeconds: world.expected.tick_seconds, runs };
+  }
+  status.textContent = "完了";
+  window.trialResult = result;
+}
+
+main().catch((error) => {
+  status.textContent = `誤り: ${error}`;
+  window.trialResult = { error: String(error) };
+});
+</script>
+</body>
+</html>

@@ -355,11 +355,10 @@ def _facility_idle(facility_id: str) -> Callable[[WorldState], bool]:
 # The scenarios ---------------------------------------------------------------------------
 
 
-def _generated_project(directory: Path) -> Outcome:
-    """The route the seven-day gate uses: the Project screen's ProjectAPI worker."""
-    outcome = Outcome()
-    scenario = generated(evacuees=100, minutes=720)
-    store = ProjectStore(directory / "projects")
+def project_run(directory: Path, scenario: Any, minutes: int) -> ProjectStore:
+    """The route the seven-day gate uses: the Project screen's ProjectAPI worker computes
+    `scenario` up to `minutes` as Project "p", Run "r", branch "main" of a store in `directory`."""
+    store = ProjectStore(directory)
     api = ProjectAPI(store, recover=False)
     store.create_project("p")
     store.save_scenario("p", scenario, approved_hash=digest(json.loads(scenario.canonical_json())))
@@ -372,10 +371,18 @@ def _generated_project(directory: Path) -> Outcome:
             "execution_mode": "offline",
         },
     )
-    api.submit("p", "r", "main", 720)
+    api.submit("p", "r", "main", minutes)
     # Only ends a stuck run; the reversed-order variants on a busy machine take long.
     api.wait_idle(timeout=7200)
     api.close()
+    return store
+
+
+def _generated_project(directory: Path) -> Outcome:
+    """The route the seven-day gate uses: the Project screen's ProjectAPI worker."""
+    outcome = Outcome()
+    scenario = generated(evacuees=100, minutes=720)
+    store = project_run(directory / "projects", scenario, 720)
     outcome.add("main", *timeline_hashes(store, "main"))
     library, metrics = run_library(scenario, directory / "library")
     outcome.add("library", library, metrics)
