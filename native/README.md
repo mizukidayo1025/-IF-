@@ -149,6 +149,12 @@ split PR by PR; its last section sums up what is where.
   (`SyntheticProfileGenerator.generate`), drawing with `rng::KeyedDraws`; `GeneratedPopulation`
   gives each part's dump (`dump`, `population_dump`, `ProfileSet::dump`, ...).
   `core/tests/scenario_population.rs` checks `core/tests/data/scenario_population.json`.
+  `scenario::conditions` (#298) is `with_standard_provisioning` and `Conditions::compile` /
+  `provenance_sources` / `referenced_source_ids` for the initial stock and the standard deliveries;
+  `scenario::connections::connect_generated_context` gives `population_context` and
+  `spatial_constraints` (from the editable plan's dump, without Python's walkability check);
+  `scenario::service_capacity::service_capacity_diagnostic` reads a Scenario's dump.
+  `core/tests/scenario_conditions.rs` checks `core/tests/data/scenario_conditions.json`.
 - **Scenario summary** (#302): `summary::scenario_summary` makes, from the World alone, the
   canonical JSON of `scenario_summary_from_world(world).model_dump(mode="json")`
   (`llm/natural_language.py`), the summary the reading of an intervention's text is given, as
