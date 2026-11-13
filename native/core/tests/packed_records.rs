@@ -56,7 +56,15 @@ fn the_records_of_a_run_come_back_byte_for_byte() {
             .cell
             .with(|world| {
                 let log = world.log().unwrap();
-                (0..log.len()).map(|index| log.written(index).unwrap().to_vec()).collect()
+                // The log of a PlainRun is packed itself (#252, PR 6-3): its JSON is written.
+                assert!(log.is_packed() && log.written(0).is_none());
+                (0..log.len())
+                    .map(|index| {
+                        let mut raw = Vec::new();
+                        assert!(log.write_record(index, &mut raw).unwrap());
+                        raw
+                    })
+                    .collect()
             })
             .unwrap();
         assert!(records.len() > 300, "{name}: {} records", records.len());

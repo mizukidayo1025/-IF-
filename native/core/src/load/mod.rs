@@ -401,16 +401,14 @@ pub fn loaded(entry: &Value) -> Result<Loaded> {
 // ---- The log ---------------------------------------------------------------------------------------
 
 /// `event_log.find`: the record of an event in the world's log now, read back from the bytes the
-/// log wrote of it, as the native host finds a record the Python world's log holds (the ones a rule
-/// wrote in the same call too). An error for a record whose bytes the log does not hold (only
-/// Python takes them) or cannot read back.
+/// log wrote of it or from its packed form (`EventLog::record`, #252), as the native host finds a
+/// record the Python world's log holds (the ones a rule wrote in the same call too). An error for
+/// a record the log holds neither of (only Python takes its bytes) or cannot read back.
 pub fn find_record(world: &World, event_id: &str) -> Result<Option<Logged>> {
     let log = world.log()?;
     let Some(index) = log.index_of(event_id) else {
         return Ok(None);
     };
-    let bytes = log.written(index).ok_or_else(|| Error::unsupported("the log does not hold the record's bytes"))?;
-    let (event, realized_minute, status, _) =
-        EventRow::from_saved_record(bytes).ok_or_else(|| Error::unsupported("the record's bytes are not a record"))?;
-    Ok(Some(Logged { status, realized_minute, event }))
+    let record = log.record(index)?.ok_or_else(|| Error::unsupported("the log does not hold the record's bytes"))?;
+    Ok(Some(Logged { status: record.status, realized_minute: record.realized_minute, event: record.event }))
 }

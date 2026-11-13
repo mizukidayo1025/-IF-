@@ -82,7 +82,7 @@ fn split_number(text: &str) -> Option<(&str, u64)> {
 }
 
 /// The tables records are packed against, and the packing itself.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Packer {
     texts: Vec<Arc<str>>,
     text_ids: HashMap<Arc<str>, u32>,

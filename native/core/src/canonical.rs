@@ -139,12 +139,18 @@ fn parts_with(world: &World, with_log: bool) -> Result<Vec<(&'static str, Vec<u8
 /// time.
 fn write_log(world: &World, mut out: impl FnMut(&[u8])) -> Result<()> {
     let log = world.log()?;
+    let mut record = Vec::with_capacity(4096);
     out(b"[");
     for index in 0..log.len() {
         if index > 0 {
             out(b",");
         }
-        out(log.written(index).ok_or_else(|| Error::unsupported("a record without its bytes"))?);
+        // From its bytes, or from its packed form (the browser's log, #252).
+        record.clear();
+        if !log.write_record(index, &mut record)? {
+            return Err(Error::unsupported("a record without its bytes"));
+        }
+        out(&record);
     }
     out(b"]");
     Ok(())
