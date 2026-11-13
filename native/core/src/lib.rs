@@ -21,6 +21,7 @@ pub mod geometry;
 pub mod history;
 pub mod host;
 pub mod interner;
+pub mod interpret;
 pub mod json;
 pub mod load;
 pub mod mathx;
