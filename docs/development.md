@@ -98,10 +98,11 @@ APIキーなしの介入の読み取り（画面の「ここから別の『も�
 node native/wasm/tests/node_interpret.mjs wasm-pkg
 ~~~
 
-計算済みの例をブラウザーの形で作るには、`scripts/build_browser_sample.py`を使います。VMの計算済みの例（`scripts/build_project_sample.py`）のmainと同じScenario（例文、100人、7日、seed 2026）を、Pythonがofflineの読み取りで作り、記録とevidenceと0分の世界を書き出します。続けてNodeが同じWASMと`run_store.mjs`で7日を計算し、記録を作って1つのファイルにします（`native/wasm/tools/build_project_bundle.mjs`）。ファイルは生成物なので、リポジトリーの外に置きます。`--inputs`を付けると、Pythonの書き出しをそのディレクトリーに残します。
+計算済みの例をブラウザーの形で作るには、`scripts/build_browser_sample.py`を使います。VMの計算済みの例（`scripts/build_project_sample.py`）のmainと同じScenario（例文、100人、7日、seed 2026）を、Pythonがofflineの読み取りで作り、記録とevidenceと0分の世界を書き出します。続けてNodeが同じWASMと`run_store.mjs`で7日を計算し、記録を作ります。そのあと、VMの例と同じく、ブラウザー自身の道（`browser_api.mjs`）で、mainの5160分に「Day 4 14:00 toilet_01 outage」をプレビューし（`intervention-preview`）、適用し（`intervention-apply`）、子のBranch（`branch-toilet01-outage`）を最後まで計算して（`resume`）、1つのファイルにします（`native/wasm/tools/build_project_bundle.mjs`、#310）。`--expect`に`scripts/build_project_sample.py`が書いた要約（`sample-build.json`）を渡すと、両方のBranchの終わりの世界の`world_hash`とログの`events_hash`、子の`fork_origin`の`state_hash`、承認したprogramのhashが、VMの例と同じことを確かめます。子は今は親の記録を写すので（#282）、ファイルは大きくなります。ファイルは生成物なので、リポジトリーの外に置きます。`--inputs`を付けると、Pythonの書き出しをそのディレクトリーに残します。
 
 ~~~shell
-SHELTERSIM_LLM_MODE=offline python scripts/build_browser_sample.py sample.shelterproj --pkg wasm-pkg
+SHELTERSIM_LLM_MODE=offline python scripts/build_browser_sample.py sample.shelterproj --pkg wasm-pkg \
+    [--expect sample-build.json]
 ~~~
 
 ブラウザーでの書き出しと読み込みは、`benchmarks/wasm_trial/project.html`で確かめます。`--project`は、試しの世界ごとにOPFSのProjectへ計算し、書き出し、OPFSを消してから読み込み、digestとProjectの道の答えが同じかを確かめます。`--bundle`は、道具が作ったファイルを空のOPFSに読み込み、各Branchのdigestを確かめます。

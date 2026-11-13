@@ -1,14 +1,17 @@
 """Build the precomputed sample Project in the browser's form: one bundle file (#265).
 
     SHELTERSIM_LLM_MODE=offline python scripts/build_browser_sample.py OUTPUT.shelterproj \\
-        --pkg PKG_DIR [--inputs DIR] [--ticks 1440]
+        --pkg PKG_DIR [--inputs DIR] [--ticks 1440] [--expect SAMPLE_BUILD_JSON]
 
 PKG_DIR is the output of `wasm-bindgen --target nodejs` for sheltersim_wasm.wasm
 (docs/development.md). The sample is the main branch of the VM's sample
 (scripts/build_project_sample.py): the Scenario the offline parser makes from the new UI's
 example text (100 synthetic people, 墨田区, earthquake, 7 days, seed 2026), in Project `sample`,
-Run `run-sample-toilet-outage`, branch `main`. The branch forked at minute 5160 is added later
-(#251, #250, #267).
+Run `run-sample-toilet-outage`, branch `main`, and its branch forked at minute 5160 with "Day 4
+14:00 toilet_01 outage" (#310), which Node makes through the browser's own routes, as the VM's
+sample is made through the server's. SAMPLE_BUILD_JSON, the summary build_project_sample.py
+writes, makes Node check that each branch ends with the VM's world and log and that the fork and
+the approved program are the same.
 
 Python does what only Python does now (route A of #244): it previews the Scenario from the text,
 saves it and creates the Run in a temporary ProjectStore, reads back the records Python's server
@@ -17,7 +20,8 @@ route adds), builds the world at minute 0 as a Run sets it up, and exports the
 world (`sheltersim.core.world_export.export_world`). It writes them to the inputs directory
 (a temporary one unless --inputs). Then Node computes the whole Run with the same WASM and
 `native/wasm/js/run_store.mjs` the browser uses, makes the Project's records with
-`native/wasm/js/project_store.mjs` and writes the bundle
+`native/wasm/js/project_store.mjs`, makes the child with `native/wasm/js/browser_api.mjs` and
+computes it, and writes the bundle
 (`native/wasm/tools/build_project_bundle.mjs`).
 No Provider is called, and the regional research is not run, as in build_project_sample.py.
 
@@ -77,6 +81,7 @@ def export_inputs(
         sys.path.remove(str(ROOT / "tests"))
 
     sample = _sample()
+    default_text = text is None
     if LLMSettings.from_env().effective_mode is not LLMMode.OFFLINE:
         raise RuntimeError("the sample is built offline only; set SHELTERSIM_LLM_MODE=offline")
     text = sample.TEXT if text is None else text
@@ -133,12 +138,22 @@ def export_inputs(
     del entry
 
     inputs = {
-        "schema_version": 1,
+        "schema_version": 2,
         "kind": "browser_sample_inputs",
         "project": {key: project[key] for key in ("schema_version", "project_id", "archived")},
         "scenario_record": {key: value for key, value in saved.items() if key != "scenario"},
         "run": {key: value for key, value in run.items() if key != "branches"},
         "branch_id": BRANCH_ID,
+        # The VM's intervention, where the Scenario is the example's (#310).
+        "intervention": (
+            {
+                "text": sample.intervention_text(sample.FORK_MINUTE),
+                "minute": sample.FORK_MINUTE,
+                "child_id": sample.CHILD_ID,
+            }
+            if default_text and request is None and sample.FORK_MINUTE < scenario.duration_minutes
+            else None
+        ),
         "source": {
             "tool": "scripts/build_browser_sample.py",
             "text": text,
@@ -167,6 +182,11 @@ def main() -> int:
     )
     parser.add_argument("--inputs", type=Path, help="keep the inputs in this directory")
     parser.add_argument("--ticks", type=int, default=1440, help="ticks per advance in WASM")
+    parser.add_argument(
+        "--expect",
+        type=Path,
+        help="the summary build_project_sample.py wrote: check the branches against the VM's",
+    )
     arguments = parser.parse_args()
     node = shutil.which("node")
     if node is None:
@@ -193,6 +213,8 @@ def main() -> int:
             "--ticks",
             str(arguments.ticks),
         ]
+        if arguments.expect is not None:
+            command += ["--expect", str(arguments.expect.resolve())]
         return subprocess.run(command, check=False).returncode
 
 
