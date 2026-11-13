@@ -29,3 +29,6 @@ BENCHMARKS = FIXTURES.parent / "benchmarks"
 # The fixtures of the core's tests without Python (native/core/tests/, #152, #225), which
 # support/core_fixtures.py writes.
 CORE_TEST_DATA = FIXTURES.parent / "native" / "core" / "tests" / "data"
+# The table the core's minute-0 builder reads (native/core/src/initial/, #249), which
+# support/core_initial.py writes.
+INITIAL_TABLE = FIXTURES.parent / "native" / "core" / "src" / "initial" / "table.json"

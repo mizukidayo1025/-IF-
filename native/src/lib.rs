@@ -220,6 +220,14 @@ fn scenario_text_parse(text: &str) -> PyResult<String> {
     }
 }
 
+/// The core's entry of a Scenario's world at minute 0, from the Scenario's canonical JSON
+/// (`sheltersim_core::initial::entry`, #249): what `export_world` writes of it, for the tests.
+#[pyfunction]
+fn initial_entry<'py>(py: Python<'py>, scenario: &[u8]) -> PyResult<Bound<'py, PyBytes>> {
+    let bytes = sheltersim_core::initial::entry(scenario).or_py()?;
+    Ok(PyBytes::new(py, &bytes))
+}
+
 #[pymodule]
 fn sheltersim_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("Unsupported", module.py().get_type::<Unsupported>())?;
@@ -251,6 +259,7 @@ fn sheltersim_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(float_repr, module)?)?;
     module.add_function(wrap_pyfunction!(float_json, module)?)?;
     module.add_function(wrap_pyfunction!(scenario_text_parse, module)?)?;
+    module.add_function(wrap_pyfunction!(initial_entry, module)?)?;
     module.add_function(wrap_pyfunction!(records::scheduled_event_checked, module)?)?;
     module.add_function(wrap_pyfunction!(records::view_state_hash, module)?)?;
     module.add_function(wrap_pyfunction!(checkpoint::sensitive_candidates, module)?)?;

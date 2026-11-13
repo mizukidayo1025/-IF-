@@ -151,6 +151,17 @@ split PR by PR; its last section sums up what is where.
   `scenario::request`. In WASM: `parseScenarioText`. `tests/unit/llm/test_region_prepare.py`
   compares it with Python on the corpus's texts and edge cases; `wasm/tests/node_scenario_text.mjs`
   on the corpus.
+  `scenario::population::generate_population` (#297) is `SyntheticPopulationGenerator.generate`
+  as the builder calls it (`PopulationInput::for_request`), with `scenario::profiles::generate_profiles`
+  (`SyntheticProfileGenerator.generate`), drawing with `rng::KeyedDraws`; `GeneratedPopulation`
+  gives each part's dump (`dump`, `population_dump`, `ProfileSet::dump`, ...).
+  `core/tests/scenario_population.rs` checks `core/tests/data/scenario_population.json`.
+  `scenario::conditions` (#298) is `with_standard_provisioning` and `Conditions::compile` /
+  `provenance_sources` / `referenced_source_ids` for the initial stock and the standard deliveries;
+  `scenario::connections::connect_generated_context` gives `population_context` and
+  `spatial_constraints` (from the editable plan's dump, without Python's walkability check);
+  `scenario::service_capacity::service_capacity_diagnostic` reads a Scenario's dump.
+  `core/tests/scenario_conditions.rs` checks `core/tests/data/scenario_conditions.json`.
 - **Scenario summary** (#302): `summary::scenario_summary` makes, from the World alone, the
   canonical JSON of `scenario_summary_from_world(world).model_dump(mode="json")`
   (`llm/natural_language.py`), the summary the reading of an intervention's text is given, as
@@ -164,7 +175,10 @@ split PR by PR; its last section sums up what is where.
   text makes, with Python's texts, and `Unsupported` for the others. `PlainRun::validate_effect_program`
   places added toilets on a fork of the world. In WASM: `effectProgramDump`,
   `Simulation.validateEffectProgram`. `core/tests/programs.rs` and `wasm/tests/node_programs.mjs`
-  check the cases of `core/tests/data/programs.json`.
+  check the cases of `core/tests/data/programs.json`. `program::schedule` is
+  `schedule_effect_program` (#305): the program's record and events written, all or none, and its
+  receipt the `command_log` entry `BranchRuntime.apply_effect_program` appends
+  (`PlainRun::apply_effect_program`, `Simulation.applyEffectProgram`).
 - **Saved points** (#251, for the browser only; not Python's Checkpoints): `PlainRun::saved_point`
   writes the Run at a minute as `archive::SavedPoint`, a versioned binary of the world without its
   log (`archive::world_parts`), the counts of the log's records and the metric samples, and the
@@ -188,8 +202,17 @@ split PR by PR; its last section sums up what is where.
   `Simulation.review_metrics`; `wasm/js/api_answers.mjs` writes the answers, and
   `wasm/tests/node_api_answers.mjs` checks them against the Python server's on the Run of
   `core/tests/data/api_answers.json`.
-- **Out of the core** (decision 4): building a world from a Scenario and restoring a Checkpoint
-  stay in Python and the wrapper. The whole-world validation texts (E6) and the pydantic
+- **A Scenario's world at minute 0** (#249): `initial::entry` builds, from a Scenario's
+  canonical JSON, the bytes `export_world` writes of the world a Run starts from (the rows, the
+  queue, the stock's ledger, each person's, staff member's and zone's records, the floor plan's
+  sections, the zone neighbors). What Python derives from the configs that are the same for every
+  Scenario the screen makes (the Run's policies, the contract-parsed sections, the namespaces'
+  templates) comes from `initial/table.json`, keyed by `initial::fingerprint` of the configs
+  without their data (`DATA_CONFIGS`); `tests/support/core_initial.py` writes it. Configs the table
+  lacks are `Unsupported`. In WASM: `initialEntry`; `core/tests/initial.rs` and
+  `wasm/tests/node_initial.mjs` check `core/tests/data/initial_worlds.json`.
+- **Out of the core** (decision 4): building a world from a Scenario the screen does not make and
+  restoring a Checkpoint stay in Python and the wrapper. The whole-world validation texts (E6) and the pydantic
   contracts (E15) stay Python behind `Host`; a host without Python passes the validation and
   takes each contract's input as given (`PlainHost`) until stage 6.
 

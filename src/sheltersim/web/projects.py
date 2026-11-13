@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.events.effects import EffectProgram
 from sheltersim.experiments.branch import BranchRuntime
@@ -360,7 +361,11 @@ class ProjectAPI:
                 scenario = self.store.scenario(
                     project_id, document["scenario_id"], document["scenario_version"]
                 )
-                runtime = BranchRuntime.from_world(WorldState.from_scenario(scenario))
+                world = WorldState.from_scenario(scenario)
+                # The Run's first save names the random stream its TickEngine draws from, as every
+                # later save and the exported world do (#281); the engine sets the same value.
+                world.rng_state = dict(CounterRNG(world.seed).metadata)
+                runtime = BranchRuntime.from_world(world)
                 if document.get("execution_mode") == "offline":
                     runtime.runtime_state["execution_purpose"] = "offline_experiment"
                 # Runtime AUTO selection is captured at the first checkpoint, not during seek.

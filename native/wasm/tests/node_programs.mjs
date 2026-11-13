@@ -8,7 +8,9 @@
 // and checks the sha256 of the dump (the approval's hash) against Python's, or that the contract
 // refuses it; then it runs the case's world in WASM to the minute and checks that
 // `Simulation.validateEffectProgram` gives the issues `validate_effect_program` gave, or refuses
-// a case the browser does not check, as native/core/tests/programs.rs does in native code.
+// a case the browser does not check, as native/core/tests/programs.rs does in native code. A
+// program without issues is then scheduled (`Simulation.applyEffectProgram`, #305) on a new run
+// of its world: the receipt and the world after it and at the end of the Run are Python's.
 
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -66,6 +68,39 @@ for (const item of fixture.cases) {
   checked += 1;
 }
 for (const run of Object.values(runs)) run.free();
+
+// Scheduling (#305): a program without issues on a new run of its world at its minute, as a fork's
+// `BranchRuntime.apply_effect_program`; one with issues is refused, the world as it was.
+const sorted = (value) => JSON.stringify(Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))));
+let scheduled = 0;
+for (const item of fixture.cases) {
+  if (!item.issues || item.unsupported) continue;
+  const file = fixture.files[item.world];
+  const run = wasm.Simulation.fromWorlds(files[file], item.world);
+  run.advance(item.minute - run.minute());
+  const before = run.digests_json();
+  let receipt = null;
+  try {
+    receipt = run.applyEffectProgram(encoder.encode(item.program_text));
+  } catch (error) {
+    const expected = `EffectProgram could not be scheduled: ${item.issues.join("; ")}`;
+    if (item.issues.length === 0 || error.message !== expected) problems.push(`${item.name}: ${error.message}`);
+    if (run.digests_json() !== before) problems.push(`${item.name}: a refused program changed the world`);
+  }
+  if (receipt !== null) {
+    const expected = item.scheduled;
+    if (!expected) problems.push(`${item.name}: scheduled a program with issues`);
+    else {
+      if (sorted(JSON.parse(receipt)) !== sorted(expected.command)) problems.push(`${item.name}: the receipt is not Python's`);
+      if (sorted(JSON.parse(run.digests_json())) !== sorted(expected.digests)) problems.push(`${item.name}: the world after scheduling is not Python's`);
+      run.advance(run.duration() - run.minute());
+      if (sorted(JSON.parse(run.digests_json())) !== sorted(expected.end_digests)) problems.push(`${item.name}: the world at the end is not Python's`);
+      scheduled += 1;
+    }
+  }
+  run.free();
+}
+console.log(`${scheduled} programs scheduled and run to the end`);
 console.log(`${fixture.cases.length} programs, ${checked} checked on their worlds: ${problems.length === 0 ? "ok" : "FAILED"}`);
 for (const problem of problems) console.log(`  ${problem}`);
 process.exit(problems.length === 0 ? 0 : 1);
