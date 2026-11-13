@@ -173,3 +173,4 @@ jobs:
           node native/wasm/tests/node_frames.mjs "$RUNNER_TEMP/pkg"
           node native/wasm/tests/node_saved_points.mjs "$RUNNER_TEMP/pkg"
           node native/wasm/tests/node_project_store.mjs "$RUNNER_TEMP/pkg"
+          node native/wasm/tests/node_browser_api.mjs "$RUNNER_TEMP/pkg"
