@@ -1,0 +1,5378 @@
+{
+ "cases": [
+  {
+   "answer": "3f6c1b2d6a075c98753fa5cc925015fe4c925dc9aff603ba2ef7ca138838e94b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day4 14:00にトイレ2基故障"
+  },
+  {
+   "answer": "c57ee4d26a22fa8cb296373028cdf694a8c9098d4a288f3e4785e930a2504dae",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "4日目14時にトイレ二基が故障"
+  },
+  {
+   "answer": "383f7a3719e9ec2090cb75bd720ca874273ef5125c781382a03dc0b4733c0d91",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "4日目午後2時に便器1台が壊れた"
+  },
+  {
+   "answer": "ad202b5699b01e3f7975045ef05d30a857c6cf698d3bf20eef97e98415969e23",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 4 at 2pm toilet 2 fail"
+  },
+  {
+   "answer": "b0a9c914e9c4fa12d441b2e43837714171dd58ffdecdec1d1e3221ec10a4d6be",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 4 staff 2 add"
+  },
+  {
+   "answer": "403012527b7515b57c63c32252581c7933bf1c9c8d5d9b57d5b9f868fb9f2f70",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "4日目にスタッフを2人追加"
+  },
+  {
+   "answer": "022b9e20234b48d1b91c734ad3e0f8ba4cbab77bd548437f9a2203be4d3aeae8",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "4日目に職員二名増員"
+  },
+  {
+   "answer": "edb014828417f342ea29108d53f7cc7fcf429755ddfc3b5d0b48516eef96af59",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day4 add 2 toilets"
+  },
+  {
+   "answer": "efd4c9b5c0a55a5d39d3c3cdbedccc0eca90152d086f973dfc8f6ca9c831dd85",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "4日目に仮設トイレを2基追加"
+  },
+  {
+   "answer": "46baddac6ffa1996418f08a5326d4eca1fa60e46702d7a5402a4b246c9a0f080",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "4日目にトイレが使えなくなる"
+  },
+  {
+   "answer": "6ad51f4ef162febe255a9fb28c90222777b897dcb2961bc689fa3251bbecefef",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "4日目にトイレ二基の利用を停止"
+  },
+  {
+   "answer": "93b7815c79f953d6094d20d57c2eaea25ddcf4f115d030158ab74124623a3cb0",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "4日目スタッフ二人追加"
+  },
+  {
+   "answer": "27ea52fd2190cc3429ef4373495f7ded4feb3307f3adfb8cf50e077fe2338151",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "4日目にスタッフを二人増やす"
+  },
+  {
+   "answer": "39ca1b33393508e9ddcd57b20d3ba81c903813c973ff414fbad91877e030aade",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day4 water outage"
+  },
+  {
+   "answer": "25afa6f4fbfe840a6a34760d6a5622369a2ad8394335d0e8ea71eb6defa9130b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "4日目に断水"
+  },
+  {
+   "answer": "ef1202d970b16171945f0db0174b996fa921671d10a39d95bcc15c1cb08cc487",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "4日目の給水が停止"
+  },
+  {
+   "answer": "1285512513fe991c98eee0dbe797681effa5121840579fbfbd85a1d76629bc56",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 4 14:00 toilet_01 outage"
+  },
+  {
+   "answer": "edb4fef9442a29c3ce895eaae1df1d3a3682929039541497f2c7b1b1791b866b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 1 10:00から12:00まで断水"
+  },
+  {
+   "answer": "47f3df7439097a5a0b5ca5e25a3e8563e1cf676745f8b91579d4caef6a10aab7",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 2 9:00 to 17:00 water outage"
+  },
+  {
+   "answer": "6a44cf1c84d63e74f34d5832a485b5d66556af16418d72217c303a71ee0a9652",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day4 toilet 2 failure and staff 2 added"
+  },
+  {
+   "answer": "e152906437f98dc78d7f2b99e13aa76fc5220f2f53e5cc8ddf4b91c644d51885",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 3 08:00 トイレ1基故障、スタッフを3人追加"
+  },
+  {
+   "answer": "b08af6bf28567235b4f2511bb8ad08d04becf825cc0f45e02e9ab48f869323d3",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "2026-10-14 14:00から16:00まで toilet outage"
+  },
+  {
+   "answer": "f4125d697d0ab89c5a0f658be5b1e497eeef71289b21ee0efe7896573df62c54",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "10/13 9am toilet outage"
+  },
+  {
+   "answer": "41e6f90f6571fa837850291e2cb1f8f0db42c161c83e142665bf1185210f2a5a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "2026-02-30 toilet outage"
+  },
+  {
+   "answer": "111d24f8b2f3586e52228d1748057efee5ca7c3f602e8fb84abce2b673ebe7c8",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "午後にトイレが故障"
+  },
+  {
+   "answer": "2d380c19e01e7a76ecf3f9570117decc9fbe3523741fa039f4c45fb0cea99e00",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "翌朝トイレが故障"
+  },
+  {
+   "answer": "81ef0f71b505154c97ebcec7e3f586b030d31ab5d5811957938f04a26fc50ab7",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "next morning add 2 staff"
+  },
+  {
+   "answer": "772764c04d0a062ff87a71bb34ae1db0564feff9657b0fe36863ccf4642e7b94",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day4 staff -2 add"
+  },
+  {
+   "answer": "f99f6fb3f48d7f649e38a0bcf825f72c31901cca97b94a8001ec94318a0417c9",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day4 staff 1000 add"
+  },
+  {
+   "answer": "66ef06c739eea3da7da2daee1743c74af8c5b1387a1f45da9a62def2d1621766",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day4 toilet 5 fail"
+  },
+  {
+   "answer": "a09bcc4ec6f60cc8b90e015106f76bb704dabee77b4368774cd54a383fb7eb66",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "トイレを30基追加"
+  },
+  {
+   "answer": "c15d4678d5e65a50362ccbfbfb35b77efafeef3d75a6d7e577e9417a87f499dd",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "感染者を1000人増やして"
+  },
+  {
+   "answer": "5dd03806dab19cd350fb453fff173ff5a8e4452aefea2642c2bfc994e34038f4",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day4 toilet missing-restroom failure"
+  },
+  {
+   "answer": "282fb8e7eb62bbf71d3b0e315c96bc52d3a5206becc0aab8ddd6849f835ab61a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "zone_id: sleeping スタッフを2人追加"
+  },
+  {
+   "answer": "905d0e7b2f849463489a54cd6299a6be0f3f7b5c88aae6f667f35f8475a29430",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "zone: nowhere add 2 staff"
+  },
+  {
+   "answer": "a98b6813fa741d75438dc3da2e3564d60e9177d439b6a1b713001e420f5b4345",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "避難スペースエリアにスタッフ2人追加"
+  },
+  {
+   "answer": "fc60551d830bf162c143d28a46a0dce85f1909b20b5c856a97d7b243f49090bc",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "トイレを1基追加"
+  },
+  {
+   "answer": "a9c6ce8b5e78c898f1c5c3f2bdb852da760fccbf1b16e15d1b785c4bbbd51e68",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "スタッフを2人追加"
+  },
+  {
+   "answer": "db377903450fb5d8c79cb14b8ced1c1d5073456ca15c47199e6c8f2e827f0fdf",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "避難者が10人到着"
+  },
+  {
+   "answer": "3842a022f9a3ae412042ac4facc3fd4cf7485110dcc340711889c57948b133c4",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 2 12:00 避難者5人が帰宅"
+  },
+  {
+   "answer": "662f76a3d0daf06efccc1739f60dfd2d2d817286d6fd841bfe436e9468b10196",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 2 10:00から11:00まで避難者3人が到着"
+  },
+  {
+   "answer": "a633ec168c556c847708a25b63da5fe539b3da0810ad1e3a6e9ece6d74f435b6",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "evacuees 4 arrive at 13:00"
+  },
+  {
+   "answer": "42c3b9e4836c209b24fb4f64c37440819e4ccb9c214244858f3d199c8b553298",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day4 14:00にトイレ2基故障、さらに雨が降る"
+  },
+  {
+   "answer": "b182ab143a43e81da1ae43527d8f39de7c14750612c064a64a3625abd2997b23",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 3 7:00 toilet outage while the generator is down"
+  },
+  {
+   "answer": "53c4233adacb33c4e94793d53129c95291f5df2b733d3aa82ef6a4a29a23e5f1",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 4 14:00 18:00 20:00 toilet outage"
+  },
+  {
+   "answer": "fb161d210190200ff827454cb482b0205e3ae6f1cb69efa74335c0c01a8cedce",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 4 14:00 and 16:00 toilet outage"
+  },
+  {
+   "answer": "61d1a581fa0030e851a83beedf2c7a5edcbf4dc6241697afff42dc006b514b75",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 2 14:00 toilet outage, Day 3 10:00 add 2 staff"
+  },
+  {
+   "answer": "f4b18c1d913b531b7aff5ce344bba84c1f1652d98b0158bedb9db42ba4060f73",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 400 toilet outage"
+  },
+  {
+   "answer": "404d8bd31f91e4e346f19550bbc6e15921b71ad9bfb8e2256a2d62da7c3c6596",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 0 toilet outage"
+  },
+  {
+   "answer": "4872339deb14f954be90345e85dc80092c52ec44c4a019fe46c97d73f37c4f4d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day ８ 14：00 トイレ故障"
+  },
+  {
+   "answer": "b93be392f54bc39c4937f113d695427d23fa58a2ab6553d26a84163dcd5fe6eb",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 2 ２時 トイレ故障"
+  },
+  {
+   "answer": "2d23f4e598c45e83bd42f4560da101c0dd81c4e6d3b671491ec9433e9b3bcc44",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 2 ٣:٠٠ toilet outage"
+  },
+  {
+   "answer": "f4cfeb6fe9f5fe56396ed7a28f714830cd2b47f20f06229917d5b80635e731d2",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 2 午前11時30分 トイレ1基故障"
+  },
+  {
+   "answer": "c6da50f0fa996e009fdf21f1bb10e5397d055ee6fbc600de736b58784df3f8a5",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 2 12am toilet outage"
+  },
+  {
+   "answer": "e478638f822b9671417391ad23d7ed35937198c3e8affc279e9afbf9778335b6",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 2 24:00 toilet outage"
+  },
+  {
+   "answer": "4cf989d92b1146c8ca9368731b38f06b9ab891afad8307e290f5022376e22f0b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 2 13:75 toilet outage"
+  },
+  {
+   "answer": "0de3dc47473ac0a35c44944400d8ea4529600bc5d25f91d736a9b90e173711ae",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "連絡先 test@example.com 090-1234-5678 Day4 トイレ故障"
+  },
+  {
+   "answer": "919035ef7bc01d92081c068178c96dc88715f2dc69b2a58039b7973d583114c7",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "電話 0312345678901 day 2 add 3 staff"
+  },
+  {
+   "answer": "17118e1dcc12941b70d867e9ed9c9528d7711fe8a939a7161fa9a45862fbb262",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 5 water station outage from 10:00 to 12:00"
+  },
+  {
+   "answer": "94e5c574576667d3bec815ce5dc2d39784c600de3b3439c5bb87e7d585bd3005",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day5 water_station_main outage 10:00-12:00"
+  },
+  {
+   "answer": "01c3d68becb6c38de7b7281e7f69e4a542d8d597c2dc4c974140731e16f9256a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 6 13:00 facility outage"
+  },
+  {
+   "answer": "3644860676a54ed97c58baeb629a1481e5f7f3381b35c5f8fa4b2bb40809b95e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 6 13:00 施設が停止"
+  },
+  {
+   "answer": "3aeedd1e14deb901a7e53734724f773c99ce2509b805c554f0ae6546484f2fa9",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 6 toilet-1 broken"
+  },
+  {
+   "answer": "f241174544fe16392bc32fa6ef0bb082cef6f22be44c768e61bd27d12572e469",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 6 Restroom 1 broken"
+  },
+  {
+   "answer": "9c68c0ae3a374a69752cc88a690456cc80e8f83e586eca0c00d905916092775d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 7 23:59 add 1 toilet"
+  },
+  {
+   "answer": "69489b2cc5f0834c7cffdbb2bea908ddc8a350aee7e3418b7b09d0b0d80015d7",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "DAY 3 ADD 20 TOILETS"
+  },
+  {
+   "answer": "40afe172b5feacf3b50ef2db6412b973d7841b650b0b2a180e04583ef94421cc",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "三十五人のスタッフを追加"
+  },
+  {
+   "answer": "e014cc27d7f709639fcdfefb3cf4627984538fc2927ffc0217a3079f2d9e7481",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "十二人のスタッフを追加"
+  },
+  {
+   "answer": "fde5bbadc1f299d9bab255948413736c5fc76d5921cbf16f9a01424cc2691c5b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "二十人の職員を追加"
+  },
+  {
+   "answer": "b5cc4706a481830d3e48c43bdbdee06f17d60e601313932acfbd34e0bdb4e28d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 1 add +3 staff"
+  },
+  {
+   "answer": "593e7780689770d2f3f0d30d746cb80d2d7fe1351e31e42bfdb003dd3fd37bf7",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 3 install 2 toilets then add 1 staff and water outage 9:00-10:00"
+  },
+  {
+   "answer": "e170c4c631788fe287b7a7c5a0f5a0045c4a84bbce6c9b09935b322cc258499a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "トイレ\u001cを2基追加"
+  },
+  {
+   "answer": "7993a0c7e5cd841aa4d2e24c80e2a316944d7dba124401aed7f89db867284df0",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "  Day 2   add 2 staff  "
+  },
+  {
+   "answer": "3515200fb1ec6a2bc9aca733d3e62300dfe8e1b050e4762b0b3069f3d3e7634d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "雨が降る"
+  },
+  {
+   "answer": "ff12d52aa91b04a2e591b1a3fc49474fadf49b8612f74bf144b4a0838ca326df",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "toilet"
+  },
+  {
+   "answer": "3ac3dcbf6b82c4153b205a015280ff9ba260d5e881efca994f19f43e2a323ddd",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 2 10:00 zones add 2 staff"
+  },
+  {
+   "answer": "8dc0be69de85c803919445f12022a911278f2de0b6669b80f1629934f3e61dd0",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 1 6:00 evacuees depart 3"
+  },
+  {
+   "answer": "75c33d5ae6ad610fc127ffc08f936c4c759f1ab7d9facf8a67c4a09a6abc293d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 1 6:00 remove 3 evacuees"
+  },
+  {
+   "answer": "576839764f8945760896d8ee62bc35c0c37ab4af0c0962551fbce745fd48685d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 1 10:00 toilet-1 outage and add 2 staff"
+  },
+  {
+   "answer": "0e390c9d84f9660d62a8f0bbd1c8389fed0d4e294fdba4a6b14d47cc640df01d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 1 10:00 toilet_01 outage, add 2 staff"
+  },
+  {
+   "answer": "d1d8a8f88c348718904adaebad61406d96c3819f7e27bb749c29077c2f4bc3c7",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 1 10:00から12:00まで toilet_01 1基 outage"
+  },
+  {
+   "answer": "fd4d9d1b142260b97a884fbbfd526ba3c5824fed351a7e6c97fcbeda9efaae42",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 1 10:00 to 12:00 water outage"
+  },
+  {
+   "answer": "775eb8e480ec86fa76a6b526ef1435c84eead9d9be0368e33876b33a1c4ca02c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 1 9:00-11:00 断水、スタッフを3人追加"
+  },
+  {
+   "answer": "1a5fb59c9eb2afab5fe85eba7ccdb2db78ca56fca7c3793e011994f97f7d7532",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 1 9:00-11:00 断水、トイレ1基故障"
+  },
+  {
+   "answer": "077642ca9caab76bf5f53dd6512f230171c1b62bcc8fad5f9d6a3f8e59d26969",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 1 05:00 避難者が10人到着、スタッフを2人追加"
+  },
+  {
+   "answer": "bb4a5f777cebbda23350c706d0575154722cde100c0bfd309c83516a1c004e55",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "parser",
+   "text": "Day 1 05:00 evacuees 2 depart"
+  },
+  {
+   "answer": "0f9b507933a279e665103293684d135b9e2704dbbb24b1fa5f0f6d5c85a67955",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day4 14:00にトイレ2基故障"
+  },
+  {
+   "answer": "fdc947bd6fd91f9a4255d7c1f52dac1fa6e1b25eb29214277e5fb82eeede4a21",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "4日目14時にトイレ二基が故障"
+  },
+  {
+   "answer": "50bfe3ad9c826505932111bae30bf55366dde8ebe5cbf7cfd2795993195bcd5a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "4日目午後2時に便器1台が壊れた"
+  },
+  {
+   "answer": "399cb6c27d53145841d8e085bacfdd84bc10f50981fe8d58169cc0c1db6b5f0b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 4 at 2pm toilet 2 fail"
+  },
+  {
+   "answer": "e03a1c58e607e2682faa65f925b9622f4432173bdeb3870cb6e8e9f5515d41c6",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 4 staff 2 add"
+  },
+  {
+   "answer": "097e5d764172b807c975c448d9e7511e22a26f6bf985191727dd55d106b53ac5",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "4日目にスタッフを2人追加"
+  },
+  {
+   "answer": "ae1590d42d38049a83acc0d936e48d2707d2ff9d10e167809c75e4160c078bd8",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "4日目に職員二名増員"
+  },
+  {
+   "answer": "f1bb0e79edeb26391a6ce9ef103c1fd538806a42920ca055b02c0dcc88b07267",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day4 add 2 toilets"
+  },
+  {
+   "answer": "bd2f66b3e9d0dab9a6e362d1c9b98c2dffbc0edaeb73c16a427cac15a13e890a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "4日目に仮設トイレを2基追加"
+  },
+  {
+   "answer": "4bcab558e764508127911125b9a9b39a7ba4413fda474b2bb0738ed71b176bbd",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "4日目にトイレが使えなくなる"
+  },
+  {
+   "answer": "46ada248ca3d5f9f10286a93eb09c11d7b6f0f95ebd547323e191c60790ed51a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "4日目にトイレ二基の利用を停止"
+  },
+  {
+   "answer": "906fe4fe81f62aab1c44f792b97f845c28e73f6c973f9878362170f973066af6",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "4日目スタッフ二人追加"
+  },
+  {
+   "answer": "404b80f706ae5df784d0bf35aa1e79be819bbb421b939bb0ab1ad0feee848b78",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "4日目にスタッフを二人増やす"
+  },
+  {
+   "answer": "67bf2ed5c169bd8a3d517240a9fe6a84fd3ffa80335fb6181bb06ba978ebe0d8",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day4 water outage"
+  },
+  {
+   "answer": "4c0cd014404a3dbd8db2e874e34390b0dd1323179a56df3103b02e916b12e332",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "4日目に断水"
+  },
+  {
+   "answer": "68412960b250b3ce615d277d4521cdabc170a4c9249ab0ef9665c80b794ed775",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "4日目の給水が停止"
+  },
+  {
+   "answer": "bfb9a50de001ea04823d3e1bd501c174209c539b2f91f8120ba40d0a50c0b450",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 4 14:00 toilet_01 outage"
+  },
+  {
+   "answer": "060fea9a88aa97e20c905613fd3811023912042932e99584a0ec0cceeb49d592",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 1 10:00から12:00まで断水"
+  },
+  {
+   "answer": "8bd296aec045f83a9e461343fdd0d40e6a2b5bbb4253ef8b406b1f4ed778da06",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 2 9:00 to 17:00 water outage"
+  },
+  {
+   "answer": "24468e882db4a60a2d35b76ae3a9c7c1d2e8d6f7df4a57ef836d4f53d46b6f66",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day4 toilet 2 failure and staff 2 added"
+  },
+  {
+   "answer": "8e577c3c985c63670da258542f45cbaa97e53c8a175eaf7cc2e45eef0213a5a4",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 3 08:00 トイレ1基故障、スタッフを3人追加"
+  },
+  {
+   "answer": "invalid",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "2026-10-14 14:00から16:00まで toilet outage"
+  },
+  {
+   "answer": "invalid",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "10/13 9am toilet outage"
+  },
+  {
+   "answer": "98f6cef5c51711bf3d3c4d868ebb9f10e04c54bed788643ca18971d5f8c751bc",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "2026-02-30 toilet outage"
+  },
+  {
+   "answer": "0f209e7a8a80c18a6de9fa2898b2b514f9aef6cf69fc61fb10a1aad990db8530",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "午後にトイレが故障"
+  },
+  {
+   "answer": "28fe7396fdb1a281968af0b551e1284597b8bde4bba061f9299b0c537451c1ee",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "翌朝トイレが故障"
+  },
+  {
+   "answer": "c658903327baba365ceffaf6471dcf2dcb5117b66b62a141a8e28853d2eeded9",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "next morning add 2 staff"
+  },
+  {
+   "answer": "28e3f05ae66e20e276ff71e1b905a5019758a0adcb9c49eb2e6e14fdf2b87f2a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day4 staff -2 add"
+  },
+  {
+   "answer": "6592d09574f195613c5c15bf3910395154ae5a6d84ef38f7b6c91c470ff0df44",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day4 staff 1000 add"
+  },
+  {
+   "answer": "cecff1b6ec2255ed204caccb1fe02ab275e6c0df6a68b98f39649e22c68a3e94",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day4 toilet 5 fail"
+  },
+  {
+   "answer": "453a58786ff855070e55290e8775cd9c27a4452381513df0cb0a2465ec6e1d59",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "トイレを30基追加"
+  },
+  {
+   "answer": "0213cf6350afd60e4d9c9855c917c569597dde536ff75b2bab9c219e3e2039b8",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "感染者を1000人増やして"
+  },
+  {
+   "answer": "f93c146317f4c642ba6a104d95a86b14733ef071cbbd7357f7df14ed6265f164",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day4 toilet missing-restroom failure"
+  },
+  {
+   "answer": "2dcd3d1c9489f1066ff2a2a016e609cafa4205186089d8d1ab92aa94988dc0cc",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "zone_id: sleeping スタッフを2人追加"
+  },
+  {
+   "answer": "85d0210db2735491f1d8d32edeea32a385b92c5ceed6be8d13368358743a1f30",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "zone: nowhere add 2 staff"
+  },
+  {
+   "answer": "aea3b1f8e8eed377b69f1036affea7a876b00913ab079431f8cd4e89528ce489",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "避難スペースエリアにスタッフ2人追加"
+  },
+  {
+   "answer": "3f5f8f39e9464730055162d03559f65e086962e1d002ae1e54d036bb312012fc",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "トイレを1基追加"
+  },
+  {
+   "answer": "a62789b3a717b39e9b41d31262628e21e14996ca8955513af0bdb8f3449028cc",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "スタッフを2人追加"
+  },
+  {
+   "answer": "091e9bcbd527a6191c01b38eec895e56bf5828b72511649c68401f70f52ede96",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "避難者が10人到着"
+  },
+  {
+   "answer": "d60a1c6fc7c3c75970fdcf486a1f7a8dc2e1075ae1cbc22438127d89d7007ffc",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 2 12:00 避難者5人が帰宅"
+  },
+  {
+   "answer": "53b322a46413ee782c97c6a4c8f029b5316b2327041ab62b29453854d0402fb4",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 2 10:00から11:00まで避難者3人が到着"
+  },
+  {
+   "answer": "db1ce45cdfe4f962b1335df3347c08409456b3eb42fdbe131759b0a6d38491f2",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "evacuees 4 arrive at 13:00"
+  },
+  {
+   "answer": "e8425d4f9dab5c8dede6027cae8db76c1b6c36c956815ad792a38efa56b26e56",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day4 14:00にトイレ2基故障、さらに雨が降る"
+  },
+  {
+   "answer": "3c1bb97baefdc3b52a8495fa70a01098dae914ec3c26126f23a69468e0ea0d4e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 3 7:00 toilet outage while the generator is down"
+  },
+  {
+   "answer": "584284ac2df89284497cae0a26e27258bc8789d943b36db0b52c14877a58f762",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 4 14:00 18:00 20:00 toilet outage"
+  },
+  {
+   "answer": "4a532813c3260aecfff7eec67616c60d1569bb9820205dbafe9eaa4da90fe18a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 4 14:00 and 16:00 toilet outage"
+  },
+  {
+   "answer": "5bc45b26894db054e8112dcb991f7d2936944a5234c96c052ca7eafa8bb599c7",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 2 14:00 toilet outage, Day 3 10:00 add 2 staff"
+  },
+  {
+   "answer": "5a4be773b8f1de332b0ac96359dab340b9ac45eefefe6b114d7b6202c057ed8f",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 400 toilet outage"
+  },
+  {
+   "answer": "43fdd8bb5de8ce184b4717d01990cd0c39ecf248cd7115dfca89659baae3eec5",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 0 toilet outage"
+  },
+  {
+   "answer": "0de40e2d52d0ef5f90ecf1f5588015eb0c870d9da00bb9b598ed4c5862b9ae40",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day ８ 14：00 トイレ故障"
+  },
+  {
+   "answer": "e0b1130845abbb10b08bd303ea0dd7cd4759bd16d8e6a45ea3bbc10652236ae5",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 2 ２時 トイレ故障"
+  },
+  {
+   "answer": "103802b6858198ba3053f26fca39400188920b1e8dda891200799f0238947168",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 2 ٣:٠٠ toilet outage"
+  },
+  {
+   "answer": "b8b965b3c69303c28abc4edb2f69ca2ce355bfab7cc9f87cb3f324c98b77bad4",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 2 午前11時30分 トイレ1基故障"
+  },
+  {
+   "answer": "9c94d3601b5dca16aeafac726f5351b44c62231a80e7c73197995a317e5ef141",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 2 12am toilet outage"
+  },
+  {
+   "answer": "67027307ea67c2446dfb8521b7e2e50865c2f3e109c8242f2b426858becb6f3c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 2 24:00 toilet outage"
+  },
+  {
+   "answer": "bbf80cd5fb90781e83d6abb7abc16fcf8d02940735d8c8d3281383109b751a2a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 2 13:75 toilet outage"
+  },
+  {
+   "answer": "3606e4a9bdf444848921fc7f6179cf9bc172338ca3e0a0af3b9ae65273c7278b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "連絡先 test@example.com 090-1234-5678 Day4 トイレ故障"
+  },
+  {
+   "answer": "8d901e1c9771d52449214c0ad9fa6ac4460b715a45450ac1e6d974e7e4752e71",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "電話 0312345678901 day 2 add 3 staff"
+  },
+  {
+   "answer": "7bca6acdffd810f43221f6fc57b56f606fe76620051cccf9cb31511e79314751",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 5 water station outage from 10:00 to 12:00"
+  },
+  {
+   "answer": "48c1d55a586dcd2bea619f45c21b30b91f1d447be1fc72cb0c163a962d4b746d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day5 water_station_main outage 10:00-12:00"
+  },
+  {
+   "answer": "27792c231c8c8f63e9f6d8b6735755007b95aa443584f0ce1c3963b4038efd17",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 6 13:00 facility outage"
+  },
+  {
+   "answer": "53edece142c81016b7229a8d4968b9112f53c238f3b3e6a862a80962b9cf4b17",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 6 13:00 施設が停止"
+  },
+  {
+   "answer": "f8bf77054b6faaefe742a6267d13beff0f07261a76dc5f7df33d61b7bf5d21f8",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 6 toilet-1 broken"
+  },
+  {
+   "answer": "ab59bffc4f28ce95bf0fef9376f5760084786254d7d70ea29c21897c40d82c0b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 6 Restroom 1 broken"
+  },
+  {
+   "answer": "300034b06abbf1f22fee045bab2c08e84c8b9533c5b602d00db3f798b39edecc",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 7 23:59 add 1 toilet"
+  },
+  {
+   "answer": "90105ccbcd0b52990fcc3b1401b7c2839bb5a8e38996a205a537fee83b207aa2",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "DAY 3 ADD 20 TOILETS"
+  },
+  {
+   "answer": "8a5c15c4afccf2cda27785d8f6d4fa8fecd481f86ed3997fbbc6e79c8070898b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "三十五人のスタッフを追加"
+  },
+  {
+   "answer": "9ab39976df5b038ec0566cec9437a76317a9d661ee648462c25ba4239deceb61",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "十二人のスタッフを追加"
+  },
+  {
+   "answer": "86cc01d52660aa3cf99a1dacf05dfea9cd9d3e2f9162c7c00958ae4176f30b7d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "二十人の職員を追加"
+  },
+  {
+   "answer": "f6e776a8cccfa6cd11034ccbb1b6fa4301539719f0f9d30a1d93cdb9d7b2d981",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 1 add +3 staff"
+  },
+  {
+   "answer": "26477ece71b38fd811fe41c1e591557dbf7867381ac85fa26b2fbe29b28ce395",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 3 install 2 toilets then add 1 staff and water outage 9:00-10:00"
+  },
+  {
+   "answer": "bde0ee8e5785508dd271fc848ae706ea5429c645d265284f78812fb1596b564c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "トイレ\u001cを2基追加"
+  },
+  {
+   "answer": "78a9e76741b5bb1367b46167af6fe37903085d44e592e3c2f77458b58ce93adf",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "  Day 2   add 2 staff  "
+  },
+  {
+   "answer": "54ba26f9dbf3c7a59dea280130383ade57d59e74c63ac0bd8aa6fa6dcb0a78d6",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "雨が降る"
+  },
+  {
+   "answer": "fe6bdb8e05882ae3f7ef21915aa219bcfd0f9f2eec4d2e30996d7a38d06aeac2",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "toilet"
+  },
+  {
+   "answer": "284aedb7145292b229d847d48590d82f358f2abf0251f2d2af0a4404be7bd9c1",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 2 10:00 zones add 2 staff"
+  },
+  {
+   "answer": "682df7464f9f0e6c450bde253feb7f7e7c9e967e66cdc04fe9b884ea1fbd081e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 1 6:00 evacuees depart 3"
+  },
+  {
+   "answer": "10942fc95af83f6773b615fcb868707fa17f6771afe2f464307fb1bc366a11a2",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 1 6:00 remove 3 evacuees"
+  },
+  {
+   "answer": "721e495ab4a41c01f82e5176953c2a9c95d58e7040d978c5e98e1a7d90f925fa",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 1 10:00 toilet-1 outage and add 2 staff"
+  },
+  {
+   "answer": "42ef090ea1a9d97c1e02f6cdaf88806404e3ab82bfaf77f6da503731aadce69e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 1 10:00 toilet_01 outage, add 2 staff"
+  },
+  {
+   "answer": "b5c15496132ad2320d9b26c20ad010aba8df20d19ae50dbb247443e8350c4df7",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 1 10:00から12:00まで toilet_01 1基 outage"
+  },
+  {
+   "answer": "93778d31b2bb798744b71d633afa282f0edb2adad1ec7f6ec3721293c4a9b48d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 1 10:00 to 12:00 water outage"
+  },
+  {
+   "answer": "5ae7318bd7469fe34c6aa18bbf341c966b1c21cb0d1ca5898a9c0fe9ad11f454",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 1 9:00-11:00 断水、スタッフを3人追加"
+  },
+  {
+   "answer": "7e6491e721c36ff84a836e118932b3c636c58d91ab805aed64d7b5a2bf81be2a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 1 9:00-11:00 断水、トイレ1基故障"
+  },
+  {
+   "answer": "9108688c517be7c517e9a46f4d969ea499805f1b961f76c1dabc79381f4dca97",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 1 05:00 避難者が10人到着、スタッフを2人追加"
+  },
+  {
+   "answer": "51fc982675276739acf6f97b7605abccde3ca12b1043b2f351a23921256b86d2",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "shelter",
+   "text": "Day 1 05:00 evacuees 2 depart"
+  },
+  {
+   "answer": "190a07aa066d4e9ebb5e44d7121613d63de975f1036b273100445c5f6a6c244b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day4 14:00にトイレ2基故障"
+  },
+  {
+   "answer": "3f31e21ff1d6ed23d872b403081a6fbe00306ba36d4f31f8e5880edebb672f7f",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "4日目14時にトイレ二基が故障"
+  },
+  {
+   "answer": "28abeb9d6edd5f890ae8bad8013bbe078da5164fc697ece572c54f95816db56f",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "4日目午後2時に便器1台が壊れた"
+  },
+  {
+   "answer": "c7849ff294b5ad7b06f0a048dc110988d911ba1e3c8385f263a087ead6c46049",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 4 at 2pm toilet 2 fail"
+  },
+  {
+   "answer": "c8547811be22826ff9961e7747351778fb4120021a37a9e1f5982131f1898edf",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 4 staff 2 add"
+  },
+  {
+   "answer": "b556ea2ed40dd45de3017185a1b26c1ff449d3b02625dd6f4b6d10d8585b3f75",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "4日目にスタッフを2人追加"
+  },
+  {
+   "answer": "7dca8432d5eaa74ca1276ccb1d24e40e3d6bdcaa5ae032c74849215c0d1c7593",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "4日目に職員二名増員"
+  },
+  {
+   "answer": "0ca00b98a2f39369ffc070446804fcb8d218d372a5f48b9596c849a4db5ce10b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day4 add 2 toilets"
+  },
+  {
+   "answer": "58f69f3ab40b695e441669e28770c921079bc11469c33448d574afd37674ac92",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "4日目に仮設トイレを2基追加"
+  },
+  {
+   "answer": "80d8f127d65630b013d3acb7843ea7e04cc454dbd1d0c08d78e56725ae9ceed9",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "4日目にトイレが使えなくなる"
+  },
+  {
+   "answer": "276628f7f415e78fd0a4ab333d7c0133fc029cfd871e02d8f6ca372985fedfec",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "4日目にトイレ二基の利用を停止"
+  },
+  {
+   "answer": "f02e0d7d90ff27c8ef5a66b74da8fe8f3d686608e61df03cc01e33b9d03d1918",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "4日目スタッフ二人追加"
+  },
+  {
+   "answer": "6d031e04b894c24a829b93df2b3306847095c05ff0f468990bf0723f494f3412",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "4日目にスタッフを二人増やす"
+  },
+  {
+   "answer": "8f1a46c655419924fc900d502360a23a9939fb7255e031f151c049bf5d9f3c55",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day4 water outage"
+  },
+  {
+   "answer": "d20201997e24d53dc54518b5b848346dcad2f194d50bcc270030d3096ece694e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "4日目に断水"
+  },
+  {
+   "answer": "5069481cdce299cc7adf040013f6b970672255eaa0754b9000e48a111c90fc20",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "4日目の給水が停止"
+  },
+  {
+   "answer": "be9b2407d7770c465bc80b9dacdf95743199b3debbe79373fc35fdb3ebc8e1aa",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 4 14:00 toilet_01 outage"
+  },
+  {
+   "answer": "1f86d33df39984c5468d05b55ff6a81a39afecef460675ff1c7e768723f8ffe0",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 1 10:00から12:00まで断水"
+  },
+  {
+   "answer": "5a300d2fe6366124d81b4746abd62222f9f761f4626dfc68acd62cbf421e0d3a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 2 9:00 to 17:00 water outage"
+  },
+  {
+   "answer": "38dba76995440a773affbd04a7f281ec0a2ae1a11349cc4254549a6afdde1e93",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day4 toilet 2 failure and staff 2 added"
+  },
+  {
+   "answer": "e533ceeb38e87a3e769d175756c307301e3ab79c23d40a60b3bff9b611cb5631",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 3 08:00 トイレ1基故障、スタッフを3人追加"
+  },
+  {
+   "answer": "invalid",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "2026-10-14 14:00から16:00まで toilet outage"
+  },
+  {
+   "answer": "invalid",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "10/13 9am toilet outage"
+  },
+  {
+   "answer": "d7370ec6a4ad1668cebf8b568339d83a4266e979719d31ee2dced855ab0f3ba6",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "2026-02-30 toilet outage"
+  },
+  {
+   "answer": "1832bb6e147eb49943adc9d85eea46f4d4e961332babb384d449a31e8a4626ce",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "午後にトイレが故障"
+  },
+  {
+   "answer": "4eab11c496e499ff9dadd571e3cad28a58210e08b8095d63b67fa071c867b073",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "翌朝トイレが故障"
+  },
+  {
+   "answer": "7233a00ce6b0fbb249783fb2b8f6dd7e2f4682e757c00c8fb50047e6a82f26d6",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "next morning add 2 staff"
+  },
+  {
+   "answer": "0722a55105e762569a1a3a13e0ac7af8d023f3c5ace138ab338ea9f923c1ec6f",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day4 staff -2 add"
+  },
+  {
+   "answer": "4220b9b94886d65819055e19c69624e28d5d56fe7af6685ad0866312dbcde188",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day4 staff 1000 add"
+  },
+  {
+   "answer": "d7c72c5f526d3a88d3b4db373d9c779e56faeeb263a5eedd107fb10f8de5c3d0",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day4 toilet 5 fail"
+  },
+  {
+   "answer": "0473b03e8fdc63960bd5319818c4d29098b3046562bb13cabf73493495fe4e58",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "トイレを30基追加"
+  },
+  {
+   "answer": "33a1e885281e9565d74a8f62da01ea4946404d0f9c7b389b0f85fd9781db428c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "感染者を1000人増やして"
+  },
+  {
+   "answer": "85fa76a478268b61e23e4a00a8ee282a42879692bb5d04c388e42020c3173b0f",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day4 toilet missing-restroom failure"
+  },
+  {
+   "answer": "43361e847796481884eacac1e7cbc7756befc47d573fcd62dca35d6b47a522e1",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "zone_id: sleeping スタッフを2人追加"
+  },
+  {
+   "answer": "29c1c5c3d48089c2cee3d506947e4f4c9bf330a33ae7c0bc7fe2eadab315fb41",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "zone: nowhere add 2 staff"
+  },
+  {
+   "answer": "fc09b435baff157f33fd9a388571747e4bc1ddd7aa2c0502f84af7f91103b573",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "避難スペースエリアにスタッフ2人追加"
+  },
+  {
+   "answer": "004fb8a822affb9056cbabc34de5b8d0fbb6384c1816ee995fa43b9ab92fdf7b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "トイレを1基追加"
+  },
+  {
+   "answer": "f652edcdc4c3557a527a21af201dad19e26d57350b08aec25f5c805cd11589aa",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "スタッフを2人追加"
+  },
+  {
+   "answer": "d75e0795a529fc7a7d3cf17d92c1dfe7f7bf33ad652a2570cb6581f088909522",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "避難者が10人到着"
+  },
+  {
+   "answer": "0cf3fc7c856c436707635cce0b97ae97058406a7a05f649c1264e2d13b99ddf3",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 2 12:00 避難者5人が帰宅"
+  },
+  {
+   "answer": "dc1f0fb7b40a2445eba844d40c81e0fe8d47a7c79e89800d4927a0fdb400626b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 2 10:00から11:00まで避難者3人が到着"
+  },
+  {
+   "answer": "52bb89a78b463700577d750910fa5625e13d888ca99007404aed531021f2f139",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "evacuees 4 arrive at 13:00"
+  },
+  {
+   "answer": "58b1a8c878c5a6d388b87a50069e5a5f0a5dc2137b7c972eccbb490a05efa7fe",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day4 14:00にトイレ2基故障、さらに雨が降る"
+  },
+  {
+   "answer": "d6211ac7446d0186318deb1118e798740ac714abaf3140e07589357548385057",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 3 7:00 toilet outage while the generator is down"
+  },
+  {
+   "answer": "476562bfb3995ebaf6953ca6e2dd942f771af3d63a72171bad7fb6e80c64064e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 4 14:00 18:00 20:00 toilet outage"
+  },
+  {
+   "answer": "a05af59f170853540df2ff652065671a16ee890a7bc4aca85bc52c04ca55b43a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 4 14:00 and 16:00 toilet outage"
+  },
+  {
+   "answer": "21ed87d419384275e5422b9f59fdf233569c0a6eb87eacc114f1f5864c6bc761",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 2 14:00 toilet outage, Day 3 10:00 add 2 staff"
+  },
+  {
+   "answer": "0dda56d15b20013ba3364c3f23cca73c1b799bdac30d2621ce1b77aa97894d90",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 400 toilet outage"
+  },
+  {
+   "answer": "b4014d725ce578e2e56c7e7f9d5f8a2085dcaf33792c7236d9b0779480b67348",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 0 toilet outage"
+  },
+  {
+   "answer": "abbd3ca652358fea00aafa5edb3d95bf75086e3632e8522c2dc69237f4503492",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day ８ 14：00 トイレ故障"
+  },
+  {
+   "answer": "387ddc9c16b6d75f72c2b580224df5d87644149e853a6e88bdf323919e81a48c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 2 ２時 トイレ故障"
+  },
+  {
+   "answer": "135d7151e7d40166fc23c3d2588f13fe3bdddb176e31f2e52504a4fcbbd171ab",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 2 ٣:٠٠ toilet outage"
+  },
+  {
+   "answer": "8a086856f1e76bbfb73255ddc798206aaf00326eed69f528c8f7422778e63e33",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 2 午前11時30分 トイレ1基故障"
+  },
+  {
+   "answer": "a1245048eff8ec1279fb58206bb736d1b7ea99216672d65ee685c6700ebd0186",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 2 12am toilet outage"
+  },
+  {
+   "answer": "8268ccfd82542ce8c79e137e917a497f9cc20ca76d46de0a0555b9ff48f73154",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 2 24:00 toilet outage"
+  },
+  {
+   "answer": "a83a8af4a488b34d39dbede04cf20b37cda46408f2ab567d911b21fb93cd70cb",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 2 13:75 toilet outage"
+  },
+  {
+   "answer": "411302d7d5c060deed21ca976593081c39de5bb5f498aea83b2e78ad95253f57",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "連絡先 test@example.com 090-1234-5678 Day4 トイレ故障"
+  },
+  {
+   "answer": "87d204c31116f460e777e4917f84da4e75579afdcc33300770d80865a754c91a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "電話 0312345678901 day 2 add 3 staff"
+  },
+  {
+   "answer": "939ce7d0c3f31ae74d896f7ec3ef50e527cff6ae9e36708e080472b402ae7406",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 5 water station outage from 10:00 to 12:00"
+  },
+  {
+   "answer": "99e5f37c2e29f0d4e56d44ad164fbb12a2e7914f69d2ec6a2a2c4ede18c69052",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day5 water_station_main outage 10:00-12:00"
+  },
+  {
+   "answer": "937fee90bb60ea7703403bcdd3d82c0ac364962802f5219936e9b4a51fc863e6",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 6 13:00 facility outage"
+  },
+  {
+   "answer": "b6944d9076131537af04929978536ee82c3879d5a0bff748faf5953e1abca8a5",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 6 13:00 施設が停止"
+  },
+  {
+   "answer": "33833680f7763dc035b443911a65e9dd20de19dc59471a0e86e115a873ba501a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 6 toilet-1 broken"
+  },
+  {
+   "answer": "24430e244215227de4dcd35db7b27234ea02cf98fce9663453665d54d52f7dd6",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 6 Restroom 1 broken"
+  },
+  {
+   "answer": "886662f5b3463b6615551eb9a349c4d20328aef647633773e7eaa588777a4f7e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 7 23:59 add 1 toilet"
+  },
+  {
+   "answer": "264f41f5badf2fcbb0798710172604629c5c536bc361ceca70486b5202a7c217",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "DAY 3 ADD 20 TOILETS"
+  },
+  {
+   "answer": "d702d91e3b5ca6bd7b37429656129328c123dc927fa9a637df43e9ac5392977f",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "三十五人のスタッフを追加"
+  },
+  {
+   "answer": "53ff09820376b0b694c1fc9fed7240039c55deb908659323a0feb0a331cc4fa1",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "十二人のスタッフを追加"
+  },
+  {
+   "answer": "7100c745f41ffe68ff80917a7ecf005055bafa5f9b293baa2d1fd30e004090d6",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "二十人の職員を追加"
+  },
+  {
+   "answer": "bcfb4ffc12713be0727d7de6cc2fb033b110a5f9da46dbde2a055d63c9476351",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 1 add +3 staff"
+  },
+  {
+   "answer": "93e4ebc6502403fea7f04c832cae3cc4ea9479f7a4720c31b15bb225084b26b2",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 3 install 2 toilets then add 1 staff and water outage 9:00-10:00"
+  },
+  {
+   "answer": "8a2a7b30d671ad4bed9ba682a34f74f02e7aa06659d346523a1322fce71f6ba4",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "トイレ\u001cを2基追加"
+  },
+  {
+   "answer": "5eb39e0f4e4753f3ebb17d62bf4d3a31faceb9dcbcfce0c188d698d8a5dac25c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "  Day 2   add 2 staff  "
+  },
+  {
+   "answer": "6c7103bd3f4b88e0bf46f07e2a648d77de60c507dc0d3e60d76cdab80c1145b3",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "雨が降る"
+  },
+  {
+   "answer": "aca123920ea4530fad5a3b480c9e00cb73dbd18fc27684e46b8395f89953e1c9",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "toilet"
+  },
+  {
+   "answer": "d87321ff4ddf8ef1d516e518f0f3c03fa0fb4a9d48719b87bfa8eb0cf1a98472",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 2 10:00 zones add 2 staff"
+  },
+  {
+   "answer": "630aa7a36006ad0aa78a271c09b6d1826a4732bbe676a232f8fee79e31f43dd0",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 1 6:00 evacuees depart 3"
+  },
+  {
+   "answer": "aafe6ce41f9a1e9fbcd45d5153a5a58c1911e6299d53c46811cec6b4f0b50554",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 1 6:00 remove 3 evacuees"
+  },
+  {
+   "answer": "1c817062eae4fbf1c6367498aa70ce8174ff2c30d670510de1d59d9d6d5e958e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 1 10:00 toilet-1 outage and add 2 staff"
+  },
+  {
+   "answer": "78e253979725a3f88fc06f1a467aaaff3d73505372ac2ff3ec85c1d6d621182d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 1 10:00 toilet_01 outage, add 2 staff"
+  },
+  {
+   "answer": "ce3f68830bdb1b99e8d4299a872332b20257fdd66bd5b9640d1257a0519e6fef",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 1 10:00から12:00まで toilet_01 1基 outage"
+  },
+  {
+   "answer": "277716b564ca6c41614bba9f98022a391ccac70301125b41922fa0a8017493ff",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 1 10:00 to 12:00 water outage"
+  },
+  {
+   "answer": "ebef807fcf09dedb9aeb6fa64d73df595cd29bb8f532f9d7ff378fafdccf058c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 1 9:00-11:00 断水、スタッフを3人追加"
+  },
+  {
+   "answer": "709ba58e364b65f8f9c9f00f7ab38e48822ac39814e936e579e660c39523e7ff",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 1 9:00-11:00 断水、トイレ1基故障"
+  },
+  {
+   "answer": "0e728482aca4d87171fe71597a3213612ccb724a26831d3a4c00aac4887c26c8",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 1 05:00 避難者が10人到着、スタッフを2人追加"
+  },
+  {
+   "answer": "d1b49c205c29f4944e973be7f9fb8c4699fe5b28d499632d741e4ce1108f0781",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "lone",
+   "text": "Day 1 05:00 evacuees 2 depart"
+  },
+  {
+   "answer": "7925a14fe381d027638365f4ac7b31a0525e1c406c6bfe24ba5c18fed5d85b38",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day4 14:00にトイレ2基故障"
+  },
+  {
+   "answer": "a97702d1e8db42e63ae7dc3599233257942a597e93a27aa63caa6a8f1f511687",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "4日目14時にトイレ二基が故障"
+  },
+  {
+   "answer": "38a822077d5ab131c3e750497f4dd81221bee7e10c004ab6a8b4ed6d9da050b3",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "4日目午後2時に便器1台が壊れた"
+  },
+  {
+   "answer": "e7505fb5acf987bd13a3ff822365d2908003daf2a7a16b22a7e853022fffc822",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 4 at 2pm toilet 2 fail"
+  },
+  {
+   "answer": "7787382d96c8dadb4df59ef4e5298c9470625a5a875dc5a104a282fe982c9b1b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 4 staff 2 add"
+  },
+  {
+   "answer": "2e1327e03925473a00fe8060e4b89d716bf936f72ccd5d0e2eed23d3adfa0d17",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "4日目にスタッフを2人追加"
+  },
+  {
+   "answer": "887e227819bb7ebe12434492b06ef1049455932cfe2641c82f6adcfc639666f4",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "4日目に職員二名増員"
+  },
+  {
+   "answer": "2a93bfe7ff78aa0efc389abc4684618f35d3b6ba82f512b822fa8608c9e203a9",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day4 add 2 toilets"
+  },
+  {
+   "answer": "f66c3d6d13df7f530f25b4bd10d748d593a93603be9ea5f9078cd16ee112620c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "4日目に仮設トイレを2基追加"
+  },
+  {
+   "answer": "95e46272ac017eec42a310f810b65a4f055d3daed084f946991df9171ea09e3c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "4日目にトイレが使えなくなる"
+  },
+  {
+   "answer": "6614c50b8e5915fff8706e977105e5fca686a784a858fac9b99da10060c52b21",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "4日目にトイレ二基の利用を停止"
+  },
+  {
+   "answer": "3244e9ff32e89ff9f6e872f13537351830051a2272b8e75b16d1e696a0dae790",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "4日目スタッフ二人追加"
+  },
+  {
+   "answer": "e1c738e1a269090e6060e88cb96ed2c03825bd2fb2636accfad481e37820d183",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "4日目にスタッフを二人増やす"
+  },
+  {
+   "answer": "b9e4090eaf687ad51efe73a1f6abf5b84bcc7c77468209fcf8a791c7a4f84d9a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day4 water outage"
+  },
+  {
+   "answer": "463abda1b632c049300b67bc7fb61986a6595db5e5e1d98f95145d189da7b031",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "4日目に断水"
+  },
+  {
+   "answer": "a109be1396ab1f9beeea3fad7326d8702a4225822b9580f96447f1c2ba9afd96",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "4日目の給水が停止"
+  },
+  {
+   "answer": "80ad1835cadaa7c545e7f717e6669d354985929722932498735579077d1d989d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 4 14:00 toilet_01 outage"
+  },
+  {
+   "answer": "e856b5711532ee001dc86e246d695134daa5eb7145fc63258f13743db1399194",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 1 10:00から12:00まで断水"
+  },
+  {
+   "answer": "14efc0ef42ede50db58937885b529cd12181b50bea339e6813816618d5eb3fc8",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 2 9:00 to 17:00 water outage"
+  },
+  {
+   "answer": "34d1abf3013ff556c16d880359165a02dde396fe9c14926fa70534d19d2e3441",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day4 toilet 2 failure and staff 2 added"
+  },
+  {
+   "answer": "5f5ebd3f6291525942f42b7e1d762703732499a545cf2fcb88607e5991774642",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 3 08:00 トイレ1基故障、スタッフを3人追加"
+  },
+  {
+   "answer": "invalid",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "2026-10-14 14:00から16:00まで toilet outage"
+  },
+  {
+   "answer": "invalid",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "10/13 9am toilet outage"
+  },
+  {
+   "answer": "d9c85d1b32f4895e47d22d0fe8abfa268a2d8dfe1f6828ab50cb7c38800c8671",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "2026-02-30 toilet outage"
+  },
+  {
+   "answer": "e7cd50e770a55f379fb58f923c887943ad06a1b97c63a10d670d1b10dcfd295f",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "午後にトイレが故障"
+  },
+  {
+   "answer": "c1bdf726630494b14f89b5a1af87459a6ee50a868bf6b9c63657a476e321cc27",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "翌朝トイレが故障"
+  },
+  {
+   "answer": "74a8bf4c2d4326cb1573e6184c5dc4cb1193d6bbd6d5014656edac401b81ab6a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "next morning add 2 staff"
+  },
+  {
+   "answer": "4dcb2eb0b3a092e6a264958eaa3642cb28834c6ccf987b0499b8ab35f0c8115e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day4 staff -2 add"
+  },
+  {
+   "answer": "70fd61a9cd4dcb62a36d4c550fd59d70fb7abad46b3fb9b77b953eb866ab7877",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day4 staff 1000 add"
+  },
+  {
+   "answer": "f24b7741a624516c64506392d989707571aa53837811081003dfc5535ab765e7",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day4 toilet 5 fail"
+  },
+  {
+   "answer": "df0f2233fa93e29e8645daab619be4717a8fa90b8722090cacaab8cbdca41537",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "トイレを30基追加"
+  },
+  {
+   "answer": "d93f56a9dbbc82b4c28abc1d2f2f502d4cfe7b50f9ff100a883b6f2c7324768b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "感染者を1000人増やして"
+  },
+  {
+   "answer": "b8230ad0ae07a2528b56178503ee5520efeeb66c5d604055db9d125e95896aa7",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day4 toilet missing-restroom failure"
+  },
+  {
+   "answer": "caf4d86d3a787440ecb812f744e44f2ac9189f6fe149abdff544dcc6345c8fce",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "zone_id: sleeping スタッフを2人追加"
+  },
+  {
+   "answer": "f4de4d08ada83415029dc6aa1221f3a67455dfb0243142cf1410cd6a998eadb1",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "zone: nowhere add 2 staff"
+  },
+  {
+   "answer": "74e9dddac6023888997c9df82faac8d4a1bc9f225255c7b767a18ab3a017f9f0",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "避難スペースエリアにスタッフ2人追加"
+  },
+  {
+   "answer": "7d3fe3302d6a2f8382cc5f25a36fd0cb1d8a403dc8d87c076f82a3a3b570b8a0",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "トイレを1基追加"
+  },
+  {
+   "answer": "cd969d367b6325368a073a7f272ad5550e68cb4dd1acc964801515b732f90e9d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "スタッフを2人追加"
+  },
+  {
+   "answer": "2e9a71fdbc4324d4469b2df04e758be2b9ddaaf1e44788f7eedf62f5112a1364",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "避難者が10人到着"
+  },
+  {
+   "answer": "bef559e930e56b3e054f876b89ab819391487fb8fe30dc41541f2cde97ad8555",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 2 12:00 避難者5人が帰宅"
+  },
+  {
+   "answer": "b869929add7ec4d829ae805dc59bc396eaf8422f84ee5edfc8066e508473f09d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 2 10:00から11:00まで避難者3人が到着"
+  },
+  {
+   "answer": "53e3fed3ae90e6c63730e2e3648aadbfdb64cebb2338900d3e2f00b7487472c8",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "evacuees 4 arrive at 13:00"
+  },
+  {
+   "answer": "63e53d3447828331378ef7c92a1cf0f6ccb0d8bf85fe986362bd09f2c7e4f0f2",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day4 14:00にトイレ2基故障、さらに雨が降る"
+  },
+  {
+   "answer": "fafc6d1444da82bdd1b25a765be46504c464d03670b9a4ef30a98da594e2bf0f",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 3 7:00 toilet outage while the generator is down"
+  },
+  {
+   "answer": "66f5e2bb6481f4c9e8cd4330bb9ea8f2eb705d644599ef061e987ce2cb923e9c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 4 14:00 18:00 20:00 toilet outage"
+  },
+  {
+   "answer": "c5b772edba0a4b86e4a08f6c7ffa48108cdbae57ada40060dc2cbb7c8a5b42c8",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 4 14:00 and 16:00 toilet outage"
+  },
+  {
+   "answer": "f8ec8a82305d0298e2f59c0b5c5dcd665948989fc93c992be435f71703f1daaa",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 2 14:00 toilet outage, Day 3 10:00 add 2 staff"
+  },
+  {
+   "answer": "6715a4776f05fcabd6ca73be4e820c617895996d1f51ac790493ffda0157bba4",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 400 toilet outage"
+  },
+  {
+   "answer": "a98d7dd24b009bffa1e50c8a07aed7b312776067c8bb6bec4d0d9027187e29d0",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 0 toilet outage"
+  },
+  {
+   "answer": "886f80c3f9b3c3653bc2f9ffbbb27a1795a753fe1185e042b79875b73b396120",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day ８ 14：00 トイレ故障"
+  },
+  {
+   "answer": "a0d82ca88f9ee53f800fa9d1e51f4850ff4c517d454157a6c69ec6960a77c558",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 2 ２時 トイレ故障"
+  },
+  {
+   "answer": "cfe2a22b13085a636ee51a42af9df3f38d09a4d55a1b1f55834f7a6f51ab3975",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 2 ٣:٠٠ toilet outage"
+  },
+  {
+   "answer": "7f1dd895e2874264ab43472593810c3fb1b0f2006fc9da941fee6345995e6dac",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 2 午前11時30分 トイレ1基故障"
+  },
+  {
+   "answer": "14402f4082ab86a604dbfa80182904eedbae8edcdc0b4955743be4540c145435",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 2 12am toilet outage"
+  },
+  {
+   "answer": "cc95e0839fe8bb086e09713df47550c0dd68dafaa9ae45672c649d1477d5c9cc",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 2 24:00 toilet outage"
+  },
+  {
+   "answer": "dee18bea5105611e99e0eb1e8499f23e3d83c89ecb8ac0d9d9036f1dd8588544",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 2 13:75 toilet outage"
+  },
+  {
+   "answer": "43768f1aa5ce5afa27c6b39f80102b8efc566b1e0981dc247e5b3ccde51340cf",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "連絡先 test@example.com 090-1234-5678 Day4 トイレ故障"
+  },
+  {
+   "answer": "9559eea60f359dd45ec2422af566319428078c065f6d515ba33818e27a59c698",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "電話 0312345678901 day 2 add 3 staff"
+  },
+  {
+   "answer": "b87bbc01fad8774d3e8fa644a362d2aad32dec1bed7a443f66793bf992fe5379",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 5 water station outage from 10:00 to 12:00"
+  },
+  {
+   "answer": "849d9a2a069d7137c82315e5813e973b0b7ff435a616de8b17a603220fdee2ef",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day5 water_station_main outage 10:00-12:00"
+  },
+  {
+   "answer": "54a9bd9ba1623dbe561fe9487f9cadc69a62ce834305b2d3d99de5bdbe229475",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 6 13:00 facility outage"
+  },
+  {
+   "answer": "5061227e5a9bdbe4c46ea4b41dfbdba42c53bf68bbfef5390876581ef019f19a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 6 13:00 施設が停止"
+  },
+  {
+   "answer": "a8361e2b3efb209d57b356d7998c083d0c08603b3cda951ecbff3c3b8a35aa6e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 6 toilet-1 broken"
+  },
+  {
+   "answer": "ef1016f9ff5936e54d428ab7b5294b25526c6ce28a2ce713ea6b1556401db978",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 6 Restroom 1 broken"
+  },
+  {
+   "answer": "f593b73943b5a320d7b1b92a1d883e1b71e7d8b1136278f105eea80b4bacb3bb",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 7 23:59 add 1 toilet"
+  },
+  {
+   "answer": "09fabdc4e82837f31537f1d3aaa390b80ac1daff7e74b192a2454fcd3ed9290b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "DAY 3 ADD 20 TOILETS"
+  },
+  {
+   "answer": "bc2a76cc0cd07f89fdb3160c572b92b03385e08bd0aec6da8e47fde5425954e3",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "三十五人のスタッフを追加"
+  },
+  {
+   "answer": "3344bcf0eb93c74bdde81101fc0c0ea1f5240760d11b95bd1c924413f0509694",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "十二人のスタッフを追加"
+  },
+  {
+   "answer": "988ef05ed48c7f8976746131f7fbb8a4461efbf336d5aa25cbb4937f0e99d206",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "二十人の職員を追加"
+  },
+  {
+   "answer": "54f63dc0940a2b2f2721beb2da282a471bd37d6dc9c2a3be95c68523d381fcae",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 1 add +3 staff"
+  },
+  {
+   "answer": "fba66274ea4a7b926a9114410ab8b04a897ce7528f219f7db419af15fca65f37",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 3 install 2 toilets then add 1 staff and water outage 9:00-10:00"
+  },
+  {
+   "answer": "f88fdb0d5baddd47c94eb71859967826b502cd8612df5c68756bbd89093a2ab9",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "トイレ\u001cを2基追加"
+  },
+  {
+   "answer": "daa11708a1b1a69f9fdd53b07d9a1f800d9fe84fa7c0e199bccc77f6d04175a1",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "  Day 2   add 2 staff  "
+  },
+  {
+   "answer": "1f2de440849c185905d2b4c91d88ecfa1ecab9a40552fb12fdd8b27e9489dcdd",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "雨が降る"
+  },
+  {
+   "answer": "304e0eb866202e376b1023e400edc83e02e9086ee69efc7e3f74932e3f9cc284",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "toilet"
+  },
+  {
+   "answer": "79cb8b61ba5f68397321e715ea7d18bda5b333dc46f320065994bebc82c2f2b1",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 2 10:00 zones add 2 staff"
+  },
+  {
+   "answer": "13aa81a7a3f10a1bca885b999322189004661f94a3de488298f1204dcdd0eba7",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 1 6:00 evacuees depart 3"
+  },
+  {
+   "answer": "e1a3b68d305571aca527da6ec7a7babc8e09764f0b68829bc42eb48335b1bf28",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 1 6:00 remove 3 evacuees"
+  },
+  {
+   "answer": "cbe2d3e26331fe4272b95c72b23444c07afbf6b9874d4ef22a29b344ddbd783f",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 1 10:00 toilet-1 outage and add 2 staff"
+  },
+  {
+   "answer": "e115c2de1c46a23140296063554c8e27810e20f52cfed9b88bd97b2239fe9e6b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 1 10:00 toilet_01 outage, add 2 staff"
+  },
+  {
+   "answer": "31e4e9e0788940f7d2b2f56f3e375842b65a6bfaf2964b66010f508d7bb5680f",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 1 10:00から12:00まで toilet_01 1基 outage"
+  },
+  {
+   "answer": "7ee806aa6e74e9f38cf64ea62c55d1c5c3c83073ccd557523a440ca0e9d0979c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 1 10:00 to 12:00 water outage"
+  },
+  {
+   "answer": "5a7a8996dbeafb56b01644bde4f97421722c0d3cc91180b3ea26544184c6fd70",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 1 9:00-11:00 断水、スタッフを3人追加"
+  },
+  {
+   "answer": "66164dce665392d5fa750fbbc53f5d7bf05eeb4b1429e64a42e053b284fc373d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 1 9:00-11:00 断水、トイレ1基故障"
+  },
+  {
+   "answer": "b84ca03f93a707fdc3812ee90cb384ace4e676029dbe59c4535b14e709447239",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 1 05:00 避難者が10人到着、スタッフを2人追加"
+  },
+  {
+   "answer": "7acb73b5aa298636eb85b662d517b19c1f989edc6c19a7d963850a2e3284541b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "empty",
+   "text": "Day 1 05:00 evacuees 2 depart"
+  },
+  {
+   "answer": "da2ef15c67633859226691877f2642b9c8c21edb52edd5065e721a1ea89d52bb",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day4 14:00にトイレ2基故障"
+  },
+  {
+   "answer": "f36a8da172918bbab208086368ca39ce69a0bf43db1103c48d954689fee9195a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "4日目14時にトイレ二基が故障"
+  },
+  {
+   "answer": "2d6e2f96117262b90bbfd060df4498a18fdb36d47a66dad135d7cbe359985372",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "4日目午後2時に便器1台が壊れた"
+  },
+  {
+   "answer": "e3d9baf099266d181e065144274dda645a3b94d6da2ec2438fae77c3d045e6d9",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 4 at 2pm toilet 2 fail"
+  },
+  {
+   "answer": "282d909780b3823110ff150958ce29491a090e62058e29bcde80a50aa4e9075e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 4 staff 2 add"
+  },
+  {
+   "answer": "6e621e8829cce9755b3b7f09682d72e63e484be098850c4e508edf7cc465c0c8",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "4日目にスタッフを2人追加"
+  },
+  {
+   "answer": "71ca94eda81f4b1be72046de07b840274ffb415bd895e33b9cf4180d38ee343b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "4日目に職員二名増員"
+  },
+  {
+   "answer": "b6685c3bd0d73b5c5b6e99040bc6933b0fc0b6ec67a4c834652c08695a5f9226",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day4 add 2 toilets"
+  },
+  {
+   "answer": "82cda78a20a5306738b906737a63b2258fa64777fd966908cb744c57dfd6f20e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "4日目に仮設トイレを2基追加"
+  },
+  {
+   "answer": "95075045807f56f8964f1c1715290e780426a705a278c5af5c0a15e22e180f65",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "4日目にトイレが使えなくなる"
+  },
+  {
+   "answer": "0e31f132385734289ddb486f78c926317da97f57becf4b93d4845056f2736b54",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "4日目にトイレ二基の利用を停止"
+  },
+  {
+   "answer": "df8b75812356aa7ea0a3207e34d31affa8d658571cc6d505e9c3bf8bb971b2d8",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "4日目スタッフ二人追加"
+  },
+  {
+   "answer": "3776dec964a72f439c9b73018d07d1f294993b354191b2072d4b24c4f16641cb",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "4日目にスタッフを二人増やす"
+  },
+  {
+   "answer": "a859cb5be05e6061aae4c222b24b8430fb39e2ebc04663c8ac1d245b03e114d5",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day4 water outage"
+  },
+  {
+   "answer": "05245ebe13776dd599711e30c61ff7a181c3c024ebc66af13da4ee1799ac45bf",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "4日目に断水"
+  },
+  {
+   "answer": "7c5f80fd55d3532c6059026f72a7dd1faeb502a1d76a769b67a8ef8329165ed4",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "4日目の給水が停止"
+  },
+  {
+   "answer": "6d483b84352d4d0ca3fd0e026b2d220ca18945e15212630e77a7c0861cb76a92",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 4 14:00 toilet_01 outage"
+  },
+  {
+   "answer": "1848a9dc7ae8b1a567e0aa048fc092f3639506b9516664c9504129d80eaad584",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 1 10:00から12:00まで断水"
+  },
+  {
+   "answer": "1c1c7127aefc4273bc329d748efc05605541506375eff6791b80b5adbd2307ef",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 2 9:00 to 17:00 water outage"
+  },
+  {
+   "answer": "ac7974f0fd63a4181bef2b464d5a7099872cd9b37fd3676efc04ea119ad0aeaa",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day4 toilet 2 failure and staff 2 added"
+  },
+  {
+   "answer": "ce92f78635be65d36f834bb6788da96f08361802bda384e19cbaf09d9390111d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 3 08:00 トイレ1基故障、スタッフを3人追加"
+  },
+  {
+   "answer": "invalid",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "2026-10-14 14:00から16:00まで toilet outage"
+  },
+  {
+   "answer": "invalid",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "10/13 9am toilet outage"
+  },
+  {
+   "answer": "9b3f5203647c6855e1d9bfc827c575713b9d6043b7b9d0b85ceac138eb1b1aa3",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "2026-02-30 toilet outage"
+  },
+  {
+   "answer": "83267dbdbe059d5be4f58a2fb5f8147974673ad1a89d507a8893f3c08338fbdd",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "午後にトイレが故障"
+  },
+  {
+   "answer": "164b7470a44670b6223a6279b883d2adad785effc124fa08803b5f237dd724ba",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "翌朝トイレが故障"
+  },
+  {
+   "answer": "b9d824b9d5cd7b63bafe02ec47115ae0a072bbf9bb60e4296b2f1ad72de881ad",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "next morning add 2 staff"
+  },
+  {
+   "answer": "c633473dc50d8cbdecd671e41d821340acacf22f82787eef4cbe3a7aa94eb569",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day4 staff -2 add"
+  },
+  {
+   "answer": "4aee7a57da1c047586b22c75d4f8c3dcf3df5dea613a3b41830a7f38e6c0952f",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day4 staff 1000 add"
+  },
+  {
+   "answer": "d3d03cedadc9da15f60ace2de3cf62fff98ce30235024b97fe6a0658d033ffe2",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day4 toilet 5 fail"
+  },
+  {
+   "answer": "46da3978a52b274fe4e5b5a465487ac6f1f81f5d251e96bf2612e9345fabca0f",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "トイレを30基追加"
+  },
+  {
+   "answer": "9365e4dcabe79217cb6a53253f772bbcdaa47984e7f64991f27689b159b7ea16",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "感染者を1000人増やして"
+  },
+  {
+   "answer": "3a06e5d78a364c33f4662e786a58c24b70b4abe12e36cf045346e044c32a4bdb",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day4 toilet missing-restroom failure"
+  },
+  {
+   "answer": "bb32a7a2a2df7c96874753524898e42fa9a36f1d6e94c40456629493576c01dc",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "zone_id: sleeping スタッフを2人追加"
+  },
+  {
+   "answer": "e31e5b10f3fa85dc6d15c460b69e186d2b977cf0dd2469f53d9fa863cf46c57e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "zone: nowhere add 2 staff"
+  },
+  {
+   "answer": "afcacaa626cfadfb0f43b22904638bf18d08b1065b4da23f82af751bab4c99e5",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "避難スペースエリアにスタッフ2人追加"
+  },
+  {
+   "answer": "74c3e1951e4a1a468f59def0827b4a1080c96cfd15f451219dfd46a8c1d17f06",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "トイレを1基追加"
+  },
+  {
+   "answer": "e59a292a3fe565664397d484a168b233cf62307b9b4ba1fbd2302b476992d10c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "スタッフを2人追加"
+  },
+  {
+   "answer": "d1ec552d7912b9c28bcc7c36cc3eaa73ffa97e22d37742530fae53e2be9b5db6",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "避難者が10人到着"
+  },
+  {
+   "answer": "7b895c18c5349520cfaf3caee3cf37fc79f1ac254756684676bf605ba46ed957",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 2 12:00 避難者5人が帰宅"
+  },
+  {
+   "answer": "b0aa83ee2a88bc5c37cf504a819004c130cc792ef9ee365930cfd5252f69eeda",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 2 10:00から11:00まで避難者3人が到着"
+  },
+  {
+   "answer": "a8153dd72ed90b41cb48a3799786fe721aa76ad1e9e4c4676b78c1b3b70faf5c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "evacuees 4 arrive at 13:00"
+  },
+  {
+   "answer": "9b4ea4924dfca6adf04f1cfc0d304fc7e1544fed779e7f4205e32786711194a2",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day4 14:00にトイレ2基故障、さらに雨が降る"
+  },
+  {
+   "answer": "78abefd5f8820fb41e37e43fa57a82a140a1eb66947d943ad9d790c8dd8b7d5b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 3 7:00 toilet outage while the generator is down"
+  },
+  {
+   "answer": "ca10c57b8e0c14664e4e804cac377013251895c33b4cb11939b91ab2b27f9f30",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 4 14:00 18:00 20:00 toilet outage"
+  },
+  {
+   "answer": "c40000516e5b636576be4efde21ea3dd82575ebd02cb56916d4b9a1783da09ab",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 4 14:00 and 16:00 toilet outage"
+  },
+  {
+   "answer": "0ca89ca46258809f4b5ca7b53684cd355727aada897918f4efabee60ab75e20f",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 2 14:00 toilet outage, Day 3 10:00 add 2 staff"
+  },
+  {
+   "answer": "3d3c7519528adfe47abfce3c853e270d1309a6aa13cfc8a53523868b9f2ac139",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 400 toilet outage"
+  },
+  {
+   "answer": "43d394a9f95cc629354390b750dec32345f82794d75c0fc6876997f862a33565",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 0 toilet outage"
+  },
+  {
+   "answer": "37b516aac1605fb56488844dd652185e74ad9ee4b475b4acebfd4ea7007cf95a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day ８ 14：00 トイレ故障"
+  },
+  {
+   "answer": "a7f71017a405c3fbc85c1cb0c3e1834c052cfe1fe92cc4a3be0e8efce7f1ea1d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 2 ２時 トイレ故障"
+  },
+  {
+   "answer": "5d046d20d0c3654817f3eac4038d36f58933d4435ecd6eeba0307fc0c35d1f21",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 2 ٣:٠٠ toilet outage"
+  },
+  {
+   "answer": "833ce1ec202ecb9e5cac6a10658d4b7fc8cc72c9ad51fb04e14386cf26f746c7",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 2 午前11時30分 トイレ1基故障"
+  },
+  {
+   "answer": "5655917f9adaccb1cfa882b255fad5cca6a17cc5bc3bab267933e02a8bc1e553",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 2 12am toilet outage"
+  },
+  {
+   "answer": "710f53ff719e300876b0e44cc59c40825440a23914661a606c9b081fb397c343",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 2 24:00 toilet outage"
+  },
+  {
+   "answer": "07e15071a913d0b458ed506d4c7e3f1586f71418de8f85b3bb6d39265c1adac8",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 2 13:75 toilet outage"
+  },
+  {
+   "answer": "fd494a971eedb0baae9c48d30a219223adfab0e4b824420f8b8335246a67d10c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "連絡先 test@example.com 090-1234-5678 Day4 トイレ故障"
+  },
+  {
+   "answer": "7a2e4aeae62badff6d22ac3166837fbe5d90c8a08cb643995deaf40216b148ec",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "電話 0312345678901 day 2 add 3 staff"
+  },
+  {
+   "answer": "87b504a38bf4241b436dddb656bdd7a177f638fb80272359b49410c7524198de",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 5 water station outage from 10:00 to 12:00"
+  },
+  {
+   "answer": "2acd33c34651e0a8e867b85881e056347d25974d3239d1e71ee8ce9b76255dde",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day5 water_station_main outage 10:00-12:00"
+  },
+  {
+   "answer": "0180e2305a5b3dda38af4cc2408310d592816ea0c05546a35e2c717777fbc418",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 6 13:00 facility outage"
+  },
+  {
+   "answer": "3b16032a55962fa3f3c8428e7b95c21b78938c868c016fef815bae168e0d30d0",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 6 13:00 施設が停止"
+  },
+  {
+   "answer": "f916875f116aa9874653ba420127cc73cac8181d0991ad9393409e10e47c122f",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 6 toilet-1 broken"
+  },
+  {
+   "answer": "8a5a6f4c9da3b4a3aea6358f155d215cde9619b5f802d31ca0c574e065f83a17",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 6 Restroom 1 broken"
+  },
+  {
+   "answer": "6b89689a54dca4ff34ef3da260f8ac54da8e2275400d1f34be968f22d00f738c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 7 23:59 add 1 toilet"
+  },
+  {
+   "answer": "bf1a693ac2a242625ff8a2c7c00d06dc4d3db0c0065cdf20f08b73218abb917d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "DAY 3 ADD 20 TOILETS"
+  },
+  {
+   "answer": "e1f02b9c09df777f4dc29070187e48e25a973b3bd4ac62d82e6e3c69eaf3d44c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "三十五人のスタッフを追加"
+  },
+  {
+   "answer": "5fd46da0d39c12e21ea0907c990497c57fac01f8a29f9dd2b67b4c724037867a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "十二人のスタッフを追加"
+  },
+  {
+   "answer": "9d71c37706f7e87d4e6e16818b3931b1b2103d4db97999236df355f200154b29",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "二十人の職員を追加"
+  },
+  {
+   "answer": "2b6a53fea4f0cfbb61764cabe7e48a3334fa27328d9f3c416b102b686bd79991",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 1 add +3 staff"
+  },
+  {
+   "answer": "fd232890f1f9ceedefd7a4383756a4600f00a2029f61764d9f2cd1006f3bb1dc",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 3 install 2 toilets then add 1 staff and water outage 9:00-10:00"
+  },
+  {
+   "answer": "f4d2b6cb474dc40a7cd4010f436f42da2dc106539b7ae45ef79323be68b8d07d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "トイレ\u001cを2基追加"
+  },
+  {
+   "answer": "5e29ea0fbfc86ca61b3102bfef2d71c9acf778bca941f6683fd33b515545c92d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "  Day 2   add 2 staff  "
+  },
+  {
+   "answer": "ea9f620e679c06c934369fd19e2d8bedb810cde188a00203b21c85fcecf6a3e3",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "雨が降る"
+  },
+  {
+   "answer": "b85a2279d43f73fae4944f0ddd777ada72db93fac2f79be0a03a2fd3acf823a2",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "toilet"
+  },
+  {
+   "answer": "b02e978e03fc363e6ceb6706ed2cf8f42984d8d30f9fb968ccac7ca97d6b22a3",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 2 10:00 zones add 2 staff"
+  },
+  {
+   "answer": "ee9e55b9b30a2539821f4d8faca2bdfc96467dedc2a497a7a30ffc58d8d3f556",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 1 6:00 evacuees depart 3"
+  },
+  {
+   "answer": "d83eec711663505633d01a6c90d4cc1a70eab49d2425799c3b80817daf7f4cc8",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 1 6:00 remove 3 evacuees"
+  },
+  {
+   "answer": "8f979b73b1b8839ec8cf0bb2a82d9d763fa2aaaaf7d9a4f5572ef5b08197f8ad",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 1 10:00 toilet-1 outage and add 2 staff"
+  },
+  {
+   "answer": "e1831a2e21b4074effcb3acbc0b6bf71e8a0e5af2cb369d3909463f1955e7b71",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 1 10:00 toilet_01 outage, add 2 staff"
+  },
+  {
+   "answer": "52ea3fbbbaaf0a2f17cf361639e9d93919dfb2af3d59c8fab687f8477f2a19d7",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 1 10:00から12:00まで toilet_01 1基 outage"
+  },
+  {
+   "answer": "77dbe1c51cc5b03b4476664866c05e3d2661aaa8b45dcf4b6f45853bf1a74b70",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 1 10:00 to 12:00 water outage"
+  },
+  {
+   "answer": "c610468eaa79797f34b6d1078b3907484bb84f0b23ccf6bcb9665b424e427cc5",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 1 9:00-11:00 断水、スタッフを3人追加"
+  },
+  {
+   "answer": "881a70916bea497473768860178b927884ad996c5628152e266258844d84cf6c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 1 9:00-11:00 断水、トイレ1基故障"
+  },
+  {
+   "answer": "699e36e29c7d01b3c3febef3fabe800405fa81533c03378df596105daf773356",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 1 05:00 避難者が10人到着、スタッフを2人追加"
+  },
+  {
+   "answer": "d58c343510687c59eb5589fa5cd2887d686430d65d54465a5d41e68aad6e1b56",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated",
+   "text": "Day 1 05:00 evacuees 2 depart"
+  },
+  {
+   "answer": "4516ae835dd246e84779347bdc2593083abd4983006094a3ea07b21c605c771a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day4 14:00にトイレ2基故障"
+  },
+  {
+   "answer": "15015382dc8e441de23b421d6a6138a7e1eba7c06dc7f76b4e0f0de253c09855",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "4日目14時にトイレ二基が故障"
+  },
+  {
+   "answer": "371153263d16e3c18f61a18981c5918d719ef0707b81e8a88186417e3ab59623",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "4日目午後2時に便器1台が壊れた"
+  },
+  {
+   "answer": "a3a44efd826a311ed3c1b093f3765f8593fff1f07e0c58ee5d47cf65dc17bb3a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 4 at 2pm toilet 2 fail"
+  },
+  {
+   "answer": "bece7274254216cf3e4993bd13746d264743d3f17a483da05fdd5edc01b1c91b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 4 staff 2 add"
+  },
+  {
+   "answer": "0aee49f622e7ddfdc97595671ac86f6ff248a7768815db2478c9a3e2496cd104",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "4日目にスタッフを2人追加"
+  },
+  {
+   "answer": "7014e055f04e0b2d61716bb05a0d791f2cf3e85e4952aa88629cd56b6554cf38",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "4日目に職員二名増員"
+  },
+  {
+   "answer": "21f921b44fadf81006c3ee37f9fd8ac41e453f839381eac228b62a15ffba5ec4",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day4 add 2 toilets"
+  },
+  {
+   "answer": "3e59d8f34fa3aaafc827c63853c1ba9f8f06852b313d4b4c4727b0e1831cfa55",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "4日目に仮設トイレを2基追加"
+  },
+  {
+   "answer": "9943531a4ded1f745bf4d895158e74316f25eb3772d7310ddc2776972fec096c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "4日目にトイレが使えなくなる"
+  },
+  {
+   "answer": "ee06706b9e2d223e6b0eb5811b58a187a563e976c8f056a62b073346f658be9c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "4日目にトイレ二基の利用を停止"
+  },
+  {
+   "answer": "1a85d2e7f870b6114ec8a5e95b1a08b623f958653ed10482cb37cf46c0aa2544",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "4日目スタッフ二人追加"
+  },
+  {
+   "answer": "a4a6836721dd6141750f4e5c5e19463bf67cd1819f18f82ed83d387cbb8c1329",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "4日目にスタッフを二人増やす"
+  },
+  {
+   "answer": "4575d6672983da5097aae1dc129911df2c15f780f5a198b5272c1fa03b4f4eeb",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day4 water outage"
+  },
+  {
+   "answer": "8be14004edfd69f6a6099585afa06f5a04dc89e4c15345c9d74ec9d6cce049a6",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "4日目に断水"
+  },
+  {
+   "answer": "603f6c7affcd8bd7ab91051c1c85d89f2a84bcb5690c782c1cae4c19f1fa2c6a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "4日目の給水が停止"
+  },
+  {
+   "answer": "d88a326b61ea9b76e259fce5ae9b514432ea7b80340dad1a8e583cd75e8f4830",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 4 14:00 toilet_01 outage"
+  },
+  {
+   "answer": "1683c681d38085614396a1f57826a47bf792e5a3df10b433b1287d6146be5ae0",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 1 10:00から12:00まで断水"
+  },
+  {
+   "answer": "30109ac55774e54aa24a116450dcbf9d8aa480977098219aecaf0db2a305fb32",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 2 9:00 to 17:00 water outage"
+  },
+  {
+   "answer": "6bcee7ad25fbdd04a27e0fff9450eb5ba6aa6dd4d2c1ef6aee423629348f0d1e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day4 toilet 2 failure and staff 2 added"
+  },
+  {
+   "answer": "bc10cf7fafc3b0b362cba35d2e09ef14d699369c4f619bc301a3ecf2ab918689",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 3 08:00 トイレ1基故障、スタッフを3人追加"
+  },
+  {
+   "answer": "invalid",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "2026-10-14 14:00から16:00まで toilet outage"
+  },
+  {
+   "answer": "invalid",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "10/13 9am toilet outage"
+  },
+  {
+   "answer": "118ea1ed7e41694b277cff07b951d9bd131c8e0b1a1909735c8a61d4c757cdc7",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "2026-02-30 toilet outage"
+  },
+  {
+   "answer": "dcb606768cbf25fc4661db9c968db8e8c72dcdc1d84371c79193949fbf8ad8d2",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "午後にトイレが故障"
+  },
+  {
+   "answer": "8485b6b91d4db1281e6b94d55df9ed343be73620195fba9f117ab46f8f904f0c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "翌朝トイレが故障"
+  },
+  {
+   "answer": "6a2eb7e743de9735735752ab9e32918434a8d194be906c153efbacff45c0ff4b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "next morning add 2 staff"
+  },
+  {
+   "answer": "79ed71ce71dc2ebb59493ae749cd6a6bd4ea34ce3431fefc4bdecc15e4e6a7f8",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day4 staff -2 add"
+  },
+  {
+   "answer": "17e6701728f8edc68f6336a72183b48e28cb22537f333bf038a2a5bbc1818ae6",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day4 staff 1000 add"
+  },
+  {
+   "answer": "4dc741730faaac785da0f78337d46db552c3db52caa831cf930b5faa2be4c190",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day4 toilet 5 fail"
+  },
+  {
+   "answer": "cd2e6684ef7bd3387dd7da43422aaf5f0da4f60358b5a18ab6ada551154fab26",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "トイレを30基追加"
+  },
+  {
+   "answer": "f4dcfd423979f414726e397d8997181e7474f3b664953fa18f2c6deffd0b1e90",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "感染者を1000人増やして"
+  },
+  {
+   "answer": "ac99eb962347570f0211319a6f51dec987d0744a203f8d04a595395155a4beb0",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day4 toilet missing-restroom failure"
+  },
+  {
+   "answer": "60e1c6c7e224af324ab352460437d534b63596394b4f8c2c0384f4057e4728e0",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "zone_id: sleeping スタッフを2人追加"
+  },
+  {
+   "answer": "8385f4d95996b24856ea1e29f4706b9deda49fbe5db7a51c1794084e4effd195",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "zone: nowhere add 2 staff"
+  },
+  {
+   "answer": "86270f2d5d14d1aafb9f21ca222ff0cc10602e8ae0b10e478da4f017d179d4bc",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "避難スペースエリアにスタッフ2人追加"
+  },
+  {
+   "answer": "8f8085287d5fc599b2692e2643c6b532a508e52984836f2ca304f7c4fa41a2ac",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "トイレを1基追加"
+  },
+  {
+   "answer": "0e4cde1a8dbd03d9080d503c41044a0e731cdcf966ad3dbe431c0242f3797de7",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "スタッフを2人追加"
+  },
+  {
+   "answer": "d7e555452ff895c3ae526d7eb1c1666da238bb9c6491a79870a0341b11f32c03",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "避難者が10人到着"
+  },
+  {
+   "answer": "8a231fe1fc9d5f33e404f41e7427120191380cc2b368ae276752e73e62996d61",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 2 12:00 避難者5人が帰宅"
+  },
+  {
+   "answer": "c5b82ebdac2794deaf036799e200d97e35eafa627b587badb484167cccab4528",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 2 10:00から11:00まで避難者3人が到着"
+  },
+  {
+   "answer": "c0bcb5bbbf583e06c76a5ccb93d2a68bdb08e2a001b3685901556942b54f0e9a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "evacuees 4 arrive at 13:00"
+  },
+  {
+   "answer": "cf058b73c34bbdbad4d6535adf8ca3eaca87a9d34afd12b64a0d576fbe265512",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day4 14:00にトイレ2基故障、さらに雨が降る"
+  },
+  {
+   "answer": "f160203a8926d5ba490ce13cda8758930c44063625b2f160cce9bab9d7c8a48d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 3 7:00 toilet outage while the generator is down"
+  },
+  {
+   "answer": "ed81157e04fc5c9f5ad9089a46ed1c55dab8801a7d877f701b4e05198b36bb52",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 4 14:00 18:00 20:00 toilet outage"
+  },
+  {
+   "answer": "84a35465a223d56bc511a012fd9b30abd2bc76654609f0dd784f2da1632d51de",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 4 14:00 and 16:00 toilet outage"
+  },
+  {
+   "answer": "5f730722de35b5026caece2eb0b655b3e0a14a97703e01df7bc6d177dc6dc75f",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 2 14:00 toilet outage, Day 3 10:00 add 2 staff"
+  },
+  {
+   "answer": "ec0c5db362062a6d352a96fa7c1381f387669d971036667b26d75722529685b1",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 400 toilet outage"
+  },
+  {
+   "answer": "09e4315eb1e8ece1f741aeb7a85f1d0ffbc0c65c2a98b6783ae44c26d76f7d94",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 0 toilet outage"
+  },
+  {
+   "answer": "3b551468af16774ac2b186a0132bf33c19ac53c26d6cc99c033feb671769e929",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day ８ 14：00 トイレ故障"
+  },
+  {
+   "answer": "1c6f234c04f8cc56120037a74a360badefd0cb41a2e5520b94ec61e8181e3fc1",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 2 ２時 トイレ故障"
+  },
+  {
+   "answer": "d982ec24ac528d365cfe9adfd10f0ae10a3b67dc20cd01d0355731c9a979ae97",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 2 ٣:٠٠ toilet outage"
+  },
+  {
+   "answer": "16882a59c28e58c42da7383325b28cf9c1f075ef523c7934a025c07b6bc31ffd",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 2 午前11時30分 トイレ1基故障"
+  },
+  {
+   "answer": "e469d81fd0e53d1db776a8d8d8a01411111801ac6d27e3e70c8b7047753c9212",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 2 12am toilet outage"
+  },
+  {
+   "answer": "f7a3926217c5805f15c00eadb9533cb5cce0ef67cbc8d8c60bc8fe40946d8fb3",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 2 24:00 toilet outage"
+  },
+  {
+   "answer": "9fb31046e8eb64183d1c8d146d5827cd4dbeed6fae2cad8cc6d6e1ed8bf503e3",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 2 13:75 toilet outage"
+  },
+  {
+   "answer": "98e6f0b29cf5115d4da5da88a1d3d13fe71fa90e6a90667a96a8478f3226cfbb",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "連絡先 test@example.com 090-1234-5678 Day4 トイレ故障"
+  },
+  {
+   "answer": "8fbcf600b3e5f065fde4dee4d28f0560fca3816376dcfa613fa8fdc539a75efc",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "電話 0312345678901 day 2 add 3 staff"
+  },
+  {
+   "answer": "e24dc51259376fdf48ca80886b69ca49e579a3091c9e8997f5b128d39f43e7a9",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 5 water station outage from 10:00 to 12:00"
+  },
+  {
+   "answer": "5d4104808810c44e71c3fa4b386517309c5c208a8727861af2c0ce9e9d2fbbaf",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day5 water_station_main outage 10:00-12:00"
+  },
+  {
+   "answer": "5c2e1a0eac0c3440cf8713dd17103eaf1e081b4b07a04a6fdd5806b7b8b2b737",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 6 13:00 facility outage"
+  },
+  {
+   "answer": "46a273a8a198cbe003a397c7c6113f191163ed6485b8c9bff12b210c03a4739b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 6 13:00 施設が停止"
+  },
+  {
+   "answer": "a478c136fdd661cc73ce412057e1deae57957b9a33dbaf271b3745433ae60a6b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 6 toilet-1 broken"
+  },
+  {
+   "answer": "4b1932fe5b8435afdb72048aefcb0a2deeaf2838caa8f37092af9cddbab003cf",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 6 Restroom 1 broken"
+  },
+  {
+   "answer": "fe07d59a024a8326e91e300b91542be0aa55ba3cc8bc164d3c771899ba0fea7e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 7 23:59 add 1 toilet"
+  },
+  {
+   "answer": "765de6437858f6f6e97766fa9e8f3ea505b289af5e234ffd18e4395e01351d70",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "DAY 3 ADD 20 TOILETS"
+  },
+  {
+   "answer": "fa7622a8054e40784f6073ac2439ad5dd3b169645c642be87948b3b0cff89713",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "三十五人のスタッフを追加"
+  },
+  {
+   "answer": "795d2bb81909e4590604157eb27b441c10e56f7b8bd5a219678a922e50522c41",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "十二人のスタッフを追加"
+  },
+  {
+   "answer": "44d7d1aa8c24b935e6c39c4877e59249fb4a5a0639c01706fdb0ca99530008ef",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "二十人の職員を追加"
+  },
+  {
+   "answer": "46132414ffbf8f841d90c65f9034af72a47077a092aba020f41bc246aac06a9e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 1 add +3 staff"
+  },
+  {
+   "answer": "f6625f99736669d9df4d5eed0110fdde0c41429111f2b37c7a62814279904e02",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 3 install 2 toilets then add 1 staff and water outage 9:00-10:00"
+  },
+  {
+   "answer": "99151e0072bc6b7ea62005099c0dcd0608339958a2a9bd9bb7a4e31ea97edad9",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "トイレ\u001cを2基追加"
+  },
+  {
+   "answer": "0682513d2fd7071f7d74f79a5c751e870780cba07ca4a9723a6185f3bf595a34",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "  Day 2   add 2 staff  "
+  },
+  {
+   "answer": "3d5d732e96df34b5c3ca1a4553c2628f79a246b099ee2902b38522fdfefd0a7b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "雨が降る"
+  },
+  {
+   "answer": "775d5ab43a6272b81c4156348ec210086df0bc409bcad163554a7847f6b8e9a7",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "toilet"
+  },
+  {
+   "answer": "f3da84b6096d1a354ae9da9aa5c1661eb40eacbcb4795fe519d4034d1c47d949",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 2 10:00 zones add 2 staff"
+  },
+  {
+   "answer": "ec6b66f10854f7a2612cba981046195da5b8204c56dbe489855b3059dbfbc193",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 1 6:00 evacuees depart 3"
+  },
+  {
+   "answer": "02826d33f58c7aab1a68bc710960bbe60716f91f299c10823b6d9b0ee28ad6a6",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 1 6:00 remove 3 evacuees"
+  },
+  {
+   "answer": "e805048413becc431886a384bc938b78e476c65fe668b208c9c7f91edca8f401",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 1 10:00 toilet-1 outage and add 2 staff"
+  },
+  {
+   "answer": "b89392e9129a72c7ad30bc26f303eb3453d47d4d11f49a7f2f5664b4106ec14e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 1 10:00 toilet_01 outage, add 2 staff"
+  },
+  {
+   "answer": "719698508d6e2197ec2209b716c680208b8198abc03ee17a490e03178b54277f",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 1 10:00から12:00まで toilet_01 1基 outage"
+  },
+  {
+   "answer": "36b2e4fa7eff0e1fd510e39c836cc121f24c020556440a8985069559e2d40382",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 1 10:00 to 12:00 water outage"
+  },
+  {
+   "answer": "1b850e139c8b8614833c154fabe21e8016d6fcfb6799a6c09acc698ed7d06919",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 1 9:00-11:00 断水、スタッフを3人追加"
+  },
+  {
+   "answer": "b9d5d7de1cfaaa66606bb9ffac7af8d6b43ae9a49857910a446a5633fc696796",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 1 9:00-11:00 断水、トイレ1基故障"
+  },
+  {
+   "answer": "151e56d3bd234b9c48e07c20939027cee4a13f454f9619bc61107e71c1d0d4d1",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 1 05:00 避難者が10人到着、スタッフを2人追加"
+  },
+  {
+   "answer": "8267ecb43e6bfac3affd4e8ed6ea51995c2ce7af59dddf1d3d1131ba65d5f575",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "multi_operational",
+   "text": "Day 1 05:00 evacuees 2 depart"
+  },
+  {
+   "answer": "9a9624058fb50257cb8f4e53827e4810492525dddd22a1fb99d2709d46f8d173",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day4 14:00にトイレ2基故障"
+  },
+  {
+   "answer": "ded50b9f466cea2caece4cd94629f90b1250294a270bbaa4e9eb862d2e88b87d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "4日目14時にトイレ二基が故障"
+  },
+  {
+   "answer": "255ba07604fc9ab6947447ddfdb063e664cbf71dfcb6df879bf0b6481e5759ee",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "4日目午後2時に便器1台が壊れた"
+  },
+  {
+   "answer": "c270792edef1d21cd0bd8d50c92b5d22d39564063c196ae46d03901083399fcc",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 4 at 2pm toilet 2 fail"
+  },
+  {
+   "answer": "43b780aac8eb91aa3d7493481983b40d3815004186e4e94f4cadca3aa9a631e4",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 4 staff 2 add"
+  },
+  {
+   "answer": "0c382fc79df402c528d7a10478aa884f0da8bd1d097b8ea375cdfe53cba5e9b8",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "4日目にスタッフを2人追加"
+  },
+  {
+   "answer": "445356e6c79fc99b834337462f118b3537debd71c3b7d2143d2317b15a4aac03",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "4日目に職員二名増員"
+  },
+  {
+   "answer": "5ac32949d8a5876929b50fb06c9b76ac32cd4effb81f8fcc3e959e36aeeff4e1",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day4 add 2 toilets"
+  },
+  {
+   "answer": "11b1c32ebd78df2e6fd50c740c5770ec34c4ea92d2185e1d4b68f29a1e960c06",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "4日目に仮設トイレを2基追加"
+  },
+  {
+   "answer": "8c8f1f151544e24d893f83c10f00a9eda6af4dacce687c58c6a807ed7e20df74",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "4日目にトイレが使えなくなる"
+  },
+  {
+   "answer": "24248d898575468f3a0f5243cda65adb43854724eb97e04d792ecddb5eccc58f",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "4日目にトイレ二基の利用を停止"
+  },
+  {
+   "answer": "0e33a88cc9e9f63e56b55dc15f8aa1666ae07dcf0d5df70d6450a81f8968b2e7",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "4日目スタッフ二人追加"
+  },
+  {
+   "answer": "511e075ed5c779e5a3b9bc323d07168d40630d3da3a5c0f3f96031596ae5cc0d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "4日目にスタッフを二人増やす"
+  },
+  {
+   "answer": "cfd7892f6baae9563b9d250d47f94dc81bc6b88653deaa32cf565d1e7ab7519a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day4 water outage"
+  },
+  {
+   "answer": "280f9cbad5361e71b12960b5de9365b826a7f42d554b483cbd452f212e8e6458",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "4日目に断水"
+  },
+  {
+   "answer": "bc4d1ca3679224f8e5354fb9de68a193550959fa5f0d125ae1398e06cf32d28c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "4日目の給水が停止"
+  },
+  {
+   "answer": "5ee0be1e905e4eff7814d684f13b45407ecb05cb6ca81f26f411bcb2a8691fb8",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 4 14:00 toilet_01 outage"
+  },
+  {
+   "answer": "53e44ec89fa3ff1f8692da57f7b24e0ab722918f1b21e94c570329f39a184818",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 1 10:00から12:00まで断水"
+  },
+  {
+   "answer": "2490fca35d3112d12ead6c246d83d4035894258d0571ade3227ae5210066a0de",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 2 9:00 to 17:00 water outage"
+  },
+  {
+   "answer": "ce23e610d7cc67ee83fe917ea1374de064271c065286ca42a2e3bd6470a9b52c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day4 toilet 2 failure and staff 2 added"
+  },
+  {
+   "answer": "764560e686d0ecddddd1a899a3096a4ac0e80be629c7a999475bfb30e1c934d8",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 3 08:00 トイレ1基故障、スタッフを3人追加"
+  },
+  {
+   "answer": "invalid",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "2026-10-14 14:00から16:00まで toilet outage"
+  },
+  {
+   "answer": "invalid",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "10/13 9am toilet outage"
+  },
+  {
+   "answer": "1449490d8a3c8921a452fd743f94ea4e0fe6e4f7791d02ea1a364d421708494e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "2026-02-30 toilet outage"
+  },
+  {
+   "answer": "9abfb68df615af565eb0abc6854cd588ee4c1c2b21e291e084312633de7f71c9",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "午後にトイレが故障"
+  },
+  {
+   "answer": "13e6057b75bdfd3a58d7347959e54f1171813ceed4827aec10e6b542d957c0fa",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "翌朝トイレが故障"
+  },
+  {
+   "answer": "f4724d02813ab3cbef4c21b1139459b89bb8087a74a81d0dca8b885578dc2cca",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "next morning add 2 staff"
+  },
+  {
+   "answer": "c60ae214dee4f4e765851c0d3f66daf521540ce6cad8b3efe829c53bdaae18d5",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day4 staff -2 add"
+  },
+  {
+   "answer": "758aa32292817238db1ecbcc89bb34d0fc14e8692c1ae8c91b3260b3a3ca610a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day4 staff 1000 add"
+  },
+  {
+   "answer": "1ee060104c4be0291000384d869d5a87c235a2cd6295fca03b107d9d2b1051b7",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day4 toilet 5 fail"
+  },
+  {
+   "answer": "8a3a7966b5d1696702bb1f35adb01f41115e07905061a8270a6e04f290253a8f",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "トイレを30基追加"
+  },
+  {
+   "answer": "0acf10a293581a6b330e1aec04285fa3ddb23b91e07af82380ddd9780c393154",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "感染者を1000人増やして"
+  },
+  {
+   "answer": "c1b66c900eeeffb21b28ad31b67a7cc22b841264d0417387963b428b66753ac4",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day4 toilet missing-restroom failure"
+  },
+  {
+   "answer": "38b9236a377ac58a2d07424d7fa840e65b3111ddd4bedd3260eca5f6d97e1599",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "zone_id: sleeping スタッフを2人追加"
+  },
+  {
+   "answer": "9a9ebdea5f86ea0f2c0801a58909093430cd35ba7cf9a184c40dcddbec2dbc4f",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "zone: nowhere add 2 staff"
+  },
+  {
+   "answer": "a9e237b210a9321b108024d5bd112d0eb53ee71e19571d870ecb1db38a8dc71c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "避難スペースエリアにスタッフ2人追加"
+  },
+  {
+   "answer": "8eb47c5f2c246428c1d3ccf8632f4b052f46cd2e7a6891d0d46acb51d61f0306",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "トイレを1基追加"
+  },
+  {
+   "answer": "5f6a7c9a29d7c99f83e65e1e3bd5793ebe1ce9477409ac9a21c053c60b148da0",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "スタッフを2人追加"
+  },
+  {
+   "answer": "9eedda038997c9f020522c501de974d2c03f137dc68402ec6f82f3fa8b520ac3",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "避難者が10人到着"
+  },
+  {
+   "answer": "75d59edd8bfd35f9641c1db07967ccd8c643fcc512b5525d2f74fe5937cc209a",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 2 12:00 避難者5人が帰宅"
+  },
+  {
+   "answer": "f978f6b3376da049683e28603f5830d64a88824568a43dce300a12cb64f409b1",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 2 10:00から11:00まで避難者3人が到着"
+  },
+  {
+   "answer": "f9a659f007bb1c027fd3b91e763d61723d9fc61284b27b58e5318b9e9b94fff5",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "evacuees 4 arrive at 13:00"
+  },
+  {
+   "answer": "0b1b42d7e914918736cf9c4191f2aaa069b6c1cc77e9eabfc69e043e269d4328",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day4 14:00にトイレ2基故障、さらに雨が降る"
+  },
+  {
+   "answer": "490d65c295d6e6d1ce967ee5f8a70b57ec5695b272791f625ec298667d5d5cf8",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 3 7:00 toilet outage while the generator is down"
+  },
+  {
+   "answer": "d5a658dcab6c4d1082f69fe879e52ccb6bbcc769faa3e4c1d491db3591ac0211",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 4 14:00 18:00 20:00 toilet outage"
+  },
+  {
+   "answer": "2277c8b017ef1d90367b51e109503836b5a37d1acc2c33dfa1cd99743c83a2d6",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 4 14:00 and 16:00 toilet outage"
+  },
+  {
+   "answer": "e5d10e996ee55ad9ec6937a676cf9ccc7eee890473056240cab5d7966bf7c8ee",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 2 14:00 toilet outage, Day 3 10:00 add 2 staff"
+  },
+  {
+   "answer": "613717e920c21ef873d212a0ea62b729d20cf9ebb924ceb34ed9220bfccb907c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 400 toilet outage"
+  },
+  {
+   "answer": "9aed24d0df9677d0ce21beb8a4982cd37d656c205a4cf20b4049a44df5d80804",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 0 toilet outage"
+  },
+  {
+   "answer": "c7909c1bd0b678edddf2faff7e16a19c3982c3ca6a10c71ab0cc602f68a3e809",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day ８ 14：00 トイレ故障"
+  },
+  {
+   "answer": "a80eef0bd8351108a2bb031b6a8b069934fa54731e48d1be353cefe2a24b528e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 2 ２時 トイレ故障"
+  },
+  {
+   "answer": "d557ffe1e234ba222c4d0fb223aacdc4c7ca57ec67e9969778b47083ce338b8b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 2 ٣:٠٠ toilet outage"
+  },
+  {
+   "answer": "e7457808cb0eb58638e2efe0b32ff83e4868863b95ed53144df110e2ec895d8d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 2 午前11時30分 トイレ1基故障"
+  },
+  {
+   "answer": "e14ea00e4f23520f352a7ac9eb9ce8041d8b45735d5faeb0403046ff62252ce6",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 2 12am toilet outage"
+  },
+  {
+   "answer": "74cfba00599378e9c75fbee2daa8910e0db28208ac6077c3b3979b59d432bc27",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 2 24:00 toilet outage"
+  },
+  {
+   "answer": "0199d865e65fda9634287cea71ffd54dabc24cd99b1eb6767e7d0da0d78ea26e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 2 13:75 toilet outage"
+  },
+  {
+   "answer": "a04094d918026243db46634ce58de94962bec68ee896aa2d441936a925317b42",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "連絡先 test@example.com 090-1234-5678 Day4 トイレ故障"
+  },
+  {
+   "answer": "4de58bdab31d5c751bf7411b55fc25ea9947942bb08b6eacc13ad5e27fcd3546",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "電話 0312345678901 day 2 add 3 staff"
+  },
+  {
+   "answer": "9ab2f789e57047b7da0080c19f596783a1c196ab59963b4f5fccb31c85773864",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 5 water station outage from 10:00 to 12:00"
+  },
+  {
+   "answer": "8e8c2275946c69a6a11862e3dc867130edadd84e5d68853db3a8dabe9fb34e7b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day5 water_station_main outage 10:00-12:00"
+  },
+  {
+   "answer": "864144c0e41747d2deb5bd8edb36c0701cedb1eba72d3d49a9fd24731e35dabc",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 6 13:00 facility outage"
+  },
+  {
+   "answer": "695c09e08b15965e437e6ab50fd753a7c50ecb1d94bfea3a7c6bc4c16be72d14",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 6 13:00 施設が停止"
+  },
+  {
+   "answer": "d8b6e73354d79a94124d7b909a77996f450196c4ee406e66fbbc84e027bd6e24",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 6 toilet-1 broken"
+  },
+  {
+   "answer": "9a444b55ef5a066e9690c70e8991e6525456845564ddbf48512311f032436f2c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 6 Restroom 1 broken"
+  },
+  {
+   "answer": "83152f744b414593ace326c13b76ee65b2d920ff8cc2b2ba1c9c5f779ab4396c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 7 23:59 add 1 toilet"
+  },
+  {
+   "answer": "43af79febf665ba1147089c7cc84af50230030bc14552d868bc0aa85c27ffc89",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "DAY 3 ADD 20 TOILETS"
+  },
+  {
+   "answer": "8aa7174d1b42414a9759d1e5cb091009b070a67ddeed44626815bf0f6e3ab8a1",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "三十五人のスタッフを追加"
+  },
+  {
+   "answer": "a3ab4610b038381ab32d939229eff79cb1f42d55951519673d8b26d6ea2ffd9f",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "十二人のスタッフを追加"
+  },
+  {
+   "answer": "33db82d917258abb5a40e4d6d7e4abe245155329c9d1c4d868cb615ff946f47e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "二十人の職員を追加"
+  },
+  {
+   "answer": "dd446b1fd7ce3e3f74eb6a9261d1b292e616e0dc1523af5c1008623b01524e93",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 1 add +3 staff"
+  },
+  {
+   "answer": "5ac911874d858d14931d6e1b45f97b10ef55935c7ca8448ed8e13e11467ea7b5",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 3 install 2 toilets then add 1 staff and water outage 9:00-10:00"
+  },
+  {
+   "answer": "f13759cbf802745e8b84337ffe5ca65deed1876be4297848587a906f10e9cb50",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "トイレ\u001cを2基追加"
+  },
+  {
+   "answer": "bc962354996d871d841e6f9aa103cf1727c4bfaf95b89614a7b8002202f427f2",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "  Day 2   add 2 staff  "
+  },
+  {
+   "answer": "bf831cbce3278815fab3181513f14d9b5ea5794ac66432def8b7c503034f101b",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "雨が降る"
+  },
+  {
+   "answer": "35463223357122adcdf28545c4ffd848de876dcd34abebe8fbf658266275546d",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "toilet"
+  },
+  {
+   "answer": "5027292e28c3453d2a4494291564f10855ddb9a90f933b6243c1f566fc48a2d7",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 2 10:00 zones add 2 staff"
+  },
+  {
+   "answer": "8c50c1579fcf19f8652aaaaf8365cc33d2929eae72114594254ff7b718c8f8c7",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 1 6:00 evacuees depart 3"
+  },
+  {
+   "answer": "461eed6de34356552a1c6ac98eec6fb16dce87f5e265a2c530cb646a8471ff7e",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 1 6:00 remove 3 evacuees"
+  },
+  {
+   "answer": "d5a91906fbc455bfe5ef134d1409668646b798d05cc151979640ab00f8d443cb",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 1 10:00 toilet-1 outage and add 2 staff"
+  },
+  {
+   "answer": "b4db96977d68b6d85715b99c96426541aa7859e56a95f803ae9762705c9ea95c",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 1 10:00 toilet_01 outage, add 2 staff"
+  },
+  {
+   "answer": "9b914e990e6749cd9c73343721372101289e3251c12c81bcdf7ca580bbd7ecb9",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 1 10:00から12:00まで toilet_01 1基 outage"
+  },
+  {
+   "answer": "3456e4e950d395e24235ca25bba3ce71bb818743100d9ff7eda72f41e06775ce",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 1 10:00 to 12:00 water outage"
+  },
+  {
+   "answer": "e850b1e305cb768c3b259ae618b875b48aa9a0db076746d1bf0f96f0211f69f6",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 1 9:00-11:00 断水、スタッフを3人追加"
+  },
+  {
+   "answer": "74f59fd5ba4844a1137f056dccc3c4b18b69175de821916623b6f9238b536996",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 1 9:00-11:00 断水、トイレ1基故障"
+  },
+  {
+   "answer": "f6b5b826507e62579905357238ff948eff11218bcb877cbab0bc139c202ab2b2",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 1 05:00 避難者が10人到着、スタッフを2人追加"
+  },
+  {
+   "answer": "63a4fe82eea464efd78def737af598166aa1b525ae37bd1d2a385888e7e800a3",
+   "branch_id": "main",
+   "minute": 60,
+   "summary": "generated_7d",
+   "text": "Day 1 05:00 evacuees 2 depart"
+  },
+  {
+   "answer": "4ad87a6eb54b7760dd976f57b8d39bb1d7432b3ecfd9260cc7c7f0f140e4df61",
+   "branch_id": "child-1",
+   "minute": 3000,
+   "summary": "parser",
+   "text": "Day4 14:00にトイレ2基故障"
+  },
+  {
+   "answer": "b6c6ce06b153ac7ecdb89fb7bf5edb405364e4fcfc918b3474874f55ec0def2f",
+   "branch_id": "child-1",
+   "minute": 3000,
+   "summary": "parser",
+   "text": "4日目14時にトイレ二基が故障"
+  },
+  {
+   "answer": "25ea235589676ae623021759eba4c20e0a7806addded7bfe281643a0f1c0ddcc",
+   "branch_id": "child-1",
+   "minute": 3000,
+   "summary": "parser",
+   "text": "4日目午後2時に便器1台が壊れた"
+  },
+  {
+   "answer": "269b364633c5c1f74cb94b8451b4e550752394ea2d09869b40d0a8c4ce9dc3a2",
+   "branch_id": "child-1",
+   "minute": 3000,
+   "summary": "parser",
+   "text": "Day 4 at 2pm toilet 2 fail"
+  },
+  {
+   "answer": "bc11eac9cde267882c9aca1db6cd7dc7523a61b2945b8e44e0dd3b617f324e9d",
+   "branch_id": "child-1",
+   "minute": 3000,
+   "summary": "parser",
+   "text": "Day 4 staff 2 add"
+  },
+  {
+   "answer": "b2eebc513f76d671c632314280bd157abf6e22d72ed1afe237d3c83fc09537ee",
+   "branch_id": "child-1",
+   "minute": 3000,
+   "summary": "parser",
+   "text": "4日目にスタッフを2人追加"
+  },
+  {
+   "answer": "7290110812173ca0d414e0ec78cd3715ba390010a12a8511050f4a66a7031db8",
+   "branch_id": "child-1",
+   "minute": 3000,
+   "summary": "parser",
+   "text": "4日目に職員二名増員"
+  },
+  {
+   "answer": "f2975f2ee784702e6b71b2de384077888f8bf994d754d9ded77476e7c2d9ea35",
+   "branch_id": "child-1",
+   "minute": 3000,
+   "summary": "parser",
+   "text": "Day4 add 2 toilets"
+  },
+  {
+   "answer": "90375afdab84371ca7d0551e4110d304459bfbd14da92a3e317324b4b7919eac",
+   "branch_id": "child-1",
+   "minute": 3000,
+   "summary": "parser",
+   "text": "4日目に仮設トイレを2基追加"
+  },
+  {
+   "answer": "4e9c8f0cd6b88bf6b7f69142f5bac37632f863a84dd2b773ca6c9589ebfbc7f3",
+   "branch_id": "child-1",
+   "minute": 3000,
+   "summary": "parser",
+   "text": "4日目にトイレが使えなくなる"
+  },
+  {
+   "answer": "e11e34274d4485eede00180cdf281ee7375750dbf543ea2279c6de47de96670f",
+   "branch_id": "child-1",
+   "minute": 3000,
+   "summary": "parser",
+   "text": "4日目にトイレ二基の利用を停止"
+  },
+  {
+   "answer": "175deed12856434dbdc4614b9cfa93b6e99cf108829c9611ae982a831710ec2b",
+   "branch_id": "child-1",
+   "minute": 3000,
+   "summary": "parser",
+   "text": "4日目スタッフ二人追加"
+  },
+  {
+   "answer": "ee01eec4bf1bd2e8ecb18655869e382a752d8e068d121f80d83555ba95421d3a",
+   "branch_id": "main",
+   "minute": 1439,
+   "summary": "parser",
+   "text": "Day4 14:00にトイレ2基故障"
+  },
+  {
+   "answer": "36bc6aa4f29d5c447b3eaabf8c4106d4008a62ad2c70b97a010afc4642c1befc",
+   "branch_id": "main",
+   "minute": 1439,
+   "summary": "parser",
+   "text": "4日目14時にトイレ二基が故障"
+  },
+  {
+   "answer": "da7d9ebe02329cc899f26c54ba6e6fc6e1fa470a8e5031223f6a930302569b6f",
+   "branch_id": "main",
+   "minute": 1439,
+   "summary": "parser",
+   "text": "4日目午後2時に便器1台が壊れた"
+  },
+  {
+   "answer": "840407257fd010e46678ef5fbaab23763e9698bcd705ec9f01c11d4aacbda6cc",
+   "branch_id": "main",
+   "minute": 1439,
+   "summary": "parser",
+   "text": "Day 4 at 2pm toilet 2 fail"
+  },
+  {
+   "answer": "3b3a2fe04129c3ee5cd1685043fd93bd69c24773e733805a1af85450cfbd8360",
+   "branch_id": "main",
+   "minute": 1439,
+   "summary": "parser",
+   "text": "Day 4 staff 2 add"
+  },
+  {
+   "answer": "6b321b96cc9e105a567b36f405ebb1cb6f7f64f04b195c6b515e30f29cf651a4",
+   "branch_id": "main",
+   "minute": 1439,
+   "summary": "parser",
+   "text": "4日目にスタッフを2人追加"
+  },
+  {
+   "answer": "7d0d769a76dc35e6982b586855c38d2ee82ab7826581519dd046f14228ff9762",
+   "branch_id": "main",
+   "minute": 1439,
+   "summary": "parser",
+   "text": "4日目に職員二名増員"
+  },
+  {
+   "answer": "dac025ee8b7c1dea89f18d930cab7091e1aac7af8e2fe8fcae7581fa1bcda603",
+   "branch_id": "main",
+   "minute": 1439,
+   "summary": "parser",
+   "text": "Day4 add 2 toilets"
+  },
+  {
+   "answer": "b01bbdab2fd512567f7883336adff389dda43e2dd1084039a4a36a41f246792d",
+   "branch_id": "main",
+   "minute": 1439,
+   "summary": "parser",
+   "text": "4日目に仮設トイレを2基追加"
+  },
+  {
+   "answer": "e6a88b8fc93352cb04770a53c9a7fef75a9320b95f507147168eda601944f6fc",
+   "branch_id": "main",
+   "minute": 1439,
+   "summary": "parser",
+   "text": "4日目にトイレが使えなくなる"
+  },
+  {
+   "answer": "937e424608e858b5b086c49126b7702412159d6381b43242c47458db960ff81c",
+   "branch_id": "main",
+   "minute": 1439,
+   "summary": "parser",
+   "text": "4日目にトイレ二基の利用を停止"
+  },
+  {
+   "answer": "5388a2b4e30fe7e227912a9f4cddf89998cd6678e466aefb40d51b37166a20bc",
+   "branch_id": "main",
+   "minute": 1439,
+   "summary": "parser",
+   "text": "4日目スタッフ二人追加"
+  },
+  {
+   "answer": "invalid",
+   "branch_id": "main",
+   "minute": 0,
+   "summary": "shelter",
+   "text": ""
+  },
+  {
+   "answer": "invalid",
+   "branch_id": "main",
+   "minute": 0,
+   "summary": "shelter",
+   "text": "ああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああ toilet outage"
+  },
+  {
+   "answer": "invalid",
+   "branch_id": "main",
+   "minute": 0,
+   "summary": "shelter",
+   "text": "あああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああ"
+  },
+  {
+   "answer": "invalid",
+   "branch_id": "main",
+   "minute": 0,
+   "summary": "shelter",
+   "text": "Day 2 toilet xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx broken"
+  },
+  {
+   "answer": "invalid",
+   "branch_id": "main",
+   "minute": 1440,
+   "summary": "shelter",
+   "text": "Day 2 add 2 staff"
+  },
+  {
+   "answer": "invalid",
+   "branch_id": "-bad",
+   "minute": 0,
+   "summary": "shelter",
+   "text": "Day 2 add 2 staff"
+  }
+ ],
+ "summaries": {
+  "empty": {
+   "agent_count": 0,
+   "available_policies": [
+    "staff_operations"
+   ],
+   "available_staff_ids": [],
+   "default_zone_id": null,
+   "duration_minutes": 2880,
+   "facilities": [],
+   "pending_shipments": [],
+   "person_ids": [],
+   "person_targets_truncated": false,
+   "resource_ids": [],
+   "route_ids": [],
+   "staff_ids": [],
+   "start_date": null,
+   "warehouse_id": null,
+   "zone_environment_settings": null,
+   "zones": []
+  },
+  "generated": {
+   "agent_count": 20,
+   "available_policies": [
+    "facility_capacity",
+    "geometry_overlay_v1",
+    "operational_events_v1",
+    "population_dynamics_v1",
+    "population_lifecycle_v1",
+    "population_presence_v1",
+    "resource_ledger_v1",
+    "resource_service_v1",
+    "staff_operations",
+    "zone_environment_v1"
+   ],
+   "available_staff_ids": [
+    "staff_001",
+    "staff_002",
+    "staff_003"
+   ],
+   "default_zone_id": null,
+   "duration_minutes": 360,
+   "facilities": [
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "accessible_toilet_01",
+     "kind": "toilet",
+     "name": "accessible_toilet_01",
+     "working_units": 1,
+     "zone_id": "toilet"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "intake_desk",
+     "kind": "intake",
+     "name": "intake_desk",
+     "working_units": 1,
+     "zone_id": "intake"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "meal_distribution_main",
+     "kind": "meal_distribution",
+     "name": "meal_distribution_main",
+     "working_units": 1,
+     "zone_id": "food"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "medical_desk",
+     "kind": "medical_support",
+     "name": "medical_desk",
+     "working_units": 1,
+     "zone_id": "medical"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "quiet_support",
+     "kind": "quiet_space",
+     "name": "quiet_support",
+     "working_units": 1,
+     "zone_id": "quiet"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "toilet_01",
+     "kind": "toilet",
+     "name": "toilet_01",
+     "working_units": 1,
+     "zone_id": "toilet"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "water_station_main",
+     "kind": "water_station",
+     "name": "water_station_main",
+     "working_units": 1,
+     "zone_id": "food"
+    }
+   ],
+   "pending_shipments": [],
+   "person_ids": [
+    "A001",
+    "A002",
+    "A003",
+    "A004",
+    "A005",
+    "A006",
+    "A007",
+    "A008",
+    "A009",
+    "A010",
+    "A011",
+    "A012",
+    "A013",
+    "A014",
+    "A015",
+    "A016",
+    "A017",
+    "A018",
+    "A019",
+    "A020"
+   ],
+   "person_targets_truncated": false,
+   "resource_ids": [
+    "food_meal_units",
+    "water_ml"
+   ],
+   "route_ids": [
+    "route_corridor_food",
+    "route_corridor_intake",
+    "route_corridor_medical",
+    "route_corridor_quiet",
+    "route_corridor_sleeping",
+    "route_corridor_staff",
+    "route_corridor_toilet",
+    "route_food_corridor",
+    "route_intake_corridor",
+    "route_medical_corridor",
+    "route_quiet_corridor",
+    "route_sleeping_corridor",
+    "route_staff_corridor",
+    "route_toilet_corridor"
+   ],
+   "staff_ids": [
+    "staff_001",
+    "staff_002",
+    "staff_003"
+   ],
+   "start_date": null,
+   "warehouse_id": "main_warehouse",
+   "zone_environment_settings": {
+    "baseline_by_zone": {},
+    "comfortable_max_temperature_c": 26.0,
+    "comfortable_min_temperature_c": 18.0,
+    "lighting_sleep_efficiency_loss": 0.2,
+    "max_active_modifiers_per_zone": 16,
+    "max_probability_multiplier": 2.0,
+    "max_rest_decision_minutes": 60,
+    "min_probability_multiplier": 0.5,
+    "min_rest_decision_minutes": 1,
+    "noise_rest_efficiency_loss": 0.5,
+    "policy_version": "zone-environment-v2",
+    "privacy_discontent_per_minute": 0.0001,
+    "schema_version": 1,
+    "source_id": "ASM-H19-ZONE-ENVIRONMENT-V2",
+    "source_type": "assumption",
+    "temperature_stress_per_degree_minute": 0.0001,
+    "ventilation_hygiene_growth_per_minute": 0.0001
+   },
+   "zones": [
+    {
+     "evacuee_count": 0,
+     "has_water_station": false,
+     "id": "corridor",
+     "name": "共用通路",
+     "staff_count": 0
+    },
+    {
+     "evacuee_count": 0,
+     "has_water_station": true,
+     "id": "food",
+     "name": "食事・給水スペース",
+     "staff_count": 2
+    },
+    {
+     "evacuee_count": 0,
+     "has_water_station": false,
+     "id": "intake",
+     "name": "受付",
+     "staff_count": 0
+    },
+    {
+     "evacuee_count": 0,
+     "has_water_station": false,
+     "id": "medical",
+     "name": "救護スペース",
+     "staff_count": 0
+    },
+    {
+     "evacuee_count": 0,
+     "has_water_station": false,
+     "id": "quiet",
+     "name": "静養スペース",
+     "staff_count": 0
+    },
+    {
+     "evacuee_count": 20,
+     "has_water_station": false,
+     "id": "sleeping",
+     "name": "避難スペース",
+     "staff_count": 0
+    },
+    {
+     "evacuee_count": 0,
+     "has_water_station": false,
+     "id": "staff",
+     "name": "運営本部",
+     "staff_count": 1
+    },
+    {
+     "evacuee_count": 0,
+     "has_water_station": false,
+     "id": "toilet",
+     "name": "トイレ",
+     "staff_count": 0
+    }
+   ]
+  },
+  "generated_7d": {
+   "agent_count": 20,
+   "available_policies": [
+    "facility_capacity",
+    "geometry_overlay_v1",
+    "operational_events_v1",
+    "population_dynamics_v1",
+    "population_lifecycle_v1",
+    "population_presence_v1",
+    "resource_ledger_v1",
+    "resource_service_v1",
+    "staff_operations",
+    "zone_environment_v1"
+   ],
+   "available_staff_ids": [
+    "staff_001",
+    "staff_002",
+    "staff_003"
+   ],
+   "default_zone_id": null,
+   "duration_minutes": 10080,
+   "facilities": [
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "accessible_toilet_01",
+     "kind": "toilet",
+     "name": "accessible_toilet_01",
+     "working_units": 1,
+     "zone_id": "toilet"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "intake_desk",
+     "kind": "intake",
+     "name": "intake_desk",
+     "working_units": 1,
+     "zone_id": "intake"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "meal_distribution_main",
+     "kind": "meal_distribution",
+     "name": "meal_distribution_main",
+     "working_units": 1,
+     "zone_id": "food"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "medical_desk",
+     "kind": "medical_support",
+     "name": "medical_desk",
+     "working_units": 1,
+     "zone_id": "medical"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "quiet_support",
+     "kind": "quiet_space",
+     "name": "quiet_support",
+     "working_units": 1,
+     "zone_id": "quiet"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "toilet_01",
+     "kind": "toilet",
+     "name": "toilet_01",
+     "working_units": 1,
+     "zone_id": "toilet"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "water_station_main",
+     "kind": "water_station",
+     "name": "water_station_main",
+     "working_units": 1,
+     "zone_id": "food"
+    }
+   ],
+   "pending_shipments": [
+    {
+     "due_minute": 4320,
+     "id": "region-shipment-001",
+     "resource_id": "water_ml"
+    },
+    {
+     "due_minute": 5760,
+     "id": "region-shipment-002",
+     "resource_id": "water_ml"
+    },
+    {
+     "due_minute": 7200,
+     "id": "region-shipment-003",
+     "resource_id": "water_ml"
+    },
+    {
+     "due_minute": 8640,
+     "id": "region-shipment-004",
+     "resource_id": "water_ml"
+    },
+    {
+     "due_minute": 4320,
+     "id": "region-shipment-005",
+     "resource_id": "food_meal_units"
+    },
+    {
+     "due_minute": 5760,
+     "id": "region-shipment-006",
+     "resource_id": "food_meal_units"
+    },
+    {
+     "due_minute": 7200,
+     "id": "region-shipment-007",
+     "resource_id": "food_meal_units"
+    },
+    {
+     "due_minute": 8640,
+     "id": "region-shipment-008",
+     "resource_id": "food_meal_units"
+    }
+   ],
+   "person_ids": [
+    "A001",
+    "A002",
+    "A003",
+    "A004",
+    "A005",
+    "A006",
+    "A007",
+    "A008",
+    "A009",
+    "A010",
+    "A011",
+    "A012",
+    "A013",
+    "A014",
+    "A015",
+    "A016",
+    "A017",
+    "A018",
+    "A019",
+    "A020"
+   ],
+   "person_targets_truncated": false,
+   "resource_ids": [
+    "food_meal_units",
+    "water_ml"
+   ],
+   "route_ids": [
+    "route_corridor_food",
+    "route_corridor_intake",
+    "route_corridor_medical",
+    "route_corridor_quiet",
+    "route_corridor_sleeping",
+    "route_corridor_staff",
+    "route_corridor_toilet",
+    "route_food_corridor",
+    "route_intake_corridor",
+    "route_medical_corridor",
+    "route_quiet_corridor",
+    "route_sleeping_corridor",
+    "route_staff_corridor",
+    "route_toilet_corridor"
+   ],
+   "staff_ids": [
+    "staff_001",
+    "staff_002",
+    "staff_003"
+   ],
+   "start_date": null,
+   "warehouse_id": "main_warehouse",
+   "zone_environment_settings": {
+    "baseline_by_zone": {},
+    "comfortable_max_temperature_c": 26.0,
+    "comfortable_min_temperature_c": 18.0,
+    "lighting_sleep_efficiency_loss": 0.2,
+    "max_active_modifiers_per_zone": 16,
+    "max_probability_multiplier": 2.0,
+    "max_rest_decision_minutes": 60,
+    "min_probability_multiplier": 0.5,
+    "min_rest_decision_minutes": 1,
+    "noise_rest_efficiency_loss": 0.5,
+    "policy_version": "zone-environment-v2",
+    "privacy_discontent_per_minute": 0.0001,
+    "schema_version": 1,
+    "source_id": "ASM-H19-ZONE-ENVIRONMENT-V2",
+    "source_type": "assumption",
+    "temperature_stress_per_degree_minute": 0.0001,
+    "ventilation_hygiene_growth_per_minute": 0.0001
+   },
+   "zones": [
+    {
+     "evacuee_count": 0,
+     "has_water_station": false,
+     "id": "corridor",
+     "name": "共用通路",
+     "staff_count": 0
+    },
+    {
+     "evacuee_count": 0,
+     "has_water_station": true,
+     "id": "food",
+     "name": "食事・給水スペース",
+     "staff_count": 2
+    },
+    {
+     "evacuee_count": 0,
+     "has_water_station": false,
+     "id": "intake",
+     "name": "受付",
+     "staff_count": 0
+    },
+    {
+     "evacuee_count": 0,
+     "has_water_station": false,
+     "id": "medical",
+     "name": "救護スペース",
+     "staff_count": 0
+    },
+    {
+     "evacuee_count": 0,
+     "has_water_station": false,
+     "id": "quiet",
+     "name": "静養スペース",
+     "staff_count": 0
+    },
+    {
+     "evacuee_count": 20,
+     "has_water_station": false,
+     "id": "sleeping",
+     "name": "避難スペース",
+     "staff_count": 0
+    },
+    {
+     "evacuee_count": 0,
+     "has_water_station": false,
+     "id": "staff",
+     "name": "運営本部",
+     "staff_count": 1
+    },
+    {
+     "evacuee_count": 0,
+     "has_water_station": false,
+     "id": "toilet",
+     "name": "トイレ",
+     "staff_count": 0
+    }
+   ]
+  },
+  "lone": {
+   "agent_count": 0,
+   "available_policies": [
+    "operational_events_v1",
+    "resource_service_v1"
+   ],
+   "available_staff_ids": [],
+   "default_zone_id": null,
+   "duration_minutes": 4320,
+   "facilities": [
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "tank",
+     "kind": "Water_Station",
+     "name": "給水タンク",
+     "working_units": 1,
+     "zone_id": null
+    }
+   ],
+   "pending_shipments": [],
+   "person_ids": [],
+   "person_targets_truncated": false,
+   "resource_ids": [],
+   "route_ids": [],
+   "staff_ids": [],
+   "start_date": null,
+   "warehouse_id": null,
+   "zone_environment_settings": null,
+   "zones": [
+    {
+     "evacuee_count": 0,
+     "has_water_station": false,
+     "id": "hall",
+     "name": "hall",
+     "staff_count": 0
+    }
+   ]
+  },
+  "multi_operational": {
+   "agent_count": 100,
+   "available_policies": [
+    "facility_capacity",
+    "operational_events_v1",
+    "resource_ledger_v1",
+    "resource_service_v1",
+    "staff_operations"
+   ],
+   "available_staff_ids": [
+    "S01",
+    "S02",
+    "S03",
+    "S04",
+    "S05"
+   ],
+   "default_zone_id": null,
+   "duration_minutes": 10080,
+   "facilities": [
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "meal_distribution_main",
+     "kind": "meal_distribution",
+     "name": "meal_distribution_main",
+     "working_units": 1,
+     "zone_id": "sleeping"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "toilet_1",
+     "kind": "toilet",
+     "name": "toilet_1",
+     "working_units": 1,
+     "zone_id": "toilet"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "toilet_2",
+     "kind": "toilet",
+     "name": "toilet_2",
+     "working_units": 1,
+     "zone_id": "toilet"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "toilet_3",
+     "kind": "toilet",
+     "name": "toilet_3",
+     "working_units": 1,
+     "zone_id": "toilet"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "toilet_4",
+     "kind": "toilet",
+     "name": "toilet_4",
+     "working_units": 1,
+     "zone_id": "toilet"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "water_station_main",
+     "kind": "water_station",
+     "name": "water_station_main",
+     "working_units": 1,
+     "zone_id": "sleeping"
+    }
+   ],
+   "pending_shipments": [
+    {
+     "due_minute": 1440,
+     "id": "meals-shipment-day2",
+     "resource_id": "food_meal_units"
+    },
+    {
+     "due_minute": 1440,
+     "id": "water-shipment-day2",
+     "resource_id": "water_ml"
+    }
+   ],
+   "person_ids": [
+    "A001",
+    "A002",
+    "A003",
+    "A004",
+    "A005",
+    "A006",
+    "A007",
+    "A008",
+    "A009",
+    "A010",
+    "A011",
+    "A012",
+    "A013",
+    "A014",
+    "A015",
+    "A016",
+    "A017",
+    "A018",
+    "A019",
+    "A020",
+    "A021",
+    "A022",
+    "A023",
+    "A024",
+    "A025",
+    "A026",
+    "A027",
+    "A028",
+    "A029",
+    "A030",
+    "A031",
+    "A032",
+    "A033",
+    "A034",
+    "A035",
+    "A036",
+    "A037",
+    "A038",
+    "A039",
+    "A040",
+    "A041",
+    "A042",
+    "A043",
+    "A044",
+    "A045",
+    "A046",
+    "A047",
+    "A048",
+    "A049",
+    "A050",
+    "A051",
+    "A052",
+    "A053",
+    "A054",
+    "A055",
+    "A056",
+    "A057",
+    "A058",
+    "A059",
+    "A060",
+    "A061",
+    "A062",
+    "A063",
+    "A064",
+    "A065",
+    "A066",
+    "A067",
+    "A068",
+    "A069",
+    "A070",
+    "A071",
+    "A072",
+    "A073",
+    "A074",
+    "A075",
+    "A076",
+    "A077",
+    "A078",
+    "A079",
+    "A080",
+    "A081",
+    "A082",
+    "A083",
+    "A084",
+    "A085",
+    "A086",
+    "A087",
+    "A088",
+    "A089",
+    "A090",
+    "A091",
+    "A092",
+    "A093",
+    "A094",
+    "A095",
+    "A096",
+    "A097",
+    "A098",
+    "A099",
+    "A100"
+   ],
+   "person_targets_truncated": false,
+   "resource_ids": [
+    "food_meal_units",
+    "water_ml"
+   ],
+   "route_ids": [
+    "corridor_desk",
+    "corridor_sleeping",
+    "corridor_toilet",
+    "desk_corridor",
+    "sleeping_corridor",
+    "toilet_corridor"
+   ],
+   "staff_ids": [
+    "S01",
+    "S02",
+    "S03",
+    "S04",
+    "S05"
+   ],
+   "start_date": null,
+   "warehouse_id": "warehouse-h05",
+   "zone_environment_settings": null,
+   "zones": [
+    {
+     "evacuee_count": 0,
+     "has_water_station": false,
+     "id": "corridor",
+     "name": "Corridor",
+     "staff_count": 0
+    },
+    {
+     "evacuee_count": 0,
+     "has_water_station": false,
+     "id": "information_desk",
+     "name": "Information desk",
+     "staff_count": 3
+    },
+    {
+     "evacuee_count": 100,
+     "has_water_station": true,
+     "id": "sleeping",
+     "name": "Sleeping area",
+     "staff_count": 2
+    },
+    {
+     "evacuee_count": 0,
+     "has_water_station": false,
+     "id": "toilet",
+     "name": "Toilets",
+     "staff_count": 0
+    }
+   ]
+  },
+  "parser": {
+   "agent_count": 0,
+   "available_policies": [
+    "facility_capacity",
+    "operational_events_v1",
+    "resource_service_v1",
+    "staff_operations"
+   ],
+   "available_staff_ids": [],
+   "default_zone_id": "main",
+   "duration_minutes": 10080,
+   "facilities": [
+    {
+     "active_occupancy": 0,
+     "capacity": 4,
+     "id": "toilet-1",
+     "kind": "toilet",
+     "name": "Restroom 1",
+     "working_units": 4,
+     "zone_id": "main"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 4,
+     "id": "toilet-2",
+     "kind": "toilet",
+     "name": "Restroom 2",
+     "working_units": 4,
+     "zone_id": "main"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 1,
+     "id": "water-station",
+     "kind": "water_station",
+     "name": "Water station",
+     "working_units": 1,
+     "zone_id": "main"
+    }
+   ],
+   "pending_shipments": [],
+   "person_ids": [],
+   "person_targets_truncated": false,
+   "resource_ids": [],
+   "route_ids": [],
+   "staff_ids": [],
+   "start_date": "2026-10-12",
+   "warehouse_id": null,
+   "zone_environment_settings": null,
+   "zones": [
+    {
+     "evacuee_count": 0,
+     "has_water_station": true,
+     "id": "main",
+     "name": "Main hall",
+     "staff_count": 0
+    },
+    {
+     "evacuee_count": 0,
+     "has_water_station": false,
+     "id": "sleeping",
+     "name": "Sleeping area",
+     "staff_count": 0
+    }
+   ]
+  },
+  "shelter": {
+   "agent_count": 0,
+   "available_policies": [
+    "facility_capacity",
+    "population_dynamics_v1",
+    "staff_operations",
+    "zone_environment_v1"
+   ],
+   "available_staff_ids": [
+    "s1"
+   ],
+   "default_zone_id": null,
+   "duration_minutes": 1440,
+   "facilities": [
+    {
+     "active_occupancy": 0,
+     "capacity": 2,
+     "id": "toilet_01",
+     "kind": "toilet",
+     "name": "toilet_01",
+     "working_units": 1,
+     "zone_id": "toilet"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 2,
+     "id": "intake_desk",
+     "kind": "intake",
+     "name": "intake_desk",
+     "working_units": 1,
+     "zone_id": "intake"
+    },
+    {
+     "active_occupancy": 0,
+     "capacity": 2,
+     "id": "water_station_main",
+     "kind": "water_station",
+     "name": "water_station_main",
+     "working_units": 1,
+     "zone_id": "food"
+    }
+   ],
+   "pending_shipments": [],
+   "person_ids": [],
+   "person_targets_truncated": false,
+   "resource_ids": [],
+   "route_ids": [],
+   "staff_ids": [
+    "s1",
+    "s2"
+   ],
+   "start_date": null,
+   "warehouse_id": null,
+   "zone_environment_settings": {
+    "baseline_by_zone": {},
+    "comfortable_max_temperature_c": 26.0,
+    "comfortable_min_temperature_c": 18.0,
+    "lighting_sleep_efficiency_loss": 0.0,
+    "max_active_modifiers_per_zone": 16,
+    "max_probability_multiplier": 2.0,
+    "max_rest_decision_minutes": 60,
+    "min_probability_multiplier": 0.5,
+    "min_rest_decision_minutes": 1,
+    "noise_rest_efficiency_loss": 0.5,
+    "policy_version": "zone-environment-v1",
+    "privacy_discontent_per_minute": 0.0,
+    "schema_version": 1,
+    "source_id": "ASM-H19-ZONE-ENVIRONMENT-V1",
+    "source_type": "assumption",
+    "temperature_stress_per_degree_minute": 0.0,
+    "ventilation_hygiene_growth_per_minute": 0.0
+   },
+   "zones": [
+    {
+     "evacuee_count": 52,
+     "has_water_station": false,
+     "id": "food",
+     "name": "食事・給水スペース",
+     "staff_count": 5
+    },
+    {
+     "evacuee_count": 0,
+     "has_water_station": false,
+     "id": "intake",
+     "name": "受付",
+     "staff_count": 0
+    },
+    {
+     "evacuee_count": 38,
+     "has_water_station": false,
+     "id": "sleeping",
+     "name": "避難スペース",
+     "staff_count": 0
+    },
+    {
+     "evacuee_count": 7,
+     "has_water_station": false,
+     "id": "staff",
+     "name": "運営本部",
+     "staff_count": 1
+    },
+    {
+     "evacuee_count": 3,
+     "has_water_station": false,
+     "id": "toilet",
+     "name": "トイレ",
+     "staff_count": 0
+    }
+   ]
+  }
+ }
+}

@@ -58,6 +58,7 @@ FIXTURES: dict[str, str] = {
     "staff_order_texts": "support.core_fixtures_staff_work:staff_order_texts_fixture",
     "frames": "support.core_frames:frames_fixture",
     "api_answers": "support.core_api_answers:api_answers_fixture",
+    "offline_interpreter": "support.core_interpret:offline_interpreter_fixture",
     "scenario_request": "support.core_scenario_request:scenario_request_fixture",
     "scenario_population": "support.core_scenario_population:scenario_population_fixture",
     "scenario_conditions": "support.core_scenario_conditions:scenario_conditions_fixture",

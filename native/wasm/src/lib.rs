@@ -678,3 +678,16 @@ impl Simulation {
         String::from_utf8(metrics).map(Some).map_err(|error| JsError::new(&error.to_string()))
     }
 }
+
+/// What the offline intervention compiler answers (#303, `sheltersim_core::interpret`): the
+/// canonical JSON of the `CompilerResult` for the JSON of a `ParseRequest` (`text`, `branch_id`,
+/// `selected_minute`, `scenario_summary`), or None where Python refuses the request with a
+/// ValueError (the server's 400 "invalid project request").
+#[wasm_bindgen(js_name = compileInterventionOffline)]
+pub fn compile_intervention_offline(request: &[u8]) -> Result<Option<String>, JsError> {
+    match sheltersim_core::interpret::compile_offline(request) {
+        Ok(body) => String::from_utf8(body).map(Some).map_err(|error| JsError::new(&error.to_string())),
+        Err(Error::Value(_)) => Ok(None),
+        Err(error) => Err(js_error(error)),
+    }
+}

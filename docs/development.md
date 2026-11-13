@@ -94,6 +94,12 @@ Branchの指標の時系列（`GET …/history?kind=kpis`）、レポート（`G
 node native/wasm/tests/node_api_answers.mjs wasm-pkg
 ~~~
 
+APIキーなしの介入の読み取り（画面の「ここから別の『もしも』を試す」の文、#303）は、中核の`sheltersim_core::interpret`（WASMの`compileInterventionOffline`）が、Pythonの`compile_natural_language`がAPIキーなしで返す`CompilerResult`と同じbytesで答えます。規則の読み取り、節の網羅、6つの作用の検証、結果の文、usageのhashを移しました。正規表現はPythonの書き方のまま、Pythonの`\w`・`\b`・`\d`・`\s`の意味で動かします（`native/core/src/interpret/text.rs`）。primitiveの説明とschema、10進の数字の表はPythonが書き（`native/core/tools/interpret_tables.py`）、pytestが古くないか確かめます。`native/wasm/tests/node_interpret.mjs`が、`native/core/tests/data/offline_interpreter.json`の文と要約の組で、Pythonの答えと同じsha256になることを確かめます。CIのlintのjobも動かします。
+
+~~~shell
+node native/wasm/tests/node_interpret.mjs wasm-pkg
+~~~
+
 計算済みの例をブラウザーの形で作るには、`scripts/build_browser_sample.py`を使います。VMの計算済みの例（`scripts/build_project_sample.py`）のmainと同じScenario（例文、100人、7日、seed 2026）を、Pythonがofflineの読み取りで作り、記録とevidenceと0分の世界を書き出します。続けてNodeが同じWASMと`run_store.mjs`で7日を計算し、記録を作って1つのファイルにします（`native/wasm/tools/build_project_bundle.mjs`）。ファイルは生成物なので、リポジトリーの外に置きます。`--inputs`を付けると、Pythonの書き出しをそのディレクトリーに残します。
 
 ~~~shell
