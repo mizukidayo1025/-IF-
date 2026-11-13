@@ -83,7 +83,7 @@ Pythonの欄のうち、ブラウザーで意味が変わるもの：
 
 1つのファイル（`sheltersim-project-bundle`、版1、拡張子`.shelterproj`）は、Projectのフォルダーのファイルをそのまま並べたものです。先頭から、16 bytesの印（`0x89`、`SHELTERSIM-PRJ`、`0x0a`）、版（4 bytes、big-endian）、目録の長さ（4 bytes）、目録のsha256（32 bytes）、目録（JSON：`format`、`version`、`project_id`、作った道具の`source`、各entryの`path`・`length`・`sha256`）、各entryのbytesの順です。Branchの保存したRunは、目録のpieceの種類を読まずにファイルごと運ぶので、#251が足す途中の世界もそのまま入ります。
 
-読み込み（`importProject`）は、印、版、目録とentryのsha256、記録どうしの関係（Scenarioのhash、RunのScenario、Branchの親）を確かめてから書き、各Branchの保存したRunを読み戻してdigest（`readAndVerify`）と記録の先頭を確かめます。どれかが合わなければ誤りにし、そのProjectを残しません。`project.json`は最後に書くので、途中で止まったProjectは一覧に出ません。同じIDのProjectがあれば断ります（`replace`では、古いものを先に消します）。違う版のファイルは「版Nは読めない」という誤りにします。
+読み込み（`importProject`）は、印、版、目録とentryのsha256、記録どうしの関係（Scenarioのhash、RunのScenario、Branchの親）を確かめます。続けて、各Branchの保存したRunを、メモリーの中に置いたentryから読み戻し、digest（`readAndVerify`）と記録の先頭を確かめます。すべて合ってから書きます。どれかが合わなければ誤りにし、何も書きません。`project.json`は最後に書くので、途中で止まったProjectは一覧に出ません。同じIDのProjectがあれば断ります。`replace`では、ファイルを確かめ終えてから古いものを消して書きます。そのため、確かめで断られたときは古いProjectがそのまま残ります（#273）。消した後に書き込みそのものが失敗したとき（容量が足りないなど）は、古いProjectは戻らず、新しいものも残りません。違う版のファイルは「版Nは読めない」という誤りにします。
 
 | 関数 | 使う所 |
 |---|---|
