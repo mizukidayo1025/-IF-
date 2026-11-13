@@ -58,6 +58,7 @@ FIXTURES: dict[str, str] = {
     "staff_order_texts": "support.core_fixtures_staff_work:staff_order_texts_fixture",
     "frames": "support.core_frames:frames_fixture",
     "api_answers": "support.core_api_answers:api_answers_fixture",
+    "scenario_facility": "support.core_scenario_facility:scenario_facility_fixture",
     "offline_interpreter": "support.core_interpret:offline_interpreter_fixture",
     "interventions": "support.core_interventions:interventions_fixture",
     "scenario_request": "support.core_scenario_request:scenario_request_fixture",
@@ -69,6 +70,7 @@ FIXTURES: dict[str, str] = {
     "initial_worlds": "support.core_initial:initial_worlds_fixture",
     # Not a test's data: the table the core's minute-0 builder reads (#249), at its own path.
     "initial_table": "support.core_initial:initial_table",
+    "scenario_builder": "support.core_scenario_builder:scenario_builder_fixture",
 }
 # The fixtures whose file is not under native/core/tests/data/.
 PATHS: dict[str, Path] = {"initial_table": INITIAL_TABLE}

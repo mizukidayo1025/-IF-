@@ -738,6 +738,91 @@ impl Simulation {
     }
 }
 
+/// A Scenario the screen's request builds (`buildScenario`, #299): what `scenario-preview`
+/// answers of it, but the text parser's warnings, the research and the IDs, which the route adds.
+#[wasm_bindgen]
+pub struct BuiltScenario {
+    preview: sheltersim_core::scenario::builder::Preview,
+}
+
+#[wasm_bindgen]
+impl BuiltScenario {
+    /// The Scenario's canonical JSON (`ScenarioSpec.canonical_json()`); its sha256 is
+    /// `approvedHash`. Hand it on as bytes: a `JSON.parse` and `stringify` changes `1.0` to `1`.
+    pub fn scenario(&self) -> Vec<u8> {
+        self.preview.built.canonical.clone()
+    }
+
+    #[wasm_bindgen(getter, js_name = approvedHash)]
+    pub fn approved_hash(&self) -> String {
+        self.preview.built.approved_hash.clone()
+    }
+
+    /// `FacilityDesign.model_dump(mode="json")`, as canonical JSON.
+    #[wasm_bindgen(js_name = facilityDesign)]
+    pub fn facility_design(&self) -> Result<Vec<u8>, JsError> {
+        self.preview.facility_design.to_json().map_err(js_error)
+    }
+
+    #[wasm_bindgen(getter, js_name = geometryHash)]
+    pub fn geometry_hash(&self) -> String {
+        self.preview.geometry_hash.clone()
+    }
+
+    /// `InitialScenarioRequest.model_dump(mode="json")`, as canonical JSON (the answer's
+    /// `request`).
+    pub fn request(&self) -> Result<Vec<u8>, JsError> {
+        self.preview.request.to_json().map_err(js_error)
+    }
+
+    /// The builder's warnings, as a JSON list (the route puts the text parser's first).
+    pub fn warnings(&self) -> Result<String, JsError> {
+        texts_json(&self.preview.built.warnings)
+    }
+
+    /// The approval blockers, as a JSON list.
+    #[wasm_bindgen(js_name = approvalBlockers)]
+    pub fn approval_blockers(&self) -> Result<String, JsError> {
+        texts_json(&self.preview.built.approval_blockers)
+    }
+
+    #[wasm_bindgen(getter, js_name = canStart)]
+    pub fn can_start(&self) -> bool {
+        self.preview.built.can_start
+    }
+}
+
+fn texts_json(items: &[String]) -> Result<String, JsError> {
+    let list = V::List(items.iter().map(|item| V::Str(item.as_str().into())).collect());
+    String::from_utf8(list.to_json().map_err(js_error)?).map_err(|error| JsError::new(&error.to_string()))
+}
+
+/// `scenario-preview`'s build (`sheltersim_core::scenario::builder::build`, #299): the request's
+/// JSON bytes (the form's request as posted, or the text parser's), the research's JSON bytes
+/// (`RegionResearchResult.model_dump(mode="json")`), and the input's sha256 and extraction source
+/// (`provenance.scenario_input`); an empty `input_sha256` is the request's own, the sha256 of its
+/// dump's canonical JSON, as the structured form's (`structured_form`). A refusal is an Error whose message starts with
+/// `browser_unsupported: ` (a field or value the browser does not compute) or `builder_refused: `
+/// (the server answers 400 `invalid project request`).
+#[wasm_bindgen(js_name = buildScenario)]
+pub fn build_scenario(request: &[u8], research: &[u8], input_sha256: &str, extraction_source: &str) -> Result<BuiltScenario, JsError> {
+    use sheltersim_core::scenario::builder::{build, Refusal, ScenarioInput};
+    let sha256 = if input_sha256.is_empty() {
+        match sheltersim_core::scenario::request::InitialScenarioRequest::of_json(request) {
+            Ok(parsed) => parsed.input_sha256(),
+            Err(_) => String::new(),
+        }
+    } else {
+        input_sha256.to_owned()
+    };
+    let input = ScenarioInput { sha256, extraction_source: extraction_source.to_owned() };
+    match build(request, research, &input) {
+        Ok(preview) => Ok(BuiltScenario { preview }),
+        Err(Refusal::Unsupported(field)) => Err(JsError::new(&format!("browser_unsupported: {field}"))),
+        Err(Refusal::Invalid(text)) => Err(JsError::new(&format!("builder_refused: {text}"))),
+    }
+}
+
 /// What the offline intervention compiler answers (#303, `sheltersim_core::interpret`): the
 /// canonical JSON of the `CompilerResult` for the JSON of a `ParseRequest` (`text`, `branch_id`,
 /// `selected_minute`, `scenario_summary`), or None where Python refuses the request with a
