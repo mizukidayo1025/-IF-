@@ -5,8 +5,9 @@
 PKG_DIR is the output of `wasm-bindgen --target web` for sheltersim_wasm.wasm, and the bundle the
 sample of scripts/build_browser_sample.py (docs/development.md, "ブラウザー版の静的サイト"). The
 screen's files (src/sheltersim/web/static/demo-v2*) are copied unchanged; the browser build's
-demo-v2.html is the server's with one more line, the script that wraps `fetch` and answers the
-screen's `/api/v1/...` in a Worker from the browser's store and WASM (native/wasm/js/api_fetch.js).
+demo-v2.html is the server's with two more lines: the script that wraps `fetch` and answers the
+screen's `/api/v1/...` in a Worker from the browser's store and WASM (native/wasm/js/api_fetch.js),
+and a style that hides the link to the old screen (/demo), which the site does not have.
 
 The site is served at the root of its domain, as the screen loads `/demo-v2.css` and the like and
 `history.replaceState`s to `/demo-v2?…`:
@@ -16,6 +17,7 @@ The site is served at the root of its domain, as the screen loads `/demo-v2.css`
     /demo-v2                demo-v2.html (a host serving `/demo-v2` from `demo-v2.html`, as
                             Cloudflare Pages, GitHub Pages and Netlify do; for others see the docs)
     /demo-v2.css, /demo-v2*.js, /demo-v2-logo.jpg   the screen's files
+    /LICENSE.txt            the repository's LICENSE
     /browser/               api_fetch.js, api_worker.mjs and the modules it imports, pkg/ (WASM)
     /sample/sample.json     the sample's manifest (browser_api.mjs's SAMPLE_FORMAT) and its parts,
                             sample.shelterproj.000, .001, … of at most --part-mib MiB each
@@ -63,10 +65,13 @@ BROWSER_FILES = (
 PKG_FILES = ("sheltersim_wasm.js", "sheltersim_wasm_bg.wasm")
 SAMPLE_FORMAT = "sheltersim-site-sample"
 SAMPLE_VERSION = 1
-# The line the browser build adds to demo-v2.html, before the screen's first script.
+# The lines the browser build adds to demo-v2.html, before the screen's first script: the script
+# that answers the API, and a style that hides the link to the old screen (/demo), which the static
+# site does not have.
 SHIM = (
     '<script src="/browser/api_fetch.js" data-worker="/browser/api_worker.mjs"'
-    ' data-sample="/sample/sample.json"></script>'
+    ' data-sample="/sample/sample.json"></script>\n'
+    '    <style>a[href="/demo"] { display: none; }</style>'
 )
 FIRST_SCRIPT = '<script src="/demo-v2-scene.js" defer></script>'
 # The bundle's header (native/wasm/js/project_store.mjs): magic, version, manifest length, sha256.
@@ -193,6 +198,8 @@ def build(
     # A missing file is a 404 (Cloudflare Pages without a 404.html answers every path with the
     # root's index.html, as for a single-page app).
     (output / "404.html").write_text(NOT_FOUND, encoding="utf-8")
+    # The repository's license (MIT) travels with the copy of its code the site is.
+    shutil.copyfile(ROOT / "LICENSE", output / "LICENSE.txt")
     # GitHub Pages: serve the files as they are, without Jekyll.
     (output / ".nojekyll").write_bytes(b"")
     files = sorted(path for path in output.rglob("*") if path.is_file())

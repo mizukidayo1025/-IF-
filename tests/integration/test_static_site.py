@@ -81,8 +81,11 @@ def test_the_site_holds_the_screen_the_browser_api_and_the_sample_in_parts(
     added = [line for line in browser_html.splitlines() if line not in server_html.splitlines()]
     assert added == [
         '    <script src="/browser/api_fetch.js" data-worker="/browser/api_worker.mjs"'
-        ' data-sample="/sample/sample.json"></script>'
+        ' data-sample="/sample/sample.json"></script>',
+        '    <style>a[href="/demo"] { display: none; }</style>',
     ]
+    assert '<a href="/demo">' in server_html
+    assert (output / "LICENSE.txt").read_bytes() == (STATIC.parents[3] / "LICENSE").read_bytes()
     assert browser_html.index("/browser/api_fetch.js") < browser_html.index("/demo-v2-scene.js")
     for name in ("api_fetch.js", "api_worker.mjs", "browser_api.mjs", "project_store.mjs"):
         assert (output / "browser" / name).is_file()
