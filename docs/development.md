@@ -196,6 +196,25 @@ python benchmarks/static_site_check.py --site ../hinanjo-if-site --python-projec
 python benchmarks/static_site_check.py --site ../hinanjo-if-site --compute pieces full --output compute-check.json
 ~~~
 
+画面の操作を最初から最後まで通し、APIキーのないPythonのserverと比べるのは、`benchmarks/static_site_e2e.py`です（#311）。PlaywrightのChromiumとFirefoxで、それぞれ空のOPFSから、次の5つの段を人と同じように画面で行います。
+
+1. シナリオ（scenario）：`/demo-v2?project=e2e#scenario`で「例文を使う」→プレビュー→承認（Run）、条件の入力の1例→プレビュー→承認（2つ目のRun）。続けて、1つ目のScenarioを別のIDで`POST runs`し、そのIDへ別のScenarioを`POST runs`します（409 `run_id_conflict`）。
+2. 計算（compute）：1つ目のRunを画面で最後まで計算します。1つ目のbrowserは一度に、2つ目は1日で止め、続けて最後までです（`--modes`）。
+3. 介入（intervention）：4日目14:00（5160分）で、offlineの読み取りが作る作用（職員の追加と、画面のZoneの選択肢での選び直し、トイレの追加、断水、施設の停止）と読めない文をプレビューし、「Day 4 14:00 toilet_01 outage」を適用して、子の分岐を最後まで計算します。
+4. 比較（compare）：画面の比較と、いくつかの分の`compare`、2つの分岐の再生の窓です。
+5. 振り返り（report）：レポートの頁（report、evidence、llm-status、指標の時系列）、質問（APIキーなしの決まった答え）、PDF（offlineのVMと同じ409 `pdf_analysis_offline`）です。
+
+各段で、ブラウザーの答え（画面の要求は`fetch`を包んで捕まえ、確かめの要求はページから送ります）を、同じ操作へのPythonのserverの答え（同じプロセスの`ProjectAPI`、`--work`の下の自分のProjectStore、`server.py`と同じ直列化）と、値の型まで比べます。Python側は同じ操作を同じ順に一度だけ行い、その答えを2つのbrowserで使います。比べられるように固定するもの：画面の`crypto.randomUUID`（RunとBranchのID）、地域の調べの時刻（Pythonの`datetime.now`と、ブラウザーのAPIのWorkerの`Date`）、国土地理院の住所検索（両方ともシナリオのコーパス`tests/support/scenario_corpus.py`の記録した答え）。避難所のCSVは、サイトを作ったときと同じファイルを`--shelter-csv`で渡します（なければコーパスの合成のもの）。違って当然の項目（previewとdraftのID、`checkpoint_hash`、質問の`context_id`の乱数の部分、`static_site_check.py`の除く項目）と理由は、結果に書きます。
+
+ブラウザーが`browser_unsupported`（409）で答える段は「まだない（not_available）」として止め、それを要る段を飛ばします。1の段がまだないときは、2〜5の段をサイトの例で行います（`--python-projects`に`scripts/build_project_sample.py`のProjectStoreを渡します）。比べて違う所があれば終了コードは1です。`--require-all`を付けると、すべての段がすべてのbrowserで通ったときだけ0です。`--work`はPython側の置き場で、Pythonのコード、native拡張、操作の入力と確かめる道（`PYTHON_SIDE_VERSION`を含む）が同じ間は答えを使い回します（`--fresh`でやり直します）。`--url`は公開したサイトを画面だけで確かめます（Pythonと比べず、固定もしません）。
+
+~~~shell
+systemd-run --user --scope -q -p MemoryMax=8G -p MemorySwapMax=0 \
+  python benchmarks/static_site_e2e.py --site ../hinanjo-if-site --work e2e-work \
+  --python-projects sample-projects --output e2e.json --screenshots e2e-shots
+python benchmarks/static_site_e2e.py --url https://hinanjo-if.water7.workers.dev --output e2e-url.json
+~~~
+
 ## 設定
 
 packageは環境変数から設定を読み込み、.envを自動読込しません。.env.exampleは変数名と安全な例の一覧です。実keyはshellのsecret managerまたはローカル環境に置き、commitしないでください。
