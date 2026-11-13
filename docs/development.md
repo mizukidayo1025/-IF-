@@ -125,7 +125,7 @@ node native/wasm/tests/node_browser_api.mjs wasm-pkg
 
 #### ブラウザーで計算する（#267の段階B）
 
-ブラウザーはScenarioから世界を作りません（#249はまだです）。#263で決めたとおり、Pythonが作った0分の世界から計算します。Workerは例を読み込んだ後、Project `sample`に、例のRunと同じScenarioの、計算していないRun（`run-browser-compute`、`compute.mjs`の`COMPUTE_RUN`）を作ります。記録は例のRunのものにそのRunのIDを付け、状態をPythonの作ったばかりのRunと同じ`queued`にします。保存したRunには、例の保存したRunの`run`の行と`export`の部分（縮めたbytesをそのまま写し、JSONとして読み直しません）だけを置き、mainの分岐は0分まで計算済み（先頭は`export`の行）です。サイトの最初の頁（`/`）は、例のRunと、このRunへのリンクを並べます。画面では、このRunを開き（Runの選択欄にも出ます）、「最後まで計算」（`#compute-end`）か、分を決めて「計算」を押します。
+ブラウザーはScenarioから世界を作りません（#249はまだです）。#263で決めたとおり、Pythonが作った0分の世界から計算します。Workerは例を読み込んだ後、Project `sample`に、例のRunと同じScenarioの、計算していないRun（`run-browser-compute`、`compute.mjs`の`COMPUTE_RUN`）を作ります。記録は例のRunのものにそのRunのIDを付け、状態をPythonの作ったばかりのRunと同じ`queued`にします。保存したRunには、例の保存したRunの`run`の行と`export`の部分（縮めたbytesをそのまま写し、JSONとして読み直しません）だけを置き、mainの分岐は0分まで計算済み（先頭は`export`の行）です。サイトの最初の頁（`/`）は、例のRunと、このRunへのリンクを並べます。画面では、このRunを開き（Runの選択欄にも出ます）、「終了まで計算」（`#compute-end`）か、分を決めて「この時刻まで計算」を押します。
 
 | 道 | 答え |
 |---|---|
@@ -182,7 +182,7 @@ python scripts/serve_static_site.py ../hinanjo-if-site --port 8000
 
 サイトが画面の道に正しく答えるかは、`benchmarks/static_site_check.py`で確かめます。サイトを上のserverで配り、PlaywrightのChromiumとFirefoxで、それぞれ空のOPFSから開きます。`/`のリンクから`/demo-v2`を開き、例を読み込み、時刻の帯で分へ飛び、240×で数秒再生し、レポートの頁の時系列のグラフが出ること、ページの誤り・consoleの誤り・お知らせ欄の誤りがないことを確かめます。`--python-projects`に、`scripts/build_project_sample.py`で作ったProjectStore（例のmainと同じScenarioをPythonのProjectの経路で計算したもの）を渡すと、記録、保存した点とその間の分のtimeline、飛んだ後と続く再生の窓、いくつかの`step`とページ送りの時系列、report、llm-statusについて、ブラウザーの答えのJSONとPythonのserverの答え（同じプロセスの`ProjectAPI`）を、値の型まで比べます。違って当然の項目（置き場の大きさ、Branchの`checkpoint_hash`と時系列の`anchor_hash`・cursorの中のanchor、0分の`state_hash`）は除き、除いた項目と理由を結果に書きます。0分の`state_hash`は、PythonのProjectの経路が最初のtickの前の世界を`rng_state`がnullのまま残し、ブラウザーが始める書き出した世界は乱数の初めの状態を持つために違います。世界のほかの部分は同じで、1分からは同じです。PlaywrightとそのbrowserはProjectの依存ではないので、確かめる環境に入れます。計った時間は#266に記録しています。
 
-`--compute pieces full`を付けると、ブラウザーで計算するRunも確かめます（#267）。どちらも空のOPFSから始めます。`pieces`は、「最後まで計算」を押し、1日を過ぎたら止め、続け、3日を過ぎたらページを閉じ、開き直して`interrupted`と先頭の分を確かめ、最後まで続けます。`full`は7日を一度に計算して時間を計ります。計算中に画面の時計が進むこと、計算したRunで分へ飛ぶ・再生する・時系列のグラフが出ること、1分・4321分・10080分のframeとKPIの時系列が例のRunとRunのID以外同じ（同じScenarioとseedから同じ世界になる）ことを確かめます。計った時間は#267に記録しています。
+`--compute pieces full`を付けると、ブラウザーで計算するRunも確かめます（#267）。どちらも空のOPFSから始めます。`pieces`は、「終了まで計算」を押し、1日を過ぎたら止め、続け、3日を過ぎたらページを閉じ、開き直して`interrupted`と先頭の分を確かめ、最後まで続けます。`full`は7日を一度に計算して時間を計ります。計算中に画面の時計が進むこと、計算したRunで分へ飛ぶ・再生する・時系列のグラフが出ること、1分・4321分・10080分のframeとKPIの時系列が例のRunとRunのID以外同じ（同じScenarioとseedから同じ世界になる）ことを確かめます。計った時間は#267に記録しています。
 
 ~~~shell
 SHELTERSIM_LLM_MODE=offline python scripts/build_project_sample.py sample-projects
