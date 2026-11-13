@@ -13,7 +13,10 @@ and whether the digests of the world and of the metric samples are the native pa
 With --store (#252, PR 6-5) it opens `store.html` instead, once per world: the page runs the world
 in a Worker, stores it in the browser's origin private file system as it goes (native/wasm/js),
 reads it back and checks the digests, and the script writes the times to run, compress, write and
-read back, the WASM memory and the stored sizes.
+read back, the WASM memory and the stored sizes. The Run keeps a saved point every `--save-every`
+minutes (#251; 360 by default, 0 for none), and the page seeks to the minute farthest from a saved
+point and writes the time to restore and compute; with `--chain` it also restores each saved point,
+computes to the next and checks that it is the one stored.
 
 Playwright and its browsers are not dependencies of the project: install them where you measure
 (`python -m playwright install chromium firefox`).
@@ -75,13 +78,25 @@ class _Site:
         self._temporary.cleanup()
 
 
-def measure_store(worlds: Path, pkg: Path, browsers: list[str], ticks: int) -> dict[str, Any]:
+def measure_store(
+    worlds: Path,
+    pkg: Path,
+    browsers: list[str],
+    ticks: int,
+    save_every: int = 360,
+    chain: bool = False,
+) -> dict[str, Any]:
     """Each world in each browser, on a fresh page: run in a Worker, stored in OPFS as it goes,
     read back and checked (`store.html`)."""
     from playwright.sync_api import sync_playwright
 
     names = list(json.loads((worlds / "expected.json").read_text(encoding="utf-8"))["worlds"])
-    results: dict[str, Any] = {"ticks": ticks, "browsers": {}}
+    results: dict[str, Any] = {
+        "ticks": ticks,
+        "save_every": save_every,
+        "chain": chain,
+        "browsers": {},
+    }
     with _Site(worlds, pkg) as site, sync_playwright() as playwright:
         for name in browsers:
             browser = getattr(playwright, name).launch()
@@ -89,7 +104,8 @@ def measure_store(worlds: Path, pkg: Path, browsers: list[str], ticks: int) -> d
             for world in names:
                 context = browser.new_context()
                 page = context.new_page()
-                page.goto(f"{site.base}/store.html?world={world}&ticks={ticks}")
+                query = f"world={world}&ticks={ticks}&save={save_every}&chain={int(chain)}"
+                page.goto(f"{site.base}/store.html?{query}")
                 page.wait_for_function("window.storeResult !== undefined", timeout=TIMEOUT_MS)
                 result = page.evaluate("window.storeResult")
                 context.close()
@@ -118,6 +134,24 @@ def store_summary(results: dict[str, Any]) -> str:
                 f"(after reading {measured['memoryAfterRead'] / mib:.1f}), stored {raw:.1f} -> "
                 f"{stored:.1f} MiB, digests {'same' if not measured['problems'] else 'DIFFERENT'}"
             )
+            saved = ran["sizes"].get("saved", {"stored": 0})["stored"] / mib
+            seconds = ran["saveMs"] / 1000
+            lines.append(f"  saved points {ran['saved']}: {saved:.1f} MiB, {seconds:.2f} s")
+            seek = measured.get("seek")
+            if seek:
+                worst = seek["worst"]
+                lines.append(
+                    f"  seek to {worst['minute']} from {worst['from']}: restore "
+                    f"{worst['restoreMs'] / 1000:.2f} s, "
+                    f"compute {worst['recomputeMs'] / 1000:.2f} s"
+                )
+                if "chain" in seek:
+                    chain = seek["chain"]
+                    lines.append(
+                        f"  each saved point to the next: {chain['points']} points, restore max "
+                        f"{max(chain['restoreMs']) / 1000:.2f} s, "
+                        f"{'same' if not chain['mismatches'] else 'DIFFERENT'}"
+                    )
     return "\n".join(lines)
 
 
@@ -195,9 +229,27 @@ def main() -> int:
         help="run each world once in a Worker, stored in OPFS as it goes, and read it back",
     )
     parser.add_argument("--ticks", type=int, default=1440, help="--store: ticks per advance")
+    parser.add_argument(
+        "--save-every",
+        type=int,
+        default=360,
+        help="--store: minutes between saved points (0: none)",
+    )
+    parser.add_argument(
+        "--chain",
+        action="store_true",
+        help="--store: restore each saved point, compute to the next and check it",
+    )
     arguments = parser.parse_args()
     if arguments.store:
-        stored = measure_store(arguments.worlds, arguments.pkg, arguments.browsers, arguments.ticks)
+        stored = measure_store(
+            arguments.worlds,
+            arguments.pkg,
+            arguments.browsers,
+            arguments.ticks,
+            arguments.save_every,
+            arguments.chain,
+        )
         if arguments.output:
             arguments.output.write_text(
                 json.dumps(stored, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
