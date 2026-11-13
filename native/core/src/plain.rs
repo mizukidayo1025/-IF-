@@ -509,6 +509,10 @@ impl PlainRun {
         crate::frame::frame(&self.loaded.cell, &mut self.host, &request, &self.rng_state)
     }
 
+    /// The summary of the world now that the reading of an intervention's text is given
+    /// (`summary::scenario_summary`, #302): its canonical JSON. It changes nothing.
+    pub fn scenario_summary(&self) -> Result<Vec<u8>> {
+        self.loaded.cell.with(|world| crate::summary::scenario_summary(world))?
     /// `validate_effect_program(world, program)` on the world now (`program::validate`, #304): the
     /// issues, in Python's order and texts. It changes nothing: the toilets an addition would place
     /// are placed on a copy of the world, on the floor plan of that copy.

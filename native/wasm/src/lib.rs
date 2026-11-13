@@ -175,6 +175,18 @@ impl Simulation {
     }
 }
 
+/// The summary of the world that the reading of an intervention's text is given (#302, under #292).
+#[wasm_bindgen]
+impl Simulation {
+    /// The summary of the world now (`ScenarioSummary`, `sheltersim_core::summary`), as its
+    /// canonical JSON bytes: those of `scenario_summary_from_world(world).model_dump(mode="json")`
+    /// that the server's `intervention-preview` reads. It changes nothing.
+    #[wasm_bindgen(js_name = scenarioSummary)]
+    pub fn scenario_summary(&self) -> Result<Vec<u8>, JsError> {
+        self.run.scenario_summary().map_err(js_error)
+    }
+}
+
 /// The EffectProgram of an intervention before it is scheduled (#304, under #292).
 #[wasm_bindgen]
 impl Simulation {
