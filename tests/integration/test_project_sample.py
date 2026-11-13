@@ -285,6 +285,8 @@ def test_the_browser_sample_starts_from_the_records_and_answers_of_the_server(
         json.dumps(evidence)
     )
     assert inputs["source"]["agent_count"] == len(scenario["scenario"]["profiles"])
+    # The VM's intervention is the example's (#310): a structured form's Scenario has none.
+    assert (inputs["schema_version"], inputs["intervention"]) == (2, None)
 
     entry = json.loads((inputs_dir / "export.json").read_bytes())
     assert entry["world"]["minute_index"] == 0
