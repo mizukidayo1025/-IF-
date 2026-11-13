@@ -18,6 +18,12 @@ minutes (#251; 360 by default, 0 for none), and the page seeks to the minute far
 point and writes the time to restore and compute; with `--chain` it also restores each saved point,
 computes to the next and checks that it is the one stored.
 
+With --project (#265) it opens `project.html` once per world: the page computes the world into a
+Project of OPFS (native/wasm/js/project_store.mjs), exports it to one bundle, empties OPFS, imports
+the bundle and checks that the digests and the routes' answers are the same. With --bundle FILE it
+imports that bundle (scripts/build_browser_sample.py's sample) into an empty OPFS and checks each
+branch's digests; --worlds is not needed then.
+
 Playwright and its browsers are not dependencies of the project: install them where you measure
 (`python -m playwright install chromium firefox`).
 """
@@ -38,6 +44,9 @@ PAGE = Path(__file__).resolve().parent / "wasm_trial" / "index.html"
 # The page that stores a Run in OPFS as it goes and reads it back (#252, PR 6-5), and its JS.
 STORE_PAGE = PAGE.with_name("store.html")
 STORE_JS = Path(__file__).resolve().parents[1] / "native" / "wasm" / "js"
+# The page that exports a Project to one bundle and imports it back (#265), and its Worker.
+PROJECT_PAGE = PAGE.with_name("project.html")
+PROJECT_WORKER = PAGE.with_name("project_worker.mjs")
 # The page's runs of one world may take a while in a slow browser.
 TIMEOUT_MS = 600_000
 
@@ -47,11 +56,17 @@ class _Quiet(SimpleHTTPRequestHandler):
         pass
 
 
-def _site(worlds: Path, pkg: Path, directory: Path) -> None:
+def _site(worlds: Path | None, pkg: Path, directory: Path, bundle: Path | None = None) -> None:
     shutil.copy(PAGE, directory / "index.html")
     shutil.copy(STORE_PAGE, directory / "store.html")
+    shutil.copy(PROJECT_PAGE, directory / "project.html")
+    shutil.copy(PROJECT_WORKER, directory / "project_worker.mjs")
     shutil.copytree(STORE_JS, directory / "js")
     shutil.copytree(pkg, directory / "pkg")
+    if bundle is not None:
+        shutil.copy(bundle, directory / "sample.shelterproj")
+    if worlds is None:
+        return
     expected = json.loads((worlds / "expected.json").read_text(encoding="utf-8"))
     shutil.copy(worlds / "expected.json", directory / "expected.json")
     for world in expected["worlds"].values():
@@ -61,10 +76,10 @@ def _site(worlds: Path, pkg: Path, directory: Path) -> None:
 class _Site:
     """The measuring pages served from a temporary directory, on a port of 127.0.0.1."""
 
-    def __init__(self, worlds: Path, pkg: Path) -> None:
+    def __init__(self, worlds: Path | None, pkg: Path, bundle: Path | None = None) -> None:
         self._temporary = tempfile.TemporaryDirectory()
         directory = Path(self._temporary.name)
-        _site(worlds, pkg, directory)
+        _site(worlds, pkg, directory, bundle)
         handler = functools.partial(_Quiet, directory=str(directory))
         self._server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
         threading.Thread(target=self._server.serve_forever, daemon=True).start()
@@ -155,6 +170,60 @@ def store_summary(results: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def check_projects(
+    worlds: Path | None, pkg: Path, browsers: list[str], bundle: Path | None
+) -> dict[str, Any]:
+    """`project.html` in each browser, on a fresh page: each world exported to a bundle and
+    imported back, or the bundle imported."""
+    from playwright.sync_api import sync_playwright
+
+    if bundle is not None:
+        queries = {"bundle": "bundle=sample.shelterproj"}
+    else:
+        expected = json.loads((worlds / "expected.json").read_text(encoding="utf-8"))
+        queries = {world: f"world={world}" for world in expected["worlds"]}
+    results: dict[str, Any] = {"browsers": {}}
+    with _Site(worlds, pkg, bundle) as site, sync_playwright() as playwright:
+        for name in browsers:
+            browser = getattr(playwright, name).launch()
+            checked: dict[str, Any] = {"version": browser.version, "checks": {}}
+            for check, query in queries.items():
+                context = browser.new_context()
+                page = context.new_page()
+                page.goto(f"{site.base}/project.html?{query}")
+                page.wait_for_function("window.projectResult !== undefined", timeout=TIMEOUT_MS)
+                result = page.evaluate("window.projectResult")
+                context.close()
+                if "error" in result:
+                    raise RuntimeError(f"{name} {check}: {result['error']}")
+                checked["userAgent"] = result.pop("userAgent")
+                checked["checks"][check] = result
+            browser.close()
+            results["browsers"][name] = checked
+    return results
+
+
+def project_summary(results: dict[str, Any]) -> str:
+    lines = []
+    mib = 2**20
+    for name, browser in results["browsers"].items():
+        for check, result in browser["checks"].items():
+            times = f"import {result['importMs'] / 1000:.2f} s"
+            if "exportMs" in result:
+                times = (
+                    f"compute {result['computeMs'] / 1000:.2f} s, "
+                    f"export {result['exportMs'] / 1000:.2f} s, {times}"
+                )
+            problems = "; ".join(result["problems"])
+            lines.append(
+                f"{name} {browser['version']} {check}: "
+                f"bundle {result['bundleBytes'] / mib:.1f} MiB, {times}, "
+                f"OPFS {result['usage']['bytes'] / mib:.1f} MiB, "
+                f"{'PROBLEMS ' + problems if problems else 'same'}"
+            )
+    return "\n".join(lines)
+
+
 def measure(worlds: Path, pkg: Path, browsers: list[str], repeat: int) -> dict[str, Any]:
     from playwright.sync_api import sync_playwright
 
@@ -216,9 +285,7 @@ def summary(results: dict[str, Any]) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument(
-        "--worlds", type=Path, required=True, help="the output of wasm_trial_worlds.py"
-    )
+    parser.add_argument("--worlds", type=Path, help="the output of wasm_trial_worlds.py")
     parser.add_argument("--pkg", type=Path, required=True, help="wasm-bindgen --target web output")
     parser.add_argument("--browsers", nargs="+", default=["chromium", "firefox"])
     parser.add_argument("--repeat", type=int, default=3)
@@ -240,7 +307,34 @@ def main() -> int:
         action="store_true",
         help="--store: restore each saved point, compute to the next and check it",
     )
+    parser.add_argument(
+        "--project",
+        action="store_true",
+        help="export each world's Project to one bundle and import it into an emptied OPFS",
+    )
+    parser.add_argument("--bundle", type=Path, help="import this bundle into an empty OPFS")
     arguments = parser.parse_args()
+    if arguments.worlds is None and arguments.bundle is None:
+        parser.error("--worlds is needed unless --bundle")
+    if arguments.project or arguments.bundle:
+        checked = check_projects(
+            None if arguments.bundle else arguments.worlds,
+            arguments.pkg,
+            arguments.browsers,
+            arguments.bundle,
+        )
+        if arguments.output:
+            arguments.output.write_text(
+                json.dumps(checked, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+            )
+        print(project_summary(checked))
+        return int(
+            any(
+                result["problems"]
+                for browser in checked["browsers"].values()
+                for result in browser["checks"].values()
+            )
+        )
     if arguments.store:
         stored = measure_store(
             arguments.worlds,
