@@ -24,6 +24,7 @@
 //! - A Run is saved at a minute and restored from there (`saved_point`, `restore`; #251, for the
 //!   browser only): see `archive::SavedPoint`.
 
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -33,6 +34,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::archive::{self, Restore, SavedPoint};
+use crate::canonical::ListNode;
 use crate::checkpoint::hex;
 use crate::config::{Configs, Filled, SectionId};
 use crate::engine::{self, StepError, Stepping};
@@ -363,6 +365,9 @@ pub struct PlainRun {
     /// The world document's `rng_state`, which the core's World does not hold: what the world's
     /// digest reads (`frame`).
     pub rng_state: V,
+    /// The node of the log's records the last digest read (`canonical::state_digest_with`, #266):
+    /// the next digest reads only the records added since. Built at the first digest.
+    log_node: RefCell<ListNode>,
 }
 
 impl PlainRun {
@@ -373,7 +378,7 @@ impl PlainRun {
         loaded.cell.with(|world| world.log_mut().and_then(|mut log| log.pack_records()))??;
         let host = PlainHost::new(entry, Rc::clone(&loaded))?;
         let rng_state = load::value(&entry["world"]["rng_state"])?;
-        Ok(Self { loaded, host, stepping: Stepping::default(), rng_state })
+        Ok(Self { loaded, host, stepping: Stepping::default(), rng_state, log_node: RefCell::default() })
     }
 
     /// `of_entry` of the entry's JSON text.
@@ -411,13 +416,22 @@ impl PlainRun {
 
     /// The frame of the world now (`frame::frame`, #264): its canonical JSON, what the API's
     /// timeline gives for this minute. It changes nothing.
+    /// Without the request's `state_hash`, the frame's is `state_digest`.
     pub fn frame(&mut self, request: &crate::frame::Request<'_>) -> Result<Vec<u8>> {
-        crate::frame::frame(&self.loaded.cell, &mut self.host, request, &self.rng_state)
+        let digest = match request.state_hash {
+            Some(_) => None,
+            None => Some(self.state_digest()?),
+        };
+        let request = crate::frame::Request { state_hash: request.state_hash.or(digest.as_deref()), ..*request };
+        crate::frame::frame(&self.loaded.cell, &mut self.host, &request, &self.rng_state)
     }
 
-    /// `world.state_digest()` (`canonical::state_digest`) of the world now.
+    /// `world.state_digest()` (`canonical::state_digest`) of the world now. The log's node is kept
+    /// between calls, so a call reads only the records added since the last
+    /// (`canonical::state_digest_with`).
     pub fn state_digest(&self) -> Result<String> {
-        self.loaded.cell.with(|world| crate::canonical::state_digest(world, &self.rng_state))?
+        let mut log = self.log_node.try_borrow_mut().map_err(|_| Error::unsupported("the log's node is borrowed"))?;
+        self.loaded.cell.with(|world| crate::canonical::state_digest_with(world, &self.rng_state, &mut log))?
     }
 
     /// The Run now as a saved point (`archive::SavedPoint`, #251), between two ticks.
@@ -450,7 +464,7 @@ impl PlainRun {
         let mut host = PlainHost::new(&entry, Rc::clone(&loaded))?;
         host.samples = samples;
         host.contracts = point.contracts;
-        Ok(Self { loaded, host, stepping: Stepping::default(), rng_state })
+        Ok(Self { loaded, host, stepping: Stepping::default(), rng_state, log_node: RefCell::default() })
     }
 
     /// The exported entry of `of_json`'s JSON text, for `restore`.
