@@ -13,7 +13,9 @@
 //!   validator (`engine::NoPython`).
 //! - There is no LLM: the Run runs as one without (`Llm::default()`); no decision or trace goes out
 //!   (`DecisionSink::Silent`, `TraceLevel::Off`), and no foreign handler runs.
-//! - The records of the log are the world's (`load::find_record`).
+//! - The records of the log are the world's (`load::find_record`). The log holds them in the binary
+//!   form (`EventLog::pack_records`, `events::packed`, #252); their JSON is written when asked
+//!   for (the digests, `find_record`), the same bytes as the native path's.
 //! - The metric samples are kept as the lines `engine::metric_line` writes; `metrics_digest` is the
 //!   digest `tests/support/core_tick.py` writes of a Run's samples.
 //! - The core writes `world.resources` and the namespaces it starts itself (decision 2): the host
@@ -182,6 +184,8 @@ impl PlainRun {
     /// The Run of an exported entry (`export_world`'s document).
     pub fn of_entry(entry: &Value) -> Result<Self> {
         let loaded = Rc::new(load::loaded(entry)?);
+        // The log holds its records in the binary form (#252): about a seventh of their JSON.
+        loaded.cell.with(|world| world.log_mut().and_then(|mut log| log.pack_records()))??;
         let host = PlainHost::new(entry, Rc::clone(&loaded))?;
         Ok(Self { loaded, host, stepping: Stepping::default() })
     }

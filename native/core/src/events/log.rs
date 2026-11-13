@@ -25,8 +25,9 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
+use super::packed::{Packer, Unpacked};
 use super::{is_stable_id, EventRow, EventStatus};
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::value::V;
 
 /// What the indexes and a Rust rule read of one record.
@@ -99,6 +100,75 @@ pub struct EventLog {
     // The event types a reader asked for all records of (`scan_type`): it is likely to ask
     // again, so `releasable` keeps their objects.
     scanned_types: HashSet<String>,
+    // The records in the binary form, once `pack_records` was called (the browser's log).
+    packed: Option<Packed>,
+}
+
+/// Where `Packed::starts` says a record is not in the binary form: its bytes are the entry's.
+const NOT_PACKED: u64 = u64::MAX;
+
+/// The records of a log in the binary form (`events::packed`, #252): each record's packed bytes,
+/// one after another, in blocks of about `BLOCK` bytes, and where each starts. A record never
+/// spans two blocks, and blocks are not grown past their capacity: holding the records takes no
+/// copy of them and little room beyond them, where one growing buffer would double. A record whose
+/// packed form would not write its bytes again keeps its bytes in its entry instead.
+#[derive(Clone, Debug, PartialEq)]
+struct Packed {
+    packer: Packer,
+    blocks: Vec<Vec<u8>>,
+    /// Where each record starts: its block's index times 2^32 plus its offset in it, or
+    /// `NOT_PACKED`.
+    starts: Vec<u64>,
+    /// The bytes of the records the blocks hold.
+    size: usize,
+}
+
+/// The bytes of a block of `Packed`.
+const BLOCK: usize = 1 << 20;
+
+impl Packed {
+    fn new(records: usize) -> Self {
+        Self { packer: Packer::new(), blocks: Vec::new(), starts: Vec::with_capacity(records), size: 0 }
+    }
+
+    /// Packs a record into the blocks: where it starts, or the packer's error with nothing held.
+    fn push(&mut self, event: &EventRow, realized_minute: i64, status: EventStatus, detail: Option<&str>) -> Result<u64> {
+        let mut record = Vec::with_capacity(256);
+        self.packer.pack(&mut record, event, realized_minute, status, detail)?;
+        let fits = self.blocks.last().is_some_and(|block| block.len() + record.len() <= block.capacity());
+        if !fits {
+            self.blocks.push(Vec::with_capacity(BLOCK.max(record.len())));
+        }
+        let index = self.blocks.len() - 1;
+        let block = &mut self.blocks[index];
+        let start = ((index as u64) << 32) | block.len() as u64;
+        block.extend_from_slice(&record);
+        self.size += record.len();
+        Ok(start)
+    }
+
+    /// The bytes from a start to the end of its block.
+    fn at(&self, start: u64) -> &[u8] {
+        let block = (start >> 32) as usize;
+        let offset = (start & 0xffff_ffff) as usize;
+        self.blocks.get(block).and_then(|block| block.get(offset..)).unwrap_or_default()
+    }
+
+    /// Lets go of the records from a start on.
+    fn truncate(&mut self, start: u64) {
+        let block = (start >> 32) as usize;
+        let offset = (start & 0xffff_ffff) as usize;
+        for later in self.blocks.drain(block.saturating_add(1).min(self.blocks.len())..) {
+            self.size -= later.len();
+        }
+        if let Some(last) = self.blocks.get_mut(block) {
+            self.size -= last.len().saturating_sub(offset);
+            last.truncate(offset);
+            if last.is_empty() {
+                self.blocks.pop();
+            }
+        }
+    }
 }
 
 impl Default for EventLog {
@@ -129,6 +199,7 @@ impl EventLog {
             audited: 0,
             audit_bounds: (None, None),
             scanned_types: HashSet::new(),
+            packed: None,
         }
     }
 
@@ -217,6 +288,9 @@ impl EventLog {
             self.unencoded += 1;
         }
         let event_id: Arc<str> = Arc::from(fields.event_id);
+        if let Some(packed) = &mut self.packed {
+            packed.starts.push(NOT_PACKED);
+        }
         self.entries.push(Entry {
             event_id: event_id.clone(),
             sequence: fields.sequence,
@@ -258,8 +332,95 @@ impl EventLog {
         if refused != 0 {
             return Ok(refused);
         }
-        let written = event.record_json(realized_minute, status, detail)?;
-        Ok(self.add(event.index_fields(realized_minute, status), false, Some(written)))
+        if self.packed.is_none() {
+            let written = event.record_json(realized_minute, status, detail)?;
+            return Ok(self.add(event.index_fields(realized_minute, status), false, Some(written)));
+        }
+        let index = self.entries.len();
+        let refused = self.add(event.index_fields(realized_minute, status), true, None);
+        if refused != 0 {
+            return Ok(refused);
+        }
+        if let Some(packed) = &mut self.packed {
+            if let Ok(start) = packed.push(event, realized_minute, status, detail) {
+                packed.starts[index] = start;
+                return Ok(0);
+            }
+        }
+        // A record the form cannot hold (a negative minute) keeps its bytes.
+        self.entries[index].written = Some(event.record_json(realized_minute, status, detail)?);
+        Ok(0)
+    }
+
+    /// Holds the records in the binary form from now on (#252): the ones the log holds bytes of
+    /// now, and every record `append_row` adds. A record is packed only if its packed form writes
+    /// its bytes again, byte for byte; any other keeps its bytes. Its bytes are then read through
+    /// `write_record` and `record`, and `written` has none. Returns how many records were packed.
+    /// Call it with no transaction open: a `rollback` to a mark made before it would leave records
+    /// packed that the mark did not know of.
+    pub fn pack_records(&mut self) -> Result<usize> {
+        let mut packed = self.packed.take().unwrap_or_else(|| Packed::new(self.entries.len()));
+        let mut count = 0;
+        for index in packed.starts.len()..self.entries.len() {
+            packed.starts.push(NOT_PACKED);
+            let Some(raw) = self.entries[index].written.as_deref() else { continue };
+            let Some((event, minute, status, detail)) = EventRow::from_saved_record(raw) else { continue };
+            let Ok(start) = packed.push(&event, minute, status, detail.as_deref()) else { continue };
+            let same = packed.packer.unpack(packed.at(start)).ok().map(|(record, _)| record.record_json()).transpose()?;
+            if same.as_deref() != Some(raw) {
+                packed.truncate(start);
+                continue;
+            }
+            packed.starts[index] = start;
+            self.entries[index].written = None;
+            count += 1;
+        }
+        self.packed = Some(packed);
+        Ok(count)
+    }
+
+    /// Whether the records are held in the binary form (`pack_records`).
+    pub fn is_packed(&self) -> bool {
+        self.packed.is_some()
+    }
+
+    /// The bytes of the records in the binary form, of its string table's texts and of its shapes'
+    /// keys, and their counts: (bytes, strings, shapes), or None when the log is not packed.
+    pub fn packed_sizes(&self) -> Option<(usize, usize, usize)> {
+        let packed = self.packed.as_ref()?;
+        Some((packed.size, packed.packer.strings().len(), packed.packer.shapes().len()))
+    }
+
+    /// The record at a position as it was realized, read from its packed form or its bytes; None
+    /// for a record the log holds neither of (Python has its bytes) or for no record there.
+    pub fn record(&self, index: usize) -> Result<Option<Unpacked>> {
+        if let Some(packed) = &self.packed {
+            if let Some(&start) = packed.starts.get(index).filter(|start| **start != NOT_PACKED) {
+                return Ok(Some(packed.packer.unpack(packed.at(start))?.0));
+            }
+        }
+        let Some(raw) = self.written(index) else {
+            return Ok(None);
+        };
+        let (event, realized_minute, status, detail) =
+            EventRow::from_saved_record(raw).ok_or_else(|| Error::unsupported("the record's bytes are not a record"))?;
+        Ok(Some(Unpacked { event, realized_minute, status, detail }))
+    }
+
+    /// Appends the canonical JSON of the record at a position to `out`, from its bytes or its
+    /// packed form: false, with nothing appended, for a record the log holds neither of.
+    pub fn write_record(&self, index: usize, out: &mut Vec<u8>) -> Result<bool> {
+        if let Some(raw) = self.written(index) {
+            out.extend_from_slice(raw);
+            return Ok(true);
+        }
+        match self.record(index)? {
+            Some(record) => {
+                out.extend_from_slice(&record.record_json()?);
+                Ok(true)
+            }
+            None => Ok(false),
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -502,6 +663,12 @@ impl EventLog {
             self.by_minute.pop_position(entry.minute, index);
             self.by_type.pop_position(entry.event_type, index);
             removed.insert(entry.event_id.clone());
+        }
+        if let Some(packed) = &mut self.packed {
+            if let Some(&start) = packed.starts.get(len..).unwrap_or_default().iter().find(|start| **start != NOT_PACKED) {
+                packed.truncate(start);
+            }
+            packed.starts.truncate(len);
         }
         self.entries.truncate(len);
         if !removed.is_empty() {
