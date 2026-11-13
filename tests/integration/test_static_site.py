@@ -160,6 +160,8 @@ def test_the_site_holds_the_shelter_index_the_browser_s_research_reads(
     assert with_index["shelter_index"]["municipality_codes"] == len(made["codes"])
     assert (tmp_path / "with-index" / "browser" / "research.mjs").is_file()
     assert builder["shelter_index"]() is None
+    pinned = builder["shelter_index"](csv_path=csv_path, retrieved_at="2026-11-01T12:00:00+09:00")
+    assert pinned["retrieved_at"] == "2026-11-01T03:00:00Z"
     csv_path.write_bytes(b"not,a,shelter,csv\n")
     with pytest.raises(ValueError, match="schema"):
         builder["shelter_index"](csv_path=csv_path)

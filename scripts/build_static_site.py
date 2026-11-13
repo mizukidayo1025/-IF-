@@ -257,9 +257,13 @@ def split_bundle(bundle: Path, directory: Path, part_bytes: int) -> dict[str, An
     return manifest
 
 
-def shelter_index(*, csv_path: Path | None = None, fetch: bool = False) -> dict[str, Any] | None:
+def shelter_index(
+    *, csv_path: Path | None = None, fetch: bool = False, retrieved_at: str | None = None
+) -> dict[str, Any] | None:
     """`gsi_shelter_index` of a copy of the national shelter CSV (read now, without HTTP
-    metadata) or of the CSV downloaded now; None with neither."""
+    metadata) or of the CSV downloaded now; None with neither. `retrieved_at` (ISO 8601 with a
+    time zone) is the copy's retrieval time instead of now: a check pins it to the Python side's
+    clock (benchmarks/static_site_e2e.py), as the research's time is part of the Scenario."""
     from datetime import UTC, datetime
 
     from sheltersim.region import providers
@@ -270,8 +274,11 @@ def shelter_index(*, csv_path: Path | None = None, fetch: bool = False) -> dict[
             text = raw.decode("utf-8-sig")
         except UnicodeDecodeError as error:
             raise ValueError("the shelter CSV is not UTF-8") from error
+        when = datetime.fromisoformat(retrieved_at) if retrieved_at else datetime.now(UTC)
+        if when.tzinfo is None:
+            raise ValueError("--shelter-retrieved-at needs a time zone")
         snapshot = providers.GsiCsvSnapshot(
-            sha256=hashlib.sha256(raw).hexdigest(), retrieved_at=datetime.now(UTC), text=text
+            sha256=hashlib.sha256(raw).hexdigest(), retrieved_at=when.astimezone(UTC), text=text
         )
     elif fetch:
         snapshot = providers._get_gsi_shelter_snapshot(providers._GSI_SHELTER_CSV_URL)
@@ -381,6 +388,10 @@ def main() -> int:
     shelter.add_argument(
         "--shelter-csv", type=Path, help="a copy of the GSI national shelter CSV (mergeFromCity_1)"
     )
+    parser.add_argument(
+        "--shelter-retrieved-at",
+        help="with --shelter-csv: the copy's retrieval time (ISO 8601), e.g. a pinned clock",
+    )
     shelter.add_argument(
         "--fetch-shelters",
         action="store_true",
@@ -388,7 +399,11 @@ def main() -> int:
     )
     arguments = parser.parse_args()
     try:
-        shelters = shelter_index(csv_path=arguments.shelter_csv, fetch=arguments.fetch_shelters)
+        shelters = shelter_index(
+            csv_path=arguments.shelter_csv,
+            fetch=arguments.fetch_shelters,
+            retrieved_at=arguments.shelter_retrieved_at,
+        )
         if shelters is None:
             print(
                 "no shelter index: the site's Scenario preview answers browser_unsupported",

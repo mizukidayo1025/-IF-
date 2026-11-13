@@ -16,7 +16,8 @@
 // - runs: the Run's record with its `model_versions` and evidence (the core's `modelVersions`,
 //   `runEvidence`), and its branch `main` at minute 0: a stored Run (run_store.mjs) holding the
 //   world at minute 0 the core builds (`initialEntry`, #249), and the branch's record (its
-//   `checkpoint_hash` the head of that stored Run, as compute.mjs writes it). The browser computes
+//   `checkpoint_hash` the head of that stored Run, as compute.mjs writes it; no status yet, as
+//   Python's branch without a computation has none). The browser computes
 //   the Run on `resume` (compute.mjs).
 //
 // What Python reads that the screen never sends (a plan, a geometry, a selected shelter, e-Stat
@@ -398,7 +399,7 @@ export class ScenarioRoutes {
     } finally {
       writer.close();
     }
-    await store.writeBranch(this.tree, projectId, runId, { branch_id: "main", parent_branch_id: null, fork_minute: 0, computed_until: 0, checkpoint_hash: head, status: "queued" });
+    await store.writeBranch(this.tree, projectId, runId, { branch_id: "main", parent_branch_id: null, fork_minute: 0, computed_until: 0, checkpoint_hash: head, status: null });
     return store.runResponse(this.tree, projectId, runId);
   }
 }
