@@ -671,6 +671,9 @@ export async function exportProject({ tree, projectId, source = null }) {
         continue;
       }
       const relative = [...path, name].join("/");
+      // The Scenario screen's working files (its preparation account and its previews' drafts,
+      // scenario_routes.mjs, #301) are not the Project's results: a bundle leaves them out.
+      if (relative === "preparation.json" || relative.startsWith("drafts/")) continue;
       if (entryKind(relative) === null) fail(`${relative}: a file a bundle does not hold`, "bundle_invalid");
       entries.push([relative, await tree.read([projectId, ...path, name])]);
     }

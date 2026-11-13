@@ -68,6 +68,7 @@ BROWSER_FILES = (
     "project_store.mjs",
     "research.mjs",
     "run_store.mjs",
+    "scenario_routes.mjs",
 )
 # What the browser's regional research reads of the GSI national shelter CSV, which it does not
 # download (no CORS; research.mjs, #300): written from a copy of the CSV (--shelter-csv) or from

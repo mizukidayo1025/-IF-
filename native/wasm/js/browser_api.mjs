@@ -17,7 +17,8 @@
 //   POST runs/{run}/resume, POST runs/{run}/cancel   computing in the Worker (js/compute.mjs, #267)
 //   POST runs/{run}/pdf-report               the server's checks, then its answer without an API key:
 //                                            409 pdf_analysis_offline (#309)
-//   anything else (scenario-*, compare, intervention-*, questions,
+//   POST {project}/scenario-preview, scenario-approve, runs   js/scenario_routes.mjs (#301)
+//   anything else (compare, intervention-*, questions,
 //   replay of two branches, the routes outside projects)   409 {"error": "ブラウザー版では未対応です…",
 //                                            "code": "browser_unsupported"}
 //
@@ -38,6 +39,7 @@ import { ApiError, errorAnswer, historyCache, historyResponse, llmStatusResponse
 import { CHUNK_TICKS, Computing, checkFields, postDocument } from "./compute.mjs";
 import * as store from "./project_store.mjs";
 import { RunReader, SAVE_EVERY } from "./run_store.mjs";
+import { bodyDocument, ScenarioRoutes } from "./scenario_routes.mjs";
 
 /// The manifest of the site's sample: {format, version, project_id, bytes, sha256, parts: [{path,
 /// bytes, sha256}]}, the paths relative to the manifest.
@@ -84,7 +86,7 @@ function integer(text, message) {
 /// task of the queue (a request or a chunk of a computation) holding the store's lock (the page:
 /// a Web Lock), and `branchLock`, `chunkTicks` and `pause` are js/compute.mjs's `Computing`'s.
 export class BrowserApi {
-  constructor({ wasm, tree, quota = async () => null, extra = null, keep = 2, locked = (task) => task(), branchLock, chunkTicks = CHUNK_TICKS, pause }) {
+  constructor({ wasm, tree, quota = async () => null, extra = null, keep = 2, locked = (task) => task(), branchLock, chunkTicks = CHUNK_TICKS, pause, scenario = {} }) {
     this.wasm = wasm;
     this.tree = tree;
     this.quota = quota;
@@ -108,6 +110,9 @@ export class BrowserApi {
     this.queue = Promise.resolve();
     this.locked = locked;
     this.computing = new Computing({ api: this, branchLock, chunkTicks, pause });
+    // The Scenario screen's routes (#301); `scenario` holds their `shelterIndex`, `fetchJson`,
+    // `now` and `newId` (scenario_routes.mjs).
+    this.scenarioRoutes = new ScenarioRoutes({ wasm, tree, ...scenario });
   }
 
   /// Answers a request: `{ method, path, search, body }` (body the text of a POST) to `{ status,
@@ -157,6 +162,13 @@ export class BrowserApi {
       if (keys.length !== 1 || keys[0] !== "project_id") throw refused("request fields do not match this operation");
       if (typeof document.project_id !== "string") throw new ApiError(400, "invalid project request");
       return JSON.stringify(await store.createProject(this.tree, document.project_id));
+    }
+    if (parts.length === 2 && ["scenario-preview", "scenario-approve", "runs"].includes(parts[1])) {
+      const document = bodyDocument(body);
+      const routes = this.scenarioRoutes;
+      if (parts[1] === "scenario-preview") return routes.preview(parts[0], document);
+      if (parts[1] === "scenario-approve") return routes.approve(parts[0], document);
+      return routes.runs(parts[0], document);
     }
     if (parts.length === 4 && parts[1] === "runs" && (parts[3] === "resume" || parts[3] === "cancel")) {
       const document = postDocument(body);
