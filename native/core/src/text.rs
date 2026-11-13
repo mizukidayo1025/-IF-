@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use crate::error::{Error, Result};
 
 mod casefold;
+mod classes;
 mod printable;
 
 /// What `str.casefold` gives one character: its full case folding, or None for itself. The table
@@ -17,6 +18,28 @@ pub fn fold_char(char: char) -> Option<&'static str> {
         .binary_search_by_key(&point, |(from, _)| *from)
         .ok()
         .map(|index| casefold::FOLDS[index].1)
+}
+
+fn in_ranges(ranges: &[(u32, u32)], char: char) -> bool {
+    let point = char as u32;
+    ranges.binary_search_by(|(first, last)| if *last < point { std::cmp::Ordering::Less } else if *first > point { std::cmp::Ordering::Greater } else { std::cmp::Ordering::Equal }).is_ok()
+}
+
+/// Whether `\d` of a str pattern of Python's `re` matches the character: a Unicode decimal
+/// digit. The tables (`text/classes.rs`) are generated from CPython 3.12, Unicode 15.0.0
+/// (`native/core/tools/regex_classes_table.py`).
+pub fn re_decimal(char: char) -> bool {
+    in_ranges(&classes::DECIMAL, char)
+}
+
+/// Whether `\s` of a str pattern matches the character (`str.isspace`).
+pub fn re_space(char: char) -> bool {
+    in_ranges(&classes::SPACE, char)
+}
+
+/// Whether `\w` of a str pattern matches the character (`str.isalnum`, and `_`).
+pub fn re_word(char: char) -> bool {
+    in_ranges(&classes::WORD, char)
 }
 
 /// `text.casefold()`. Borrowed when no character folds, as for ASCII text without capitals.
