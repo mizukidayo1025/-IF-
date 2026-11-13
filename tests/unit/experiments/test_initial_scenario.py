@@ -1725,3 +1725,16 @@ def test_adult_only_selection_drops_child_templates_instead_of_failing() -> None
     people = draft.scenario.model_configs["population"]["people"]
     assert all(person["age_years"] >= 18 for person in people.values())
     assert draft.can_start
+
+
+def test_the_core_builder_s_constants_are_python_s_today() -> None:
+    """The core's builder holds what no screen request changes as constants (#299); they must be
+    what Python makes now. Write them again with `native/core/tools/scenario_constants.py`."""
+    from support.core_scenario_builder import constants_text
+    from support.paths import FIXTURES
+
+    path = FIXTURES.parent / "native" / "core" / "src" / "scenario" / "constants.json"
+    assert path.read_text(encoding="utf-8") == constants_text(), (
+        "native/core/src/scenario/constants.json is stale; "
+        "run native/core/tools/scenario_constants.py"
+    )
