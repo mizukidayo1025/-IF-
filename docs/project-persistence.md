@@ -53,3 +53,43 @@ Checkpointは計算に使ったモデルの版を`model_versions`に記録しま
 - **止める：** 続きの計算（`POST R/resume`、CLIの`resume`）、分岐（`fork`、CLIの`fork`）、介入の確認と適用（intervention-preview、EffectProgram）、`TimelineStore.seek`。HTTPは409、`code`は`run_model_view_only`、`error`は「このRunは旧モデル（版 1）で計算されました。今のモデルは版 2 です。閲覧のみです。…」のような文です。Webの計算開始とProjectの分岐は、workerを起動する前に止めます。保存したファイルは変えません。旧モデルのdemoのjobは、server再起動のときに`failed`として残し、Branchを復元しません。
 - 版の違いが、全体の版ではなくPolicyや状態契約の署名（`model_suite`など）だけのときも同じです。今のコードが署名できない設定も旧モデルとして閲覧します。
 - 独立した待ち行列ができる前の保存（列の旧方式）と、情報の状態のschema 1を含む保存は、版が同じでも閲覧のみです（`LEGACY_SHAPES_TICKABLE`は`False`。tickの規則からPythonを消したため）。閲覧では今までどおり移行して読みます。
+
+## ブラウザーのProject記録と1つのファイル（#265）
+
+ブラウザー版（#132の段階6）は、Project・Run・Branchの記録をOPFSのフォルダーに置き、画面が呼ぶ`GET /api/v1/projects`、`POST /api/v1/projects`、`GET {project}`、`GET {project}/runs`、`GET {project}/runs/{run}`、`GET {project}/runs/{run}/evidence`に、Pythonのserverと同じ形のJSONで答えます（`native/wasm/js/project_store.mjs`）。VM（Pythonの経路）のRunのフォルダーは変換しません。
+
+| 置き場所（Projectのフォルダーから） | 中身 |
+|---|---|
+| `project.json` | `schema_version`、`project_id`、`archived` |
+| `scenarios/<scenario>/v<n>.json` | Scenarioの記録（`schema_version`、`scenario_id`、`scenario_version`、`scenario_hash`、`approved`）。Scenario自体は持たない |
+| `scenarios/<scenario>/v<n>.scenario.json` | Pythonが書いたScenarioの正準JSONのbytes。sha256が`scenario_hash` |
+| `runs/<run>/run.json` | Runの記録（Pythonの`RunReference`の欄と`status`、`archived`） |
+| `runs/<run>/evidence.json` | Pythonのserverが`runs/{run}/evidence`に返すJSONのbytes（`evidence_context`と、その道が足す一覧） |
+| `runs/<run>/branches/<branch>/branch.json` | Branchの記録（Pythonの`BranchReference`の欄と`status`） |
+| `runs/<run>/branches/<branch>/journal.jsonl`、`data.pack` | Branchの保存したRun（#252、`run_store.mjs`） |
+
+記録は、鍵を並べたJSONと改行です。ScenarioとevidenceはPythonが書いたbytesのまま持ち、答えるときもそのまま埋め込みます（JSで読み直すと`1.0`が`1`になるため）。案A（#244）のあいだは、世界を作るのも、Scenarioとevidenceを作るのもPythonです。
+
+Pythonの欄のうち、ブラウザーで意味が変わるもの：
+
+| 欄 | ブラウザーで入るもの |
+|---|---|
+| Branchの`checkpoint_hash` | 先頭（`computed_until`の世界）を記録した目録の行のsha256。保存したRunの最後の`end`の行で、分とdigestを持つ。計算前は`null`。画面は先頭が変わったかどうかにだけ使う |
+| Runの`status` | `run.json`に持つ（Pythonは`status.json`に分ける） |
+| Projectの一覧の`storage` | `bytes`と`files`は置き場のファイルの合計、`limit_bytes`は呼ぶ側が渡す値（ページでは`navigator.storage.estimate()`の`quota`） |
+| Runの`last_fork` | 返さない（分岐は#267） |
+
+誤りは`ProjectStoreError`で、`message`はPythonの`StorageError`と同じ文（あれば）、`code`はその符号です。
+
+1つのファイル（`sheltersim-project-bundle`、版1、拡張子`.shelterproj`）は、Projectのフォルダーのファイルをそのまま並べたものです。先頭から、16 bytesの印（`0x89`、`SHELTERSIM-PRJ`、`0x0a`）、版（4 bytes、big-endian）、目録の長さ（4 bytes）、目録のsha256（32 bytes）、目録（JSON：`format`、`version`、`project_id`、作った道具の`source`、各entryの`path`・`length`・`sha256`）、各entryのbytesの順です。Branchの保存したRunは、目録のpieceの種類を読まずにファイルごと運ぶので、#251が足す途中の世界もそのまま入ります。
+
+読み込み（`importProject`）は、印、版、目録とentryのsha256、記録どうしの関係（Scenarioのhash、RunのScenario、Branchの親）を確かめてから書き、各Branchの保存したRunを読み戻してdigest（`readAndVerify`）と記録の先頭を確かめます。どれかが合わなければ誤りにし、そのProjectを残しません。`project.json`は最後に書くので、途中で止まったProjectは一覧に出ません。同じIDのProjectがあれば断ります（`replace`では、古いものを先に消します）。違う版のファイルは「版Nは読めない」という誤りにします。
+
+| 関数 | 使う所 |
+|---|---|
+| `memoryTree()`、`opfsTree(directory)` | 置き場 |
+| `createProject`、`saveScenario`、`createRun`、`setRunStatus`、`writeBranch`、`computeBranch`、`branchBackend` | 記録を作る、Branchを計算して残す |
+| `projectsResponse`、`projectResponse`、`runsResponse`、`runResponse`、`evidenceResponse` | 道の答え（JSONの文字列） |
+| `exportProject`、`importProject`、`readBundle`、`packBundle` | 1つのファイル |
+
+計算済みの例は`scripts/build_browser_sample.py`で作ります（[development.md](development.md#ブラウザー向けのwasm試作)）。

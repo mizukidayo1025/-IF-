@@ -170,3 +170,4 @@ jobs:
           cargo build --manifest-path native/Cargo.toml -p sheltersim_wasm --target wasm32-unknown-unknown --profile ci
           "$RUNNER_TEMP/$archive/wasm-bindgen" --target nodejs --out-dir "$RUNNER_TEMP/pkg" native/target/wasm32-unknown-unknown/ci/sheltersim_wasm.wasm
           node native/wasm/tests/node_digests.mjs "$RUNNER_TEMP/pkg"
+          node native/wasm/tests/node_project_store.mjs "$RUNNER_TEMP/pkg"
