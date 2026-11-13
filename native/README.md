@@ -143,6 +143,14 @@ split PR by PR; its last section sums up what is where.
   the server's `intervention-preview` makes it. `PlainRun::scenario_summary` serves the browser
   (`Simulation.scenarioSummary`). `core/tests/summaries.rs` and `wasm/tests/node_summaries.mjs`
   check the worlds of `core/tests/data/summaries.json`.
+- **EffectProgram** (#304): `program::EffectProgram` reads a program's JSON as the contract
+  `EffectProgram` (`events/effects.py`) does, strictly, and dumps it with its defaults
+  (`model_dump(mode="json")`, whose canonical JSON's sha256 is the approval's hash);
+  `program::validate` is `validate_effect_program` for the six operators the offline reading of a
+  text makes, with Python's texts, and `Unsupported` for the others. `PlainRun::validate_effect_program`
+  places added toilets on a fork of the world. In WASM: `effectProgramDump`,
+  `Simulation.validateEffectProgram`. `core/tests/programs.rs` and `wasm/tests/node_programs.mjs`
+  check the cases of `core/tests/data/programs.json`.
 - **Saved points** (#251, for the browser only; not Python's Checkpoints): `PlainRun::saved_point`
   writes the Run at a minute as `archive::SavedPoint`, a versioned binary of the world without its
   log (`archive::world_parts`), the counts of the log's records and the metric samples, and the

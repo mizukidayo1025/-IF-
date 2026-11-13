@@ -59,6 +59,7 @@ FIXTURES: dict[str, str] = {
     "frames": "support.core_frames:frames_fixture",
     "api_answers": "support.core_api_answers:api_answers_fixture",
     "summaries": "support.core_summaries:summaries_fixture",
+    "programs": "support.core_programs:programs_fixture",
     "initial_worlds": "support.core_initial:initial_worlds_fixture",
     # Not a test's data: the table the core's minute-0 builder reads (#249), at its own path.
     "initial_table": "support.core_initial:initial_table",
