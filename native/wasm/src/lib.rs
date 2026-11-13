@@ -514,6 +514,13 @@ pub fn world_part_digests(bytes: &[u8]) -> Result<String, JsError> {
     String::from_utf8(encoder.out).map_err(|error| JsError::new(&error.to_string()))
 }
 
+/// Python's `str.casefold` (`sheltersim_core::text::casefold`): what the regional research compares
+/// names with (`js/research.mjs`, #300).
+#[wasm_bindgen]
+pub fn casefold(text: &str) -> String {
+    sheltersim_core::text::casefold(text).into_owned()
+}
+
 /// The entry of a Scenario's world at minute 0, from the Scenario's canonical JSON
 /// (`sheltersim_core::initial::entry`, #249): the bytes Python's `export_world` writes of it, which
 /// `new Simulation(entry)` runs. What the core does not build (a Scenario whose configs its table

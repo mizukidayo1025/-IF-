@@ -62,6 +62,7 @@ FIXTURES: dict[str, str] = {
     "scenario_population": "support.core_scenario_population:scenario_population_fixture",
     "scenario_conditions": "support.core_scenario_conditions:scenario_conditions_fixture",
     "summaries": "support.core_summaries:summaries_fixture",
+    "research_cases": "support.core_research:research_cases_fixture",
     "programs": "support.core_programs:programs_fixture",
     "initial_worlds": "support.core_initial:initial_worlds_fixture",
     # Not a test's data: the table the core's minute-0 builder reads (#249), at its own path.
