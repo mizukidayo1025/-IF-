@@ -63,8 +63,13 @@ async function answered(task) {
   }
 }
 
+// The cases the browser answers browser_unsupported: their research needs the shelter rows (a
+// municipality code; a name that resolves to one code), which the site does not hold (#300, #332).
+const UNSUPPORTED = new Set(["text-municipality-code", "text-prefecture"]);
+
 let failures = 0;
 let compared = 0;
+let refused = 0;
 let runs = 0;
 for (const [name, item] of Object.entries(corpus.cases)) {
   if (only.size > 0 && !only.has(name)) continue;
@@ -73,7 +78,10 @@ for (const [name, item] of Object.entries(corpus.cases)) {
   const routes = routesOf(tree);
   const problems = [];
   const preview = await answered(() => routes.preview("corpus", item.body));
-  if (preview.status !== item.status) {
+  if (UNSUPPORTED.has(name)) {
+    if (preview.status !== 409 || preview.body.code !== "browser_unsupported") problems.push(`not refused: ${preview.status}`);
+    else refused += 1;
+  } else if (preview.status !== item.status) {
     problems.push(`status ${preview.status} (${JSON.stringify(preview.body).slice(0, 200)}), not ${item.status}`);
     if (preview.error && preview.status >= 500) problems.push(preview.error.stack);
   } else if (item.status !== 200) {
@@ -143,4 +151,4 @@ if (failures > 0) {
   console.error(`${failures} of ${compared} cases differ`);
   process.exit(1);
 }
-console.log(`scenario routes: ok (${compared} cases, ${runs} Runs)`);
+console.log(`scenario routes: ok (${compared} cases, ${runs} Runs, ${refused} refused as unsupported)`);
