@@ -1,0 +1,251 @@
+"""Build the browser version of /demo-v2 as a static site (#266, stage A of #263).
+
+    python scripts/build_static_site.py OUTPUT_DIR --pkg PKG_DIR --bundle SAMPLE.shelterproj
+
+PKG_DIR is the output of `wasm-bindgen --target web` for sheltersim_wasm.wasm, and the bundle the
+sample of scripts/build_browser_sample.py (docs/development.md, "ブラウザー版の静的サイト"). The
+screen's files (src/sheltersim/web/static/demo-v2*) are copied unchanged; the browser build's
+demo-v2.html is the server's with one more line, the script that wraps `fetch` and answers the
+screen's `/api/v1/...` in a Worker from the browser's store and WASM (native/wasm/js/api_fetch.js).
+
+The site is served at the root of its domain, as the screen loads `/demo-v2.css` and the like and
+`history.replaceState`s to `/demo-v2?…`:
+
+    /                       index.html: goes to /demo-v2?project=…&run=…&branch=main#simulation
+    (a missing path)        404.html, with status 404
+    /demo-v2                demo-v2.html (a host serving `/demo-v2` from `demo-v2.html`, as
+                            Cloudflare Pages, GitHub Pages and Netlify do; for others see the docs)
+    /demo-v2.css, /demo-v2*.js, /demo-v2-logo.jpg   the screen's files
+    /browser/               api_fetch.js, api_worker.mjs and the modules it imports, pkg/ (WASM)
+    /sample/sample.json     the sample's manifest (browser_api.mjs's SAMPLE_FORMAT) and its parts,
+                            sample.shelterproj.000, .001, … of at most --part-mib MiB each
+
+No file is larger than --part-mib (16 MiB by default; Cloudflare Pages takes at most 25 MiB a file).
+OUTPUT_DIR must be outside the repository and empty or missing: the site is generated, never
+committed. scripts/serve_static_site.py serves it locally for checks.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import shutil
+import struct
+import sys
+from pathlib import Path
+from typing import Any
+from urllib.parse import urlencode
+
+ROOT = Path(__file__).resolve().parents[1]
+STATIC = ROOT / "src" / "sheltersim" / "web" / "static"
+JS = ROOT / "native" / "wasm" / "js"
+# The screen's files the browser version serves as they are.
+SCREEN_FILES = (
+    "demo-v2.css",
+    "demo-v2-logo.jpg",
+    "demo-v2.js",
+    "demo-v2-map.js",
+    "demo-v2-scene.js",
+    "demo-v2-clock.js",
+    "demo-v2-replay.js",
+    "demo-v2-sprites.js",
+)
+# The browser's API: the page's script, the Worker and the modules it imports.
+BROWSER_FILES = (
+    "api_fetch.js",
+    "api_worker.mjs",
+    "api_answers.mjs",
+    "browser_api.mjs",
+    "project_store.mjs",
+    "run_store.mjs",
+)
+PKG_FILES = ("sheltersim_wasm.js", "sheltersim_wasm_bg.wasm")
+SAMPLE_FORMAT = "sheltersim-site-sample"
+SAMPLE_VERSION = 1
+# The line the browser build adds to demo-v2.html, before the screen's first script.
+SHIM = (
+    '<script src="/browser/api_fetch.js" data-worker="/browser/api_worker.mjs"'
+    ' data-sample="/sample/sample.json"></script>'
+)
+FIRST_SCRIPT = '<script src="/demo-v2-scene.js" defer></script>'
+# The bundle's header (native/wasm/js/project_store.mjs): magic, version, manifest length, sha256.
+MAGIC = b"\x89SHELTERSIM-PRJ\n"
+HEADER = len(MAGIC) + 4 + 4 + 32
+LIMIT_MIB = 20
+
+
+def browser_html(server_html: str) -> str:
+    """The server's demo-v2.html with the browser version's script before the screen's."""
+    if server_html.count(FIRST_SCRIPT) != 1:
+        raise ValueError(f"demo-v2.html has not exactly one {FIRST_SCRIPT}")
+    return server_html.replace(FIRST_SCRIPT, f"{SHIM}\n    {FIRST_SCRIPT}")
+
+
+def bundle_project(bundle: Path) -> tuple[str, list[str]]:
+    """The Project id of a bundle and its Runs' ids, read from its manifest."""
+    with bundle.open("rb") as file:
+        header = file.read(HEADER)
+        if len(header) != HEADER or header[: len(MAGIC)] != MAGIC:
+            raise ValueError(f"{bundle} is not a project bundle")
+        (length,) = struct.unpack(">I", header[len(MAGIC) + 4 : len(MAGIC) + 8])
+        manifest = json.loads(file.read(length))
+    runs = sorted(
+        {
+            entry["path"].split("/")[1]
+            for entry in manifest["entries"]
+            if entry["path"].startswith("runs/") and entry["path"].endswith("/run.json")
+        }
+    )
+    return manifest["project_id"], runs
+
+
+NOT_FOUND = (
+    "<!doctype html>\n"
+    '<html lang="ja">\n<head>\n<meta charset="utf-8" />\n'
+    "<title>見つかりません | 避難所IF！</title>\n</head>\n"
+    '<body><p>ページが見つかりません。<a href="/">避難所IF！の計算済みの例を開く</a></p></body>\n'
+    "</html>\n"
+)
+
+
+def index_html(target: str) -> str:
+    """A page that goes to `target` at once (and says where, without JS)."""
+    quoted = target.replace("&", "&amp;")
+    return (
+        "<!doctype html>\n"
+        '<html lang="ja">\n<head>\n<meta charset="utf-8" />\n'
+        f'<meta http-equiv="refresh" content="0; url={quoted}" />\n'
+        "<title>避難所IF！</title>\n"
+        f"<script>location.replace({json.dumps(target)});</script>\n"
+        "</head>\n"
+        f'<body><p><a href="{quoted}">避難所IF！の計算済みの例を開く</a></p></body>\n</html>\n'
+    )
+
+
+def split_bundle(bundle: Path, directory: Path, part_bytes: int) -> dict[str, Any]:
+    """Write the bundle's parts and their manifest to `directory`; the manifest."""
+    project_id, _ = bundle_project(bundle)
+    whole = hashlib.sha256()
+    parts = []
+    total = 0
+    with bundle.open("rb") as file:
+        while chunk := file.read(part_bytes):
+            name = f"sample.shelterproj.{len(parts):03d}"
+            (directory / name).write_bytes(chunk)
+            whole.update(chunk)
+            parts.append(
+                {"path": name, "bytes": len(chunk), "sha256": hashlib.sha256(chunk).hexdigest()}
+            )
+            total += len(chunk)
+    manifest = {
+        "format": SAMPLE_FORMAT,
+        "version": SAMPLE_VERSION,
+        "project_id": project_id,
+        "bytes": total,
+        "sha256": whole.hexdigest(),
+        "parts": parts,
+    }
+    (directory / "sample.json").write_text(json.dumps(manifest, indent=1) + "\n", encoding="utf-8")
+    return manifest
+
+
+def build(
+    output: Path,
+    *,
+    pkg: Path,
+    bundle: Path,
+    run_id: str | None = None,
+    branch_id: str = "main",
+    part_mib: int = 16,
+) -> dict[str, Any]:
+    """Assemble the site in `output`; a summary of what it holds."""
+    output = output.resolve()
+    if output == ROOT or ROOT in output.parents:
+        raise ValueError("the site is generated: write it outside the repository")
+    if output.exists() and any(output.iterdir()):
+        raise ValueError(f"{output} is not empty")
+    if not 1 <= part_mib <= LIMIT_MIB:
+        raise ValueError(f"--part-mib must be from 1 to {LIMIT_MIB}")
+    project_id, runs = bundle_project(bundle)
+    if run_id is None:
+        if len(runs) != 1:
+            raise ValueError(f"the bundle has the Runs {runs}: name one with --run")
+        run_id = runs[0]
+    elif run_id not in runs:
+        raise ValueError(f"the bundle has no Run {run_id}")
+    output.mkdir(parents=True, exist_ok=True)
+    for name in SCREEN_FILES:
+        shutil.copyfile(STATIC / name, output / name)
+    (output / "demo-v2.html").write_text(
+        browser_html((STATIC / "demo-v2.html").read_text(encoding="utf-8")), encoding="utf-8"
+    )
+    (output / "browser" / "pkg").mkdir(parents=True)
+    for name in BROWSER_FILES:
+        shutil.copyfile(JS / name, output / "browser" / name)
+    for name in PKG_FILES:
+        shutil.copyfile(pkg / name, output / "browser" / "pkg" / name)
+    (output / "sample").mkdir()
+    manifest = split_bundle(bundle, output / "sample", part_mib * 2**20)
+    query = urlencode({"project": project_id, "run": run_id, "branch": branch_id})
+    target = f"/demo-v2?{query}#simulation"
+    (output / "index.html").write_text(index_html(target), encoding="utf-8")
+    # A missing file is a 404 (Cloudflare Pages without a 404.html answers every path with the
+    # root's index.html, as for a single-page app).
+    (output / "404.html").write_text(NOT_FOUND, encoding="utf-8")
+    # GitHub Pages: serve the files as they are, without Jekyll.
+    (output / ".nojekyll").write_bytes(b"")
+    files = sorted(path for path in output.rglob("*") if path.is_file())
+    largest = max(files, key=lambda path: path.stat().st_size)
+    if largest.stat().st_size > LIMIT_MIB * 2**20:
+        raise ValueError(f"{largest} is larger than {LIMIT_MIB} MiB")
+    return {
+        "output": str(output),
+        "open": target,
+        "files": len(files),
+        "bytes": sum(path.stat().st_size for path in files),
+        "largest": {
+            "path": str(largest.relative_to(output)),
+            "bytes": largest.stat().st_size,
+        },
+        "sample": {key: manifest[key] for key in ("project_id", "bytes", "sha256")}
+        | {"parts": len(manifest["parts"])},
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("output", type=Path, help="the site's directory (empty or missing)")
+    parser.add_argument(
+        "--pkg", type=Path, required=True, help="the output of wasm-bindgen --target web"
+    )
+    parser.add_argument(
+        "--bundle", type=Path, required=True, help="the sample (build_browser_sample.py)"
+    )
+    parser.add_argument("--run", help="the Run the index page opens (the bundle's only one)")
+    parser.add_argument("--branch", default="main", help="the branch the index page opens")
+    parser.add_argument(
+        "--part-mib", type=int, default=16, help="the largest part of the sample, in MiB"
+    )
+    arguments = parser.parse_args()
+    try:
+        summary = build(
+            arguments.output,
+            pkg=arguments.pkg,
+            bundle=arguments.bundle,
+            run_id=arguments.run,
+            branch_id=arguments.branch,
+            part_mib=arguments.part_mib,
+        )
+    except (OSError, ValueError) as error:
+        print(error, file=sys.stderr)
+        return 2
+    json.dump(summary, sys.stdout, ensure_ascii=False, indent=1)
+    print()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
