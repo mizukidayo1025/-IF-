@@ -124,7 +124,7 @@ node native/wasm/tests/node_browser_api.mjs wasm-pkg
 
 ### ブラウザー版の静的サイト（#266）
 
-ブラウザー版は、サーバーなしで動く静的サイトです。画面のファイル（`demo-v2*`）、ブラウザー版の`demo-v2.html`（serverのものに上のscriptの1行を足したもの）、`native/wasm/js`のAPIのファイル、WASM（`--target web`）、計算済みの例を分けたものを、`scripts/build_static_site.py`が1つのディレクトリーに組み立てます。サイトは生成物なので、リポジトリーの外に作り、commitしません。
+ブラウザー版は、サーバーなしで動く静的サイトです。画面のファイル（`demo-v2*`）、ブラウザー版の`demo-v2.html`（serverのものに、上のscriptの1行と、従来の画面へのリンクを隠すstyleの1行を足したもの）、`native/wasm/js`のAPIのファイル、WASM（`--target web`）、計算済みの例を分けたものを、`scripts/build_static_site.py`が1つのディレクトリーに組み立てます。サイトは生成物なので、リポジトリーの外に作り、commitしません。
 
 ~~~shell
 cargo build --manifest-path native/Cargo.toml -p sheltersim_wasm --target wasm32-unknown-unknown --release
@@ -144,6 +144,7 @@ python scripts/serve_static_site.py ../hinanjo-if-site --port 8000
 | `/` | `index.html`。例のRunを開く`/demo-v2?…`へ移る |
 | `/demo-v2` | `demo-v2.html` |
 | `/demo-v2.css`、`/demo-v2*.js`、`/demo-v2-logo.jpg` | 画面のファイル（変えずに写す） |
+| `/LICENSE.txt` | リポジトリーの`LICENSE`（MIT） |
 | `/browser/` | `api_fetch.js`、`api_worker.mjs`、それが読むmodule、`pkg/`（WASM） |
 | `/sample/sample.json`、`/sample/sample.shelterproj.000`… | 例の目録と、`--part-mib`（既定16 MiB）以下に分けた部分 |
 | ないファイルの道 | `404.html`（status 404） |
@@ -153,7 +154,7 @@ python scripts/serve_static_site.py ../hinanjo-if-site --port 8000
 - `/demo-v2`を`demo-v2.html`で答えるhost：Cloudflare Pages、GitHub Pages（独自ドメインか、`<user>.github.io`のサイト）、Netlifyは、拡張子のない道を同じ名前の`.html`で答えます。Cloudflare Pagesには、`wrangler pages deploy <ディレクトリー>`でそのまま置けます（Pages Functionsは使いません）。Pagesは`404.html`がないと、ないファイルの道にも最上位の`index.html`を返すので、サイトには`404.html`を置き、ないファイルは404にします。GitHub PagesがJekyllを通さないよう`.nojekyll`も置きます。
 - ほかのserverでは、拡張子のない道を`.html`で答える設定が要ります。例えばnginxなら`try_files $uri $uri.html =404;`です。`.mjs`は`text/javascript`、`.wasm`は`application/wasm`で送ります。
 - 1つのファイルは`--part-mib`以下か、それより小さく保ちます（道具は20 MiBを超えると止まります。Cloudflare Pagesの上限は1ファイル25 MiBです）。
-- サーバーの機能（認証、PDF、LLMの中継）はありません。画面の「従来のデモ」（`/demo`）はサイトに含めません。`vendor/`（PDFの表示に使うpdf.js）も、`/demo-v2`が読まないので含めません。
+- サーバーの機能（認証、PDF、LLMの中継）はありません。画面の「従来のデモ」（`/demo`）はサイトに含めず、ブラウザー版の`demo-v2.html`はそのリンクをstyleで隠します。`vendor/`（PDFの表示に使うpdf.js）も、`/demo-v2`が読まないので含めません。
 - 初めて開くと、例のファイル全体を取り寄せてブラウザーのOPFSに保存します（大きさと時間は#266）。OPFSを使えないブラウザー（設定やprivateの窓によっては）では、お知らせ欄に誤りを出します。
 
 サイトが画面の道に正しく答えるかは、`benchmarks/static_site_check.py`で確かめます。サイトを上のserverで配り、PlaywrightのChromiumとFirefoxで、それぞれ空のOPFSから開きます。`/`から`/demo-v2`へ移り、例を読み込み、時刻の帯で分へ飛び、240×で数秒再生し、レポートの頁の時系列のグラフが出ること、ページの誤り・consoleの誤り・お知らせ欄の誤りがないことを確かめます。`--python-projects`に、`scripts/build_project_sample.py`で作ったProjectStore（例のmainと同じScenarioをPythonのProjectの経路で計算したもの）を渡すと、記録、保存した点とその間の分のtimeline、飛んだ後と続く再生の窓、いくつかの`step`とページ送りの時系列、report、llm-statusについて、ブラウザーの答えのJSONとPythonのserverの答え（同じプロセスの`ProjectAPI`）を、値の型まで比べます。違って当然の項目（置き場の大きさ、Branchの`checkpoint_hash`と時系列の`anchor_hash`・cursorの中のanchor、0分の`state_hash`）は除き、除いた項目と理由を結果に書きます。0分の`state_hash`は、PythonのProjectの経路が最初のtickの前の世界を`rng_state`がnullのまま残し、ブラウザーが始める書き出した世界は乱数の初めの状態を持つために違います。世界のほかの部分は同じで、1分からは同じです。PlaywrightとそのbrowserはProjectの依存ではないので、確かめる環境に入れます。計った時間は#266に記録しています。
