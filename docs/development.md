@@ -54,7 +54,7 @@ node native/wasm/tests/node_digests.mjs wasm-pkg
 
 最後のcommandは、`native/core/tests/data/tick_core.json`の世界をWASMで進め、ネイティブの経路と同じdigestになることを確かめます。CIのlintのjobも同じことをします。
 
-Scenarioから0分の世界を作る処理も、中核にあります（`sheltersim_core::initial`、#249）。Scenarioの正準JSONを渡すと、Pythonの`export_world`がRunの始まりの世界について書き出すもの（`scripts/build_browser_sample.py`の`export.json`）と同じbytesを返します。WASMでは`initialEntry(scenarioBytes)`で、返したbytesを`new Simulation(entry)`に渡して進めます。行、予定イベント、在庫の台帳、名前空間の人・職員・区画ごとの記録、図面の節、区画のつながりは中核が作ります。Runの`policies_document`、Pythonの契約が読む節、名前空間の設定の部分は、Pythonが書く表（`native/core/src/initial/table.json`）から読みます。表は、Scenarioの画面の要求（`tests/support/core_initial.py`の`TABLE_REQUESTS`）から作り、図面と人のデータの設定（`DATA_CONFIGS`）の中身を除いた設定のfingerprintで引きます。表にない設定のScenarioや、画面の組み立てが作らないもの（基盤の設定、施設の認知、到着の経路、独立した列）は、`unsupported: `で始まる誤りで断ります。表は`python benchmarks/core_fixtures.py initial_table`で書き直し、`tests/integration/test_core_fixtures.py`が古くなっていないことを確かめます。`tests/unit/core/test_world_export.py`は画面の要求ごとにbytesが同じことを、`native/core/tests/initial.rs`と`node native/wasm/tests/node_initial.mjs wasm-pkg`は、20人と100人の世界がPythonと同じbytesになり、進めるとネイティブの経路と同じdigestになることを確かめます。
+Scenarioから0分の世界を作る処理も、中核にあります（`sheltersim_core::initial`、#249）。Scenarioの正準JSONを渡すと、Pythonの`export_world`がRunの始まりの世界について書き出すもの（`scripts/build_browser_sample.py`の`export.json`）と同じbytesを返します。WASMでは`initialEntry(scenarioBytes)`で、返したbytesを`new Simulation(entry)`に渡して進めます。行、予定イベント、在庫の台帳、名前空間の人・職員・区画ごとの記録、図面の節、区画のつながりは中核が作ります。Runの`policies_document`、Pythonの契約が読む節、名前空間の設定の部分は、Pythonが書く表（`native/core/src/initial/table.json`）から読みます。表は、Scenarioの画面の要求（`tests/support/core_initial.py`の`TABLE_REQUESTS`）から作り、図面と人のデータの設定（`DATA_CONFIGS`）の中身を除いた設定のfingerprintで引きます。表にない設定のScenarioや、画面の組み立てが作らないもの（基盤の設定、施設の認知、到着の経路、独立した列）は、`unsupported: `で始まる誤りで断ります。新しいRunの記録のうち、`model_versions`（`model_signatures`）とevidenceの答えも、同じ表の型から作ります（`modelVersions`、`runEvidence`、#301）。床の図のサービスの点の署名と、Scenarioの出典・仮定・地域の調べの限界は中核が入れます。表は`python benchmarks/core_fixtures.py initial_table`で書き直し、`tests/integration/test_core_fixtures.py`が古くなっていないことを確かめます。`tests/unit/core/test_world_export.py`は画面の要求ごとにbytesが同じことを、`native/core/tests/initial.rs`と`node native/wasm/tests/node_initial.mjs wasm-pkg`は、20人と100人の世界がPythonと同じbytesになり、進めるとネイティブの経路と同じdigestになることを確かめます。
 
 ある分の地図と指標（frame、APIの`TimelineFrame`）は、中核が作ります（`sheltersim_core::frame`、#264）。WASMでは`Simulation.frame(runId, branchId, computedUntil, stateHash)`が、frameの正準JSONのbytesを返します。`stateHash`を渡さないときは、世界のdigest（`Simulation.stateDigest()`、Pythonの`world.state_digest()`と同じ値）を入れます。digestは、ログを1件ずつhashに流して求め、世界全体のJSONは作りません。ログは追記だけなので、Run（`PlainRun`）はログの128件ごとの塊のhashと途中の塊のhashの状態を持ち続け、次のdigestでは増えた記録だけを流します（`canonical::state_digest_with`、#266）。最初のdigest（作った直後や途中の点から戻した直後）だけがログ全体を読みます。値は変わりません。計った時間は#266に記録しています。`node native/wasm/tests/node_frames.mjs wasm-pkg`は、`native/core/tests/data/frames.json`の世界と分で、WASMのframeがネイティブの経路のframeと同じbytesになることを確かめます。CIのlintのjobも実行します。
 
@@ -94,6 +94,12 @@ Branchの指標の時系列（`GET …/history?kind=kpis`）、レポート（`G
 
 ~~~shell
 node native/wasm/tests/node_api_answers.mjs wasm-pkg
+~~~
+
+APIキーなしの介入の読み取り（画面の「ここから別の『もしも』を試す」の文、#303）は、中核の`sheltersim_core::interpret`（WASMの`compileInterventionOffline`）が、Pythonの`compile_natural_language`がAPIキーなしで返す`CompilerResult`と同じbytesで答えます。規則の読み取り、節の網羅、6つの作用の検証、結果の文、usageのhashを移しました。正規表現はPythonの書き方のまま、Pythonの`\w`・`\b`・`\d`・`\s`の意味で動かします（`native/core/src/interpret/text.rs`）。primitiveの説明とschema、10進の数字の表はPythonが書き（`native/core/tools/interpret_tables.py`）、pytestが古くないか確かめます。`native/wasm/tests/node_interpret.mjs`が、`native/core/tests/data/offline_interpreter.json`の文と要約の組で、Pythonの答えと同じsha256になることを確かめます。CIのlintのjobも動かします。
+
+~~~shell
+node native/wasm/tests/node_interpret.mjs wasm-pkg
 ~~~
 
 計算済みの例をブラウザーの形で作るには、`scripts/build_browser_sample.py`を使います。VMの計算済みの例（`scripts/build_project_sample.py`）のmainと同じScenario（例文、100人、7日、seed 2026）を、Pythonがofflineの読み取りで作り、記録とevidenceと0分の世界を書き出します。続けてNodeが同じWASMと`run_store.mjs`で7日を計算し、記録を作って1つのファイルにします（`native/wasm/tools/build_project_bundle.mjs`）。ファイルは生成物なので、リポジトリーの外に置きます。`--inputs`を付けると、Pythonの書き出しをそのディレクトリーに残します。
@@ -162,7 +168,7 @@ cargo build --manifest-path native/Cargo.toml -p sheltersim_wasm --target wasm32
 wasm-bindgen --target nodejs --out-dir wasm-pkg native/target/wasm32-unknown-unknown/release/sheltersim_wasm.wasm
 wasm-bindgen --target web --out-dir wasm-web native/target/wasm32-unknown-unknown/release/sheltersim_wasm.wasm
 SHELTERSIM_LLM_MODE=offline python scripts/build_browser_sample.py sample.shelterproj --pkg wasm-pkg
-python scripts/build_static_site.py ../hinanjo-if-site --pkg wasm-web --bundle sample.shelterproj
+python scripts/build_static_site.py ../hinanjo-if-site --pkg wasm-web --bundle sample.shelterproj --fetch-shelters
 python scripts/serve_static_site.py ../hinanjo-if-site --port 8000
 ~~~
 
@@ -176,9 +182,11 @@ python scripts/serve_static_site.py ../hinanjo-if-site --port 8000
 | `/demo-v2` | `demo-v2.html` |
 | `/demo-v2.css`、`/demo-v2*.js`、`/demo-v2-logo.jpg` | 画面のファイル（変えずに写す） |
 | `/LICENSE.txt` | リポジトリーの`LICENSE`（MIT） |
-| `/browser/` | `api_fetch.js`、`api_worker.mjs`、それが読むmodule、`pkg/`（WASM） |
+| `/browser/` | `api_fetch.js`、`api_worker.mjs`、それが読むmodule、`pkg/`（WASM）、`gsi-shelter-index.json`（下の段落） |
 | `/sample/sample.json`、`/sample/sample.shelterproj.000`… | 例の目録と、`--part-mib`（既定16 MiB）以下に分けた部分 |
 | ないファイルの道 | `404.html`（status 404） |
+
+シナリオのプレビューの地域の調べ（`native/wasm/js/research.mjs`、#300）は、国土地理院の住所検索をブラウザーから問い合わせます（VMと同じ。CORSは`*`）。全国の指定避難所のCSV（約11.7 MB、CORSなし）は取り寄せず、サイトを作るときに読んだsha256、HTTPの情報、読めない行の数、自治体コードごとの名前（`providers.gsi_shelter_index`）を`/browser/gsi-shelter-index.json`に置きます。`--fetch-shelters`はCSVをその場で取り寄せ、`--shelter-csv PATH`は手元の写しを読みます。どちらもないと索引を置かず、プレビューは「未対応」になります。避難所の行そのものが要る照合（自治体コードの指定、名前がひとつの自治体コードに決まるとき）は、今週は「未対応」にします（#285）。e-Stat、地域のデータ、気象はVMと同じ「設定なし」です。`node native/wasm/tests/node_research.mjs wasm-pkg`が、`native/core/tests/data/research_cases.json`（`tests/support/core_research.py`：記録した住所検索の答え、合成の避難所CSV、止めた時計）でPythonの調べと同じbytesになることを確かめます。
 
 公開するときは、ディレクトリーをそのまま、ドメインの最上位で配るhostに置きます。画面は`/demo-v2.css`などを最上位からの道で読み、`/demo-v2?…`へ`history.replaceState`するので、`https://example.org/repo/`のような下の道では動きません。
 

@@ -214,6 +214,16 @@ split PR by PR; its last section sums up what is where.
   `Simulation.review_metrics`; `wasm/js/api_answers.mjs` writes the answers, and
   `wasm/tests/node_api_answers.mjs` checks them against the Python server's on the Run of
   `core/tests/data/api_answers.json`.
+- **The offline intervention compiler** (#303): `interpret::compile_offline` answers what
+  `compile_natural_language` answers without an API key (the rule parser's plan, its clause
+  coverage, the semantic checks of the six offline effects, the result's texts and the usage's
+  prompt and input hashes), as the canonical JSON of the `CompilerResult`. Python's regular
+  expressions are kept with Python's `\w`, `\b`, `\d` and `\s` (`interpret/text.rs`); NFKC is
+  `unicode-normalization` 0.1.22 (Unicode 15.0.0, as CPython 3.12). The primitives' descriptions
+  and schemas (`interpret/primitives.json`) and the decimal digits (`interpret/digits.rs`) are
+  written by `tools/interpret_tables.py` and checked by pytest. In WASM:
+  `compileInterventionOffline`; `core/tests/interpret.rs` checks it against Python's answers in
+  `core/tests/data/offline_interpreter.json`.
 - **A Scenario's world at minute 0** (#249): `initial::entry` builds, from a Scenario's
   canonical JSON, the bytes `export_world` writes of the world a Run starts from (the rows, the
   queue, the stock's ledger, each person's, staff member's and zone's records, the floor plan's
@@ -222,7 +232,11 @@ split PR by PR; its last section sums up what is where.
   templates) comes from `initial/table.json`, keyed by `initial::fingerprint` of the configs
   without their data (`DATA_CONFIGS`); `tests/support/core_initial.py` writes it. Configs the table
   lacks are `Unsupported`. In WASM: `initialEntry`; `core/tests/initial.rs` and
-  `wasm/tests/node_initial.mjs` check `core/tests/data/initial_worlds.json`.
+  `wasm/tests/node_initial.mjs` check `core/tests/data/initial_worlds.json`. A new Run's records
+  come from the same table (#301): `initial::model_versions` (`model_signatures`, with the floor
+  plan's service-point signature computed) and `initial::evidence` (the evidence route's answer,
+  with the Scenario's sources, assumptions and research limits); in WASM `modelVersions` and
+  `runEvidence`.
 - **Out of the core** (decision 4): building a world from a Scenario the screen does not make and
   restoring a Checkpoint stay in Python and the wrapper. The whole-world validation texts (E6) and the pydantic
   contracts (E15) stay Python behind `Host`; a host without Python passes the validation and

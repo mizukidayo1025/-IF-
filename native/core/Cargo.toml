@@ -9,6 +9,12 @@ description = "The simulation core of 避難所IF！ without Python (Issue #152)
 crate-type = ["rlib"]
 
 [dependencies]
+# The offline intervention parser's patterns (Issue #303): Python's `re` with lookarounds. Only the
+# Unicode tables its patterns use (case folding, general categories, white space) are built in, to
+# keep the WASM small.
+fancy-regex = { version = "0.20", default-features = false, features = ["std"] }
+regex-automata = { version = "0.4", default-features = false, features = ["unicode-case", "unicode-perl"] }
+regex-syntax = { version = "0.8", default-features = false, features = ["unicode-case", "unicode-gencat", "unicode-perl"] }
 indexmap = "2"
 itoa = "1"
 # Pure Rust exp, expm1, pow and fma: the same bits on every OS (docs/rust-port/step4-plan.md, section 9).
@@ -22,6 +28,7 @@ ryu = "1.0"
 # The number text of a saved record as it was read: a float keeps its digits (`events/log.rs`).
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
 sha2 = "0.10"
+unicode-normalization = { version = "=0.1.22", default-features = false, features = ["std"] }
 
 [features]
 default = ["parallel"]
