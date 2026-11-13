@@ -69,7 +69,7 @@ Scenarioから0分の世界を作る処理も、中核にあります（`shelter
 
 中核は、ブラウザーのRunを途中の分から計算し直せるよう、その分の状態を残し（`PlainRun::saved_point`）、そこから戻せます（`archive::Restore`、`PlainRun::restore`、#251）。残す点（`archive::SavedPoint`）は、版つきのbinaryで、ログ以外の世界（`archive::world_parts`）と、その分までのログの記録と指標の標本の数、契約の数え（`PlainHost::contracts`）を持ちます。乱数は世界のseedから決まり、IDの採番・予定イベント・モデルの状態は世界の部分にあります。図面は世界のoverlayから作り直し、活動中の行動はログから作り直します（Pythonの`active_action_index`と同じ）。ログと標本は写しません。戻すときは、保存したログと標本の表と塊を順に読み、残す点の数までを取ります。PythonのCheckpointとは互換にしません（#263）。別の版の残す点は読まず、誤りにします。`native/core/tests/archive_store.rs`が、1日のRunの6時間ごとの点に戻して同じdigestになること、途中の点から終わりまで進めて同じdigestになることを確かめます。
 
-ブラウザーのRunは、途中の点を`saved`の部分として、既定で6時間（360分）ごとと最後に残します（`runAndStore`の`saveEvery`、0で残さない。#263）。目録の行は、点の分、記録と標本の数、点の版、その記録と標本を持つ塊の数を持ちます。分へ飛ぶときは（`RunReader.open`のあと`seek(minute)`）、その分以前で一番近い点に戻し、保存したログと標本を点の数まで読んでから、残りの分（最大359 tick）を計算します。点がなければ0分の世界から計算します。この形は`sheltersim-browser-run-v3`です（#266）。v3では、資源の台帳のある世界の指標の標本が、その時点の台帳の指標の列（水と食事の初期量・配送・提供・損失・残り・予約。ネイティブの経路の`resource_snapshots`）も持ちます。台帳の列を持つ標本は1 byte目が1で、持たない標本は前と同じ形です（1 byte目は分のzigzagで偶数）。v3の前の`v2`（#251）と、途中の点のない`v1`（#252）のRunも読み、v1で飛ぶときは0分から計算します。ほかの形と別の版の点は誤りにします。Nodeのテスト`native/wasm/tests/node_saved_points.mjs`は、メモリーの置き場で、各点、点の間、最初の点の前、終わりの分へ飛んで、止めずに進めたRunと同じdigestになることを確かめます。100人・7日で計った大きさと時間は#251に記録しています。
+ブラウザーのRunは、途中の点を`saved`の部分として、既定で6時間（360分）ごとと最後に残します（`runAndStore`の`saveEvery`、0で残さない。#263）。目録の行は、点の分、記録と標本の数、点の版、その記録と標本を持つ塊の数を持ちます。分へ飛ぶときは（`RunReader.open`のあと`seek(minute)`）、その分以前で一番近い点に戻し、保存したログと標本を点の数まで読んでから、残りの分（最大359 tick）を計算します。点がなければ0分の世界から計算します。この形は`sheltersim-browser-run-v3`です（#266）。v3では、資源の台帳のある世界の指標の標本が、その時点の台帳の指標の列（水と食事の初期量・配送・提供・損失・残り・予約。ネイティブの経路の`resource_snapshots`）も持ちます。台帳の列を持つ標本は1 byte目が1で、持たない標本は前と同じ形です（1 byte目は分のzigzagで偶数）。介入の子の分岐（#306）を保存できるよう、今書く形は`sheltersim-browser-run-v4`です。v4はv3に、分岐で作ったRunを足した形です（[project-persistence.md](project-persistence.md#ブラウザーの介入と子の分岐306)）。v3のRunもそのまま読み、続けて計算できます。v3の前の`v2`（#251）と、途中の点のない`v1`（#252）のRunも読み、v1で飛ぶときは0分から計算します。ほかの形と別の版の点は誤りにします。Nodeのテスト`native/wasm/tests/node_saved_points.mjs`は、メモリーの置き場で、各点、点の間、最初の点の前、終わりの分へ飛んで、止めずに進めたRunと同じdigestになることを確かめます。100人・7日で計った大きさと時間は#251に記録しています。
 
 ブラウザーでの時間とメモリは、試しの世界（Projectの画面の生成Scenario、1日、seed 2026、20人と100人）で計ります。`benchmarks/wasm_trial_worlds.py`が0分の世界を書き出し、ネイティブの経路のdigestと時間を記録します。`benchmarks/wasm_trial_measure.py`は、計測のページ（`benchmarks/wasm_trial/index.html`）をPlaywrightのChromiumとFirefoxで開き、WASMで同じ世界を進めます。Playwrightとそのbrowserはprojectの依存ではないので、計る環境に入れます。書き出しと結果は生成物なので、リポジトリーの外に置きます。
 
@@ -96,6 +96,12 @@ Branchの指標の時系列（`GET …/history?kind=kpis`）、レポート（`G
 node native/wasm/tests/node_api_answers.mjs wasm-pkg
 ~~~
 
+APIキーなしの介入の読み取り（画面の「ここから別の『もしも』を試す」の文、#303）は、中核の`sheltersim_core::interpret`（WASMの`compileInterventionOffline`）が、Pythonの`compile_natural_language`がAPIキーなしで返す`CompilerResult`と同じbytesで答えます。規則の読み取り、節の網羅、6つの作用の検証、結果の文、usageのhashを移しました。正規表現はPythonの書き方のまま、Pythonの`\w`・`\b`・`\d`・`\s`の意味で動かします（`native/core/src/interpret/text.rs`）。primitiveの説明とschema、10進の数字の表はPythonが書き（`native/core/tools/interpret_tables.py`）、pytestが古くないか確かめます。`native/wasm/tests/node_interpret.mjs`が、`native/core/tests/data/offline_interpreter.json`の文と要約の組で、Pythonの答えと同じsha256になることを確かめます。CIのlintのjobも動かします。
+
+~~~shell
+node native/wasm/tests/node_interpret.mjs wasm-pkg
+~~~
+
 計算済みの例をブラウザーの形で作るには、`scripts/build_browser_sample.py`を使います。VMの計算済みの例（`scripts/build_project_sample.py`）のmainと同じScenario（例文、100人、7日、seed 2026）を、Pythonがofflineの読み取りで作り、記録とevidenceと0分の世界を書き出します。続けてNodeが同じWASMと`run_store.mjs`で7日を計算し、記録を作って1つのファイルにします（`native/wasm/tools/build_project_bundle.mjs`）。ファイルは生成物なので、リポジトリーの外に置きます。`--inputs`を付けると、Pythonの書き出しをそのディレクトリーに残します。
 
 ~~~shell
@@ -120,8 +126,11 @@ python benchmarks/wasm_trial_measure.py --bundle sample.shelterproj --pkg wasm-w
 | `GET runs/{run}/replay-frames`（1つの分岐） | 1〜8分のframe |
 | `GET …/history?kind=kpis`、`report`、`llm-status` | `native/wasm/js/api_answers.mjs`（上の段落）。`history`の`kpis`以外の`kind`は「未対応」 |
 | `POST runs/{run}/resume`、`POST runs/{run}/cancel` | Workerで計算する・止める（`native/wasm/js/compute.mjs`、#267、下） |
+| `POST …/branches/{branch}/intervention-preview`、`intervention-apply` | APIキーのないVMと同じ介入のプレビューと、子の分岐を作る適用（`native/wasm/js/interventions.mjs`、#306）。`GET runs/{run}`は`last_fork`も返します |
+| `GET runs/{run}/compare`、2つの分岐の`GET runs/{run}/replay-frames` | 比較（`native/wasm/js/comparison.mjs`、#307）。差は中核が求めます（`kpiDifferences`） |
+| `POST …/branches/{branch}/questions` | APIキーのないVMと同じ決まった答え（`native/wasm/js/questions.mjs`、#308） |
 | `POST runs/{run}/pdf-report` | serverの確かめの後、APIキーのないVMと同じ409 `pdf_analysis_offline`（#309、[project-persistence.md](project-persistence.md#ブラウザーのpdfレポート309)） |
-| `scenario-*`、`compare`、2つの分岐の`replay-frames`、`intervention-*`、`questions`、`/api/v1/projects`以外の道 | 409 `{"error": "ブラウザー版では未対応です（…）", "code": "browser_unsupported"}` |
+| `scenario-*`、`/api/v1/projects`以外の道 | 409 `{"error": "ブラウザー版では未対応です（…）", "code": "browser_unsupported"}` |
 
 分ごとのframeは、分岐ごとに1つ手元に置いたSimulationから作ります。後の分は、手元のSimulationを進めるほうが途中の点から戻すより安いとき（手元の分がその分以前の一番近い点以後か、差が360分以内）は進め、それ以外は`RunReader.seek`で途中の点に戻してから計算します（#251）。再生（`replay-frames`）は手元のSimulationを進めるだけで、戻しません。手元に置くSimulationは2つまでで、置き換えるものは先に解放します（WASMのメモリーは縮まないため）。digestは、Runが持つログのhashの途中の状態に増えた記録だけを足して求めます（上の段落）。
 
@@ -210,7 +219,7 @@ python benchmarks/static_site_check.py --site ../hinanjo-if-site --compute piece
 4. 比較（compare）：画面の比較と、いくつかの分の`compare`、2つの分岐の再生の窓です。
 5. 振り返り（report）：レポートの頁（report、evidence、llm-status、指標の時系列）、質問（APIキーなしの決まった答え）、PDF（offlineのVMと同じ409 `pdf_analysis_offline`）です。
 
-各段で、ブラウザーの答え（画面の要求は`fetch`を包んで捕まえ、確かめの要求はページから送ります）を、同じ操作へのPythonのserverの答え（同じプロセスの`ProjectAPI`、`--work`の下の自分のProjectStore、`server.py`と同じ直列化）と、値の型まで比べます。Python側は同じ操作を同じ順に一度だけ行い、その答えを2つのbrowserで使います。比べられるように固定するもの：画面の`crypto.randomUUID`（RunとBranchのID）、地域の調べの時刻（Pythonの`datetime.now`と、ブラウザーのAPIのWorkerの`Date`）、国土地理院の住所検索（両方ともシナリオのコーパス`tests/support/scenario_corpus.py`の記録した答え）。避難所のCSVは、サイトを作ったときと同じファイルを`--shelter-csv`で渡します（なければコーパスの合成のもの）。違って当然の項目（previewとdraftのID、`checkpoint_hash`、質問の`context_id`の乱数の部分、`static_site_check.py`の除く項目）と理由は、結果に書きます。
+各段で、ブラウザーの答え（画面の要求は`fetch`を包んで捕まえ、確かめの要求はページから送ります）を、同じ操作へのPythonのserverの答え（同じプロセスの`ProjectAPI`、`--work`の下の自分のProjectStore、`server.py`と同じ直列化）と、値の型まで比べます。Python側は同じ操作を同じ順に一度だけ行い、その答えを2つのbrowserで使います。比べられるように固定するもの：画面の`crypto.randomUUID`（RunとBranchのID）、地域の調べの時刻（Pythonの`datetime.now`と、ブラウザーのAPIのWorkerの`Date`）、国土地理院の住所検索（両方ともシナリオのコーパス`tests/support/scenario_corpus.py`の記録した答え）。避難所のCSVは、Pythonの調べとサイトの索引（`/browser/gsi-shelter-index.json`）に同じファイルを使います。既定はコーパスの合成のもので、`--write-corpus-csv PATH`で書き出し、`scripts/build_static_site.py --shelter-csv PATH`でサイトを作ります（別のファイルなら道具にも`--shelter-csv`で渡します）。索引の取得の時刻とHTTPの情報（`retrieved_at`、`etag`、`last_modified`）はサイトを作ったときのものなので、道具はPythonの調べの値に差し替えて配ります。違って当然の項目（previewとdraftのID、`checkpoint_hash`、質問の`context_id`の乱数の部分、`static_site_check.py`の除く項目）と理由は、結果に書きます。
 
 ブラウザーが`browser_unsupported`（409）で答える段は「まだない（not_available）」として止め、それを要る段を飛ばします。1の段がまだないときは、2〜5の段をサイトの例で行います（`--python-projects`に`scripts/build_project_sample.py`のProjectStoreを渡します）。比べて違う所があれば終了コードは1です。`--require-all`を付けると、すべての段がすべてのbrowserで通ったときだけ0です。`--work`はPython側の置き場で、Pythonのコード、native拡張、操作の入力と確かめる道（`PYTHON_SIDE_VERSION`を含む）が同じ間は答えを使い回します（`--fresh`でやり直します）。`--url`は公開したサイトを画面だけで確かめます（Pythonと比べず、固定もしません）。
 

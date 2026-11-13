@@ -1,0 +1,1318 @@
+[
+ {
+  "description": "Generate synthetic household arrivals and admit them within zone capacity.",
+  "op": "add_evacuees",
+  "parameters_schema": {
+   "$defs": {
+    "DynamicArrivalPersonContext": {
+     "additionalProperties": false,
+     "description": "Optional per-member support request context for a typed arrival batch.",
+     "properties": {
+      "care_support_needs": {
+       "default": [],
+       "items": {
+        "enum": [
+         "medical_assessment",
+         "medication_support",
+         "caregiver_assistance",
+         "privacy_accommodation",
+         "mobility_assistance",
+         "hygiene_support",
+         "emotional_support",
+         "language_access",
+         "dependent_assistance"
+        ],
+        "type": "string"
+       },
+       "maxItems": 8,
+       "title": "Care Support Needs",
+       "type": "array"
+      },
+      "member_index": {
+       "maximum": 999,
+       "minimum": 0,
+       "title": "Member Index",
+       "type": "integer"
+      }
+     },
+     "required": [
+      "member_index"
+     ],
+     "title": "DynamicArrivalPersonContext",
+     "type": "object"
+    }
+   },
+   "additionalProperties": false,
+   "properties": {
+    "admission_zone_ids": {
+     "default": [],
+     "items": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "type": "string"
+     },
+     "maxItems": 16,
+     "title": "Admission Zone Ids",
+     "type": "array"
+    },
+    "approach_route_id": {
+     "anyOf": [
+      {
+       "maxLength": 64,
+       "minLength": 1,
+       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Approach Route Id"
+    },
+    "count": {
+     "exclusiveMinimum": 0,
+     "maximum": 1000,
+     "title": "Count",
+     "type": "integer"
+    },
+    "household_size": {
+     "default": 1,
+     "maximum": 12,
+     "minimum": 1,
+     "title": "Household Size",
+     "type": "integer"
+    },
+    "language": {
+     "default": "ja",
+     "maxLength": 64,
+     "minLength": 1,
+     "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+     "title": "Language",
+     "type": "string"
+    },
+    "mobility": {
+     "default": "independent",
+     "enum": [
+      "independent",
+      "assisted",
+      "wheelchair"
+     ],
+     "title": "Mobility",
+     "type": "string"
+    },
+    "person_context_overrides": {
+     "default": [],
+     "items": {
+      "$ref": "#/$defs/DynamicArrivalPersonContext"
+     },
+     "maxItems": 1000,
+     "title": "Person Context Overrides",
+     "type": "array"
+    }
+   },
+   "required": [
+    "count"
+   ],
+   "title": "_EvacueeArrivalParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "population_dynamics_v1"
+  ],
+  "target_kinds": [
+   "zone"
+  ],
+  "timed": false,
+  "units": [
+   "evacuee"
+  ]
+ },
+ {
+  "description": "Add a bounded number of ordinary support staff to an existing zone.",
+  "op": "add_staff",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "count": {
+     "exclusiveMinimum": 0,
+     "maximum": 100,
+     "title": "Count",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "count"
+   ],
+   "title": "_AdditionParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "staff_operations"
+  ],
+  "target_kinds": [
+   "zone"
+  ],
+  "timed": false,
+  "units": [
+   "staff_member"
+  ]
+ },
+ {
+  "description": "Add approved population and sleeping capacity in a zone for a bounded interval; no unsurveyed floorplan position is created.",
+  "op": "add_temporary_space",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "people_capacity": {
+     "exclusiveMinimum": 0,
+     "maximum": 1000,
+     "title": "People Capacity",
+     "type": "integer"
+    },
+    "sleeping_capacity": {
+     "default": 0,
+     "maximum": 1000,
+     "minimum": 0,
+     "title": "Sleeping Capacity",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "people_capacity"
+   ],
+   "title": "_TemporarySpaceParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "temporary_spaces_v1"
+  ],
+  "target_kinds": [
+   "zone"
+  ],
+  "timed": true,
+  "units": [
+   "person_capacity"
+  ]
+ },
+ {
+  "description": "Add bounded single-unit toilet facilities to an existing zone.",
+  "op": "add_toilet",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "count": {
+     "exclusiveMinimum": 0,
+     "maximum": 20,
+     "title": "Count",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "count"
+   ],
+   "title": "_ToiletAdditionParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "facility_capacity"
+  ],
+  "target_kinds": [
+   "zone"
+  ],
+  "timed": false,
+  "units": [
+   "toilet_stall"
+  ]
+ },
+ {
+  "description": "Deliver a positive quantity to the configured warehouse inventory ledger.",
+  "op": "deliver_resource",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "quantity": {
+     "exclusiveMinimum": 0,
+     "maximum": 1000000000,
+     "title": "Quantity",
+     "type": "integer"
+    },
+    "resource_id": {
+     "enum": [
+      "water_ml",
+      "food_meal_units"
+     ],
+     "title": "Resource Id",
+     "type": "string"
+    },
+    "warehouse_id": {
+     "maxLength": 64,
+     "minLength": 1,
+     "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+     "title": "Warehouse Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "warehouse_id",
+    "resource_id",
+    "quantity"
+   ],
+   "title": "_DeliveryParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "resource_ledger_v1"
+  ],
+  "target_kinds": [
+   "resource"
+  ],
+  "timed": false,
+  "units": [
+   "food_meal_units",
+   "water_ml"
+  ]
+ },
+ {
+  "description": "Remove admitted dynamic residents and defer departure while tasks are active.",
+  "op": "depart_evacuees",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "count": {
+     "exclusiveMinimum": 0,
+     "maximum": 1000,
+     "title": "Count",
+     "type": "integer"
+    },
+    "include_initial": {
+     "default": false,
+     "title": "Include Initial",
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "count"
+   ],
+   "title": "_EvacueeDepartureParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "population_dynamics_v1"
+  ],
+  "target_kinds": [
+   "zone"
+  ],
+  "timed": false,
+  "units": [
+   "evacuee"
+  ]
+ },
+ {
+  "description": "Compatibility primitive that removes a bounded number of working units.",
+  "op": "facility_outage",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "units": {
+     "exclusiveMinimum": 0,
+     "maximum": 1000,
+     "title": "Units",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "units"
+   ],
+   "title": "_FacilityOutageParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "facility_capacity"
+  ],
+  "target_kinds": [
+   "facility"
+  ],
+  "timed": true,
+  "units": [
+   "facility_unit"
+  ]
+ },
+ {
+  "description": "Restore explicitly identified working units when the observed capacity still matches the repair precondition.",
+  "op": "facility_repair",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "component_id": {
+     "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+     "title": "Component Id",
+     "type": "string"
+    },
+    "expected_working_units": {
+     "minimum": 0,
+     "title": "Expected Working Units",
+     "type": "integer"
+    },
+    "facility_id": {
+     "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+     "title": "Facility Id",
+     "type": "string"
+    },
+    "restored_working_units": {
+     "minimum": 0,
+     "title": "Restored Working Units",
+     "type": "integer"
+    },
+    "schema_version": {
+     "const": 1,
+     "default": 1,
+     "title": "Schema Version",
+     "type": "integer"
+    },
+    "source_ids": {
+     "default": [],
+     "items": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+      "type": "string"
+     },
+     "title": "Source Ids",
+     "type": "array"
+    }
+   },
+   "required": [
+    "facility_id",
+    "component_id",
+    "expected_working_units",
+    "restored_working_units"
+   ],
+   "title": "FacilityRepairParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "facility_capacity",
+   "shared_operations_v1"
+  ],
+  "target_kinds": [
+   "facility"
+  ],
+  "timed": false,
+  "units": [
+   "facility_unit"
+  ]
+ },
+ {
+  "description": "Temporarily multiply one supported action's choice odds and, for rest/sleep, decision interval.",
+  "op": "modify_demand_rate",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "description": "Bound one action's relative selection odds and optional rest duration.",
+   "properties": {
+    "action": {
+     "enum": [
+      "request_toilet",
+      "rest",
+      "sleep",
+      "seek_help",
+      "fetch_water",
+      "collect_meal"
+     ],
+     "title": "Action",
+     "type": "string"
+    },
+    "duration_multiplier": {
+     "default": 1.0,
+     "maximum": 2.0,
+     "minimum": 0.5,
+     "title": "Duration Multiplier",
+     "type": "number"
+    },
+    "probability_multiplier": {
+     "default": 1.0,
+     "maximum": 2.0,
+     "minimum": 0.5,
+     "title": "Probability Multiplier",
+     "type": "number"
+    }
+   },
+   "required": [
+    "action"
+   ],
+   "title": "DemandRateParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "zone_environment_v1"
+  ],
+  "target_kinds": [
+   "zone"
+  ],
+  "timed": true,
+  "units": [
+   "relative_action_rate"
+  ]
+ },
+ {
+  "description": "Move a pending, known shipment to a later minute.",
+  "op": "modify_supply_schedule",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "shipment_id": {
+     "maxLength": 64,
+     "minLength": 1,
+     "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+     "title": "Shipment Id",
+     "type": "string"
+    },
+    "to_minute": {
+     "minimum": 0,
+     "title": "To Minute",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "shipment_id",
+    "to_minute"
+   ],
+   "title": "_SupplyScheduleParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "operational_events_v1"
+  ],
+  "target_kinds": [
+   "shipment"
+  ],
+  "timed": false,
+  "units": [
+   "minute"
+  ]
+ },
+ {
+  "description": "Permanently move an idle facility within its existing zone; cross-zone transfer is unsupported.",
+  "op": "move_facility",
+  "parameters_schema": {
+   "$defs": {
+    "Point2D": {
+     "additionalProperties": false,
+     "description": "Meters from the top-left building origin; x right, y down.",
+     "properties": {
+      "x": {
+       "title": "X",
+       "type": "number"
+      },
+      "y": {
+       "title": "Y",
+       "type": "number"
+      }
+     },
+     "required": [
+      "x",
+      "y"
+     ],
+     "title": "Point2D",
+     "type": "object"
+    }
+   },
+   "additionalProperties": false,
+   "properties": {
+    "point_m": {
+     "$ref": "#/$defs/Point2D"
+    }
+   },
+   "required": [
+    "point_m"
+   ],
+   "title": "MoveFacilityParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "geometry_overlay_v1"
+  ],
+  "target_kinds": [
+   "facility"
+  ],
+  "timed": false,
+  "units": [
+   "metre_2d"
+  ]
+ },
+ {
+  "description": "Record a typed same-ID exit, return, transfer, relocation, or household reunion.",
+  "op": "population_presence",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "description": "A bounded command for one retained person or a selected reunion group.",
+   "properties": {
+    "action": {
+     "enum": [
+      "temporary_exit",
+      "return",
+      "transfer",
+      "relocate",
+      "reunite"
+     ],
+     "title": "Action",
+     "type": "string"
+    },
+    "expected_return_minute": {
+     "anyOf": [
+      {
+       "minimum": 0,
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Expected Return Minute"
+    },
+    "household_id": {
+     "anyOf": [
+      {
+       "maxLength": 64,
+       "minLength": 1,
+       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Household Id"
+    },
+    "source_ids": {
+     "items": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "type": "string"
+     },
+     "maxItems": 16,
+     "title": "Source Ids",
+     "type": "array"
+    },
+    "zone_id": {
+     "anyOf": [
+      {
+       "maxLength": 64,
+       "minLength": 1,
+       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Zone Id"
+    }
+   },
+   "required": [
+    "action"
+   ],
+   "title": "_PopulationPresenceParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "population_lifecycle_v1"
+  ],
+  "target_kinds": [
+   "person"
+  ],
+  "timed": false,
+  "units": [
+   "population_transition"
+  ]
+ },
+ {
+  "description": "Set an experimental zone noise level that reduces rest recovery.",
+  "op": "set_ambient_noise",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "description": "Normalized zone noise level; this is not a physical sound measurement.",
+   "properties": {
+    "level": {
+     "maximum": 1.0,
+     "minimum": 0.0,
+     "title": "Level",
+     "type": "number"
+    }
+   },
+   "required": [
+    "level"
+   ],
+   "title": "AmbientNoiseParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "zone_environment_v1"
+  ],
+  "target_kinds": [
+   "zone"
+  ],
+  "timed": true,
+  "units": [
+   "normalized_noise_0_1"
+  ]
+ },
+ {
+  "description": "Temporarily cap the number of working units at a facility.",
+  "op": "set_facility_availability",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "working_units": {
+     "maximum": 1000,
+     "minimum": 0,
+     "title": "Working Units",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "working_units"
+   ],
+   "title": "_AvailabilityParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "facility_capacity"
+  ],
+  "target_kinds": [
+   "facility"
+  ],
+  "timed": true,
+  "units": [
+   "facility_unit"
+  ]
+ },
+ {
+  "description": "Temporarily change normalized lighting and its experimental sleep-recovery effect.",
+  "op": "set_lighting",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "description": "Normalized lighting intensity used only by the experimental rest model.",
+   "properties": {
+    "level": {
+     "maximum": 1.0,
+     "minimum": 0.0,
+     "title": "Level",
+     "type": "number"
+    }
+   },
+   "required": [
+    "level"
+   ],
+   "title": "LightingParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "zone_environment_v1"
+  ],
+  "target_kinds": [
+   "zone"
+  ],
+  "timed": true,
+  "units": [
+   "normalized_lighting_0_1"
+  ]
+ },
+ {
+  "description": "Install a bounded polygon obstacle without narrowing occupied or declared passages.",
+  "op": "set_partition",
+  "parameters_schema": {
+   "$defs": {
+    "Point2D": {
+     "additionalProperties": false,
+     "description": "Meters from the top-left building origin; x right, y down.",
+     "properties": {
+      "x": {
+       "title": "X",
+       "type": "number"
+      },
+      "y": {
+       "title": "Y",
+       "type": "number"
+      }
+     },
+     "required": [
+      "x",
+      "y"
+     ],
+     "title": "Point2D",
+     "type": "object"
+    }
+   },
+   "additionalProperties": false,
+   "properties": {
+    "polygon_m": {
+     "items": {
+      "$ref": "#/$defs/Point2D"
+     },
+     "maxItems": 64,
+     "minItems": 3,
+     "title": "Polygon M",
+     "type": "array"
+    }
+   },
+   "required": [
+    "polygon_m"
+   ],
+   "title": "PartitionParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "geometry_overlay_v1"
+  ],
+  "target_kinds": [
+   "zone"
+  ],
+  "timed": true,
+  "units": [
+   "metre_2d"
+  ]
+ },
+ {
+  "description": "Temporarily change normalized zone privacy and its discontent feedback.",
+  "op": "set_privacy",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "description": "Normalized privacy availability for a zone.",
+   "properties": {
+    "level": {
+     "maximum": 1.0,
+     "minimum": 0.0,
+     "title": "Level",
+     "type": "number"
+    }
+   },
+   "required": [
+    "level"
+   ],
+   "title": "PrivacyParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "zone_environment_v1"
+  ],
+  "target_kinds": [
+   "zone"
+  ],
+  "timed": true,
+  "units": [
+   "normalized_privacy_0_1"
+  ]
+ },
+ {
+  "description": "Temporarily close a route; active journeys replan and prior unrelated closures cannot be reopened.",
+  "op": "set_route_access",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "accessible": {
+     "title": "Accessible",
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "accessible"
+   ],
+   "title": "RouteAccessParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "geometry_overlay_v1"
+  ],
+  "target_kinds": [
+   "route"
+  ],
+  "timed": true,
+  "units": [
+   "boolean"
+  ]
+ },
+ {
+  "description": "Temporarily mark one known staff member unavailable.",
+  "op": "set_staff_availability",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "available": {
+     "const": false,
+     "default": false,
+     "title": "Available",
+     "type": "boolean"
+    }
+   },
+   "title": "_StaffAvailabilityParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "operational_events_v1"
+  ],
+  "target_kinds": [
+   "staff"
+  ],
+  "timed": true,
+  "units": [
+   "staff_member"
+  ]
+ },
+ {
+  "description": "Replace the skills of one idle staff member; active work must finish first.",
+  "op": "set_staff_role",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "skills": {
+     "items": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "type": "string"
+     },
+     "maxItems": 20,
+     "minItems": 1,
+     "title": "Skills",
+     "type": "array"
+    }
+   },
+   "required": [
+    "skills"
+   ],
+   "title": "_StaffRoleParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "staff_operations_v1"
+  ],
+  "target_kinds": [
+   "staff"
+  ],
+  "timed": false,
+  "units": [
+   "staff_role"
+  ]
+ },
+ {
+  "description": "Temporarily set an assumed zone temperature in degrees Celsius.",
+  "op": "set_temperature",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "description": "Zone temperature in degrees Celsius; values are scenario assumptions.",
+   "properties": {
+    "temperature_c": {
+     "maximum": 60.0,
+     "minimum": -40.0,
+     "title": "Temperature C",
+     "type": "number"
+    }
+   },
+   "required": [
+    "temperature_c"
+   ],
+   "title": "TemperatureParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "zone_environment_v1"
+  ],
+  "target_kinds": [
+   "zone"
+  ],
+  "timed": true,
+  "units": [
+   "celsius"
+  ]
+ },
+ {
+  "description": "Temporarily set relative ventilation effectiveness; it is not an air-change measurement.",
+  "op": "set_ventilation",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "description": "Relative ventilation effectiveness, not measured air-change rate.",
+   "properties": {
+    "effectiveness": {
+     "maximum": 1.0,
+     "minimum": 0.0,
+     "title": "Effectiveness",
+     "type": "number"
+    }
+   },
+   "required": [
+    "effectiveness"
+   ],
+   "title": "VentilationParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "zone_environment_v1"
+  ],
+  "target_kinds": [
+   "zone"
+  ],
+  "timed": true,
+  "units": [
+   "relative_ventilation_effectiveness_0_1"
+  ]
+ },
+ {
+  "description": "Reassign an on-site staff operation to a qualified replacement already at the work location.",
+  "op": "staff_handoff",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "reason_code": {
+     "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+     "title": "Reason Code",
+     "type": "string"
+    },
+    "replacement_staff_id": {
+     "anyOf": [
+      {
+       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Replacement Staff Id"
+    },
+    "schema_version": {
+     "const": 1,
+     "default": 1,
+     "title": "Schema Version",
+     "type": "integer"
+    },
+    "staff_id": {
+     "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+     "title": "Staff Id",
+     "type": "string"
+    },
+    "task_id": {
+     "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+     "title": "Task Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "staff_id",
+    "task_id",
+    "reason_code"
+   ],
+   "title": "StaffHandoffParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "shared_operations_v1",
+   "staff_operations_v1"
+  ],
+  "target_kinds": [
+   "staff"
+  ],
+  "timed": false,
+  "units": [
+   "staff_member"
+  ]
+ },
+ {
+  "description": "Order one idle qualified worker to perform a registered task now, with routed travel and an applied completion receipt.",
+  "op": "staff_task_order",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "description": "One immediate, explicit order for a registered routed staff task.",
+   "properties": {
+    "reason": {
+     "maxLength": 200,
+     "minLength": 1,
+     "title": "Reason",
+     "type": "string"
+    },
+    "target_id": {
+     "anyOf": [
+      {
+       "maxLength": 64,
+       "minLength": 1,
+       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Target Id"
+    },
+    "target_zone_id": {
+     "maxLength": 64,
+     "minLength": 1,
+     "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+     "title": "Target Zone Id",
+     "type": "string"
+    },
+    "task_kind": {
+     "enum": [
+      "cleaning",
+      "maintenance",
+      "information_outreach",
+      "intake",
+      "patrol"
+     ],
+     "title": "Task Kind",
+     "type": "string"
+    }
+   },
+   "required": [
+    "task_kind",
+    "target_zone_id",
+    "reason"
+   ],
+   "title": "StaffTaskOrderParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "shared_operations_v1",
+   "staff_operations_v1"
+  ],
+  "target_kinds": [
+   "staff"
+  ],
+  "timed": false,
+  "units": [
+   "staff_task_order"
+  ]
+ },
+ {
+  "description": "Create a bounded physical room polygon with explicit beds and validated route access.",
+  "op": "temporary_room_geometry",
+  "parameters_schema": {
+   "$defs": {
+    "Point2D": {
+     "additionalProperties": false,
+     "description": "Meters from the top-left building origin; x right, y down.",
+     "properties": {
+      "x": {
+       "title": "X",
+       "type": "number"
+      },
+      "y": {
+       "title": "Y",
+       "type": "number"
+      }
+     },
+     "required": [
+      "x",
+      "y"
+     ],
+     "title": "Point2D",
+     "type": "object"
+    }
+   },
+   "additionalProperties": false,
+   "properties": {
+    "bed_points_m": {
+     "default": [],
+     "items": {
+      "$ref": "#/$defs/Point2D"
+     },
+     "maxItems": 100000,
+     "title": "Bed Points M",
+     "type": "array"
+    },
+    "people_capacity": {
+     "exclusiveMinimum": 0,
+     "maximum": 1000000,
+     "title": "People Capacity",
+     "type": "integer"
+    },
+    "polygon_m": {
+     "items": {
+      "$ref": "#/$defs/Point2D"
+     },
+     "maxItems": 64,
+     "minItems": 3,
+     "title": "Polygon M",
+     "type": "array"
+    },
+    "room_id": {
+     "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+     "title": "Room Id",
+     "type": "string"
+    },
+    "route_edge_ids": {
+     "items": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+      "type": "string"
+     },
+     "maxItems": 10000,
+     "minItems": 1,
+     "title": "Route Edge Ids",
+     "type": "array"
+    },
+    "schema_version": {
+     "const": 1,
+     "default": 1,
+     "title": "Schema Version",
+     "type": "integer"
+    },
+    "sleeping_capacity": {
+     "maximum": 1000000,
+     "minimum": 0,
+     "title": "Sleeping Capacity",
+     "type": "integer"
+    },
+    "source_ids": {
+     "default": [],
+     "items": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+      "type": "string"
+     },
+     "title": "Source Ids",
+     "type": "array"
+    },
+    "zone_id": {
+     "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+     "title": "Zone Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "room_id",
+    "zone_id",
+    "polygon_m",
+    "people_capacity",
+    "sleeping_capacity",
+    "route_edge_ids"
+   ],
+   "title": "TemporaryRoomGeometry",
+   "type": "object"
+  },
+  "required_policies": [
+   "geometry_overlay_v1"
+  ],
+  "target_kinds": [
+   "zone"
+  ],
+  "timed": true,
+  "units": [
+   "metre_2d"
+  ]
+ },
+ {
+  "description": "Permanently transfer an idle positioned facility between connected zones and move its service points.",
+  "op": "transfer_equipment",
+  "parameters_schema": {
+   "$defs": {
+    "Point2D": {
+     "additionalProperties": false,
+     "description": "Meters from the top-left building origin; x right, y down.",
+     "properties": {
+      "x": {
+       "title": "X",
+       "type": "number"
+      },
+      "y": {
+       "title": "Y",
+       "type": "number"
+      }
+     },
+     "required": [
+      "x",
+      "y"
+     ],
+     "title": "Point2D",
+     "type": "object"
+    }
+   },
+   "additionalProperties": false,
+   "properties": {
+    "equipment_id": {
+     "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+     "title": "Equipment Id",
+     "type": "string"
+    },
+    "from_zone_id": {
+     "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+     "title": "From Zone Id",
+     "type": "string"
+    },
+    "point_m": {
+     "$ref": "#/$defs/Point2D"
+    },
+    "schema_version": {
+     "const": 1,
+     "default": 1,
+     "title": "Schema Version",
+     "type": "integer"
+    },
+    "source_ids": {
+     "default": [],
+     "items": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+      "type": "string"
+     },
+     "title": "Source Ids",
+     "type": "array"
+    },
+    "to_zone_id": {
+     "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+     "title": "To Zone Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "equipment_id",
+    "from_zone_id",
+    "to_zone_id",
+    "point_m"
+   ],
+   "title": "EquipmentTransferParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "geometry_overlay_v1"
+  ],
+  "target_kinds": [
+   "equipment"
+  ],
+  "timed": false,
+  "units": [
+   "metre_2d"
+  ]
+ },
+ {
+  "description": "Block new water-service starts at an existing water station or its zone.",
+  "op": "water_outage",
+  "parameters_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "outage": {
+     "const": true,
+     "default": true,
+     "title": "Outage",
+     "type": "boolean"
+    }
+   },
+   "title": "_WaterOutageParameters",
+   "type": "object"
+  },
+  "required_policies": [
+   "operational_events_v1",
+   "resource_service_v1"
+  ],
+  "target_kinds": [
+   "facility",
+   "zone"
+  ],
+  "timed": true,
+  "units": [
+   "water_supply"
+  ]
+ }
+]

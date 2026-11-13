@@ -1251,3 +1251,18 @@ def test_opus_choices_of_several_target_kinds_are_not_accepted():
     result = compile_natural_language(shelter_request("スタッフを2人追加"), router(provider))
     assert result.fallback_used is True
     assert "one target kind" in " ".join(result.limitations)
+
+
+def test_core_interpreter_tables_are_what_python_writes_now() -> None:
+    """The browser's offline interpreter (#303) copies the primitives' descriptions and schemas
+    and the decimal digits from these files; rewrite them with the tool when this fails."""
+    import importlib.util
+
+    path = FIXTURES.parent / "native" / "core" / "tools" / "interpret_tables.py"
+    spec = importlib.util.spec_from_file_location("interpret_tables", path)
+    assert spec is not None and spec.loader is not None
+    tables = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tables)
+
+    assert tables.PRIMITIVES.read_text(encoding="utf-8") == tables.primitives_text()
+    assert tables.DIGITS.read_text(encoding="utf-8") == tables.digits_text()

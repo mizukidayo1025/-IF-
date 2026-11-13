@@ -514,13 +514,6 @@ pub fn world_part_digests(bytes: &[u8]) -> Result<String, JsError> {
     String::from_utf8(encoder.out).map_err(|error| JsError::new(&error.to_string()))
 }
 
-/// Python's `str.casefold` (`sheltersim_core::text::casefold`): what the regional research compares
-/// names with (`js/research.mjs`, #300).
-#[wasm_bindgen]
-pub fn casefold(text: &str) -> String {
-    sheltersim_core::text::casefold(text).into_owned()
-}
-
 /// What the server's `scenario-preview` reads of a Scenario text without an API key
 /// (`sheltersim_core::scenario::text::parse`, #294), as JSON: `request` (its dump, or null),
 /// `missing_fields`, `source`, `warnings` and `input_sha256`. An error whose message starts with
@@ -558,6 +551,13 @@ pub fn scenario_request(raw: &[u8]) -> Result<String, JsError> {
         Err(Refusal::Invalid(why)) => Err(JsError::new(&format!("invalid: {why}"))),
         Err(Refusal::Unsupported(why)) => Err(JsError::new(&format!("unsupported: {why}"))),
     }
+}
+
+/// Python's `str.casefold` (`sheltersim_core::text::casefold`): what the regional research compares
+/// names with (`js/research.mjs`, #300).
+#[wasm_bindgen]
+pub fn casefold(text: &str) -> String {
+    sheltersim_core::text::casefold(text).into_owned()
 }
 
 /// The entry of a Scenario's world at minute 0, from the Scenario's canonical JSON
@@ -736,4 +736,48 @@ impl Simulation {
         let metrics = history::review_metrics(&sample).map_err(js_error)?;
         String::from_utf8(metrics).map(Some).map_err(|error| JsError::new(&error.to_string()))
     }
+}
+
+/// What the offline intervention compiler answers (#303, `sheltersim_core::interpret`): the
+/// canonical JSON of the `CompilerResult` for the JSON of a `ParseRequest` (`text`, `branch_id`,
+/// `selected_minute`, `scenario_summary`), or None where Python refuses the request with a
+/// ValueError (the server's 400 "invalid project request").
+#[wasm_bindgen(js_name = compileInterventionOffline)]
+pub fn compile_intervention_offline(request: &[u8]) -> Result<Option<String>, JsError> {
+    match sheltersim_core::interpret::compile_offline(request) {
+        Ok(body) => String::from_utf8(body).map(Some).map_err(|error| JsError::new(&error.to_string())),
+        Err(Error::Value(_)) => Ok(None),
+        Err(error) => Err(js_error(error)),
+    }
+}
+
+/// The canonical JSON of the object `base` with the fields of the object `extra` put in
+/// (`sheltersim_core::interpret::merge_objects`): an answer the core wrote, with a route's fields
+/// added, whose floats keep their digits (#306).
+#[wasm_bindgen(js_name = mergeJson)]
+pub fn merge_json(base: &[u8], extra: &[u8]) -> Result<String, JsError> {
+    let bytes = sheltersim_core::interpret::merge_objects(base, extra).map_err(js_error)?;
+    String::from_utf8(bytes).map_err(|error| JsError::new(&error.to_string()))
+}
+
+/// Whether the server's `safe_document` would redact a string of the JSON document (an API key,
+/// a bearer token, an e-mail address or a phone number): a draft holding one is refused (#306).
+#[wasm_bindgen(js_name = documentRedacts)]
+pub fn document_redacts(document: &[u8]) -> Result<bool, JsError> {
+    sheltersim_core::interpret::document_redacts(document).map_err(js_error)
+}
+
+/// The text a result question stores of its question, before the route's own IDs are replaced
+/// (`sheltersim_core::interpret::question_text`, #308).
+#[wasm_bindgen(js_name = questionText)]
+pub fn question_text(question: &str) -> Result<String, JsError> {
+    sheltersim_core::interpret::question_text(question).map_err(js_error)
+}
+
+/// The KPI differences of the frame `other` from the frame `base` in a comparison, as canonical
+/// JSON (`sheltersim_core::interpret::kpi_differences`, #307): ints stay ints, floats are Python's.
+#[wasm_bindgen(js_name = kpiDifferences)]
+pub fn kpi_differences(base: &[u8], other: &[u8]) -> Result<String, JsError> {
+    let bytes = sheltersim_core::interpret::kpi_differences(base, other).map_err(js_error)?;
+    String::from_utf8(bytes).map_err(|error| JsError::new(&error.to_string()))
 }

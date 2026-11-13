@@ -11,15 +11,19 @@
 //   GET  (list), POST (create), GET {project}, GET {project}/runs, GET runs/{run},
 //   GET runs/{run}/evidence                  the records (project_store.mjs's response functions)
 //   GET runs/{run}/branches/{branch}/timeline?minute=   the frame of the minute
-//   GET runs/{run}/replay-frames?branch_ids=&start=&end=   the frames of 1 to 8 minutes of one branch
+//   GET runs/{run}/replay-frames?branch_ids=&start=&end=   the frames of 1 to 8 minutes of one branch,
+//                                            or of two branches, each minute's comparison (#307)
+//   GET runs/{run}/compare?branch_ids=&minute=   js/comparison.mjs (#307)
 //   GET runs/{run}/branches/{branch}/history, report, llm-status   js/api_answers.mjs (or the
 //                                            functions the caller gives, `extra`)
 //   POST runs/{run}/resume, POST runs/{run}/cancel   computing in the Worker (js/compute.mjs, #267)
+//   POST runs/{run}/branches/{branch}/intervention-preview, intervention-apply   js/interventions.mjs
+//                                            (#306); GET runs/{run} then holds the fork's `last_fork`
+//   POST runs/{run}/branches/{branch}/questions   js/questions.mjs (#308): the answer without an API key
 //   POST runs/{run}/pdf-report               the server's checks, then its answer without an API key:
 //                                            409 pdf_analysis_offline (#309)
 //   POST {project}/scenario-preview, scenario-approve, runs   js/scenario_routes.mjs (#301)
-//   anything else (compare, intervention-*, questions,
-//   replay of two branches, the routes outside projects)   409 {"error": "ブラウザー版では未対応です…",
+//   anything else (the routes outside projects)   409 {"error": "ブラウザー版では未対応です…",
 //                                            "code": "browser_unsupported"}
 //
 // A frame is the core's (`Simulation.frame`, #264) with the world's digest as its `state_hash`, as
@@ -38,6 +42,9 @@
 import { ApiError, errorAnswer, historyCache, historyResponse, llmStatusResponse, reportResponse } from "./api_answers.mjs";
 import { CHUNK_TICKS, Computing, checkFields, postDocument } from "./compute.mjs";
 import * as store from "./project_store.mjs";
+import { compareResponse, replayPair } from "./comparison.mjs";
+import { interventionApply, interventionPreview } from "./interventions.mjs";
+import { questionResponse } from "./questions.mjs";
 import { RunReader, SAVE_EVERY } from "./run_store.mjs";
 import { bodyDocument, ScenarioRoutes } from "./scenario_routes.mjs";
 
@@ -113,6 +120,8 @@ export class BrowserApi {
     // The Scenario screen's routes (#301); `scenario` holds their `shelterIndex`, `fetchJson`,
     // `now` and `newId` (scenario_routes.mjs).
     this.scenarioRoutes = new ScenarioRoutes({ wasm, tree, ...scenario });
+    // "project/run" -> the last fork's outcome (the server's `_fork_outcomes`, #306)
+    this.forkOutcomes = new Map();
   }
 
   /// Answers a request: `{ method, path, search, body }` (body the text of a POST) to `{ status,
@@ -174,6 +183,11 @@ export class BrowserApi {
       const document = postDocument(body);
       return parts[3] === "resume" ? this.computing.resume(parts[0], parts[2], document) : this.computing.cancel(parts[0], parts[2], document);
     }
+    if (parts.length === 6 && parts[1] === "runs" && parts[3] === "branches" && (parts[5] === "intervention-preview" || parts[5] === "intervention-apply")) {
+      const answer = parts[5] === "intervention-preview" ? interventionPreview : interventionApply;
+      return answer(this, parts[0], parts[2], parts[4], postDocument(body));
+    }
+    if (parts.length === 6 && parts[1] === "runs" && parts[3] === "branches" && parts[5] === "questions") return questionResponse(this, parts[0], parts[2], parts[4], postDocument(body));
     if (parts.length === 4 && parts[1] === "runs" && parts[3] === "pdf-report") return this.pdfReport(parts[0], parts[2], postDocument(body));
     const route = parts.length >= 6 && parts[1] === "runs" ? parts.slice(3).join("/") : parts.slice(1).join("/");
     throw unsupported(route || "POST");
@@ -189,9 +203,17 @@ export class BrowserApi {
     const [projectId, section, runId, action, branchId, branchAction] = parts;
     if (parts.length === 1 && noQuery) return store.projectResponse(tree, projectId);
     if (parts.length === 2 && section === "runs" && noQuery) return store.runsResponse(tree, projectId);
-    if (parts.length === 3 && section === "runs" && noQuery) return store.runResponse(tree, projectId, runId);
+    if (parts.length === 3 && section === "runs" && noQuery) {
+      const text = await store.runResponse(tree, projectId, runId);
+      const outcome = this.forkOutcomes.get(`${projectId}/${runId}`);
+      return outcome === undefined ? text : this.wasm.mergeJson(encoder.encode(text), encoder.encode(JSON.stringify({ last_fork: outcome })));
+    }
     if (parts.length === 4 && section === "runs" && action === "evidence" && noQuery) return store.evidenceResponse(tree, projectId, runId);
     if (parts.length === 4 && section === "runs" && action === "replay-frames") return this.replay(projectId, runId, query);
+    if (parts.length === 4 && section === "runs" && action === "compare" && query.size === 2 && query.has("branch_ids") && query.has("minute")) {
+      return compareResponse(this, projectId, runId, query, integer);
+    }
+    if (parts.length === 4 && section === "runs" && action === "compare") throw refused("unknown project route or query");
     if (parts.length === 6 && section === "runs" && action === "branches") {
       if (branchAction === "timeline" && query.size === 1 && query.get("minute")?.length === 1) {
         const minute = integer(query.get("minute")[0], "minute must be an integer");
@@ -264,7 +286,7 @@ export class BrowserApi {
     if (start < Math.max(...records.map((record) => record.fork_minute)) || end > Math.min(...records.map((record) => record.computed_until))) {
       throw refused("replay interval is outside the common computed range");
     }
-    if (records.length === 2) throw unsupported("2つの分岐の再生（比較）");
+    if (records.length === 2) return replayPair(this, projectId, runId, records, branchIds, start, end);
     const samples = [];
     for (let minute = start; minute <= end; minute += 1) samples.push(await this.frameText(projectId, runId, records[0], minute));
     return `{"branch_ids":${JSON.stringify(branchIds)},"end":${end},"samples":[${samples.join(",")}],"schema_version":1,"start":${start}}`;
