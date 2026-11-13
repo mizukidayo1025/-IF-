@@ -1,6 +1,6 @@
 //! Events without Python (docs/rust-port/lanes/e-events.md): `EventRow` is one `ScheduledEvent`,
 //! `Queue` the pending events in the queue's order, `EventLog` the realized records with their
-//! indexes, and `writer` what a rule does to schedule and record an event, with the errors of
+//! indexes, `packed` a record in a binary form (the browser's log, #252), and `writer` what a rule does to schedule and record an event, with the errors of
 //! `WorldState.schedule_event` and `EventLog.append`.
 //!
 //! A world's queue and log are parts of its `World` (`World::queue`, `World::log`, lane 6-5). The
@@ -9,6 +9,7 @@
 //! (`native/src/eventlog.rs`) by record position.
 
 pub mod log;
+pub mod packed;
 pub mod queue;
 pub mod row;
 pub mod writer;
