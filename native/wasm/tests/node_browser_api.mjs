@@ -136,7 +136,6 @@ assert.deepEqual(await status("/p1/runs/r1/replay-frames", `?branch_ids=main&sta
 // What stage A leaves out: "未対応", 409.
 const unsupported = [
   await post("/p1/scenario-preview", { text: "x" }),
-  await post("/p1/runs/r1/pdf-report", { branch_ids: ["main"], minute: 1 }),
   await browser.answer({ method: "GET", path: "/api/v1/demo", search: "" }),
 ];
 for (const answer of unsupported) {

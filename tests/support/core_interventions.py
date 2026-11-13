@@ -112,6 +112,29 @@ QUESTIONS: list[tuple[str, dict[str, Any]]] = [
     ("nope", {"question": "x"}),
 ]
 
+# `pdf-report` of the child and of both branches (#309): the server's checks, then its 409 without
+# an API key.
+PDF_REPORTS: list[dict[str, Any]] = [
+    {"branch_ids": ["main", CHILD], "minute": 420},
+    {"branch_ids": [CHILD, "main"], "minute": MINUTES},
+    {"branch_ids": ["main", CHILD], "minute": FORK_MINUTE - 1},
+    {"branch_ids": [CHILD], "minute": FORK_MINUTE - 1},
+    {"branch_ids": [CHILD], "minute": FORK_MINUTE},
+]
+
+
+def _pdf(api: Any, document: dict[str, Any]) -> tuple[int, str]:
+    """The server's answer to `pdf-report`, which it never makes without an API key."""
+    from sheltersim.storage.projects import StorageError
+
+    try:
+        api.pdf_reports.export("sample", RUN_ID, document)
+        raise AssertionError("an offline PDF report was made")
+    except StorageError as exc:
+        return 409, _canonical({"error": str(exc), "code": exc.code})
+    except ValueError:
+        return 400, _canonical({"error": "invalid project request"})
+
 
 def _placeholder(document: dict[str, Any], preview_id: str) -> dict[str, Any]:
     """The document with the server's (random) preview_id written as "$PREVIEW"."""
@@ -333,6 +356,15 @@ def interventions_fixture() -> dict[str, Any]:
 
             turns = HistoryIndex(store, "sample", RUN_ID).conversation_tail("main", None, 100)
             stored_questions = [turn["question"] for turn in turns]
+            for document in PDF_REPORTS:
+                status, text = _pdf(api, document)
+                cases.append(
+                    {
+                        "route": "pdf-report",
+                        "document": document,
+                        **_case("pdf-report", status, text, heads()),
+                    }
+                )
             for route, query in COMPARISONS:
                 status, text = _get(api, ["sample", "runs", RUN_ID, route], query)
                 cases.append(
