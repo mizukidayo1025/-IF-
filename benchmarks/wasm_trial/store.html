@@ -15,9 +15,10 @@
 </style>
 </head>
 <body>
-<h1>WASMの保存の計測（#252）</h1>
+<h1>WASMの保存の計測（#252、#251）</h1>
 <p>Pythonで作って書き出した0分の世界を、WorkerのWASMの中核で最後まで進め、進めながらブラウザーの保存（OPFS）に残します。
-残したものを読み戻し、ネイティブの経路のdigestと比べます。<code>?world=trial-100</code>のように世界を選びます。</p>
+残したものを読み戻し、ネイティブの経路のdigestと比べます。<code>?world=trial-100</code>のように世界を選びます。
+途中の点は<code>save</code>分ごとに残し（既定360、0で残さない）、一番遠い分へ飛ぶ時間を計ります。<code>chain=1</code>では、各点に戻して次の点まで進め、残した点と同じになるかも確かめます。</p>
 <p id="status">準備中…</p>
 <table id="results" hidden><tbody></tbody></table>
 <pre id="problems"></pre>
@@ -25,7 +26,7 @@
 // The page of PR 6-5 of #252. Served with, next to it: pkg/ (`wasm-bindgen --target web` of
 // sheltersim_wasm.wasm), js/ (native/wasm/js) and the outputs of benchmarks/wasm_trial_worlds.py
 // (expected.json and the worlds). benchmarks/wasm_trial_measure.py --store serves it and reads
-// `window.storeResult`.
+// `window.storeResult`. With saved points (#251): `save` (minutes between them) and `chain`.
 const params = new URLSearchParams(location.search);
 const status = document.getElementById("status");
 const table = document.getElementById("results");
@@ -62,12 +63,15 @@ async function main() {
       run: `measure-${name}`,
       ticks: Number(params.get("ticks") ?? "1440"),
       keep: params.get("keep") === "1",
+      saveEvery: Number(params.get("save") ?? "360"),
+      chain: params.get("chain") === "1",
     });
   });
   worker.terminate();
   if (message.type === "error") throw new Error(message.message);
-  const { ran, back, estimate, memoryBytes } = message;
+  const { ran, back, seek, estimate, memoryBytes } = message;
   const problems = [...back.mismatches.map((part) => `read back: ${part}`)];
+  if (seek?.chain) problems.push(...seek.chain.mismatches.map((point) => `saved points: ${point}`));
   if (!back.verified) problems.push("the stored Run is not verified");
   for (const [part, digest] of Object.entries(world.expected.world)) {
     if (part !== "scalars" && back.parts?.[part] !== digest) problems.push(`stored ${part} is not the native path's`);
@@ -83,7 +87,16 @@ async function main() {
   row("書き込み (s)", (ran.writeMs / 1000).toFixed(2));
   row("読み戻しと確認 (s)", (back.totalMs / 1000).toFixed(2));
   row("WASMのメモリ（tickの後、MiB）", (ran.memoryBytes / MiB).toFixed(1));
-  row("WASMのメモリ（読み戻しの後、MiB）", (memoryBytes / MiB).toFixed(1));
+  row("途中の点（数、保存の時間 s）", `${ran.saved.length}、${(ran.saveMs / 1000).toFixed(2)}`);
+  if (seek) {
+    const { worst } = seek;
+    row(`一番遠い分へ飛ぶ（${worst.minute}分、${worst.from}分から、戻す / 計算 s）`, `${(worst.restoreMs / 1000).toFixed(2)} / ${(worst.recomputeMs / 1000).toFixed(2)}`);
+  }
+  if (seek?.chain) {
+    const { chain } = seek;
+    row("各点に戻して次の点まで（点、戻す最大 s）", `${chain.points}、${(Math.max(...chain.restoreMs) / 1000).toFixed(2)}`);
+  }
+  row("WASMのメモリ（読み戻しと飛ぶ後、MiB）", (memoryBytes / MiB).toFixed(1));
   row("保存（圧縮前 / 後、MiB）", `${(raw / MiB).toFixed(1)} / ${(stored / MiB).toFixed(1)}`);
   row("ファイル（data.pack + journal、MiB）", (back.storedBytes / MiB).toFixed(1));
   row("digest", problems.length === 0 ? "一致" : "不一致").cells[1].className = problems.length === 0 ? "ok" : "ng";
@@ -95,8 +108,9 @@ async function main() {
     persisted,
     totalMs: performance.now() - started,
     nativeTickSeconds: world.expected.tick_seconds,
-    ran: { tickMs: ran.tickMs, compressMs: ran.compressMs, writeMs: ran.writeMs, memoryBytes: ran.memoryBytes, sizes: ran.sizes },
-    back: { totalMs: back.totalMs, readMs: back.readMs, inflateMs: back.inflateMs, storedBytes: back.storedBytes, records: back.records, samples: back.samples, verified: back.verified, torn: back.torn },
+    ran: { tickMs: ran.tickMs, compressMs: ran.compressMs, writeMs: ran.writeMs, saveMs: ran.saveMs, saved: ran.saved.length, memoryBytes: ran.memoryBytes, sizes: ran.sizes },
+    seek,
+    back: { totalMs: back.totalMs, readMs: back.readMs, inflateMs: back.inflateMs, storedBytes: back.storedBytes, records: back.records, samples: back.samples, savedPoints: back.savedPoints, verified: back.verified, torn: back.torn },
     memoryAfterRead: memoryBytes,
     estimate,
     problems,

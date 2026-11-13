@@ -1,4 +1,5 @@
-// What a Run in the browser stores, and reading it back (Issue #252, PR 6-5).
+// What a Run in the browser stores, and reading it back (Issue #252, PR 6-5), with saved points to
+// seek to a minute (Issue #251).
 //
 // A Run's folder holds two files that are only ever appended to:
 //   data.pack      the pieces, each compressed with CompressionStream("deflate-raw")
@@ -14,11 +15,23 @@
 //   log_tables    the log's string and shape tables' new entries (Packer::write_tables)
 //   log_block     a sealed block of the packed log (EventLog::packed_store), by its index
 //   sample_tables, sample_block   the same of the metric samples (MetricSamples::store)
+//   saved         a saved point (#251): the Run at a minute (Simulation.saved_point,
+//                 archive::SavedPoint, a versioned binary: the world without its log and the counts
+//                 of records and samples up to then), every `saveEvery` minutes and at the end
 //   world         the world at the last minute without its log (archive::world_parts)
 // and the lines without a piece: "run" first (the format and what the Run is of) and "end" last
 // (the minute and the digests the Run gave). Tables come before the blocks that use them. Blocks
 // are taken as they seal, after a call to `advance` (no transaction is open then), and every block
-// at the end. The worlds between minute 0 and the last are not stored yet (#251).
+// at the end. A "saved" line has the minute, the counts of records and samples, the saved point's
+// version, and how many log and sample blocks hold those records and samples (`log_blocks`,
+// `sample_blocks`): the blocks there were when it was saved, the last of them maybe not stored yet.
+//
+// Formats: "sheltersim-browser-run-v2" (#251) is written. "sheltersim-browser-run-v1" (#252) is the
+// same without saved points and is still read: seeking in it computes from minute 0. Any other is
+// an error. The log and the samples are only appended to, so a saved point holds no copy of them:
+// seeking (`RunReader.seek`) restores the nearest saved point at or before the minute from it and
+// the stored log's and samples' first records and samples up to its counts, then computes the
+// ticks up to the minute (at most `saveEvery` - 1).
 //
 // Storage is a backend: `opfsBackend` (the browser's origin private file system, through the
 // synchronous access handles a dedicated Worker has) or `memoryBackend` (Node's tests). A backend
@@ -26,9 +39,15 @@
 // flush() and close(), all synchronous.
 //
 // `wasm` is the module wasm-bindgen made of sheltersim_wasm (any target): its Simulation,
-// StoredRun, worldPartDigests and sha256Hex.
+// StoredRun, Restore, worldPartDigests and sha256Hex.
 
-export const FORMAT = "sheltersim-browser-run-v1";
+export const FORMAT = "sheltersim-browser-run-v2";
+/// The format of #252, without saved points: read, never written.
+export const FORMAT_V1 = "sheltersim-browser-run-v1";
+/// The formats this code reads.
+export const FORMATS = [FORMAT_V1, FORMAT];
+/// Minutes between saved points by default: 6 hours (#263).
+export const SAVE_EVERY = 360;
 const DATA = "data.pack";
 const JOURNAL = "journal.jsonl";
 const encoder = new TextEncoder();
@@ -107,6 +126,8 @@ export class RunWriter {
     this.sizes = {};
     this.compressMs = 0;
     this.writeMs = 0;
+    this.saveMs = 0;
+    this.saved = [];
   }
 
   /// A writer of a new Run in the backend's files, which it empties.
@@ -165,6 +186,25 @@ export class RunWriter {
     }
   }
 
+  /// A saved point of `simulation` now (#251), after the tables and blocks sealed so far. Call it
+  /// between calls to `advance`. `saveMs` counts its time, its compression and writing included.
+  async save(simulation) {
+    await this.take(simulation, false);
+    const started = performance.now();
+    const point = simulation.saved_point();
+    const line = {
+      minute: simulation.minute(),
+      records: simulation.log_records(),
+      samples: simulation.metric_count(),
+      point_version: this.wasm.savedPointVersion(),
+      log_blocks: simulation.log_block_counts()[0],
+      sample_blocks: simulation.sample_block_counts()[0],
+    };
+    await this.piece("saved", point, line);
+    this.saveMs += performance.now() - started;
+    this.saved.push(line);
+  }
+
   close() {
     this.data.close();
     this.journal.close();
@@ -173,25 +213,32 @@ export class RunWriter {
 
 /// Runs the exported world `exportBytes` (or the world `world` of a file of named worlds, as the
 /// fixtures hold them) for its whole clock, `ticks` ticks per call to `advance`, and stores it in
-/// `backend` as it goes. `progress(minute, duration)` is called after each call. Returns what the
-/// Run gave and what storing it took.
-export async function runAndStore({ wasm, exportBytes, world = null, backend, ticks = 1440, progress = () => {} }) {
+/// `backend` as it goes, with a saved point every `saveEvery` minutes and at the end (none when
+/// `saveEvery` is 0). `progress(minute, duration)` is called after each call. Returns what the Run
+/// gave and what storing it took.
+export async function runAndStore({ wasm, exportBytes, world = null, backend, ticks = 1440, saveEvery = SAVE_EVERY, progress = () => {} }) {
+  if (!Number.isInteger(saveEvery) || saveEvery < 0) throw new Error(`saveEvery is not a count of minutes: ${saveEvery}`);
   const writer = await RunWriter.create(wasm, backend);
   const simulation = world === null ? new wasm.Simulation(exportBytes) : wasm.Simulation.fromWorlds(exportBytes, world);
   try {
     if (!simulation.log_all_packed()) throw new Error("the exported world's log is not all packed");
-    writer.line({ kind: "run", format: FORMAT, export_sha256: wasm.sha256Hex(exportBytes), export_bytes: exportBytes.length, world, duration_minutes: simulation.duration() });
+    const duration = simulation.duration();
+    writer.line({ kind: "run", format: FORMAT, export_sha256: wasm.sha256Hex(exportBytes), export_bytes: exportBytes.length, world, duration_minutes: duration, save_every: saveEvery });
     await writer.piece("export", exportBytes);
     let tickMs = 0;
     for (;;) {
+      const minute = simulation.minute();
+      const step = saveEvery > 0 ? Math.min(ticks, (Math.floor(minute / saveEvery) + 1) * saveEvery - minute) : ticks;
       const started = performance.now();
-      const ran = simulation.advance(ticks);
+      const ran = simulation.advance(step);
       tickMs += performance.now() - started;
-      progress(simulation.minute(), simulation.duration());
+      progress(simulation.minute(), duration);
       await writer.take(simulation, false);
-      if (ran < ticks) break;
+      if (ran < step) break;
+      if (saveEvery > 0 && simulation.minute() % saveEvery === 0 && simulation.minute() < duration) await writer.save(simulation);
     }
     await writer.take(simulation, true);
+    if (saveEvery > 0) await writer.save(simulation);
     await writer.piece("world", simulation.world_parts());
     if (!simulation.log_all_packed()) throw new Error("a record of the log is not packed");
     const parts = JSON.parse(simulation.part_digests_json());
@@ -210,6 +257,8 @@ export async function runAndStore({ wasm, exportBytes, world = null, backend, ti
       tickMs,
       compressMs: writer.compressMs,
       writeMs: writer.writeMs,
+      saveMs: writer.saveMs,
+      saved: writer.saved,
       sizes: writer.sizes,
       memoryBytes: wasm.memoryBytes(),
     };
@@ -246,11 +295,12 @@ export async function readAndVerify({ wasm, backend }) {
   const started = performance.now();
   try {
     const { lines, torn } = journalLines(wasm, decoder.decode(journal.read(0, journal.size())));
-    if (lines.length === 0 || lines[0].kind !== "run" || lines[0].format !== FORMAT) throw new Error("not a stored Run of this format");
+    checkRunLine(lines);
     const reader = new wasm.StoredRun();
     let world = null;
     let exportSha = null;
     let end = null;
+    let savedPoints = 0;
     let readMs = 0;
     let inflateMs = 0;
     try {
@@ -286,6 +336,11 @@ export async function readAndVerify({ wasm, backend }) {
           case "world":
             world = JSON.parse(wasm.worldPartDigests(raw));
             break;
+          case "saved":
+            if (lines[0].format === FORMAT_V1) throw new Error("a saved point in a Run of format v1");
+            checkSavedPoint(wasm, line, raw);
+            savedPoints += 1;
+            break;
           default:
             throw new Error(`a piece of an unknown kind: ${line.kind}`);
         }
@@ -310,6 +365,7 @@ export async function readAndVerify({ wasm, backend }) {
         metrics: reader.metrics_digest(),
         records: reader.log_records(),
         samples: reader.sample_count(),
+        savedPoints,
         storedBytes: data.size() + journal.size(),
         readMs,
         inflateMs,
@@ -321,5 +377,145 @@ export async function readAndVerify({ wasm, backend }) {
   } finally {
     data.close();
     journal.close();
+  }
+}
+
+/// The journal's "run" line is of a format this code reads; an error otherwise.
+function checkRunLine(lines) {
+  if (lines.length === 0 || lines[0].kind !== "run") throw new Error("not a stored Run");
+  if (!FORMATS.includes(lines[0].format)) throw new Error(`a stored Run of format ${lines[0].format}: this code reads ${FORMATS.join(", ")}`);
+}
+
+/// A saved point's bytes are one (`Restore`) of the minute and counts its line says.
+function checkSavedPoint(wasm, line, raw) {
+  const restore = new wasm.Restore(raw);
+  try {
+    if (restore.minute() !== line.minute || restore.records() !== line.records || restore.samples() !== line.samples) {
+      throw new Error(`saved: the point is not the one its line says (minute ${line.minute})`);
+    }
+  } finally {
+    restore.free();
+  }
+}
+
+/// A stored Run opened to seek to its minutes (#251): `RunReader.open`, then `seek(minute)` as often
+/// as needed, then `close()`. It reads the journal once and keeps the exported world's bytes.
+export class RunReader {
+  constructor(wasm, data, journal, lines, torn) {
+    this.wasm = wasm;
+    this.data = data;
+    this.journal = journal;
+    this.lines = lines;
+    this.torn = torn;
+    this.exported = null;
+  }
+
+  /// The stored Run in `backend`; an error for one of a format this code does not read.
+  static async open({ wasm, backend }) {
+    const data = await backend.open(DATA);
+    const journal = await backend.open(JOURNAL);
+    try {
+      const { lines, torn } = journalLines(wasm, decoder.decode(journal.read(0, journal.size())));
+      checkRunLine(lines);
+      return new RunReader(wasm, data, journal, lines, torn);
+    } catch (error) {
+      data.close();
+      journal.close();
+      throw error;
+    }
+  }
+
+  /// The "run" line.
+  get run() {
+    return this.lines[0];
+  }
+
+  /// The minute the Run's clock is complete at.
+  duration() {
+    return this.run.duration_minutes;
+  }
+
+  /// The "end" line, or null for a Run not stored to its end.
+  end() {
+    return this.lines.find((line) => line.kind === "end") ?? null;
+  }
+
+  /// The "saved" lines a seek can restore, by minute: those whose log and sample blocks are all
+  /// stored (in a Run not stored to its end, the last ones may not be).
+  savedPoints() {
+    const stored = (kind) => this.lines.filter((line) => line.kind === kind).length;
+    const logBlocks = stored("log_block");
+    const sampleBlocks = stored("sample_block");
+    return this.lines.filter((line) => line.kind === "saved" && line.log_blocks <= logBlocks && line.sample_blocks <= sampleBlocks);
+  }
+
+  /// A piece's bytes, checked against its line: an error for bytes that are not the ones written.
+  async raw(line) {
+    const stored = this.data.read(line.offset, line.length);
+    if (stored.length !== line.length) throw new Error(`${line.kind}: data.pack ends before the piece`);
+    const raw = await inflateRaw(stored);
+    if (raw.length !== line.raw_length || this.wasm.sha256Hex(raw) !== line.sha256) throw new Error(`${line.kind}: the bytes are not the ones written`);
+    return raw;
+  }
+
+  /// The exported world the Run started from, read once.
+  async exportBytes() {
+    if (this.exported === null) {
+      const line = this.lines.find((each) => each.kind === "export");
+      if (!line) throw new Error("the stored Run has no exported world");
+      this.exported = await this.raw(line);
+    }
+    return this.exported;
+  }
+
+  /// The Run at `minute` (an integer from 0 to the duration): restored from the nearest saved
+  /// point at or before it, or from the exported world when there is none, then computed to it.
+  /// Returns { simulation, from, restoreMs, recomputeMs }: a `Simulation` the caller frees, the
+  /// minute it was computed from, and the time restoring and computing took.
+  async seek(minute) {
+    const { wasm } = this;
+    if (!Number.isInteger(minute) || minute < 0 || minute > this.duration()) {
+      throw new Error(`minute ${minute} is not one of the Run (0 to ${this.duration()})`);
+    }
+    const started = performance.now();
+    const point = this.savedPoints().filter((line) => line.minute <= minute).at(-1) ?? null;
+    const exportBytes = await this.exportBytes();
+    const world = this.run.world ?? null;
+    let simulation;
+    if (point === null) {
+      simulation = world === null ? new wasm.Simulation(exportBytes) : wasm.Simulation.fromWorlds(exportBytes, world);
+    } else {
+      const restore = new wasm.Restore(await this.raw(point));
+      try {
+        for (const line of this.lines) {
+          const log = line.kind === "log_tables" || line.kind === "log_block";
+          const sample = line.kind === "sample_tables" || line.kind === "sample_block";
+          if (!(log && restore.log_needed()) && !(sample && restore.samples_needed())) continue;
+          const raw = await this.raw(line);
+          if (line.kind === "log_tables") restore.read_log_tables(raw);
+          else if (line.kind === "log_block") restore.read_log_block(raw);
+          else if (line.kind === "sample_tables") restore.read_sample_tables(raw);
+          else restore.read_sample_block(raw);
+          if (!restore.log_needed() && !restore.samples_needed()) break;
+        }
+        simulation = world === null ? wasm.Simulation.restore(exportBytes, restore) : wasm.Simulation.restoreFromWorlds(exportBytes, world, restore);
+      } finally {
+        restore.free();
+      }
+    }
+    const restored = performance.now();
+    try {
+      const ticks = minute - simulation.minute();
+      if (ticks < 0 || simulation.advance(ticks) !== ticks) throw new Error(`the Run does not reach minute ${minute}`);
+    } catch (error) {
+      simulation.free();
+      throw error;
+    }
+    return { simulation, from: point?.minute ?? 0, restoreMs: restored - started, recomputeMs: performance.now() - restored };
+  }
+
+  close() {
+    this.data.close();
+    this.journal.close();
   }
 }
