@@ -1,7 +1,9 @@
 //! The world of a Scenario at minute 0, built in the core (Issue #249): `initial::entry` of a
 //! generated Scenario's canonical JSON is the entry Python exports of its world
 //! (`export_world`, the sha256 of its bytes), and the world it loads runs to the native path's
-//! world (the digests of its parts and of the metric samples after a day of ticks).
+//! world (the digests of its parts and of the metric samples after a day of ticks). The Run's
+//! `model_versions` and evidence (`initial::model_versions`, `initial::evidence`, #301) are
+//! Python's too.
 //!
 //! `initial_worlds.json` holds the Scenarios and what Python gave (`tests/support/core_initial.py`,
 //! written by `benchmarks/core_fixtures.py`, checked against Python by
@@ -74,6 +76,11 @@ fn the_core_builds_the_entry_python_exports_and_runs_it_to_the_native_path_s_wor
         let made = initial::entry(case["scenario"].as_str().unwrap().as_bytes()).unwrap_or_else(|error| panic!("{name}: {error}"));
         assert_eq!(made.len() as u64, wanted["entry_bytes"].as_u64().unwrap(), "{name}");
         assert_eq!(sha256_hex(&made), wanted["entry_sha256"].as_str().unwrap(), "{name}");
+
+        let scenario = case["scenario"].as_str().unwrap().as_bytes();
+        let versions: Value = serde_json::from_slice(&initial::model_versions(scenario).unwrap().to_json().unwrap()).unwrap();
+        assert_eq!(versions, wanted["model_versions"], "{name}");
+        assert_eq!(sha256_hex(&initial::evidence(scenario).unwrap()), wanted["evidence_sha256"].as_str().unwrap(), "{name}");
 
         let entry: Value = serde_json::from_slice(&made).unwrap();
         let loaded = Rc::new(load::loaded(&entry));

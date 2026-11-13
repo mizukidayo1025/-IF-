@@ -553,6 +553,13 @@ pub fn scenario_request(raw: &[u8]) -> Result<String, JsError> {
     }
 }
 
+/// Python's `str.casefold` (`sheltersim_core::text::casefold`): what the regional research compares
+/// names with (`js/research.mjs`, #300).
+#[wasm_bindgen]
+pub fn casefold(text: &str) -> String {
+    sheltersim_core::text::casefold(text).into_owned()
+}
+
 /// The entry of a Scenario's world at minute 0, from the Scenario's canonical JSON
 /// (`sheltersim_core::initial::entry`, #249): the bytes Python's `export_world` writes of it, which
 /// `new Simulation(entry)` runs. What the core does not build (a Scenario whose configs its table
@@ -560,10 +567,30 @@ pub fn scenario_request(raw: &[u8]) -> Result<String, JsError> {
 /// input that is not a Scenario.
 #[wasm_bindgen(js_name = initialEntry)]
 pub fn initial_entry(scenario: &[u8]) -> Result<Vec<u8>, JsError> {
-    sheltersim_core::initial::entry(scenario).map_err(|error| match error {
+    sheltersim_core::initial::entry(scenario).map_err(initial_error)
+}
+
+/// The `model_versions` of a new Run of a Scenario (`sheltersim_core::initial::model_versions`,
+/// #301), as JSON: `model_signatures(scenario.model_configs)`. Errors as `initialEntry`'s.
+#[wasm_bindgen(js_name = modelVersions)]
+pub fn model_versions(scenario: &[u8]) -> Result<String, JsError> {
+    let value = sheltersim_core::initial::model_versions(scenario).map_err(initial_error)?;
+    String::from_utf8(value.to_json().map_err(js_error)?).map_err(|error| JsError::new(&error.to_string()))
+}
+
+/// The evidence route's answer of a new Run of a Scenario (`sheltersim_core::initial::evidence`,
+/// #301), as canonical JSON bytes: what the Run's `evidence.json` holds. Errors as
+/// `initialEntry`'s.
+#[wasm_bindgen(js_name = runEvidence)]
+pub fn run_evidence(scenario: &[u8]) -> Result<Vec<u8>, JsError> {
+    sheltersim_core::initial::evidence(scenario).map_err(initial_error)
+}
+
+fn initial_error(error: Error) -> JsError {
+    match error {
         Error::Unsupported(reason) => JsError::new(&format!("unsupported: {reason}")),
         other => js_error(other),
-    })
+    }
 }
 
 /// `hashlib.sha256(bytes).hexdigest()`: what the page's journal checks its lines and pieces by.
@@ -708,5 +735,18 @@ impl Simulation {
         };
         let metrics = history::review_metrics(&sample).map_err(js_error)?;
         String::from_utf8(metrics).map(Some).map_err(|error| JsError::new(&error.to_string()))
+    }
+}
+
+/// What the offline intervention compiler answers (#303, `sheltersim_core::interpret`): the
+/// canonical JSON of the `CompilerResult` for the JSON of a `ParseRequest` (`text`, `branch_id`,
+/// `selected_minute`, `scenario_summary`), or None where Python refuses the request with a
+/// ValueError (the server's 400 "invalid project request").
+#[wasm_bindgen(js_name = compileInterventionOffline)]
+pub fn compile_intervention_offline(request: &[u8]) -> Result<Option<String>, JsError> {
+    match sheltersim_core::interpret::compile_offline(request) {
+        Ok(body) => String::from_utf8(body).map(Some).map_err(|error| JsError::new(&error.to_string())),
+        Err(Error::Value(_)) => Ok(None),
+        Err(error) => Err(js_error(error)),
     }
 }

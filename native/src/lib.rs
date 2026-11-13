@@ -228,6 +228,22 @@ fn initial_entry<'py>(py: Python<'py>, scenario: &[u8]) -> PyResult<Bound<'py, P
     Ok(PyBytes::new(py, &bytes))
 }
 
+/// The core's `model_versions` of a new Run of a Scenario (`sheltersim_core::initial::model_versions`,
+/// #301), as canonical JSON, for the tests.
+#[pyfunction]
+fn initial_model_versions(scenario: &[u8]) -> PyResult<String> {
+    let bytes = sheltersim_core::initial::model_versions(scenario).or_py()?.to_json().or_py()?;
+    Ok(String::from_utf8(bytes).expect("canonical JSON is UTF-8"))
+}
+
+/// The core's evidence of a new Run of a Scenario (`sheltersim_core::initial::evidence`, #301), as
+/// canonical JSON bytes, for the tests.
+#[pyfunction]
+fn initial_evidence<'py>(py: Python<'py>, scenario: &[u8]) -> PyResult<Bound<'py, PyBytes>> {
+    let bytes = sheltersim_core::initial::evidence(scenario).or_py()?;
+    Ok(PyBytes::new(py, &bytes))
+}
+
 #[pymodule]
 fn sheltersim_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("Unsupported", module.py().get_type::<Unsupported>())?;
@@ -260,6 +276,8 @@ fn sheltersim_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(float_json, module)?)?;
     module.add_function(wrap_pyfunction!(scenario_text_parse, module)?)?;
     module.add_function(wrap_pyfunction!(initial_entry, module)?)?;
+    module.add_function(wrap_pyfunction!(initial_model_versions, module)?)?;
+    module.add_function(wrap_pyfunction!(initial_evidence, module)?)?;
     module.add_function(wrap_pyfunction!(records::scheduled_event_checked, module)?)?;
     module.add_function(wrap_pyfunction!(records::view_state_hash, module)?)?;
     module.add_function(wrap_pyfunction!(checkpoint::sensitive_candidates, module)?)?;
