@@ -54,6 +54,13 @@ CASES: list[tuple[str, str, str, bool]] = [
     ("history", BRANCH_ID, "kind=kpis&end=100&zone_id=quiet", True),
     ("history", BRANCH_ID, "kind=kpis&end=100&text=toilet", True),
     ("history", BRANCH_ID, "kind=kpis&end=30&limit=7&text=%21%21", True),
+    # Text without a search term pages the rows; its cursor holds the digest of the text (#278).
+    (
+        "history",
+        BRANCH_ID,
+        "kind=kpis&end=30&limit=7&text=%E3%80%8C%01%E2%80%A8%E3%80%8D%22%5C+",
+        True,
+    ),
     ("history", BRANCH_ID, "kind=kpis&start=&end=20&cursor=&limit=+1_0", True),
     ("history", BRANCH_ID, "kind=kpis&end=20&limit=3&include_related=false", False),
     ("history", BRANCH_ID, "kind=kpis", False),
@@ -74,10 +81,14 @@ CASES: list[tuple[str, str, str, bool]] = [
     ("llm-status", BRANCH_ID, "", False),
 ]
 # A cursor of one query given to another of the same branch: (the query whose first page's cursor
-# is taken, the query it is given to). The server takes it: the index binds a cursor to the
-# branch's rows and head, not to the query (`HistoryIndex.search` checks the cursor against the SQL
-# term of the branch's rows, which it also names `scope`), and so does the browser.
-FOREIGN_CURSOR = ("kind=kpis&start=13&end=140&step=7&limit=5", "kind=kpis&end=140&limit=5")
+# is taken, the query it is given to). A cursor is bound to its query but for its limit (#278):
+# the server refuses it for another query and takes it for the same query with another limit, and
+# so does the browser.
+FOREIGN_CURSORS = [
+    ("kind=kpis&start=13&end=140&step=7&limit=5", "kind=kpis&end=140&limit=5"),
+    ("kind=kpis&start=13&end=140&step=7&limit=5", "kind=kpis&start=13&end=140&step=7&limit=9"),
+    ("kind=kpis&end=30&limit=7&text=%21%21", "kind=kpis&end=30&limit=7&text=%21"),
+]
 # `POST runs/{run}/pdf-report` (#309): the Run and the body. Without an API key the server answers
 # 409 `pdf_analysis_offline` once the request passes its checks, which come first in their order.
 PDF_CASES: list[tuple[str, str]] = [
@@ -247,12 +258,16 @@ def api_answers_fixture() -> dict[str, Any]:
                 else:
                     raise AssertionError(f"{query}: more than {MAX_PAGES} pages")
                 cases.append({"route": route, "branch": branch, "query": query, "pages": pages})
-            source, target = FOREIGN_CURSOR
-            _, first = _answer(api, BRANCH_ID, "history", source)
-            status, body = _answer(
-                api, BRANCH_ID, "history", _with_cursor(target, json.loads(first)["next_cursor"])
-            )
-            foreign = {"from": source, "to": target, **_page(status, body, anchor)}
+            foreign = []
+            for source, target in FOREIGN_CURSORS:
+                _, first = _answer(api, BRANCH_ID, "history", source)
+                status, body = _answer(
+                    api,
+                    BRANCH_ID,
+                    "history",
+                    _with_cursor(target, json.loads(first)["next_cursor"]),
+                )
+                foreign.append({"from": source, "to": target, **_page(status, body, anchor)})
             pdf = []
             for run_id, body in PDF_CASES:
                 status, text = _post(api, run_id, "pdf-report", body)
@@ -278,6 +293,6 @@ def api_answers_fixture() -> dict[str, Any]:
         },
         "scenario_json": scenario_text,
         "cases": cases,
-        "foreign_cursor": foreign,
+        "foreign_cursors": foreign,
         "pdf_cases": pdf,
     }
