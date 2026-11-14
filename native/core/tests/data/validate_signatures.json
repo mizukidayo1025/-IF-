@@ -1,0 +1,3532 @@
+{
+ "cases": [
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "required simulator state is missing: ['agent_dynamics_v1']"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "head_missing_one",
+   "world": "head_missing_one"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "required simulator state is missing: ['movement_v1', 'social_network_v1']"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "head_missing_two",
+   "world": "head_missing_two"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "head_none_is_held",
+   "world": "head_none_is_held"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "temporary_spaces_v1 requires an enabled, signed state contract"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "head_temporary_spaces_unsigned",
+   "world": "head_temporary_spaces_unsigned"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "head_extensions_enabled_one",
+   "world": "head_extensions_enabled_one"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "legacy facility queue checkpoint marker is invalid or mixed with new state"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "head_legacy_mixed",
+   "world": "head_legacy_mixed"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "legacy facility queue checkpoint marker is invalid or mixed with new state"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "head_legacy_wrong",
+   "world": "head_legacy_wrong"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "legacy facility queue checkpoint marker is invalid or mixed with new state"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "head_legacy_none_marker",
+   "world": "head_legacy_none_marker"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "required simulator state is missing: ['facility_queues_v1']"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "head_queues_missing",
+   "world": "head_queues_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "geometry_overlay requires facility_geometry"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sig_overlay_without_geometry",
+   "world": "sig_overlay_without_geometry"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "invalid shared_operations config"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sig_shared_operations_bad",
+   "world": "sig_shared_operations_bad"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "invalid shared_operations config"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sig_shared_operations_extra",
+   "world": "sig_shared_operations_extra"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "sig_shared_operations_true",
+   "world": "sig_shared_operations_true"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ],
+    "extensions": [
+     "ValueError",
+     "invalid shared_operations config"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ]
+   },
+   "name": "sig_shared_operations_list",
+   "world": "sig_shared_operations_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "unsupported geometry_overlay config"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sig_overlay_schema_5",
+   "world": "sig_overlay_schema_5"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "unsupported geometry_overlay config"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sig_overlay_extra",
+   "world": "sig_overlay_extra"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "unsupported geometry_overlay config"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sig_overlay_true",
+   "world": "sig_overlay_true"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "agent_dynamics config has unsupported fields"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sig_agent_dynamics_config",
+   "world": "sig_agent_dynamics_config"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "KernelRefusal",
+     "agent_dynamics.canonical_config refused: an unhashable policy"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sig_agent_dynamics_unhashable",
+   "world": "sig_agent_dynamics_unhashable"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics rest_minutes is outside its supported range"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sig_staff_dynamics_config",
+   "world": "sig_staff_dynamics_config"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "TypeError",
+     "unhashable type: 'TrackedDict'"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sig_staff_dynamics_unhashable",
+   "world": "sig_staff_dynamics_unhashable"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "social_proximity config fields do not match"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_proximity config fields do not match"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "social_proximity config fields do not match"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "social_proximity config fields do not match"
+    ]
+   },
+   "name": "sig_proximity_fields",
+   "world": "sig_proximity_fields"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "social_proximity bounds are invalid"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_proximity bounds are invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "social_proximity bounds are invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "social_proximity bounds are invalid"
+    ]
+   },
+   "name": "sig_proximity_bounds",
+   "world": "sig_proximity_bounds"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "sig_awareness_ok",
+   "world": "sig_awareness_ok"
+  }
+ ],
+ "signatures": [
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "head_missing_one",
+   "world": "head_missing_one"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "head_missing_two",
+   "world": "head_missing_two"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "head_none_is_held",
+   "world": "head_none_is_held"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "head_temporary_spaces_unsigned",
+   "world": "head_temporary_spaces_unsigned"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "head_extensions_enabled_one",
+   "world": "head_extensions_enabled_one"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "head_legacy_mixed",
+   "world": "head_legacy_mixed"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "head_legacy_wrong",
+   "world": "head_legacy_wrong"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "head_legacy_none_marker",
+   "world": "head_legacy_none_marker"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "head_queues_missing",
+   "world": "head_queues_missing"
+  },
+  {
+   "expected": [
+    "ValueError",
+    "geometry_overlay requires facility_geometry"
+   ],
+   "name": "sig_overlay_without_geometry",
+   "world": "sig_overlay_without_geometry"
+  },
+  {
+   "expected": [
+    "ValueError",
+    "invalid shared_operations config"
+   ],
+   "name": "sig_shared_operations_bad",
+   "world": "sig_shared_operations_bad"
+  },
+  {
+   "expected": [
+    "ValueError",
+    "invalid shared_operations config"
+   ],
+   "name": "sig_shared_operations_extra",
+   "world": "sig_shared_operations_extra"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "sig_shared_operations_true",
+   "world": "sig_shared_operations_true"
+  },
+  {
+   "expected": [
+    "ValueError",
+    "invalid shared_operations config"
+   ],
+   "name": "sig_shared_operations_list",
+   "world": "sig_shared_operations_list"
+  },
+  {
+   "expected": [
+    "ValueError",
+    "unsupported geometry_overlay config"
+   ],
+   "name": "sig_overlay_schema_5",
+   "world": "sig_overlay_schema_5"
+  },
+  {
+   "expected": [
+    "ValueError",
+    "unsupported geometry_overlay config"
+   ],
+   "name": "sig_overlay_extra",
+   "world": "sig_overlay_extra"
+  },
+  {
+   "expected": [
+    "ValueError",
+    "unsupported geometry_overlay config"
+   ],
+   "name": "sig_overlay_true",
+   "world": "sig_overlay_true"
+  },
+  {
+   "expected": [
+    "ValueError",
+    "agent_dynamics config has unsupported fields"
+   ],
+   "name": "sig_agent_dynamics_config",
+   "world": "sig_agent_dynamics_config"
+  },
+  {
+   "expected": [
+    "KernelRefusal",
+    "agent_dynamics.canonical_config refused: an unhashable policy"
+   ],
+   "name": "sig_agent_dynamics_unhashable",
+   "world": "sig_agent_dynamics_unhashable"
+  },
+  {
+   "expected": [
+    "ValueError",
+    "staff_dynamics rest_minutes is outside its supported range"
+   ],
+   "name": "sig_staff_dynamics_config",
+   "world": "sig_staff_dynamics_config"
+  },
+  {
+   "expected": [
+    "TypeError",
+    "unhashable type: 'TrackedDict'"
+   ],
+   "name": "sig_staff_dynamics_unhashable",
+   "world": "sig_staff_dynamics_unhashable"
+  },
+  {
+   "expected": [
+    "ValueError",
+    "social_proximity config fields do not match"
+   ],
+   "name": "sig_proximity_fields",
+   "world": "sig_proximity_fields"
+  },
+  {
+   "expected": [
+    "ValueError",
+    "social_proximity bounds are invalid"
+   ],
+   "name": "sig_proximity_bounds",
+   "world": "sig_proximity_bounds"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:facility_awareness",
+     "entry-orientation-and-arrival-discovery-v1@1:ef6ff699aa99b2f6ce225da38a0309afd26f83fb158a2504e1c80c866df9810d"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "sig_awareness_ok",
+   "world": "sig_awareness_ok"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "signed_generated",
+   "world": "signed_generated"
+  },
+  {
+   "expected": [
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "signed_small",
+   "world": "signed_small"
+  },
+  {
+   "expected": [
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ]
+   ],
+   "name": "signed_small_context",
+   "world": "signed_small_context"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v2@2:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "signed_staff_v2",
+   "world": "signed_staff_v2"
+  },
+  {
+   "expected": [
+    "ValueError",
+    "staff_fatigue formula selection requires staff_dynamics config"
+   ],
+   "name": "signed_staff_absent",
+   "world": "signed_staff_absent"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "signed_staff_empty",
+   "world": "signed_staff_empty"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v1@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "signed_agent_v1",
+   "world": "signed_agent_v1"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "signed_no_shared_operations",
+   "world": "signed_no_shared_operations"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "signed_no_overlay",
+   "world": "signed_no_overlay"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "signed_overlay_2",
+   "world": "signed_overlay_2"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "signed_overlay_3",
+   "world": "signed_overlay_3"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "signed_extensions_off",
+   "world": "signed_extensions_off"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "signed_no_extensions",
+   "world": "signed_no_extensions"
+  },
+  {
+   "expected": [
+    "ValueError",
+    "environment formula selection requires zone_environment config"
+   ],
+   "name": "signed_no_zone_environment",
+   "world": "signed_no_zone_environment"
+  },
+  {
+   "expected": [
+    "ValidationError",
+    "1 validation error for FacilityGeometry\nschema_version\n  Input should be 1 [type=literal_error, input_value=2, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error"
+   ],
+   "name": "signed_geometry_invalid",
+   "world": "signed_geometry_invalid"
+  },
+  {
+   "expected": [
+    "ValidationError",
+    "1 validation error for ScenarioZoneEnvironmentConfig\nmax_rest_decision_minutes\n  Input should be a valid integer [type=int_type, input_value='x', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/int_type"
+   ],
+   "name": "signed_environment_invalid",
+   "world": "signed_environment_invalid"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "signed_no_service_points",
+   "world": "signed_no_service_points"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:ce7b98fba2649246b0491c959da370fb9cb2e75fe648d24cd8bf3de49b357f6e"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "signed_one_service_point",
+   "world": "signed_one_service_point"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:facility_awareness",
+     "entry-orientation-and-arrival-discovery-v1@1:ac059165d614ec8c533ed4a9f573ab2870fbd284ca7a321750cc891ffb0e2cff"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "signed_awareness",
+   "world": "signed_awareness"
+  },
+  {
+   "expected": [
+    "ValueError",
+    "disabled-proximity-v1 conflicts with an enabled social_proximity config"
+   ],
+   "name": "signed_proximity_unselected",
+   "world": "signed_proximity_unselected"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:social_proximity",
+     "distance-sampled-proximity-v1@1:state1:distance=1.0:interval=5:pairs=200"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "signed_proximity",
+   "world": "signed_proximity"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "signed_proximity_off",
+   "world": "signed_proximity_off"
+  },
+  {
+   "expected": [
+    [
+     "simulator:agent_dynamics_v1",
+     "need-led-autonomy-memory-v3@1:state1"
+    ],
+    [
+     "simulator:population_dynamics_v1",
+     "capacity-aware-arrivals-departures-v1@1:state1"
+    ],
+    [
+     "simulator:social_network_v1",
+     "directed-contact-relationships-v1@2:state1"
+    ],
+    [
+     "simulator:staff_dynamics_v1",
+     "continuous-duty-fatigue-v1@1:state1"
+    ],
+    [
+     "simulator:facility_queues_v1",
+     "independent-facility-queues-v1@1:state1"
+    ],
+    [
+     "simulator:shared_operations_v1",
+     "shared-operations-v1@1:state1"
+    ],
+    [
+     "simulator:population_lifecycle_v1",
+     "same-id-population-lifecycle-v1@1:state1"
+    ],
+    [
+     "simulator:temporary_spaces_v1",
+     "typed-temporary-capacity-v1@1:state1"
+    ],
+    [
+     "simulator:staff_operations_v1",
+     "autonomous-routed-staff-v1@2:state1"
+    ],
+    [
+     "simulator:movement_v1",
+     "spatial-route-and-room-waypoint-v2@1:state2"
+    ],
+    [
+     "simulator:geometry_overlay_v1",
+     "bounded-runtime-geometry-v1@1:state1"
+    ],
+    [
+     "simulator:body_state_v1",
+     "life-state-feedback-v1@3:state1"
+    ],
+    [
+     "operator:facility_service_points",
+     "facility-service-points@1:7022951e073e6ff880856e340468c79f8c0152fecfb25fbe47ea4e9877080323"
+    ],
+    [
+     "operator:autonomy_behavior",
+     "contextual-autonomy@2:stateless"
+    ],
+    [
+     "operator:zone_environment",
+     "zone-environment-v2@1:state1"
+    ],
+    [
+     "operator:social_proximity",
+     "distance-sampled-proximity-v1@1:state1:distance=2.75:interval=5:pairs=200"
+    ],
+    [
+     "operator:temporary_room_beds",
+     "exclusive-physical-sleep-beds-v1@1:state1"
+    ],
+    [
+     "operator:temporary_room_intake",
+     "physical-temporary-room-intake-v1@1:state1"
+    ],
+    [
+     "operator:installed_facility_placement",
+     "generator-grid-installed-facility-v1@1:state1"
+    ],
+    [
+     "operator:action_lifecycle",
+     "applied-action-lifecycle-v2@1:state1"
+    ]
+   ],
+   "name": "signed_proximity_float",
+   "world": "signed_proximity_float"
+  }
+ ],
+ "worlds": {
+  "head_extensions_enabled_one": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.simulator_extensions.enabled": 1
+   }
+  },
+  "head_legacy_mixed": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.facility_queues_legacy_mode_v1": {
+     "mode": "pre_independent_queue_checkpoint",
+     "policy_version": "facility_fifo_legacy-v1",
+     "schema_version": 1
+    }
+   }
+  },
+  "head_legacy_none_marker": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "facility_queues_v1"
+     ]
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.facility_queues_legacy_mode_v1": null
+   }
+  },
+  "head_legacy_wrong": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "facility_queues_v1"
+     ]
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.facility_queues_legacy_mode_v1": {
+     "mode": "x",
+     "policy_version": "facility_fifo_legacy-v1",
+     "schema_version": 1
+    }
+   }
+  },
+  "head_missing_one": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "agent_dynamics_v1"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "head_missing_two": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "movement_v1"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "social_network_v1"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "head_none_is_held": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1": null
+   }
+  },
+  "head_queues_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "facility_queues_v1"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "head_temporary_spaces_unsigned": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.simulator_extensions.enabled": false
+   }
+  },
+  "sig_agent_dynamics_config": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "agent_dynamics",
+      "policy_version"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "agent_dynamics",
+      "schema_version"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "agent_dynamics",
+      "source_id"
+     ]
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.agent_dynamics.x": 1
+   }
+  },
+  "sig_agent_dynamics_unhashable": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.agent_dynamics.policy_version": []
+   }
+  },
+  "sig_awareness_ok": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.facility_awareness": {
+     "initial_known_facility_ids": [
+      "toilet_01"
+     ]
+    }
+   }
+  },
+  "sig_overlay_extra": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.geometry_overlay.x": 1
+   }
+  },
+  "sig_overlay_schema_5": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.geometry_overlay.schema_version": 5
+   }
+  },
+  "sig_overlay_true": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.geometry_overlay.schema_version": true
+   }
+  },
+  "sig_overlay_without_geometry": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "sig_proximity_bounds": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.social_proximity": {
+     "enabled": true,
+     "max_distance_m": 20,
+     "max_pairs_per_sample": 200,
+     "policy_version": "distance-sampled-proximity-v1",
+     "sample_interval_minutes": 5,
+     "schema_version": 1
+    }
+   }
+  },
+  "sig_proximity_fields": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.social_proximity": {}
+   }
+  },
+  "sig_shared_operations_bad": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "shared_operations",
+      "policy_version"
+     ]
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.shared_operations.schema_version": 2
+   }
+  },
+  "sig_shared_operations_extra": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.shared_operations.x": 1
+   }
+  },
+  "sig_shared_operations_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.shared_operations": []
+   }
+  },
+  "sig_shared_operations_true": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "shared_operations",
+      "policy_version"
+     ]
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.shared_operations.schema_version": true
+   }
+  },
+  "sig_staff_dynamics_config": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.staff_dynamics.rest_minutes": 0
+   }
+  },
+  "sig_staff_dynamics_unhashable": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.staff_dynamics.policy_version": {}
+   }
+  },
+  "signed_agent_v1": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "agent_dynamics"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "signed_awareness": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.facility_awareness": {
+     "discover_co_located_facilities_on_arrival": false,
+     "initial_known_facility_ids": [
+      "toilet_01",
+      "intake_desk"
+     ]
+    }
+   }
+  },
+  "signed_environment_invalid": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.zone_environment.max_rest_decision_minutes": "x"
+   }
+  },
+  "signed_extensions_off": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.simulator_extensions.enabled": false
+   }
+  },
+  "signed_generated": {
+   "base": "generated",
+   "file": "validate_worlds"
+  },
+  "signed_geometry_invalid": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.facility_geometry.schema_version": 2
+   }
+  },
+  "signed_no_extensions": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "simulator_extensions"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "signed_no_overlay": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "geometry_overlay"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "signed_no_service_points": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.facility_geometry.service_points": []
+   }
+  },
+  "signed_no_shared_operations": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "shared_operations"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "signed_no_zone_environment": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "zone_environment"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "signed_one_service_point": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.facility_geometry.service_points": [
+     {
+      "access": {
+       "accessibility": "unknown",
+       "required_access_tags": [],
+       "required_staff_skills": []
+      },
+      "facility_id": "accessible_toilet_01",
+      "id": "legacy-service:d34bc5076754a08e28331f68",
+      "point_m": {
+       "x": 10.69193338482967,
+       "y": 8.792923583706886
+      },
+      "queue_id": "accessible_toilet_01",
+      "schema_version": 1,
+      "service_capacity": 1
+     }
+    ]
+   }
+  },
+  "signed_overlay_2": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.geometry_overlay.schema_version": 2
+   }
+  },
+  "signed_overlay_3": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.geometry_overlay.schema_version": 3
+   }
+  },
+  "signed_proximity": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "policy_registry",
+      "suite_id"
+     ]
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.policy_registry.social_proximity": "distance-sampled-proximity-v1",
+    "world.model_configs.social_proximity": {
+     "enabled": true,
+     "max_distance_m": 1,
+     "max_pairs_per_sample": 200,
+     "policy_version": "distance-sampled-proximity-v1",
+     "sample_interval_minutes": 5,
+     "schema_version": 1
+    }
+   }
+  },
+  "signed_proximity_float": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "policy_registry",
+      "suite_id"
+     ]
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.policy_registry.social_proximity": "distance-sampled-proximity-v1",
+    "world.model_configs.social_proximity": {
+     "enabled": true,
+     "max_distance_m": 2.75,
+     "max_pairs_per_sample": 200,
+     "policy_version": "distance-sampled-proximity-v1",
+     "sample_interval_minutes": 5,
+     "schema_version": 1
+    }
+   }
+  },
+  "signed_proximity_off": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.social_proximity": {
+     "enabled": false,
+     "max_distance_m": 1,
+     "max_pairs_per_sample": 200,
+     "policy_version": "distance-sampled-proximity-v1",
+     "sample_interval_minutes": 5,
+     "schema_version": 1
+    }
+   }
+  },
+  "signed_proximity_unselected": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.social_proximity": {
+     "enabled": true,
+     "max_distance_m": 1,
+     "max_pairs_per_sample": 200,
+     "policy_version": "distance-sampled-proximity-v1",
+     "sample_interval_minutes": 5,
+     "schema_version": 1
+    }
+   }
+  },
+  "signed_small": {
+   "base": "small_replay",
+   "file": "validate_worlds"
+  },
+  "signed_small_context": {
+   "base": "small_replay",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.population_context": {}
+   }
+  },
+  "signed_staff_absent": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "staff_dynamics"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "signed_staff_empty": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "staff_dynamics",
+      "max_continuous_work_minutes"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "staff_dynamics",
+      "max_continuous_work_minutes_by_staff"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "staff_dynamics",
+      "off_shift_fatigue_recovery_per_minute"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "staff_dynamics",
+      "policy_version"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "staff_dynamics",
+      "rest_minutes"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "staff_dynamics",
+      "schema_version"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "staff_dynamics",
+      "shift_windows_by_staff"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "staff_dynamics",
+      "source_id"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "signed_staff_v2": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "staff_dynamics",
+      "max_continuous_work_minutes"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "staff_dynamics",
+      "max_continuous_work_minutes_by_staff"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "staff_dynamics",
+      "off_shift_fatigue_recovery_per_minute"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "staff_dynamics",
+      "rest_minutes"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "staff_dynamics",
+      "schema_version"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "staff_dynamics",
+      "shift_windows_by_staff"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "staff_dynamics",
+      "source_id"
+     ]
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.staff_dynamics.policy_version": "continuous-duty-fatigue-v2"
+   }
+  }
+ }
+}
