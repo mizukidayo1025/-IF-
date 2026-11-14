@@ -48,13 +48,18 @@ pub fn resolve(worlds: &Value, name: &str) -> Value {
         Some(file) => self::entry(file.as_str().unwrap(), base.as_str().unwrap()),
         None => resolve(worlds, base.as_str().unwrap()),
     };
-    for change in world.get("changes").and_then(Value::as_array).into_iter().flatten() {
-        apply(&mut entry, change);
-    }
-    for (path, value) in world.get("set").and_then(Value::as_object).into_iter().flatten() {
-        set_dotted(&mut entry, path, value);
-    }
+    apply_variant(&mut entry, world);
     entry
+}
+
+/// The changes of a variant (`changes`, then `set`) applied to its base's entry.
+pub fn apply_variant(entry: &mut Value, variant: &Value) {
+    for change in variant.get("changes").and_then(Value::as_array).into_iter().flatten() {
+        apply(entry, change);
+    }
+    for (path, value) in variant.get("set").and_then(Value::as_object).into_iter().flatten() {
+        set_dotted(entry, path, value);
+    }
 }
 
 /// A set of `core_texts.variant(dotted=True)`: the value at a path of keys and indexes joined with
