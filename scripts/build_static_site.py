@@ -20,6 +20,11 @@ The site is served at the root of its domain, as the screen loads `/demo-v2.css`
                             Cloudflare Pages, GitHub Pages and Netlify do; for others see the docs)
     /demo-v2.css, /demo-v2*.js, /demo-v2-logo.jpg   the screen's files
     /LICENSE.txt            the repository's LICENSE
+    /THIRD-PARTY-NOTICES.txt
+                            the licenses of the crates the WASM holds (#290), from
+                            `cargo tree`/`cargo metadata` of native/ and their packages' files
+    /THIRD-PARTY-NOTICES-rust-library.html
+                            the Rust standard library's notices (rustc's COPYRIGHT-library.html)
     /browser/               api_fetch.js, api_worker.mjs and the modules it imports, pkg/ (WASM),
                             gsi-shelter-index.json (the shelter CSV's sha256, metadata and
                             municipality names, for the regional research; with --shelter-csv
@@ -40,6 +45,7 @@ import json
 import re
 import shutil
 import struct
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -89,6 +95,17 @@ SHIM = (
     '    <style>a[href="/demo"] { display: none; }</style>'
 )
 FIRST_SCRIPT = '<script src="/demo-v2-scene.js" defer></script>'
+# The licenses of what the WASM holds (#290): its crates' in NOTICES, the Rust standard library's
+# in RUST_LIBRARY_NOTICES (the notices rustc ships for programs it builds).
+NOTICES = "THIRD-PARTY-NOTICES.txt"
+RUST_LIBRARY_NOTICES = "THIRD-PARTY-NOTICES-rust-library.html"
+WASM_CRATE = "sheltersim_wasm"
+WASM_TARGET = "wasm32-unknown-unknown"
+# The files of a crate's package that hold its license or notices.
+LICENSE_FILE = re.compile(r"(LICEN[CS]E|COPYING|COPYRIGHT|NOTICE|UNLICENSE)([-._].*)?", re.I)
+# A line of `cargo tree --prefix none --format {p}`: the name, the version, the path of a crate of
+# the workspace and "(*)" for one already listed.
+TREE_LINE = re.compile(r"(\S+) v(\S+)(?: \([^*)][^)]*\))?(?: \(\*\))?")
 # The bundle's header (native/wasm/js/project_store.mjs): magic, version, manifest length, sha256.
 MAGIC = b"\x89SHELTERSIM-PRJ\n"
 HEADER = len(MAGIC) + 4 + 4 + 32
@@ -225,6 +242,9 @@ def index_html(sample: str, compute: str, project_id: str = "sample") -> str:
         '<p id="reset-note" role="status"></p></div>\n'
         + "<small>初めて開くときは、例のデータ（約47 MB）を読み込んで、このブラウザーに保存します。"
         "実在の避難所や人の記録ではありません。</small>\n"
+        '<small><a href="/LICENSE.txt">ライセンス</a>・'
+        f'<a href="/{NOTICES}">外部の部品のライセンス</a>'
+        f'（<a href="/{RUST_LIBRARY_NOTICES}">Rustの標準ライブラリー</a>）</small>\n'
         "</main>\n"
         + RESET_SCRIPT % json.dumps(["projects", project_id, "runs", COMPUTE_RUN])
         + "</body>\n</html>\n"
@@ -306,6 +326,116 @@ def browser_modules() -> list[str]:
     return names
 
 
+def _output(*command: str) -> str:
+    """What `command` writes; ValueError with what it wrote to stderr if it fails."""
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise ValueError(f"{' '.join(command[:2])} failed: {result.stderr.strip()}")
+    return result.stdout
+
+
+def _cargo(*arguments: str) -> str:
+    manifest = str(ROOT / "native" / "Cargo.toml")
+    return _output("cargo", *arguments, "--manifest-path", manifest, "--locked")
+
+
+def wasm_crates() -> list[tuple[str, str]]:
+    """The (name, version) of each crate the WASM links, as its build resolves them: the normal
+    dependencies of sheltersim_wasm for the browser's target, at any depth, but proc-macro crates,
+    which run in the compiler, and what only they use."""
+    lines = _cargo(
+        "tree",
+        "-p",
+        WASM_CRATE,
+        "--target",
+        WASM_TARGET,
+        "-e",
+        "normal,no-proc-macro",
+        "--prefix",
+        "none",
+        "--format",
+        "{p}",
+    ).splitlines()
+    crates = set()
+    for line in filter(None, lines):
+        match = TREE_LINE.fullmatch(line)
+        if match is None:
+            raise ValueError(f"cargo tree wrote {line!r}")
+        crates.add((match[1], match[2]))
+    return sorted(crates)
+
+
+def crate_notices(metadata: dict[str, Any], crates: list[tuple[str, str]]) -> str:
+    """NOTICES: each crate of `crates` but the workspace's own (MIT, /LICENSE.txt) with the
+    license its Cargo.toml states and its repository, then the texts of the license and notice
+    files its package holds, each text once. A crate without such a file is refused."""
+    members = set(metadata["workspace_members"])
+    packages: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for package in metadata["packages"]:
+        packages.setdefault((package["name"], package["version"]), []).append(package)
+    entries, texts, bare = [], {}, []
+    for name, version in crates:
+        found = packages.get((name, version), [])
+        if len(found) != 1:
+            raise ValueError(f"cargo metadata has {len(found)} packages {name} {version}")
+        package = found[0]
+        if package["id"] in members:
+            continue
+        directory = Path(package["manifest_path"]).parent
+        files = sorted(
+            path
+            for path in directory.iterdir()
+            if path.is_file() and LICENSE_FILE.fullmatch(path.name)
+        )
+        if package.get("license_file"):
+            named = (directory / package["license_file"]).resolve()
+            if named not in [path.resolve() for path in files]:
+                files.append(named)
+        if not files:
+            bare.append(f"{name} {version}")
+            continue
+        labels = []
+        for path in files:
+            text = path.read_text(encoding="utf-8").replace("\r\n", "\n").strip("\n")
+            number = texts.setdefault(text, len(texts) + 1)
+            labels.append(f"{path.name} [{number}]")
+        entries.append(
+            f"{name} {version}\n"
+            f"  License: {package.get('license') or 'see its files'}\n"
+            f"  Repository: {package.get('repository') or '-'}\n"
+            f"  Files: {', '.join(labels)}\n"
+        )
+    if bare:
+        raise ValueError(f"no license file in the packages of {', '.join(bare)}")
+    return (
+        "Third-party notices of the browser version of 避難所IF！ (#290)\n\n"
+        "The site's WASM (/browser/pkg/sheltersim_wasm_bg.wasm) and its JS glue\n"
+        "(/browser/pkg/sheltersim_wasm.js, which wasm-bindgen writes) are built from the\n"
+        "repository's crates (MIT, /LICENSE.txt), the crates below and the Rust standard\n"
+        f"library, whose notices are in /{RUST_LIBRARY_NOTICES}.\n"
+        "Each crate is listed with the license its Cargo.toml states and the license and notice\n"
+        "files its package holds; the texts of those files follow the list.\n\n"
+        "Crates\n======\n\n"
+        + "\n".join(entries)
+        + "\nTexts\n=====\n"
+        + "".join(f"\n[{number}]\n\n{text}\n" for text, number in texts.items())
+    )
+
+
+def third_party_notices() -> dict[str, bytes]:
+    """The site's NOTICES and RUST_LIBRARY_NOTICES, from the Cargo.lock of native/ and the
+    toolchain of `cargo` (the one the WASM is built with)."""
+    metadata = json.loads(
+        _cargo("metadata", "--format-version", "1", "--filter-platform", WASM_TARGET)
+    )
+    sysroot = _output("rustc", "--print", "sysroot").strip()
+    library = Path(sysroot) / "share" / "doc" / "rust" / "COPYRIGHT-library.html"
+    return {
+        NOTICES: crate_notices(metadata, wasm_crates()).encode(),
+        RUST_LIBRARY_NOTICES: library.read_bytes(),
+    }
+
+
 def build(
     output: Path,
     *,
@@ -315,8 +445,10 @@ def build(
     branch_id: str = "main",
     part_mib: int = 16,
     shelters: dict[str, Any] | None = None,
+    notices: dict[str, bytes],
 ) -> dict[str, Any]:
-    """Assemble the site in `output`; a summary of what it holds."""
+    """Assemble the site in `output`; a summary of what it holds. `notices` are the files
+    third_party_notices() writes, by name."""
     output = output.resolve()
     if output == ROOT or ROOT in output.parents:
         raise ValueError("the site is generated: write it outside the repository")
@@ -359,6 +491,11 @@ def build(
     (output / "404.html").write_text(NOT_FOUND, encoding="utf-8")
     # The repository's license (MIT) travels with the copy of its code the site is.
     shutil.copyfile(ROOT / "LICENSE", output / "LICENSE.txt")
+    # And the licenses of what the WASM holds (#290).
+    if set(notices) != {NOTICES, RUST_LIBRARY_NOTICES}:
+        raise ValueError(f"the notices are {sorted(notices)}")
+    for name, data in notices.items():
+        (output / name).write_bytes(data)
     # GitHub Pages: serve the files as they are, without Jekyll.
     (output / ".nojekyll").write_bytes(b"")
     files = sorted(path for path in output.rglob("*") if path.is_file())
@@ -425,6 +562,7 @@ def main() -> int:
                 "no shelter index: the site's Scenario preview answers browser_unsupported",
                 file=sys.stderr,
             )
+        notices = third_party_notices()
         summary = build(
             arguments.output,
             pkg=arguments.pkg,
@@ -433,6 +571,7 @@ def main() -> int:
             branch_id=arguments.branch,
             part_mib=arguments.part_mib,
             shelters=shelters,
+            notices=notices,
         )
     except (OSError, ValueError) as error:
         print(error, file=sys.stderr)
