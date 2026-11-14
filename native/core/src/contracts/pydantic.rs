@@ -50,6 +50,9 @@ pub enum S {
     /// `StrictStr | StrictInt | StrictFloat | StrictBool` with `GuardExpression`'s field validator
     /// `finite_guard_value` (events/effects.py).
     GuardValue,
+    /// `str | int | float | bool` (lax, smart) with `PlanAssumption`'s field validator
+    /// `finite_numeric_value` (events/effects.py, #351).
+    AssumptionValue,
 }
 
 /// An `int`'s schema: `strict=True`, and its bounds.
@@ -183,25 +186,33 @@ pub struct Field {
 }
 
 /// An input as `model_validate` is given it: a value, and whether it (`frozen`) and the values in
-/// it (`kids`) are a mapping proxy or a tuple rather than a dict or a list.
+/// it (`kids`) are a mapping proxy or a tuple rather than a dict or a list. `tracked`: its dicts
+/// and lists are the tracked tree of a world's namespace or config (`TrackedDict`, `TrackedList` of
+/// `core/state_mirror.py`), which `repr` writes as a dict and a list (#351).
 #[derive(Clone, Copy)]
 pub struct In<'a> {
     pub v: &'a V,
     pub frozen: bool,
     pub kids: bool,
+    pub tracked: bool,
 }
 
 impl<'a> In<'a> {
     pub fn plain(v: &'a V) -> Self {
-        In { v, frozen: false, kids: false }
+        In { v, frozen: false, kids: false, tracked: false }
+    }
+
+    /// A value of a world's namespace or config, as Python holds it (#351).
+    pub fn tracked(v: &'a V) -> Self {
+        In { v, frozen: false, kids: false, tracked: true }
     }
 
     pub fn frozen(v: &'a V) -> Self {
-        In { v, frozen: true, kids: true }
+        In { v, frozen: true, kids: true, tracked: false }
     }
 
     fn child<'b>(&self, v: &'b V) -> In<'b> {
-        In { v, frozen: self.kids, kids: self.kids }
+        In { v, frozen: self.kids, kids: self.kids, tracked: self.tracked }
     }
 
     /// `type(input).__name__`.
@@ -213,8 +224,10 @@ impl<'a> In<'a> {
             V::Float(_) => "float",
             V::Str(_) => "str",
             V::List(_) if self.frozen => "tuple",
+            V::List(_) if self.tracked => "TrackedList",
             V::List(_) => "list",
             V::Map(_) if self.frozen => "mappingproxy",
+            V::Map(_) if self.tracked => "TrackedDict",
             V::Map(_) => "dict",
         }
     }
@@ -456,6 +469,7 @@ fn validate(s: &'static S, input: In<'_>, ctx: &mut Ctx) -> Out {
         S::Dict(key, value) => dict(key, value, input, ctx),
         S::Model(inner) => model(inner, input, ctx).map(V::Map),
         S::GuardValue => guard_value(input),
+        S::AssumptionValue => assumption_value(input),
     }
 }
 
@@ -724,6 +738,24 @@ fn guard_value(input: In<'_>) -> Out {
 }
 
 // ---- Containers --------------------------------------------------------------------------------
+
+/// `str | int | float | bool` in lax mode: each scalar a `V` can be is one of them exactly, so the
+/// smart union takes it as it is; anything else fails every member. Then `finite_numeric_value`.
+fn assumption_value(input: In<'_>) -> Out {
+    match input.v {
+        V::Float(number) if !number.is_finite() => one("value_error", "Value error, assumption values must be finite", input),
+        V::Str(_) | V::Int(_) | V::Big(_) | V::Float(_) | V::Bool(_) => Ok(input.v.clone()),
+        _ => Err(vec![
+            located(vec![LineError::new("string_type", "Input should be a valid string", input)], &[name("str")]),
+            located(vec![LineError::new("int_type", "Input should be a valid integer", input)], &[name("int")]),
+            located(vec![LineError::new("float_type", "Input should be a valid number", input)], &[name("float")]),
+            located(vec![LineError::new("bool_type", "Input should be a valid boolean", input)], &[name("bool")]),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()),
+    }
+}
 
 fn too_long(kind: &str, max: usize, actual: usize, input: In<'_>) -> Errors {
     vec![LineError::new("too_long", format!("{kind} should have at most {max} item{} after validation, not {actual}", plural(max)), input)]
