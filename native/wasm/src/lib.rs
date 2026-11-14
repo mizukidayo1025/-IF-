@@ -135,23 +135,6 @@ impl Simulation {
         let line = self.run.host.samples.line(index as usize).map_err(js_error)?;
         line.map(|line| String::from_utf8(line).map_err(|error| JsError::new(&error.to_string()))).transpose()
     }
-
-    /// How many times each contract gave its input back (`PlainHost::contracts`), as a JSON
-    /// object: where the Run may part from the native path's (decision 4).
-    pub fn contracts_json(&self) -> String {
-        let mut encoder = Encoder::with_capacity(256);
-        encoder.out.push(b'{');
-        for (index, (name, count)) in self.run.host.contracts.iter().enumerate() {
-            if index > 0 {
-                encoder.out.push(b',');
-            }
-            encoder.string(name);
-            encoder.out.push(b':');
-            encoder.int(*count as i64);
-        }
-        encoder.out.push(b'}');
-        String::from_utf8(encoder.out).unwrap_or_default()
-    }
 }
 
 /// The frame of a minute (#264): the map and the indicators the API's `timeline` gives, made by the
