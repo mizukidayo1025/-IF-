@@ -1,0 +1,7069 @@
+{
+ "cases": [
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "ledger_extended_valid",
+   "world": "ledger_extended_valid"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "ledger_active_valid",
+   "world": "ledger_active_valid"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "ledger_zone_id_known_valid",
+   "world": "ledger_zone_id_known_valid"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger fields do not match v1"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger fields do not match v1"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger fields do not match v1"
+    ]
+   },
+   "name": "ledger_extra_field",
+   "world": "ledger_extra_field"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger fields do not match v1"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger fields do not match v1"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger fields do not match v1"
+    ]
+   },
+   "name": "ledger_missing_audit",
+   "world": "ledger_missing_audit"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: unsupported resource ledger schema version"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: unsupported resource ledger schema version"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: unsupported resource ledger schema version"
+    ]
+   },
+   "name": "ledger_schema_version_2",
+   "world": "ledger_schema_version_2"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: unsupported resource ledger schema version"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: unsupported resource ledger schema version"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: unsupported resource ledger schema version"
+    ]
+   },
+   "name": "ledger_schema_version_true",
+   "world": "ledger_schema_version_true"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: unsupported resource ledger schema version"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: unsupported resource ledger schema version"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: unsupported resource ledger schema version"
+    ]
+   },
+   "name": "ledger_schema_version_float",
+   "world": "ledger_schema_version_float"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger warehouse_id is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger warehouse_id is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger warehouse_id is invalid"
+    ]
+   },
+   "name": "ledger_warehouse_invalid",
+   "world": "ledger_warehouse_invalid"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger warehouse_id is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger warehouse_id is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger warehouse_id is invalid"
+    ]
+   },
+   "name": "ledger_warehouse_none",
+   "world": "ledger_warehouse_none"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger zone_id is invalid or unknown"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger zone_id is invalid or unknown"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger zone_id is invalid or unknown"
+    ]
+   },
+   "name": "ledger_zone_unknown",
+   "world": "ledger_zone_unknown"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger zone_id is invalid or unknown"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger zone_id is invalid or unknown"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger zone_id is invalid or unknown"
+    ]
+   },
+   "name": "ledger_zone_invalid",
+   "world": "ledger_zone_invalid"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger reservation IDs are invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger reservation IDs are invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger reservation IDs are invalid"
+    ]
+   },
+   "name": "ledger_used_ids_not_list",
+   "world": "ledger_used_ids_not_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger reservation IDs are invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger reservation IDs are invalid"
+    ],
+    "validate_tick": null
+   },
+   "name": "ledger_used_id_invalid",
+   "world": "ledger_used_id_invalid"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger reservation IDs are invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger reservation IDs are invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger reservation IDs are invalid"
+    ]
+   },
+   "name": "ledger_used_id_not_text",
+   "world": "ledger_used_id_not_text"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger reservation IDs must be unique"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger reservation IDs must be unique"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger reservation IDs must be unique"
+    ]
+   },
+   "name": "ledger_used_ids_repeat",
+   "world": "ledger_used_ids_repeat"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource account 'water_ml' fields do not match v1"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource account 'water_ml' fields do not match v1"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource account 'water_ml' fields do not match v1"
+    ]
+   },
+   "name": "account_extra_field",
+   "world": "account_extra_field"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' losses must be non-negative"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' losses must be non-negative"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' losses must be non-negative"
+    ]
+   },
+   "name": "account_negative_losses",
+   "world": "account_negative_losses"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' initial must be non-negative"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' initial must be non-negative"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' initial must be non-negative"
+    ]
+   },
+   "name": "account_float_initial",
+   "world": "account_float_initial"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' reserved must be non-negative"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' reserved must be non-negative"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' reserved must be non-negative"
+    ]
+   },
+   "name": "account_bool_reserved",
+   "world": "account_bool_reserved"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' accounting does not balance"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' accounting does not balance"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' accounting does not balance"
+    ]
+   },
+   "name": "account_initial_big",
+   "world": "account_initial_big"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' accounting does not balance"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' accounting does not balance"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' accounting does not balance"
+    ]
+   },
+   "name": "account_unbalanced",
+   "world": "account_unbalanced"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: WorldState resource 'water_ml' does not match ledger remaining"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: WorldState resource 'water_ml' does not match ledger remaining"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: WorldState resource 'water_ml' does not match ledger remaining"
+    ]
+   },
+   "name": "account_remaining_not_resources",
+   "world": "account_remaining_not_resources"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' reservations must be an object"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' reservations must be an object"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' reservations must be an object"
+    ]
+   },
+   "name": "account_reservations_list",
+   "world": "account_reservations_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource reservation ID is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource reservation ID is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource reservation ID is invalid"
+    ]
+   },
+   "name": "reservation_key_invalid",
+   "world": "reservation_key_invalid"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: active reservation ID is missing from its history"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: active reservation ID is missing from its history"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: active reservation ID is missing from its history"
+    ]
+   },
+   "name": "reservation_not_in_history",
+   "world": "reservation_not_in_history"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource reservation record fields do not match v1"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource reservation record fields do not match v1"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource reservation record fields do not match v1"
+    ]
+   },
+   "name": "reservation_record_fields",
+   "world": "reservation_record_fields"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource reservation identity is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource reservation identity is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource reservation identity is invalid"
+    ]
+   },
+   "name": "reservation_wrong_resource",
+   "world": "reservation_wrong_resource"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource reservation identity is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource reservation identity is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource reservation identity is invalid"
+    ]
+   },
+   "name": "reservation_unknown_agent",
+   "world": "reservation_unknown_agent"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: active reservation quantity must be a positive integer"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: active reservation quantity must be a positive integer"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: active reservation quantity must be a positive integer"
+    ]
+   },
+   "name": "reservation_quantity_zero",
+   "world": "reservation_quantity_zero"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: active reservation quantity must be a positive integer"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: active reservation quantity must be a positive integer"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: active reservation quantity must be a positive integer"
+    ]
+   },
+   "name": "reservation_quantity_float",
+   "world": "reservation_quantity_float"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' reserved total does not match"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' reserved total does not match"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' reserved total does not match"
+    ]
+   },
+   "name": "reservation_total_mismatch",
+   "world": "reservation_total_mismatch"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'food_meal_units' reserves more than remains"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'food_meal_units' reserves more than remains"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'food_meal_units' reserves more than remains"
+    ]
+   },
+   "name": "account_reserves_more_than_remains",
+   "world": "account_reserves_more_than_remains"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' source_ids are invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' source_ids are invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' source_ids are invalid"
+    ]
+   },
+   "name": "account_source_ids_invalid",
+   "world": "account_source_ids_invalid"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' source_ids are invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' source_ids are invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' source_ids are invalid"
+    ]
+   },
+   "name": "account_source_ids_not_list",
+   "world": "account_source_ids_not_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' source_ids must be unique"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' source_ids must be unique"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' source_ids must be unique"
+    ]
+   },
+   "name": "account_source_ids_repeat",
+   "world": "account_source_ids_repeat"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: WorldState resources must contain exactly the ledger resource IDs"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: WorldState resources must contain exactly the ledger resource IDs"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: WorldState resources must contain exactly the ledger resource IDs"
+    ]
+   },
+   "name": "resources_missing_food",
+   "world": "resources_missing_food"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: WorldState resources must contain exactly the ledger resource IDs"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: WorldState resources must contain exactly the ledger resource IDs"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: WorldState resources must contain exactly the ledger resource IDs"
+    ]
+   },
+   "name": "resources_extra",
+   "world": "resources_extra"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit must be a list"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit must be a list"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit must be a list"
+    ]
+   },
+   "name": "audit_not_list",
+   "world": "audit_not_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit is missing initial records"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit is missing initial records"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit is missing initial records"
+    ]
+   },
+   "name": "audit_too_short",
+   "world": "audit_too_short"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit record fields do not match v1"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit record fields do not match v1"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit record fields do not match v1"
+    ]
+   },
+   "name": "audit_record_not_dict",
+   "world": "audit_record_not_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit record fields do not match v1"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit record fields do not match v1"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit record fields do not match v1"
+    ]
+   },
+   "name": "audit_record_extra_field",
+   "world": "audit_record_extra_field"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: unsupported resource audit schema version"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: unsupported resource audit schema version"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: unsupported resource audit schema version"
+    ]
+   },
+   "name": "audit_record_schema_2",
+   "world": "audit_record_schema_2"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit values are invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit values are invalid"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_record_minute_negative",
+   "world": "audit_record_minute_negative"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit values are invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit values are invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit values are invalid"
+    ]
+   },
+   "name": "audit_record_minute_float",
+   "world": "audit_record_minute_float"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit values are invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit values are invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit values are invalid"
+    ]
+   },
+   "name": "audit_record_resource_unknown",
+   "world": "audit_record_resource_unknown"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit values are invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit values are invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit values are invalid"
+    ]
+   },
+   "name": "audit_record_operation_unknown",
+   "world": "audit_record_operation_unknown"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid WorldState document: unhashable type: 'TrackedList'"
+    ],
+    "extensions": null,
+    "validate": [
+     "TypeError",
+     "unhashable type: 'TrackedList'"
+    ],
+    "validate_tick": [
+     "TypeError",
+     "unhashable type: 'TrackedList'"
+    ]
+   },
+   "name": "audit_record_operation_list",
+   "world": "audit_record_operation_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid WorldState document: unhashable type: 'TrackedDict'"
+    ],
+    "extensions": null,
+    "validate": [
+     "TypeError",
+     "unhashable type: 'TrackedDict'"
+    ],
+    "validate_tick": [
+     "TypeError",
+     "unhashable type: 'TrackedDict'"
+    ]
+   },
+   "name": "audit_record_operation_dict",
+   "world": "audit_record_operation_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit values are invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit values are invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit values are invalid"
+    ]
+   },
+   "name": "audit_record_quantity_negative",
+   "world": "audit_record_quantity_negative"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit values are invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit values are invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit values are invalid"
+    ]
+   },
+   "name": "audit_record_quantity_bool",
+   "world": "audit_record_quantity_bool"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit IDs are invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit IDs are invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit IDs are invalid"
+    ]
+   },
+   "name": "audit_record_event_id_invalid",
+   "world": "audit_record_event_id_invalid"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit IDs are invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit IDs are invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit IDs are invalid"
+    ]
+   },
+   "name": "audit_record_agent_id_number",
+   "world": "audit_record_agent_id_number"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit source_ids are invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit source_ids are invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit source_ids are invalid"
+    ]
+   },
+   "name": "audit_record_source_ids_invalid",
+   "world": "audit_record_source_ids_invalid"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit source_ids must be unique"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit source_ids must be unique"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource ledger audit source_ids must be unique"
+    ]
+   },
+   "name": "audit_record_source_ids_repeat",
+   "world": "audit_record_source_ids_repeat"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit warehouse_id does not match its ledger"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit warehouse_id does not match its ledger"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit warehouse_id does not match its ledger"
+    ]
+   },
+   "name": "audit_record_warehouse_other",
+   "world": "audit_record_warehouse_other"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit served must be non-negative"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit served must be non-negative"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit served must be non-negative"
+    ]
+   },
+   "name": "audit_record_balance_negative",
+   "world": "audit_record_balance_negative"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit remaining must be non-negative"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit remaining must be non-negative"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit remaining must be non-negative"
+    ]
+   },
+   "name": "audit_record_balance_float",
+   "world": "audit_record_balance_float"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit minutes must be non-decreasing"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit minutes must be non-decreasing"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_minutes_decrease",
+   "world": "audit_minutes_decrease"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit minutes must be non-decreasing"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit minutes must be non-decreasing"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_old_minutes_decrease",
+   "world": "audit_old_minutes_decrease"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: initial resource audit records must lead in stable order"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: initial resource audit records must lead in stable order"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_initial_order",
+   "world": "audit_initial_order"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: initial resource audit cannot reference an event or Agent"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: initial resource audit cannot reference an event or Agent"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_initial_event",
+   "world": "audit_initial_event"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: initial resource audit values are invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: initial resource audit values are invalid"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_initial_minute",
+   "world": "audit_initial_minute"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: initial resource audit quantity does not match balance"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: initial resource audit quantity does not match balance"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_initial_quantity",
+   "world": "audit_initial_quantity"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: initial resource audit source_ids must be sorted and unique"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: initial resource audit source_ids must be sorted and unique"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' source IDs do not match audit"
+    ]
+   },
+   "name": "audit_initial_sources_unsorted",
+   "world": "audit_initial_sources_unsorted"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: initial resource audit records must lead in stable order"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: initial resource audit records must lead in stable order"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_event_before_initial",
+   "world": "audit_event_before_initial"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource event audit quantity must be positive"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource event audit quantity must be positive"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_event_quantity_zero",
+   "world": "audit_event_quantity_zero"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource event audit requires event_id and source_id"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource event audit requires event_id and source_id"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_event_without_event_id",
+   "world": "audit_event_without_event_id"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource event audit requires event_id and source_id"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource event audit requires event_id and source_id"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_event_without_source",
+   "world": "audit_event_without_source"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit event IDs must be unique"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit event IDs must be unique"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_event_id_repeat",
+   "world": "audit_event_id_repeat"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit reservation identity is incomplete"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit reservation identity is incomplete"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_reserve_without_agent",
+   "world": "audit_reserve_without_agent"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit reservation identity is incomplete"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit reservation identity is incomplete"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_loss_with_reservation",
+   "world": "audit_loss_with_reservation"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit source is missing from source_ids"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit source is missing from source_ids"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_source_not_listed",
+   "world": "audit_source_not_listed"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit loss exceeds available inventory"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit loss exceeds available inventory"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_loss_exceeds",
+   "world": "audit_loss_exceeds"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit reservation ID was reused"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit reservation ID was reused"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_reserve_reused",
+   "world": "audit_reserve_reused"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit reservation ID was reused"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit reservation ID was reused"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_reserve_reused_old",
+   "world": "audit_reserve_reused_old"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit reservation exceeds available stock"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit reservation exceeds available stock"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_reserve_exceeds",
+   "world": "audit_reserve_exceeds"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit references an unknown Agent"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit references an unknown Agent"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_reserve_unknown_agent",
+   "world": "audit_reserve_unknown_agent"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit reservation history is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit reservation history is invalid"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_consume_wrong_agent",
+   "world": "audit_consume_wrong_agent"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit reservation history is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit reservation history is invalid"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_consume_unknown_reservation",
+   "world": "audit_consume_unknown_reservation"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit release quantity is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit release quantity is invalid"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_release_quantity",
+   "world": "audit_release_quantity"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit consume exceeds its reservation"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit consume exceeds its reservation"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_consume_exceeds",
+   "world": "audit_consume_exceeds"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit source_ids do not match replay"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit source_ids do not match replay"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' source IDs do not match audit"
+    ]
+   },
+   "name": "audit_sources_not_replayed",
+   "world": "audit_sources_not_replayed"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit after-state does not match replay"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit after-state does not match replay"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' balance does not match audit"
+    ]
+   },
+   "name": "audit_after_state",
+   "world": "audit_after_state"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit after-state does not match replay"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource audit after-state does not match replay"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_initial_after_state",
+   "world": "audit_initial_after_state"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource reservation history does not match audit replay"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource reservation history does not match audit replay"
+    ],
+    "validate_tick": null
+   },
+   "name": "ledger_used_ids_not_replayed",
+   "world": "ledger_used_ids_not_replayed"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' balance does not match audit"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' balance does not match audit"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' balance does not match audit"
+    ]
+   },
+   "name": "account_balance_not_replayed",
+   "world": "account_balance_not_replayed"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'food_meal_units' source IDs do not match audit"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'food_meal_units' source IDs do not match audit"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'food_meal_units' source IDs do not match audit"
+    ]
+   },
+   "name": "account_sources_not_replayed",
+   "world": "account_sources_not_replayed"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' reservations do not match audit"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' reservations do not match audit"
+    ],
+    "validate_tick": null
+   },
+   "name": "account_reservations_not_replayed",
+   "world": "account_reservations_not_replayed"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' reservations do not match audit"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: resource 'water_ml' reservations do not match audit"
+    ],
+    "validate_tick": null
+   },
+   "name": "audit_active_reserve_agent",
+   "world": "audit_active_reserve_agent"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource ledger: population_dynamics_v1 contains an unknown profile ID"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource ledger: population_dynamics_v1 contains an unknown profile ID"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource ledger: population_dynamics_v1 contains an unknown profile ID"
+    ]
+   },
+   "name": "population_unknown_profile",
+   "world": "population_unknown_profile"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "population_version_float_valid",
+   "world": "population_version_float_valid"
+  }
+ ],
+ "worlds": {
+  "account_balance_not_replayed": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.initial": 90005,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90005,
+    "world.resources.water_ml": 90005
+   }
+  },
+  "account_bool_reserved": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reserved": false
+   }
+  },
+  "account_extra_field": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.extra": 0
+   }
+  },
+  "account_float_initial": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.initial": 90000.0
+   }
+  },
+  "account_initial_big": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.initial": 100000000000000000000
+   }
+  },
+  "account_negative_losses": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.losses": -1
+   }
+  },
+  "account_remaining_not_resources": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 5,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90005
+   }
+  },
+  "account_reservations_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reservations": []
+   }
+  },
+  "account_reservations_not_replayed": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": "A004",
+      "delivered": 0,
+      "event_id": "f-reserve-3",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 50,
+      "remaining": 90000,
+      "reservation_id": "f-res-3",
+      "reserved": 50,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-3"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reservations.f-res-3": {
+     "agent_id": "A005",
+     "quantity": 50,
+     "reservation_id": "f-res-3",
+     "resource_id": "water_ml"
+    },
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reserved": 50
+   }
+  },
+  "account_reserves_more_than_remains": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.food_meal_units.reservations.resource-service-task-0": {
+     "agent_id": "A002",
+     "quantity": 90,
+     "reservation_id": "resource-service-task-0",
+     "resource_id": "food_meal_units"
+    },
+    "world.model_state.resource_ledger_v1.accounts.food_meal_units.reserved": 90
+   }
+  },
+  "account_source_ids_invalid": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.source_ids.0": "bad id"
+   }
+  },
+  "account_source_ids_not_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.source_ids": "x"
+   }
+  },
+  "account_source_ids_repeat": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-STANDARD-PROVISIONING-V1"
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "account_sources_not_replayed": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "food_meal_units",
+      "source_ids",
+      2
+     ],
+     "EXTRA"
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "account_unbalanced": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 5
+   }
+  },
+  "audit_active_reserve_agent": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": "A005",
+      "delivered": 0,
+      "event_id": "f-reserve-3",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 50,
+      "remaining": 90000,
+      "reservation_id": "f-res-3",
+      "reserved": 50,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-3"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reservations.f-res-3": {
+     "agent_id": "A004",
+     "quantity": 50,
+     "reservation_id": "f-res-3",
+     "resource_id": "water_ml"
+    },
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reserved": 50
+   }
+  },
+  "audit_after_state": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 3,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_consume_exceeds": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      5
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-loss-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "loss",
+      "quantity": 200,
+      "remaining": 90300,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      6
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-reserve-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 300,
+      "remaining": 90300,
+      "reservation_id": "f-res-1",
+      "reserved": 300,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      7
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-consume-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 301,
+      "remaining": 90200,
+      "reservation_id": "f-res-1",
+      "reserved": 200,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 100,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      8
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-release-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "release",
+      "quantity": 200,
+      "remaining": 90200,
+      "reservation_id": "f-res-1",
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 100,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      9
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-reserve-2",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 2,
+      "remaining": 89,
+      "reservation_id": "f-res-2",
+      "reserved": 2,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 1,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      10
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-consume-2",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 1,
+      "remaining": 88,
+      "reservation_id": "f-res-2",
+      "reserved": 1,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 2,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      11
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-consume-3",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 1,
+      "remaining": 87,
+      "reservation_id": "f-res-2",
+      "reserved": 0,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 3,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      2
+     ],
+     "f-res-2"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.food_meal_units.remaining": 87,
+    "world.model_state.resource_ledger_v1.accounts.food_meal_units.served": 3,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.losses": 200,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90200,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.served": 100,
+    "world.resources.food_meal_units": 87,
+    "world.resources.water_ml": 90200
+   }
+  },
+  "audit_consume_unknown_reservation": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      5
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-loss-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "loss",
+      "quantity": 200,
+      "remaining": 90300,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      6
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-reserve-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 300,
+      "remaining": 90300,
+      "reservation_id": "f-res-1",
+      "reserved": 300,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      7
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-consume-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 100,
+      "remaining": 90200,
+      "reservation_id": "f-res-8",
+      "reserved": 200,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 100,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      8
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-release-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "release",
+      "quantity": 200,
+      "remaining": 90200,
+      "reservation_id": "f-res-1",
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 100,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      9
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-reserve-2",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 2,
+      "remaining": 89,
+      "reservation_id": "f-res-2",
+      "reserved": 2,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 1,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      10
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-consume-2",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 1,
+      "remaining": 88,
+      "reservation_id": "f-res-2",
+      "reserved": 1,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 2,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      11
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-consume-3",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 1,
+      "remaining": 87,
+      "reservation_id": "f-res-2",
+      "reserved": 0,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 3,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      2
+     ],
+     "f-res-2"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.food_meal_units.remaining": 87,
+    "world.model_state.resource_ledger_v1.accounts.food_meal_units.served": 3,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.losses": 200,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90200,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.served": 100,
+    "world.resources.food_meal_units": 87,
+    "world.resources.water_ml": 90200
+   }
+  },
+  "audit_consume_wrong_agent": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      5
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-loss-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "loss",
+      "quantity": 200,
+      "remaining": 90300,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      6
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-reserve-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 300,
+      "remaining": 90300,
+      "reservation_id": "f-res-1",
+      "reserved": 300,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      7
+     ],
+     {
+      "agent_id": "A002",
+      "delivered": 500,
+      "event_id": "f-consume-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 100,
+      "remaining": 90200,
+      "reservation_id": "f-res-1",
+      "reserved": 200,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 100,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      8
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-release-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "release",
+      "quantity": 200,
+      "remaining": 90200,
+      "reservation_id": "f-res-1",
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 100,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      9
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-reserve-2",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 2,
+      "remaining": 89,
+      "reservation_id": "f-res-2",
+      "reserved": 2,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 1,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      10
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-consume-2",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 1,
+      "remaining": 88,
+      "reservation_id": "f-res-2",
+      "reserved": 1,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 2,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      11
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-consume-3",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 1,
+      "remaining": 87,
+      "reservation_id": "f-res-2",
+      "reserved": 0,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 3,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      2
+     ],
+     "f-res-2"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.food_meal_units.remaining": 87,
+    "world.model_state.resource_ledger_v1.accounts.food_meal_units.served": 3,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.losses": 200,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90200,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.served": 100,
+    "world.resources.food_meal_units": 87,
+    "world.resources.water_ml": 90200
+   }
+  },
+  "audit_event_before_initial": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      1,
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.audit.1.agent_id": "A002",
+    "world.model_state.resource_ledger_v1.audit.1.event_id": "resource-reserve-43",
+    "world.model_state.resource_ledger_v1.audit.1.minute": 3,
+    "world.model_state.resource_ledger_v1.audit.1.operation": "reserve",
+    "world.model_state.resource_ledger_v1.audit.1.quantity": 1,
+    "world.model_state.resource_ledger_v1.audit.1.reservation_id": "resource-service-task-0",
+    "world.model_state.resource_ledger_v1.audit.1.reserved": 1,
+    "world.model_state.resource_ledger_v1.audit.1.source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+    "world.model_state.resource_ledger_v1.audit.2.agent_id": null,
+    "world.model_state.resource_ledger_v1.audit.2.event_id": null,
+    "world.model_state.resource_ledger_v1.audit.2.minute": 0,
+    "world.model_state.resource_ledger_v1.audit.2.operation": "initial",
+    "world.model_state.resource_ledger_v1.audit.2.quantity": 90,
+    "world.model_state.resource_ledger_v1.audit.2.reservation_id": null,
+    "world.model_state.resource_ledger_v1.audit.2.reserved": 0,
+    "world.model_state.resource_ledger_v1.audit.2.source_id": null,
+    "world.model_state.resource_ledger_v1.audit.2.source_ids": [
+     "ASM-STANDARD-PROVISIONING-V1"
+    ]
+   }
+  },
+  "audit_event_id_repeat": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "resource-reserve-43",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_event_quantity_zero": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 0,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_event_without_event_id": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": null,
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_event_without_source": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": null,
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_initial_after_state": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.audit.1.reserved": 1
+   }
+  },
+  "audit_initial_event": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.audit.0.event_id": "e-1"
+   }
+  },
+  "audit_initial_minute": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.audit.0.minute": 1
+   }
+  },
+  "audit_initial_order": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.audit.0.initial": 90,
+    "world.model_state.resource_ledger_v1.audit.0.quantity": 90,
+    "world.model_state.resource_ledger_v1.audit.0.remaining": 90,
+    "world.model_state.resource_ledger_v1.audit.0.resource_id": "food_meal_units",
+    "world.model_state.resource_ledger_v1.audit.1.initial": 90000,
+    "world.model_state.resource_ledger_v1.audit.1.quantity": 90000,
+    "world.model_state.resource_ledger_v1.audit.1.remaining": 90000,
+    "world.model_state.resource_ledger_v1.audit.1.resource_id": "water_ml"
+   }
+  },
+  "audit_initial_quantity": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.audit.0.quantity": 1
+   }
+  },
+  "audit_initial_sources_unsorted": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      0,
+      "source_ids",
+      1
+     ],
+     "A-SOURCE"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.audit.0.source_ids.0": "Z-SOURCE"
+   }
+  },
+  "audit_loss_exceeds": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      5
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-loss-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "loss",
+      "quantity": 1000000,
+      "remaining": 90300,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      6
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-reserve-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 300,
+      "remaining": 90300,
+      "reservation_id": "f-res-1",
+      "reserved": 300,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      7
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-consume-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 100,
+      "remaining": 90200,
+      "reservation_id": "f-res-1",
+      "reserved": 200,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 100,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      8
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-release-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "release",
+      "quantity": 200,
+      "remaining": 90200,
+      "reservation_id": "f-res-1",
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 100,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      9
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-reserve-2",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 2,
+      "remaining": 89,
+      "reservation_id": "f-res-2",
+      "reserved": 2,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 1,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      10
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-consume-2",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 1,
+      "remaining": 88,
+      "reservation_id": "f-res-2",
+      "reserved": 1,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 2,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      11
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-consume-3",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 1,
+      "remaining": 87,
+      "reservation_id": "f-res-2",
+      "reserved": 0,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 3,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      2
+     ],
+     "f-res-2"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.food_meal_units.remaining": 87,
+    "world.model_state.resource_ledger_v1.accounts.food_meal_units.served": 3,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.losses": 200,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90200,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.served": 100,
+    "world.resources.food_meal_units": 87,
+    "world.resources.water_ml": 90200
+   }
+  },
+  "audit_loss_with_reservation": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": "f-res-9",
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_minutes_decrease": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 2,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_not_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.audit": {}
+   }
+  },
+  "audit_old_minutes_decrease": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.audit.3.minute": 2
+   }
+  },
+  "audit_record_agent_id_number": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": 1,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_record_balance_float": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500.0,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_record_balance_negative": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": -1,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_record_event_id_invalid": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "bad id",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_record_extra_field": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "extra": null,
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_record_minute_float": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15.0,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_record_minute_negative": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.audit.0.minute": -1
+   }
+  },
+  "audit_record_not_dict": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     "loss"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_record_operation_dict": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": {
+       "loss": 1
+      },
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_record_operation_list": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": [
+       "loss"
+      ],
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_record_operation_unknown": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "steal",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_record_quantity_bool": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": true,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_record_quantity_negative": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": -500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_record_resource_unknown": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "soap",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_record_schema_2": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 2,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_record_source_ids_invalid": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "bad id"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_record_source_ids_repeat": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-STANDARD-PROVISIONING-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_record_warehouse_other": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "other"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_release_quantity": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      5
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-loss-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "loss",
+      "quantity": 200,
+      "remaining": 90300,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      6
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-reserve-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 300,
+      "remaining": 90300,
+      "reservation_id": "f-res-1",
+      "reserved": 300,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      7
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-consume-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 100,
+      "remaining": 90200,
+      "reservation_id": "f-res-1",
+      "reserved": 200,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 100,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      8
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-release-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "release",
+      "quantity": 199,
+      "remaining": 90200,
+      "reservation_id": "f-res-1",
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 100,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      9
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-reserve-2",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 2,
+      "remaining": 89,
+      "reservation_id": "f-res-2",
+      "reserved": 2,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 1,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      10
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-consume-2",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 1,
+      "remaining": 88,
+      "reservation_id": "f-res-2",
+      "reserved": 1,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 2,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      11
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-consume-3",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 1,
+      "remaining": 87,
+      "reservation_id": "f-res-2",
+      "reserved": 0,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 3,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      2
+     ],
+     "f-res-2"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.food_meal_units.remaining": 87,
+    "world.model_state.resource_ledger_v1.accounts.food_meal_units.served": 3,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.losses": 200,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90200,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.served": 100,
+    "world.resources.food_meal_units": 87,
+    "world.resources.water_ml": 90200
+   }
+  },
+  "audit_reserve_exceeds": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": "A004",
+      "delivered": 0,
+      "event_id": "f-reserve-3",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 1000000,
+      "remaining": 90000,
+      "reservation_id": "f-res-3",
+      "reserved": 50,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-3"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reservations.f-res-3": {
+     "agent_id": "A004",
+     "quantity": 50,
+     "reservation_id": "f-res-3",
+     "resource_id": "water_ml"
+    },
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reserved": 50
+   }
+  },
+  "audit_reserve_reused": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      5
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-loss-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "loss",
+      "quantity": 200,
+      "remaining": 90300,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      6
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-reserve-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 300,
+      "remaining": 90300,
+      "reservation_id": "f-res-1",
+      "reserved": 300,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      7
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-consume-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 100,
+      "remaining": 90200,
+      "reservation_id": "f-res-1",
+      "reserved": 200,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 100,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      8
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-release-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "release",
+      "quantity": 200,
+      "remaining": 90200,
+      "reservation_id": "f-res-1",
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 100,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      9
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-reserve-2",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 2,
+      "remaining": 89,
+      "reservation_id": "f-res-1",
+      "reserved": 2,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 1,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      10
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-consume-2",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 1,
+      "remaining": 88,
+      "reservation_id": "f-res-2",
+      "reserved": 1,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 2,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      11
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-consume-3",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 1,
+      "remaining": 87,
+      "reservation_id": "f-res-2",
+      "reserved": 0,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 3,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      2
+     ],
+     "f-res-2"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.food_meal_units.remaining": 87,
+    "world.model_state.resource_ledger_v1.accounts.food_meal_units.served": 3,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.losses": 200,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90200,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.served": 100,
+    "world.resources.food_meal_units": 87,
+    "world.resources.water_ml": 90200
+   }
+  },
+  "audit_reserve_reused_old": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": "A004",
+      "delivered": 0,
+      "event_id": "f-reserve-3",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 50,
+      "remaining": 90000,
+      "reservation_id": "resource-service-task-0",
+      "reserved": 50,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-3"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reservations.f-res-3": {
+     "agent_id": "A004",
+     "quantity": 50,
+     "reservation_id": "f-res-3",
+     "resource_id": "water_ml"
+    },
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reserved": 50
+   }
+  },
+  "audit_reserve_unknown_agent": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": "A999",
+      "delivered": 0,
+      "event_id": "f-reserve-3",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 50,
+      "remaining": 90000,
+      "reservation_id": "f-res-3",
+      "reserved": 50,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-3"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reservations.f-res-3": {
+     "agent_id": "A004",
+     "quantity": 50,
+     "reservation_id": "f-res-3",
+     "resource_id": "water_ml"
+    },
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reserved": 50
+   }
+  },
+  "audit_reserve_without_agent": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 0,
+      "event_id": "f-reserve-3",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 50,
+      "remaining": 90000,
+      "reservation_id": "f-res-3",
+      "reserved": 50,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-3"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reservations.f-res-3": {
+     "agent_id": "A004",
+     "quantity": 50,
+     "reservation_id": "f-res-3",
+     "resource_id": "water_ml"
+    },
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reserved": 50
+   }
+  },
+  "audit_source_not_listed": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "OTHER-SOURCE",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_sources_not_replayed": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90500,
+    "world.resources.water_ml": 90500
+   }
+  },
+  "audit_too_short": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.audit": [
+     {
+      "agent_id": null,
+      "delivered": 0,
+      "event_id": null,
+      "initial": 90000,
+      "losses": 0,
+      "minute": 0,
+      "operation": "initial",
+      "quantity": 90000,
+      "remaining": 90000,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": null,
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ]
+   }
+  },
+  "ledger_active_valid": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": "A004",
+      "delivered": 0,
+      "event_id": "f-reserve-3",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 50,
+      "remaining": 90000,
+      "reservation_id": "f-res-3",
+      "reserved": 50,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-3"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reservations.f-res-3": {
+     "agent_id": "A004",
+     "quantity": 50,
+     "reservation_id": "f-res-3",
+     "resource_id": "water_ml"
+    },
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reserved": 50
+   }
+  },
+  "ledger_extended_valid": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      5
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-loss-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "loss",
+      "quantity": 200,
+      "remaining": 90300,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      6
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-reserve-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 300,
+      "remaining": 90300,
+      "reservation_id": "f-res-1",
+      "reserved": 300,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      7
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-consume-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 100,
+      "remaining": 90200,
+      "reservation_id": "f-res-1",
+      "reserved": 200,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 100,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      8
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-release-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "release",
+      "quantity": 200,
+      "remaining": 90200,
+      "reservation_id": "f-res-1",
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 100,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      9
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-reserve-2",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 2,
+      "remaining": 89,
+      "reservation_id": "f-res-2",
+      "reserved": 2,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 1,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      10
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-consume-2",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 1,
+      "remaining": 88,
+      "reservation_id": "f-res-2",
+      "reserved": 1,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 2,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      11
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-consume-3",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 1,
+      "remaining": 87,
+      "reservation_id": "f-res-2",
+      "reserved": 0,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 3,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      2
+     ],
+     "f-res-2"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.food_meal_units.remaining": 87,
+    "world.model_state.resource_ledger_v1.accounts.food_meal_units.served": 3,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.losses": 200,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90200,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.served": 100,
+    "world.resources.food_meal_units": 87,
+    "world.resources.water_ml": 90200
+   }
+  },
+  "ledger_extra_field": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.extra": 1
+   }
+  },
+  "ledger_missing_audit": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "ledger_schema_version_2": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.schema_version": 2
+   }
+  },
+  "ledger_schema_version_float": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.schema_version": 1.0
+   }
+  },
+  "ledger_schema_version_true": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.schema_version": true
+   }
+  },
+  "ledger_used_id_invalid": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "bad id"
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "ledger_used_id_not_text": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     3
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "ledger_used_ids_not_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.used_reservation_ids": "resource-service-task-0"
+   }
+  },
+  "ledger_used_ids_not_replayed": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-delivery-1",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "delivery",
+      "quantity": 500,
+      "remaining": 90500,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      5
+     ],
+     {
+      "agent_id": null,
+      "delivered": 500,
+      "event_id": "f-loss-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "loss",
+      "quantity": 200,
+      "remaining": 90300,
+      "reservation_id": null,
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      6
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-reserve-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 300,
+      "remaining": 90300,
+      "reservation_id": "f-res-1",
+      "reserved": 300,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      7
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-consume-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 100,
+      "remaining": 90200,
+      "reservation_id": "f-res-1",
+      "reserved": 200,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 100,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      8
+     ],
+     {
+      "agent_id": "A001",
+      "delivered": 500,
+      "event_id": "f-release-1",
+      "initial": 90000,
+      "losses": 200,
+      "minute": 15,
+      "operation": "release",
+      "quantity": 200,
+      "remaining": 90200,
+      "reservation_id": "f-res-1",
+      "reserved": 0,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 100,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      9
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-reserve-2",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 2,
+      "remaining": 89,
+      "reservation_id": "f-res-2",
+      "reserved": 2,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 1,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      10
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-consume-2",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 1,
+      "remaining": 88,
+      "reservation_id": "f-res-2",
+      "reserved": 1,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 2,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      11
+     ],
+     {
+      "agent_id": "A003",
+      "delivered": 0,
+      "event_id": "f-consume-3",
+      "initial": 90,
+      "losses": 0,
+      "minute": 15,
+      "operation": "consume",
+      "quantity": 1,
+      "remaining": 87,
+      "reservation_id": "f-res-2",
+      "reserved": 0,
+      "resource_id": "food_meal_units",
+      "schema_version": 1,
+      "served": 3,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-2"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      2
+     ],
+     "f-res-1"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.food_meal_units.remaining": 87,
+    "world.model_state.resource_ledger_v1.accounts.food_meal_units.served": 3,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.delivered": 500,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.losses": 200,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.remaining": 90200,
+    "world.model_state.resource_ledger_v1.accounts.water_ml.served": 100,
+    "world.resources.food_meal_units": 87,
+    "world.resources.water_ml": 90200
+   }
+  },
+  "ledger_used_ids_repeat": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "resource-service-task-0"
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "ledger_warehouse_invalid": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.warehouse_id": "bad id"
+   }
+  },
+  "ledger_warehouse_none": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.warehouse_id": null
+   }
+  },
+  "ledger_zone_id_known_valid": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.zone_id": "food"
+   }
+  },
+  "ledger_zone_invalid": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.zone_id": 7
+   }
+  },
+  "ledger_zone_unknown": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.zone_id": "nowhere"
+   }
+  },
+  "population_unknown_profile": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_dynamics_v1.profile_traits.A999": {
+     "accessibility_needs": [
+      "mobility_support"
+     ],
+     "age_years": 56,
+     "household_id": "H000001",
+     "household_role": "alone",
+     "languages": [
+      "ja"
+     ],
+     "medical_support": false,
+     "source_ids": [
+      "ASM-SYNTHETIC-AGE-BANDS-V1",
+      "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+      "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+      "ASM-SYNTHETIC-LANGUAGE-V1",
+      "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+     ]
+    }
+   }
+  },
+  "population_version_float_valid": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_dynamics_v1.schema_version": 1.0
+   }
+  },
+  "reservation_key_invalid": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": "A004",
+      "delivered": 0,
+      "event_id": "f-reserve-3",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 50,
+      "remaining": 90000,
+      "reservation_id": "f-res-3",
+      "reserved": 50,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-3"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reservations.bad id": {},
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reserved": 50
+   }
+  },
+  "reservation_not_in_history": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": "A004",
+      "delivered": 0,
+      "event_id": "f-reserve-3",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 50,
+      "remaining": 90000,
+      "reservation_id": "f-res-3",
+      "reserved": 50,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      2
+     ],
+     "f-res-2"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reservations.f-res-3": {
+     "agent_id": "A004",
+     "quantity": 50,
+     "reservation_id": "f-res-3",
+     "resource_id": "water_ml"
+    },
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reserved": 50
+   }
+  },
+  "reservation_quantity_float": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": "A004",
+      "delivered": 0,
+      "event_id": "f-reserve-3",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 50,
+      "remaining": 90000,
+      "reservation_id": "f-res-3",
+      "reserved": 50,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-3"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reservations.f-res-3": {
+     "agent_id": "A004",
+     "quantity": 50.0,
+     "reservation_id": "f-res-3",
+     "resource_id": "water_ml"
+    },
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reserved": 50
+   }
+  },
+  "reservation_quantity_zero": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": "A004",
+      "delivered": 0,
+      "event_id": "f-reserve-3",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 50,
+      "remaining": 90000,
+      "reservation_id": "f-res-3",
+      "reserved": 50,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-3"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reservations.f-res-3": {
+     "agent_id": "A004",
+     "quantity": 0,
+     "reservation_id": "f-res-3",
+     "resource_id": "water_ml"
+    },
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reserved": 50
+   }
+  },
+  "reservation_record_fields": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": "A004",
+      "delivered": 0,
+      "event_id": "f-reserve-3",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 50,
+      "remaining": 90000,
+      "reservation_id": "f-res-3",
+      "reserved": 50,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-3"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reservations.f-res-3": {
+     "quantity": 50,
+     "reservation_id": "f-res-3",
+     "resource_id": "water_ml"
+    },
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reserved": 50
+   }
+  },
+  "reservation_total_mismatch": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": "A004",
+      "delivered": 0,
+      "event_id": "f-reserve-3",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 50,
+      "remaining": 90000,
+      "reservation_id": "f-res-3",
+      "reserved": 50,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-3"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reservations.f-res-3": {
+     "agent_id": "A004",
+     "quantity": 49,
+     "reservation_id": "f-res-3",
+     "resource_id": "water_ml"
+    },
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reserved": 50
+   }
+  },
+  "reservation_unknown_agent": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": "A004",
+      "delivered": 0,
+      "event_id": "f-reserve-3",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 50,
+      "remaining": 90000,
+      "reservation_id": "f-res-3",
+      "reserved": 50,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-3"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reservations.f-res-3": {
+     "agent_id": "A999",
+     "quantity": 50,
+     "reservation_id": "f-res-3",
+     "resource_id": "water_ml"
+    },
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reserved": 50
+   }
+  },
+  "reservation_wrong_resource": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "accounts",
+      "water_ml",
+      "source_ids",
+      1
+     ],
+     "ASM-REGION-RESOURCE-SERVICE-V1"
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "audit",
+      4
+     ],
+     {
+      "agent_id": "A004",
+      "delivered": 0,
+      "event_id": "f-reserve-3",
+      "initial": 90000,
+      "losses": 0,
+      "minute": 15,
+      "operation": "reserve",
+      "quantity": 50,
+      "remaining": 90000,
+      "reservation_id": "f-res-3",
+      "reserved": 50,
+      "resource_id": "water_ml",
+      "schema_version": 1,
+      "served": 0,
+      "source_id": "ASM-REGION-RESOURCE-SERVICE-V1",
+      "source_ids": [
+       "ASM-STANDARD-PROVISIONING-V1",
+       "ASM-REGION-RESOURCE-SERVICE-V1"
+      ],
+      "warehouse_id": "main_warehouse"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1",
+      "used_reservation_ids",
+      1
+     ],
+     "f-res-3"
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reservations.f-res-3": {
+     "agent_id": "A004",
+     "quantity": 50,
+     "reservation_id": "f-res-3",
+     "resource_id": "food_meal_units"
+    },
+    "world.model_state.resource_ledger_v1.accounts.water_ml.reserved": 50
+   }
+  },
+  "resources_extra": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.resources.extra": 1
+   }
+  },
+  "resources_missing_food": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "resources",
+      "food_meal_units"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  }
+ }
+}
