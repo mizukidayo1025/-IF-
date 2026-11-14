@@ -7,13 +7,19 @@ gains the one line that loads the browser's API, the bundle is split into parts 
 asked that join back to it, and `/` goes to the sample's Run. The server answers `/demo-v2` with
 demo-v2.html and modules and WASM with their types over HTTP. The browser's half is checked by
 native/wasm/tests/node_browser_api.mjs and docs/development.md's browser checks.
+
+The site also holds the licenses of what its WASM holds (#290): the notices of the crates it links,
+made from `cargo tree` and `cargo metadata` (checked on stand-in packages, and on this repository's
+Cargo.lock where cargo and the crates are at hand), and the Rust standard library's.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import re
 import runpy
+import shutil
 import struct
 import urllib.error
 import urllib.request
@@ -58,6 +64,13 @@ def _bundle(path: Path, size: int) -> bytes:
     return data
 
 
+# Stand-ins for the notices third_party_notices() writes from cargo and the toolchain.
+NOTICES = {
+    "THIRD-PARTY-NOTICES.txt": b"the crates' notices\n",
+    "THIRD-PARTY-NOTICES-rust-library.html": b"<html>the Rust library's notices</html>\n",
+}
+
+
 @pytest.fixture
 def site(builder: dict[str, Any], tmp_path: Path) -> tuple[Path, bytes, dict[str, Any]]:
     pkg = tmp_path / "pkg"
@@ -66,7 +79,9 @@ def site(builder: dict[str, Any], tmp_path: Path) -> tuple[Path, bytes, dict[str
     (pkg / "sheltersim_wasm_bg.wasm").write_bytes(b"\0asm\1\0\0\0")
     bundle = _bundle(tmp_path / "sample.shelterproj", 2 * 2**20 + 12345)
     output = tmp_path / "site"
-    summary = builder["build"](output, pkg=pkg, bundle=tmp_path / "sample.shelterproj", part_mib=1)
+    summary = builder["build"](
+        output, pkg=pkg, bundle=tmp_path / "sample.shelterproj", part_mib=1, notices=NOTICES
+    )
     return output, bundle, summary
 
 
@@ -87,6 +102,8 @@ def test_the_site_holds_the_screen_the_browser_api_and_the_sample_in_parts(
     ]
     assert '<a href="/demo">' in server_html
     assert (output / "LICENSE.txt").read_bytes() == (STATIC.parents[3] / "LICENSE").read_bytes()
+    for name, data in NOTICES.items():
+        assert (output / name).read_bytes() == data
     assert browser_html.index("/browser/api_fetch.js") < browser_html.index("/demo-v2-scene.js")
     for name in ("api_fetch.js", "api_worker.mjs", "browser_api.mjs", "compute.mjs"):
         assert (output / "browser" / name).is_file()
@@ -117,6 +134,8 @@ def test_the_site_holds_the_screen_the_browser_api_and_the_sample_in_parts(
         assert f'href="{target.replace("&", "&amp;")}"' in index
     # The reset button removes the folder of that Run in the Worker's store (api_worker.mjs).
     assert '<button id="reset" type="button">計算をやり直す</button>' in index
+    for name in ("LICENSE.txt", *NOTICES):
+        assert f'href="/{name}"' in index
     assert 'const path = ["projects", "sample", "runs", "run-browser-compute"];' in index
     worker_js = (STATIC.parents[3] / "native" / "wasm" / "js" / "api_worker.mjs").read_text("utf-8")
     assert 'root.getDirectoryHandle("projects", { create: true })' in worker_js
@@ -130,7 +149,11 @@ def test_the_site_is_built_only_outside_the_repository_into_an_empty_directory(
     builder: dict[str, Any], site: tuple[Path, bytes, dict[str, Any]], tmp_path: Path
 ) -> None:
     output, _, _ = site
-    arguments = {"pkg": output / "browser" / "pkg", "bundle": tmp_path / "sample.shelterproj"}
+    arguments: dict[str, Any] = {
+        "pkg": output / "browser" / "pkg",
+        "bundle": tmp_path / "sample.shelterproj",
+        "notices": NOTICES,
+    }
     with pytest.raises(ValueError, match="outside the repository"):
         builder["build"](ROOT / "site-out", **arguments)
     with pytest.raises(ValueError, match="not empty"):
@@ -139,6 +162,10 @@ def test_the_site_is_built_only_outside_the_repository_into_an_empty_directory(
         builder["build"](tmp_path / "other", run_id="nope", **arguments)
     with pytest.raises(ValueError, match="--part-mib"):
         builder["build"](tmp_path / "third", part_mib=21, **arguments)
+    with pytest.raises(ValueError, match="notices"):
+        builder["build"](
+            tmp_path / "fourth", **(arguments | {"notices": {"THIRD-PARTY-NOTICES.txt": b""}})
+        )
     assert not (ROOT / "site-out").exists()
 
 
@@ -160,7 +187,11 @@ def test_the_site_holds_the_shelter_index_the_browser_s_research_reads(
     assert {key: value for key, value in made.items() if key not in ("sha256", "retrieved_at")} == {
         key: value for key, value in expected.items() if key not in ("sha256", "retrieved_at")
     }
-    arguments = {"pkg": output / "browser" / "pkg", "bundle": tmp_path / "sample.shelterproj"}
+    arguments = {
+        "pkg": output / "browser" / "pkg",
+        "bundle": tmp_path / "sample.shelterproj",
+        "notices": NOTICES,
+    }
     with_index = builder["build"](tmp_path / "with-index", shelters=made, **arguments)
     written = tmp_path / "with-index" / "browser" / "gsi-shelter-index.json"
     assert json.loads(written.read_text(encoding="utf-8")) == made
@@ -172,6 +203,105 @@ def test_the_site_holds_the_shelter_index_the_browser_s_research_reads(
     csv_path.write_bytes(b"not,a,shelter,csv\n")
     with pytest.raises(ValueError, match="schema"):
         builder["shelter_index"](csv_path=csv_path)
+
+
+def _package(root: Path, name: str, version: str, files: dict[str, str], **fields: Any) -> dict:
+    """A package of `cargo metadata` whose directory holds `files`."""
+    directory = root / f"{name}-{version}"
+    directory.mkdir()
+    (directory / "Cargo.toml").write_text("")
+    for file, text in files.items():
+        (directory / file).write_bytes(text.encode())
+    return {
+        "id": f"registry#{name}@{version}",
+        "name": name,
+        "version": version,
+        "manifest_path": str(directory / "Cargo.toml"),
+        "license": None,
+        "license_file": None,
+        "repository": None,
+    } | fields
+
+
+def test_the_notices_hold_each_crate_s_license_files_and_each_text_once(
+    builder: dict[str, Any], tmp_path: Path
+) -> None:
+    """#290: each crate the WASM links but the workspace's own is listed with its license, its
+    repository and its license and notice files, whose texts follow once each. A crate whose
+    package holds no such file is refused."""
+    apache = "Apache License\nVersion 2.0\n"
+    packages = [
+        _package(
+            tmp_path,
+            "alpha",
+            "1.0.0",
+            {"LICENSE-APACHE": apache, "LICENSE-MIT": "Copyright (c) Alpha\r\n", "README.md": ""},
+            license="MIT OR Apache-2.0",
+            repository="https://example.org/alpha",
+        ),
+        _package(
+            tmp_path,
+            "beta",
+            "0.2.0",
+            {"LICENSE-APACHE": apache, "LEGAL.txt": "Beta's own terms\n"},
+            license_file="LEGAL.txt",
+        ),
+        _package(tmp_path, "ours", "0.1.0", {}),
+        _package(tmp_path, "unused", "9.9.9", {}),
+    ]
+    metadata = {"packages": packages, "workspace_members": ["registry#ours@0.1.0"]}
+    text = builder["crate_notices"](
+        metadata, [("alpha", "1.0.0"), ("beta", "0.2.0"), ("ours", "0.1.0")]
+    )
+    assert (
+        "alpha 1.0.0\n"
+        "  License: MIT OR Apache-2.0\n"
+        "  Repository: https://example.org/alpha\n"
+        "  Files: LICENSE-APACHE [1], LICENSE-MIT [2]\n"
+    ) in text
+    assert (
+        "beta 0.2.0\n"
+        "  License: see its files\n"
+        "  Repository: -\n"
+        "  Files: LICENSE-APACHE [1], LEGAL.txt [3]\n"
+    ) in text
+    assert text.endswith(
+        "\nTexts\n=====\n\n[1]\n\nApache License\nVersion 2.0\n"
+        "\n[2]\n\nCopyright (c) Alpha\n\n[3]\n\nBeta's own terms\n"
+    )
+    assert "ours" not in text and "unused" not in text
+    with pytest.raises(ValueError, match="no license file in the packages of unused 9.9.9"):
+        builder["crate_notices"](metadata, [("alpha", "1.0.0"), ("unused", "9.9.9")])
+    with pytest.raises(ValueError, match="0 packages gamma 1.0.0"):
+        builder["crate_notices"](metadata, [("gamma", "1.0.0")])
+
+
+def test_the_notices_of_the_repository_s_wasm_name_every_crate_it_links(
+    builder: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#290: the notices of this repository's Cargo.lock: the WASM's crates as `cargo tree` lists
+    them, each with its files. Skipped without cargo, or where the crates are not downloaded
+    (cargo is kept offline here)."""
+    if shutil.which("cargo") is None or shutil.which("rustc") is None:
+        pytest.skip("no cargo")
+    monkeypatch.setenv("CARGO_NET_OFFLINE", "true")
+    try:
+        crates = builder["wasm_crates"]()
+        notices = builder["third_party_notices"]()
+    except ValueError as error:
+        if "offline" in str(error) or "download" in str(error):
+            pytest.skip(f"the crates are not downloaded: {error}")
+        raise
+    names = {name for name, _ in crates}
+    assert {"sheltersim_wasm", "sheltersim_core", "wasm-bindgen", "serde_json"} <= names
+    # Proc-macro crates run in the compiler, and the core's `parallel` feature is off in the WASM.
+    assert not names & {"wasm-bindgen-macro", "syn", "rayon"}
+    text = notices["THIRD-PARTY-NOTICES.txt"].decode()
+    listed = re.findall(r"^(\S+) (\S+)\n  License: ", text, re.M)
+    assert listed == [
+        crate for crate in crates if crate[0] not in ("sheltersim_wasm", "sheltersim_core")
+    ]
+    assert b"Rust Standard Library" in notices["THIRD-PARTY-NOTICES-rust-library.html"]
 
 
 def _get(url: str) -> tuple[int, str, bytes]:
@@ -201,6 +331,7 @@ def test_the_local_server_answers_as_a_static_host(
         assert _get(base + "/browser/api_worker.mjs")[1] == "text/javascript; charset=utf-8"
         assert _get(base + "/browser/pkg/sheltersim_wasm_bg.wasm")[1] == "application/wasm"
         assert _get(base + "/sample/sample.json")[1] == "application/json; charset=utf-8"
+        assert _get(base + "/THIRD-PARTY-NOTICES.txt")[1] == "text/plain; charset=utf-8"
         status, kind, body = _get(base + "/api/v1/projects")
         assert (status, kind) == (404, "text/html; charset=utf-8")
         assert body == (output / "404.html").read_bytes()

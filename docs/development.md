@@ -167,7 +167,7 @@ node native/wasm/tests/node_compute.mjs wasm-pkg sample.shelterproj
 
 ### ブラウザー版の静的サイト（#266）
 
-ブラウザー版は、サーバーなしで動く静的サイトです。画面のファイル（`demo-v2*`）、ブラウザー版の`demo-v2.html`（serverのものに、上のscriptの1行と、従来の画面へのリンクを隠すstyleの1行を足したもの）、`native/wasm/js`のAPIのファイル、WASM（`--target web`）、計算済みの例を分けたものを、`scripts/build_static_site.py`が1つのディレクトリーに組み立てます。サイトは生成物なので、リポジトリーの外に作り、commitしません。
+ブラウザー版は、サーバーなしで動く静的サイトです。画面のファイル（`demo-v2*`）、ブラウザー版の`demo-v2.html`（serverのものに、上のscriptの1行と、従来の画面へのリンクを隠すstyleの1行を足したもの）、`native/wasm/js`のAPIのファイル、WASM（`--target web`）、計算済みの例を分けたものを、`scripts/build_static_site.py`が1つのディレクトリーに組み立てます。サイトは生成物なので、リポジトリーの外に作り、commitしません。外部の部品のライセンスの表示（下の表）を作るため、WASMを作ったのと同じ`cargo`・`rustc`が要ります。
 
 ~~~shell
 cargo build --manifest-path native/Cargo.toml -p sheltersim_wasm --target wasm32-unknown-unknown --release
@@ -184,10 +184,12 @@ python scripts/serve_static_site.py ../hinanjo-if-site --port 8000
 
 | 道 | ファイル |
 |---|---|
-| `/` | `index.html`。例のRunと、ブラウザーで計算するRunを開く`/demo-v2?…`へのリンク、計算をやり直すボタン |
+| `/` | `index.html`。例のRunと、ブラウザーで計算するRunを開く`/demo-v2?…`へのリンク、計算をやり直すボタン、ライセンスの表示へのリンク |
 | `/demo-v2` | `demo-v2.html` |
 | `/demo-v2.css`、`/demo-v2*.js`、`/demo-v2-logo.jpg` | 画面のファイル（変えずに写す） |
 | `/LICENSE.txt` | リポジトリーの`LICENSE`（MIT） |
+| `/THIRD-PARTY-NOTICES.txt` | WASMに入る外部のcrateの一覧と、そのライセンス・表示のファイルの本文（#290）。`sheltersim_wasm`の通常の依存を`cargo tree`でたどり（wasm32のtarget、proc-macroとそれだけが使うものを除く）、各crateのpackageの`LICENSE*`・`COPYING*`・`NOTICE*`などを入れます。同じ本文は1回だけ書きます。そのようなファイルのないcrateがあると、サイトを作りません |
+| `/THIRD-PARTY-NOTICES-rust-library.html` | WASMに入るRustの標準ライブラリーの表示（rustcの`share/doc/rust/COPYRIGHT-library.html`をそのまま写したもの） |
 | `/browser/` | `api_fetch.js`、`api_worker.mjs`、それが読むmodule、`pkg/`（WASM）、`gsi-shelter-index.json`（下の段落） |
 | `/sample/sample.json`、`/sample/sample.shelterproj.000`… | 例の目録と、`--part-mib`（既定16 MiB）以下に分けた部分 |
 | ないファイルの道 | `404.html`（status 404） |
