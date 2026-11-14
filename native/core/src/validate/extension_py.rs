@@ -190,6 +190,62 @@ pub fn get<'a>(map: &'a indexmap::IndexMap<Arc<str>, V>, name: &str) -> &'a V {
     map.get(name).unwrap_or(&V::Null)
 }
 
+/// `json.dumps(value, sort_keys=True, separators=(",", ":"))` (`ensure_ascii`, floats as their
+/// `repr`), or the `ValueError` of `allow_nan=False` for a float that is not finite.
+pub fn dumps_sorted(value: &V) -> Result<String> {
+    let mut out = String::new();
+    write_sorted(&mut out, value)?;
+    Ok(out)
+}
+
+fn write_sorted(out: &mut String, value: &V) -> Result<()> {
+    match value {
+        V::Null => out.push_str("null"),
+        V::Bool(flag) => out.push_str(if *flag { "true" } else { "false" }),
+        V::Int(number) => out.push_str(&number.to_string()),
+        V::Big(text) => out.push_str(text),
+        V::Float(number) if !number.is_finite() => {
+            let repr = if number.is_nan() { "nan" } else if *number > 0.0 { "inf" } else { "-inf" };
+            return Err(Error::Value(format!("Out of range float values are not JSON compliant: {repr}")));
+        }
+        V::Float(number) => out.push_str(&crate::json::python_float_repr(*number)),
+        V::Str(text) => write_ascii(out, text),
+        V::List(items) => {
+            out.push('[');
+            for (index, item) in items.iter().enumerate() {
+                if index > 0 {
+                    out.push(',');
+                }
+                write_sorted(out, item)?;
+            }
+            out.push(']');
+        }
+        V::Map(map) => {
+            let mut keys: Vec<&Arc<str>> = map.keys().collect();
+            keys.sort_unstable();
+            out.push('{');
+            for (index, key) in keys.into_iter().enumerate() {
+                if index > 0 {
+                    out.push(',');
+                }
+                write_ascii(out, key);
+                out.push(':');
+                write_sorted(out, &map[key])?;
+            }
+            out.push('}');
+        }
+    }
+    Ok(())
+}
+
+/// A str as `json.dumps` writes it with `ensure_ascii`.
+fn write_ascii(out: &mut String, text: &str) {
+    let units: Vec<u16> = text.encode_utf16().collect();
+    let written = dumps_texts(&[&units]);
+    // `dumps_texts` writes a list of one str: keep the str.
+    out.push_str(&written[1..written.len() - 1]);
+}
+
 // ---- json.loads and json.dumps of a relationship key ------------------------------------------------
 
 /// What `json.loads` gives, as far as the relationship keys are read: a str (as its UTF-16 code
