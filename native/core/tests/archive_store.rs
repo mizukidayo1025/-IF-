@@ -17,7 +17,7 @@ use sheltersim_core::frame::Request;
 use sheltersim_core::archive::{world_part_digests, world_parts, LogReader, Restore, SampleReader, SavedPoint, SAVED_POINT_VERSION};
 use sheltersim_core::checkpoint::sha256_hex;
 use sheltersim_core::events::log::EventLog;
-use sheltersim_core::events::packed::{Blocks, Packer, Unpacked};
+use sheltersim_core::events::packed::{put_varint, put_zigzag, Blocks, Packer, Unpacked};
 use sheltersim_core::plain::PlainRun;
 use sheltersim_core::world::WorldCell;
 use support::load;
@@ -274,7 +274,6 @@ fn a_run_restored_at_a_saved_point_goes_on_as_the_run_did() {
         }
         assert_eq!(digests_of(&again), end, "{name} from {minute}");
         assert_eq!(again.host.metrics_digest(), fixture["expected"]["metrics"].as_str().unwrap(), "{name}");
-        assert_eq!(again.host.contracts, run.host.contracts, "{name}");
     }
 }
 
@@ -418,6 +417,8 @@ fn saved_points_that_are_not_ones_are_errors() {
     other[4] = (SAVED_POINT_VERSION + 1) as u8;
     let error = SavedPoint::of_bytes(&other).unwrap_err().to_string();
     assert!(error.contains("version"), "{error}");
+    other[4] = 0;
+    assert!(SavedPoint::of_bytes(&other).is_err());
     for end in [0, 3, 4, 5, 8, bytes.len() / 2, bytes.len() - 1] {
         assert!(restored(&fixture, &bytes[..end], &stored.pieces).is_err(), "cut at {end}");
     }
@@ -439,4 +440,50 @@ fn saved_points_that_are_not_ones_are_errors() {
     moved.minute += 1;
     assert!(restored(&fixture, &moved.to_bytes(), &stored.pieces).is_err());
     assert!(restored(&fixture, &bytes, &stored.pieces).is_ok());
+}
+
+/// A saved point of version 1 (#251), which also held how many times each contract gave its input
+/// back, is read as the same point, its counts skipped (#346): a Run stored before goes on from it.
+/// A count's name that is not UTF-8, a name twice and bytes cut in the counts are errors.
+#[test]
+fn saved_points_of_version_1_are_read_without_their_contract_counts() {
+    let fixture = load::entry("tick_core", "small_replay");
+    let mut run = PlainRun::of_entry(&fixture).unwrap();
+    for _ in 0..120 {
+        run.step().unwrap();
+    }
+    let mut stored = Stored::default();
+    flush(&run, &mut stored, true);
+    let point = run.saved_point().unwrap();
+    let version_1 = |counts: &[(&[u8], u8)]| {
+        let mut out = b"SHSP".to_vec();
+        out.push(1);
+        put_zigzag(&mut out, point.minute);
+        put_varint(&mut out, point.records);
+        put_varint(&mut out, point.samples);
+        put_varint(&mut out, counts.len() as u64);
+        for (name, count) in counts {
+            put_varint(&mut out, name.len() as u64);
+            out.extend_from_slice(name);
+            out.push(*count);
+        }
+        out.extend_from_slice(&point.world);
+        out
+    };
+    let bytes = version_1(&[(&b"MoveFacilityParameters"[..], 4), (&b"_PARAMETER_MODELS[set_staff_role]"[..], 1)]);
+    assert_eq!(SavedPoint::of_bytes(&bytes).unwrap(), point);
+    assert_eq!(SavedPoint::of_bytes(&version_1(&[])).unwrap(), point);
+    let mut again = restored(&fixture, &bytes, &stored.pieces).unwrap();
+    assert_eq!(again.saved_point().unwrap().to_bytes(), point.to_bytes());
+    for _ in 120..180 {
+        again.step().unwrap();
+        run.step().unwrap();
+    }
+    assert_eq!(digests_of(&again), digests_of(&run));
+    assert!(SavedPoint::of_bytes(&version_1(&[(&b"\xff"[..], 1)])).is_err());
+    assert!(SavedPoint::of_bytes(&version_1(&[(&b"A"[..], 1), (&b"A"[..], 2)])).is_err());
+    let counted = version_1(&[(&b"MoveFacilityParameters"[..], 4)]);
+    for end in [5, 8, 10, 20] {
+        assert!(SavedPoint::of_bytes(&counted[..end]).is_err(), "cut at {end}");
+    }
 }
