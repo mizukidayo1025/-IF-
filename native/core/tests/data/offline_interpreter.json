@@ -4492,6 +4492,31 @@
    "text": "03 1234 5678"
   },
   {
+   "question": "[selected entity]",
+   "redacts": false,
+   "text": "branch-3f2a9c1e-4127-4823-9012-abcdef123456"
+  },
+  {
+   "question": "[selected entity]-[redacted-phone]",
+   "redacts": false,
+   "text": "RUN-3F2A9C1E-4127-4823-9012-123456789012"
+  },
+  {
+   "question": "3f2a9c1e-4127-4823-9012-[selected entity]",
+   "redacts": true,
+   "text": "3f2a9c1e-4127-4823-9012-abcdef12345"
+  },
+  {
+   "question": "3f2a9c1e-[redacted-phone]",
+   "redacts": true,
+   "text": "3f2a9c1e-090-1234-5678"
+  },
+  {
+   "question": "1234-5678-9012-3456",
+   "redacts": true,
+   "text": "1234-5678-9012-3456"
+  },
+  {
    "question": "Day 2 [redacted-phone] add staff",
    "redacts": false,
    "text": "Day 2 0312345678901 add staff"

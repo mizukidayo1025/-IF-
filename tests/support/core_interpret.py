@@ -267,6 +267,13 @@ SAFETY_TEXTS: tuple[str, ...] = (
     "+81 90-1234-5678",
     "2026-10-14",
     "03 1234 5678",
+    # A UUID whose middle groups are all digits is not a phone number (#321); a group too
+    # short for a UUID, or a phone number after one, still is.
+    "branch-3f2a9c1e-4127-4823-9012-abcdef123456",
+    "RUN-3F2A9C1E-4127-4823-9012-123456789012",
+    "3f2a9c1e-4127-4823-9012-abcdef12345",
+    "3f2a9c1e-090-1234-5678",
+    "1234-5678-9012-3456",
     "Day 2 0312345678901 add staff",
     "agent A001 さんの様子",
     "person_42 と staff:7 は? 田中さん、山田様 RUN-12",
