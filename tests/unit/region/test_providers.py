@@ -120,3 +120,58 @@ def test_gsi_shelter_csv_still_rejects_an_open_response_without_a_read_timeout(
     with pytest.raises(providers.RegionProviderError, match="could not be bounded"):
         providers.GsiShelterProvider().search_municipality("東京都墨田区", "13107")
     providers.clear_region_provider_cache()
+
+
+def test_gsi_shelter_rows_hold_each_code_s_matchable_rows_for_the_browser(monkeypatch) -> None:
+    """The site's rows by municipality code (#332): for each code of the index, the rows of an
+    overnight-shelter common ID with a facility name, in the CSV's order, repeats kept, with
+    whether the municipality name is blank and the columns the research reads (None for a
+    column the CSV lacks); each pass of `search_municipality` is made from them."""
+    import hashlib
+
+    from support.core_research import NOW, ROWS_CSV, SHELTER_CSV
+
+    def snapshot(text: str) -> providers.GsiCsvSnapshot:
+        raw = text.encode("utf-8")
+        return providers.GsiCsvSnapshot(
+            sha256=hashlib.sha256(raw).hexdigest(), retrieved_at=NOW, text=text
+        )
+
+    rows = providers.gsi_shelter_rows(snapshot(ROWS_CSV))
+    assert list(rows) == list(providers.gsi_shelter_index(snapshot(ROWS_CSV))["codes"])
+    first = rows["13901"]
+    assert first["format"] == providers.GSI_SHELTER_ROWS_FORMAT
+    assert first["sha256"] == hashlib.sha256(ROWS_CSV.encode("utf-8")).hexdigest()
+    assert first["columns"] == ["named", *providers.GSI_SHELTER_ROW_COLUMNS]
+    ids = [row[1] for row in first["rows"]]
+    # No blank facility name (…0009…) and no emergency site (…0010…); the repeat of …0001… kept.
+    assert ids == [
+        "E1390100001111",
+        "E1390100002121",
+        "E1390100003111",
+        "E1390100004111",
+        "E1390100005111",
+        "E1390100006111",
+        "E1390100001111",
+        "E1390100007111",
+        "E1390100008111",
+    ]
+    assert [row[0] for row in first["rows"]] == [True] * 7 + [False] * 2
+    padded = [" 合成甲福祉館 ", "", "35.6", "139.6", "高齢者等", "  車いす可  "]
+    assert first["rows"][1][2:] == padded
+    assert len(rows["13903"]["rows"]) == 501
+
+    def lookup(name: str, code: str | None) -> list[str]:
+        found = providers.GsiShelterProvider().search_municipality(name, municipality_code=code)
+        return [row["共通ID"] for row in found.shelters]
+
+    def first_of_each(selected: list[list[object]]) -> list[object]:
+        seen: set[object] = set()
+        return [row[1] for row in selected if not (row[1] in seen or seen.add(row[1]))]
+
+    monkeypatch.setattr(providers, "_get_gsi_shelter_snapshot", lambda _url: snapshot(ROWS_CSV))
+    assert lookup("合成県甲市", None) == first_of_each(first["rows"])
+    assert lookup("甲", "13901") == first_of_each([row for row in first["rows"] if row[0]])
+    # A CSV without the municipality's notes column.
+    corpus = providers.gsi_shelter_rows(snapshot(SHELTER_CSV))
+    assert {row[-1] for code in corpus for row in corpus[code]["rows"]} == {None}

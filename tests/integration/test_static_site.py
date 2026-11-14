@@ -172,40 +172,55 @@ def test_the_site_is_built_only_outside_the_repository_into_an_empty_directory(
     assert not (ROOT / "site-out").exists()
 
 
-def test_the_site_holds_the_shelter_index_the_browser_s_research_reads(
+def test_the_site_holds_the_shelter_index_and_rows_the_browser_s_research_reads(
     builder: dict[str, Any], site: tuple[Path, bytes, dict[str, Any]], tmp_path: Path
 ) -> None:
-    """With a copy of the national shelter CSV, the site holds its `gsi_shelter_index` (#300);
-    without one it holds none."""
-    from support.core_research import EXTRA_CSV, shelter_index
+    """With a copy of the national shelter CSV, the site holds its `gsi_shelter_index` (#300)
+    and each municipality code's `gsi_shelter_rows` (#332); without one it holds neither."""
+    from support.core_research import EXTRA_CSV, shelter_index, shelter_rows
 
     output, _, summary = site
     assert summary["shelter_index"] is None
     assert not (output / "browser" / "gsi-shelter-index.json").exists()
+    assert not (output / "browser" / "gsi-shelters").exists()
     csv_path = tmp_path / "mergeFromCity_1.csv"
     csv_path.write_bytes(b"\xef\xbb\xbf" + EXTRA_CSV.encode("utf-8"))
-    made = builder["shelter_index"](csv_path=csv_path)
+    files = builder["shelter_files"](csv_path=csv_path)
+    made = files["index"]
     expected = shelter_index(EXTRA_CSV)
     assert made["sha256"] == hashlib.sha256(csv_path.read_bytes()).hexdigest()
     assert {key: value for key, value in made.items() if key not in ("sha256", "retrieved_at")} == {
         key: value for key, value in expected.items() if key not in ("sha256", "retrieved_at")
     }
+    assert {code: rows["rows"] for code, rows in files["rows"].items()} == {
+        code: rows["rows"] for code, rows in shelter_rows(EXTRA_CSV).items()
+    }
+    assert {rows["sha256"] for rows in files["rows"].values()} == {made["sha256"]}
     arguments = {
         "pkg": output / "browser" / "pkg",
         "bundle": tmp_path / "sample.shelterproj",
         "notices": NOTICES,
     }
-    with_index = builder["build"](tmp_path / "with-index", shelters=made, **arguments)
-    written = tmp_path / "with-index" / "browser" / "gsi-shelter-index.json"
-    assert json.loads(written.read_text(encoding="utf-8")) == made
+    with_index = builder["build"](tmp_path / "with-index", shelters=files, **arguments)
+    browser = tmp_path / "with-index" / "browser"
+    assert json.loads((browser / "gsi-shelter-index.json").read_text(encoding="utf-8")) == made
+    written = sorted(path.name for path in (browser / "gsi-shelters").iterdir())
+    assert written == [f"{code}.json" for code in made["codes"]]
+    assert (
+        json.loads((browser / "gsi-shelters" / "13107.json").read_text(encoding="utf-8"))
+        == (files["rows"]["13107"])
+    )
     assert with_index["shelter_index"]["municipality_codes"] == len(made["codes"])
-    assert (tmp_path / "with-index" / "browser" / "research.mjs").is_file()
-    assert builder["shelter_index"]() is None
-    pinned = builder["shelter_index"](csv_path=csv_path, retrieved_at="2026-11-01T12:00:00+09:00")
-    assert pinned["retrieved_at"] == "2026-11-01T03:00:00Z"
+    assert with_index["shelter_index"]["rows"] == sum(
+        len(rows["rows"]) for rows in files["rows"].values()
+    )
+    assert (browser / "research.mjs").is_file()
+    assert builder["shelter_files"]() is None
+    pinned = builder["shelter_files"](csv_path=csv_path, retrieved_at="2026-11-01T12:00:00+09:00")
+    assert pinned["index"]["retrieved_at"] == "2026-11-01T03:00:00Z"
     csv_path.write_bytes(b"not,a,shelter,csv\n")
     with pytest.raises(ValueError, match="schema"):
-        builder["shelter_index"](csv_path=csv_path)
+        builder["shelter_files"](csv_path=csv_path)
 
 
 def _package(root: Path, name: str, version: str, files: dict[str, str], **fields: Any) -> dict:

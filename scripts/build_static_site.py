@@ -29,7 +29,8 @@ The site is served at the root of its domain, as the screen loads `/demo-v2.css`
     /browser/               api_fetch.js, api_worker.mjs and the modules it imports, pkg/ (WASM),
                             gsi-shelter-index.json (the shelter CSV's sha256, metadata and
                             municipality names, for the regional research; with --shelter-csv
-                            or --fetch-shelters)
+                            or --fetch-shelters) and gsi-shelters/CODE.json (the CSV's rows of
+                            each municipality code, read when a lookup needs them, #332)
     /sample/sample.json     the sample's manifest (browser_api.mjs's SAMPLE_FORMAT) and its parts,
                             sample.shelterproj.000, .001, … of at most --part-mib MiB each
 
@@ -81,8 +82,10 @@ BROWSER_FILES = (
 )
 # What the browser's regional research reads of the GSI national shelter CSV, which it does not
 # download (no CORS; research.mjs, #300): written from a copy of the CSV (--shelter-csv) or from
-# the CSV downloaded at build time (--fetch-shelters).
+# the CSV downloaded at build time (--fetch-shelters). The index is read once; a municipality
+# code's rows when a lookup needs them (#332).
 SHELTER_INDEX = "gsi-shelter-index.json"
+SHELTER_ROWS = "gsi-shelters"
 PKG_FILES = ("sheltersim_wasm.js", "sheltersim_wasm_bg.wasm")
 # The Run the browser makes beside the sample's, to compute itself (compute.mjs's COMPUTE_RUN).
 COMPUTE_RUN = "run-browser-compute"
@@ -280,13 +283,14 @@ def split_bundle(bundle: Path, directory: Path, part_bytes: int) -> dict[str, An
     return manifest
 
 
-def shelter_index(
+def shelter_files(
     *, csv_path: Path | None = None, fetch: bool = False, retrieved_at: str | None = None
 ) -> dict[str, Any] | None:
-    """`gsi_shelter_index` of a copy of the national shelter CSV (read now, without HTTP
-    metadata) or of the CSV downloaded now; None with neither. `retrieved_at` (ISO 8601 with a
-    time zone) is the copy's retrieval time instead of now: a check pins it to the Python side's
-    clock (benchmarks/static_site_e2e.py), as the research's time is part of the Scenario."""
+    """`{"index": gsi_shelter_index, "rows": gsi_shelter_rows}` of a copy of the national shelter
+    CSV (read now, without HTTP metadata) or of the CSV downloaded now; None with neither.
+    `retrieved_at` (ISO 8601 with a time zone) is the copy's retrieval time instead of now: a check
+    pins it to the Python side's clock (benchmarks/static_site_e2e.py), as the research's time is
+    part of the Scenario."""
     from datetime import UTC, datetime
 
     from sheltersim.region import providers
@@ -308,7 +312,10 @@ def shelter_index(
     else:
         return None
     try:
-        return providers.gsi_shelter_index(snapshot)
+        return {
+            "index": providers.gsi_shelter_index(snapshot),
+            "rows": providers.gsi_shelter_rows(snapshot),
+        }
     except providers.RegionProviderError as error:
         raise ValueError(str(error)) from error
 
@@ -449,8 +456,8 @@ def build(
     shelters: dict[str, Any] | None = None,
     notices: dict[str, bytes],
 ) -> dict[str, Any]:
-    """Assemble the site in `output`; a summary of what it holds. `notices` are the files
-    third_party_notices() writes, by name."""
+    """Assemble the site in `output`; a summary of what it holds. `shelters` is what
+    shelter_files() makes; `notices` are the files third_party_notices() writes, by name."""
     output = output.resolve()
     if output == ROOT or ROOT in output.parents:
         raise ValueError("the site is generated: write it outside the repository")
@@ -478,9 +485,17 @@ def build(
         shutil.copyfile(pkg / name, output / "browser" / "pkg" / name)
     if shelters is not None:
         (output / "browser" / SHELTER_INDEX).write_text(
-            json.dumps(shelters, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+            json.dumps(
+                shelters["index"], ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            ),
             encoding="utf-8",
         )
+        (output / "browser" / SHELTER_ROWS).mkdir()
+        for code, rows in shelters["rows"].items():
+            (output / "browser" / SHELTER_ROWS / f"{code}.json").write_text(
+                json.dumps(rows, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+                encoding="utf-8",
+            )
     (output / "sample").mkdir()
     manifest = split_bundle(bundle, output / "sample", part_mib * 2**20)
     query = urlencode({"project": project_id, "run": run_id, "branch": branch_id})
@@ -519,8 +534,14 @@ def build(
         | {"parts": len(manifest["parts"])},
         "shelter_index": None
         if shelters is None
-        else {key: shelters[key] for key in ("sha256", "retrieved_at", "invalid_record_count")}
-        | {"municipality_codes": len(shelters["codes"])},
+        else {
+            key: shelters["index"][key]
+            for key in ("sha256", "retrieved_at", "invalid_record_count")
+        }
+        | {
+            "municipality_codes": len(shelters["index"]["codes"]),
+            "rows": sum(len(rows["rows"]) for rows in shelters["rows"].values()),
+        },
     }
 
 
@@ -555,7 +576,7 @@ def main() -> int:
     )
     arguments = parser.parse_args()
     try:
-        shelters = shelter_index(
+        shelters = shelter_files(
             csv_path=arguments.shelter_csv,
             fetch=arguments.fetch_shelters,
             retrieved_at=arguments.shelter_retrieved_at,
