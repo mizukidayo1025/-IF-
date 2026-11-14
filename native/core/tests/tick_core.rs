@@ -294,7 +294,9 @@ fn the_plain_host_runs_each_world_to_the_native_path_s_world() {
         let lines: Vec<Vec<u8>> = (0..run.host.samples.len()).map(|index| run.host.samples.line(index).unwrap().unwrap()).collect();
         assert_eq!(sha256_hex(&lines.join(&b'\n')), wanted["metrics"].as_str().unwrap(), "{name}");
         assert!(run.host.samples.line(lines.len()).unwrap().is_none());
-        assert_eq!(run.stepping.checks.asked.iter().filter(|question| *question == "effects").count() as i64, ticks, "{name}");
+        // Each tick ended with the core's whole validation (#250): the kernel's check asked nothing.
+        assert_eq!(run.stepping.end, sheltersim_core::engine::EndCheck::Whole, "{name}");
+        assert!(run.stepping.checks.asked.is_empty(), "{name}");
     }
     // The generated world's EffectProgram moved four facilities: the plan was built again after each.
     let fixture = load::entry("tick_core", "generated");
@@ -317,6 +319,23 @@ fn the_plain_run_stops_at_the_end_of_the_clock() {
     let before = run.digests().unwrap();
     assert!(matches!(run.step(), Err(StepError::Complete)));
     assert_eq!(run.digests().unwrap(), before);
+}
+
+/// A tick of a `PlainRun` ends with the core's whole validation without the event history
+/// (`validate_after_tick`, #250): a world it refuses stops the step with Python's error, the
+/// `StateInvariantError` that `WorldState.validate` raises for a negative seed.
+#[test]
+fn the_plain_run_ends_a_tick_with_python_s_validation_error() {
+    use sheltersim_core::error::Error;
+    use sheltersim_core::world::{Fit, Seed};
+    let fixture = load::entry("tick_core", "generated");
+    let mut run = PlainRun::of_entry(&fixture).unwrap();
+    run.step().unwrap_or_else(|error| panic!("{error:?}"));
+    run.loaded.cell.with(|world| world.scalars.get_mut().seed = Fit::Ok(Seed::from_text("-1").unwrap())).unwrap();
+    match run.step() {
+        Err(StepError::Check { minute: 1, error: Error::Invariant(text) }) => assert_eq!(text, "scenario seed cannot be negative"),
+        other => panic!("{other:?}"),
+    }
 }
 
 /// The JSON text of an entry that is not an exported world is an error, not a panic.

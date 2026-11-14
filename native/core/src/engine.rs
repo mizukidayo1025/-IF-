@@ -1,7 +1,9 @@
 //! A Run's ticks without Python, as `TickEngine.step` steps a world (#214; in the crate since #244,
 //! PR 4-3, for a host without Python such as the WASM prototype): `run_tick` at the world's minute
-//! with the host, the minute moved on, then the end-of-tick check (`after_tick::check`, with no
-//! Python validator to ask: `NoPython`).
+//! with the host, the minute moved on, then the end-of-tick check (`EndCheck`): the core's whole
+//! validation without the event history (`validate::world`, #250), what `validate_after_tick` of
+//! Python answers, or for a test the kernel's check alone (`after_tick::check`, with no Python
+//! validator to ask: `NoPython`).
 //!
 //! `metric_line` writes a metric sample as the JSON list of the snapshot's fields, as `json.dumps`
 //! of `_snapshot_fields` with `separators=(",", ":")` writes it: the lines a host keeps for the
@@ -88,11 +90,39 @@ pub fn check_after_tick<H: Host>(cell: &Shard<World>, host: &mut H, memo: &mut M
     after_tick::check(cell, memo, &inputs, checks).map_err(H::Error::from)
 }
 
+/// Which check ends a tick.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum EndCheck {
+    /// The kernel's check alone (`after_tick::check` with `NoPython`): it takes every namespace as
+    /// valid and has no texts. For tests of the kernel's check.
+    #[default]
+    Kernel,
+    /// `WorldState.validate_after_tick`: `validate(validate_event_history=False)`, the core's
+    /// (`validate::world`, #250), with Python's class and text of the first error. The native path
+    /// asks the kernel's check first and runs Python's validation where it refuses; the kernel says
+    /// yes only where every rule passes, so the answer is the validation's.
+    Whole,
+}
+
 /// What the end-of-tick check keeps from one tick to the next, and what it asked.
 #[derive(Default)]
 pub struct Stepping {
     pub memo: Memo,
     pub checks: NoPython,
+    pub end: EndCheck,
+}
+
+impl Stepping {
+    /// The stepping of a Run without Python (`plain::PlainRun`): each tick ends with the whole
+    /// validation (`EndCheck::Whole`).
+    pub fn whole() -> Self {
+        Self { end: EndCheck::Whole, ..Self::default() }
+    }
+}
+
+/// `WorldState.validate_after_tick` (`EndCheck::Whole`): `validate(validate_event_history=False)`.
+pub fn validate_after_tick(cell: &Shard<World>) -> Result<()> {
+    cell.with(|world| crate::validate::world(world, &crate::validate::Options { history: false, in_flight: None }))?
 }
 
 /// Why a step stopped: the tick's failure (the phase's label and the host's error), or the check's.
@@ -132,7 +162,11 @@ pub fn step<H: Host>(loaded: &Loaded, host: &mut H, stepping: &mut Stepping) -> 
     }
     cell.with(|world| world.scalars.get_mut().minute_index = Fit::Ok(minute + 1))
         .map_err(|error| StepError::Check { minute, error: <H::Error as From<Error>>::from(error) })?;
-    check_after_tick(cell, host, &mut stepping.memo, &mut stepping.checks).map_err(|error| StepError::Check { minute, error })?;
+    match stepping.end {
+        EndCheck::Kernel => check_after_tick(cell, host, &mut stepping.memo, &mut stepping.checks),
+        EndCheck::Whole => validate_after_tick(cell).map_err(<H::Error as From<Error>>::from),
+    }
+    .map_err(|error| StepError::Check { minute, error })?;
     Ok(minute)
 }
 
