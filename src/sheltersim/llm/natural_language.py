@@ -721,7 +721,6 @@ def _parse_time_window(text: str, summary: ScenarioSummary) -> _TimeWindow | Par
             return ParseIssue(
                 code="missing_date_anchor",
                 message="日付をシミュレーション分へ変換する開始日がありません。Day番号を指定してください。",
-                choices=["Day N"],
             )
         base_day = (requested - summary.start_date).days * 1440
         if base_day < 0:
@@ -731,7 +730,6 @@ def _parse_time_window(text: str, summary: ScenarioSummary) -> _TimeWindow | Par
             return ParseIssue(
                 code="missing_date_anchor",
                 message="月日表記を変換する開始日がありません。Day番号を指定してください。",
-                choices=["Day N"],
             )
         month, day = map(int, short_date_match.groups())
         try:
@@ -1786,6 +1784,22 @@ def _offline_compiler_result(
             choices=["HH:MM"],
             limitations=_with_fallback_reason(
                 ["各イベントの時刻を明示するまで作用を適用できません。"], reason
+            ),
+            fallback_used=fallback_used,
+            usage=usage,
+        )
+    # A date without the Scenario's start date: ask for the Day number (#325).
+    date_questions = [
+        item.message for item in offline_result.issues if item.code == "missing_date_anchor"
+    ]
+    if date_questions and eligible:
+        return CompilerResult(
+            status="clarification_required",
+            support_mode=SupportMode.CLARIFICATION_REQUIRED,
+            mechanism_summary="日付をシミュレーションのDayに変換できないため、作用案を作成していません。",
+            questions=date_questions[:10],
+            limitations=_with_fallback_reason(
+                ["各作用のDay番号を明示するまで作用を適用できません。"], reason
             ),
             fallback_used=fallback_used,
             usage=usage,
