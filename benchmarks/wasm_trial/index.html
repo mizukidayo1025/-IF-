@@ -65,7 +65,7 @@ async function main() {
       }
       if (simulation.metric_count() !== world.expected.metric_count) problems.push(`metric_count ${simulation.metric_count()}`);
       if (simulation.metrics_digest() !== world.expected.metrics) problems.push(`metrics ${simulation.metrics_digest()}`);
-      const run = { loadMs, tickSeconds, ticks, memoryBytes: memoryBytes(), contracts: JSON.parse(simulation.contracts_json()), problems };
+      const run = { loadMs, tickSeconds, ticks, memoryBytes: memoryBytes(), problems };
       simulation.free();
       runs.push(run);
       const row = rows.insertRow();
