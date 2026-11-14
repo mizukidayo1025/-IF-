@@ -1,0 +1,1965 @@
+{
+ "cases": [
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information_spread config: unknown information_spread settings: ['nope']"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information_spread config: unknown information_spread settings: ['nope']"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information_spread config: unknown information_spread settings: ['nope']"
+    ]
+   },
+   "name": "information_config_unknown",
+   "world": "information_config_unknown"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information_spread config: information_spread enabled must be boolean"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information_spread config: information_spread enabled must be boolean"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information_spread config: information_spread enabled must be boolean"
+    ]
+   },
+   "name": "information_config_enabled_int",
+   "world": "information_config_enabled_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information_spread config: information_spread max_contacts_per_agent must be between 0 and 16"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information_spread config: information_spread max_contacts_per_agent must be between 0 and 16"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information_spread config: information_spread max_contacts_per_agent must be between 0 and 16"
+    ]
+   },
+   "name": "information_config_contacts_high",
+   "world": "information_config_contacts_high"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information_spread config: information_spread max_contacts_per_agent must be between 0 and 16"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information_spread config: information_spread max_contacts_per_agent must be between 0 and 16"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information_spread config: information_spread max_contacts_per_agent must be between 0 and 16"
+    ]
+   },
+   "name": "information_config_contacts_float",
+   "world": "information_config_contacts_float"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information_spread config: information_spread query_utility_weight must be finite and between 0 and 4.0"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information_spread config: information_spread query_utility_weight must be finite and between 0 and 4.0"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information_spread config: information_spread query_utility_weight must be finite and between 0 and 4.0"
+    ]
+   },
+   "name": "information_config_probability_high",
+   "world": "information_config_probability_high"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information_spread config: information_spread trust_sensitivity must be finite and between 0 and 1.0"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information_spread config: information_spread trust_sensitivity must be finite and between 0 and 1.0"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information_spread config: information_spread trust_sensitivity must be finite and between 0 and 1.0"
+    ]
+   },
+   "name": "information_config_probability_bool",
+   "world": "information_config_probability_bool"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information_spread config: correction source reliability must map up to 100 source IDs to [0, 1]"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information_spread config: correction source reliability must map up to 100 source IDs to [0, 1]"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information_spread config: correction source reliability must map up to 100 source IDs to [0, 1]"
+    ]
+   },
+   "name": "information_config_reliability_bad_id",
+   "world": "information_config_reliability_bad_id"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information_spread config: invalid information_spread settings: object of type 'int' has no len()"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information_spread config: invalid information_spread settings: object of type 'int' has no len()"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information_spread config: invalid information_spread settings: object of type 'int' has no len()"
+    ]
+   },
+   "name": "information_config_reliability_int",
+   "world": "information_config_reliability_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information_spread config: invalid information_spread settings: object of type 'NoneType' has no len()"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information_spread config: invalid information_spread settings: object of type 'NoneType' has no len()"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information_spread config: invalid information_spread settings: object of type 'NoneType' has no len()"
+    ]
+   },
+   "name": "information_config_reliability_null",
+   "world": "information_config_reliability_null"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information_spread config: unsupported information_spread schema or policy version"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information_spread config: unsupported information_spread schema or policy version"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information_spread config: unsupported information_spread schema or policy version"
+    ]
+   },
+   "name": "information_config_schema",
+   "world": "information_config_schema"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information_spread config: information_spread provenance must use ASM-INFORMATION-SPREAD-V1"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information_spread config: information_spread provenance must use ASM-INFORMATION-SPREAD-V1"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information_spread config: information_spread provenance must use ASM-INFORMATION-SPREAD-V1"
+    ]
+   },
+   "name": "information_config_source",
+   "world": "information_config_source"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "information_spread config must contain the complete canonical v1 values"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "information_spread config must contain the complete canonical v1 values"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "information_spread config must contain the complete canonical v1 values"
+    ]
+   },
+   "name": "information_config_partial",
+   "world": "information_config_partial"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "information-spread state requires an enabled information_spread model"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "information-spread state requires an enabled information_spread model"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "information-spread state requires an enabled information_spread model"
+    ]
+   },
+   "name": "information_config_disabled_with_state",
+   "world": "information_config_disabled_with_state"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "information-spread state requires an enabled information_spread model"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "information-spread state requires an enabled information_spread model"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "information-spread state requires an enabled information_spread model"
+    ]
+   },
+   "name": "information_state_on_small",
+   "world": "information_state_on_small"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information-spread runtime state fields do not match the schema"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information-spread runtime state fields do not match the schema"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information-spread runtime state fields do not match the schema"
+    ]
+   },
+   "name": "information_state_missing",
+   "world": "information_state_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information-spread runtime state fields do not match the schema"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information-spread runtime state fields do not match the schema"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information-spread runtime state fields do not match the schema"
+    ]
+   },
+   "name": "information_state_extra",
+   "world": "information_state_extra"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: unsupported information-spread runtime state schema"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: unsupported information-spread runtime state schema"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: unsupported information-spread runtime state schema"
+    ]
+   },
+   "name": "information_state_schema",
+   "world": "information_state_schema"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "information_message_fits",
+   "world": "information_message_fits"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: source_id must be a stable ID"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: source_id must be a stable ID"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: source_id must be a stable ID"
+    ]
+   },
+   "name": "information_message_bad_id",
+   "world": "information_message_bad_id"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: 'maybe' is not a valid InformationTruthStatus"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: 'maybe' is not a valid InformationTruthStatus"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: 'maybe' is not a valid InformationTruthStatus"
+    ]
+   },
+   "name": "information_message_truth",
+   "world": "information_message_truth"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: ['true'] is not a valid InformationTruthStatus"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: ['true'] is not a valid InformationTruthStatus"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: ['true'] is not a valid InformationTruthStatus"
+    ]
+   },
+   "name": "information_message_truth_list",
+   "world": "information_message_truth_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: message time must be a non-negative integer"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: message time must be a non-negative integer"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: message time must be a non-negative integer"
+    ]
+   },
+   "name": "information_message_time",
+   "world": "information_message_time"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information message time is outside the scenario"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information message time is outside the scenario"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information message time is outside the scenario"
+    ]
+   },
+   "name": "information_message_late",
+   "world": "information_message_late"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information message references an unknown zone or Agent"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information message references an unknown zone or Agent"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information message references an unknown zone or Agent"
+    ]
+   },
+   "name": "information_message_zone",
+   "world": "information_message_zone"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information message key must match its ID"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information message key must match its ID"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information message key must match its ID"
+    ]
+   },
+   "name": "information_message_key",
+   "world": "information_message_key"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information beliefs must contain exactly the known Agents"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information beliefs must contain exactly the known Agents"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information beliefs must contain exactly the known Agents"
+    ]
+   },
+   "name": "information_beliefs_missing_agent",
+   "world": "information_beliefs_missing_agent"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "information_belief_fits",
+   "world": "information_belief_fits"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: v2 Agent information belief fields do not match schema"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: v2 Agent information belief fields do not match schema"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: v2 Agent information belief fields do not match schema"
+    ]
+   },
+   "name": "information_belief_fields",
+   "world": "information_belief_fields"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: 'known' is not a valid InformationBeliefStatus"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: 'known' is not a valid InformationBeliefStatus"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: 'known' is not a valid InformationBeliefStatus"
+    ]
+   },
+   "name": "information_belief_status",
+   "world": "information_belief_status"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: belief_strength must be finite and between 0 and 1"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: belief_strength must be finite and between 0 and 1"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: belief_strength must be finite and between 0 and 1"
+    ]
+   },
+   "name": "information_belief_strength",
+   "world": "information_belief_strength"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information exposure state must be boolean"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information exposure state must be boolean"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information exposure state must be boolean"
+    ]
+   },
+   "name": "information_belief_exposed_int",
+   "world": "information_belief_exposed_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: a correction cannot be accepted before exposure"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: a correction cannot be accepted before exposure"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: a correction cannot be accepted before exposure"
+    ]
+   },
+   "name": "information_belief_accepted_unexposed",
+   "world": "information_belief_accepted_unexposed"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: unknown or forgotten information must have zero share propensity"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: unknown or forgotten information must have zero share propensity"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: unknown or forgotten information must have zero share propensity"
+    ]
+   },
+   "name": "information_belief_unknown_shares",
+   "world": "information_belief_unknown_shares"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact time is outside the scenario"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact time is outside the scenario"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact time is outside the scenario"
+    ]
+   },
+   "name": "information_belief_late",
+   "world": "information_belief_late"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: Agent information belief references an unknown message"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: Agent information belief references an unknown message"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: Agent information belief references an unknown message"
+    ]
+   },
+   "name": "information_belief_other_message",
+   "world": "information_belief_other_message"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "information_contact_fits",
+   "world": "information_contact_fits"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact key is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact key is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact key is invalid"
+    ]
+   },
+   "name": "information_contact_key_text",
+   "world": "information_contact_key_text"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact key must identify an Agent pair"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact key must identify an Agent pair"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact key must identify an Agent pair"
+    ]
+   },
+   "name": "information_contact_key_spaces",
+   "world": "information_contact_key_spaces"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact key must identify an Agent pair"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact key must identify an Agent pair"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact key must identify an Agent pair"
+    ]
+   },
+   "name": "information_contact_key_same",
+   "world": "information_contact_key_same"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact record fields do not match"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact record fields do not match"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact record fields do not match"
+    ]
+   },
+   "name": "information_contact_record",
+   "world": "information_contact_record"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact consecutive_minutes must be non-negative"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact consecutive_minutes must be non-negative"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact consecutive_minutes must be non-negative"
+    ]
+   },
+   "name": "information_contact_negative",
+   "world": "information_contact_negative"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact duration is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact duration is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information contact duration is invalid"
+    ]
+   },
+   "name": "information_contact_duration",
+   "world": "information_contact_duration"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information query pressure for A001 must be finite and between 0 and 1"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information query pressure for A001 must be finite and between 0 and 1"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information query pressure for A001 must be finite and between 0 and 1"
+    ]
+   },
+   "name": "information_pressure_high",
+   "world": "information_pressure_high"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information support requests must be a list"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information support requests must be a list"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information support requests must be a list"
+    ]
+   },
+   "name": "information_requests_dict",
+   "world": "information_requests_dict"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "information_request_fits",
+   "world": "information_request_fits"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information support request fields do not match"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information support request fields do not match"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information support request fields do not match"
+    ]
+   },
+   "name": "information_request_fields",
+   "world": "information_request_fields"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information support request reference is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information support request reference is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information support request reference is invalid"
+    ]
+   },
+   "name": "information_request_unknown_message",
+   "world": "information_request_unknown_message"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information support request reference is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information support request reference is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information support request reference is invalid"
+    ]
+   },
+   "name": "information_request_twice",
+   "world": "information_request_twice"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information-spread counter contact_attempts must be non-negative"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information-spread counter contact_attempts must be non-negative"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information-spread counter contact_attempts must be non-negative"
+    ]
+   },
+   "name": "information_counter_negative",
+   "world": "information_counter_negative"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid information-spread state: information support-request counter does not match its records"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid information-spread state: information support-request counter does not match its records"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid information-spread state: information support-request counter does not match its records"
+    ]
+   },
+   "name": "information_counter_mismatch",
+   "world": "information_counter_mismatch"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "psychological distress state requires its registered model"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "psychological distress state requires its registered model"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "psychological distress state requires its registered model"
+    ]
+   },
+   "name": "psychology_state_on_small",
+   "world": "psychology_state_on_small"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress state fields do not match schema v1"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress state fields do not match schema v1"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress state fields do not match schema v1"
+    ]
+   },
+   "name": "psychology_state_missing",
+   "world": "psychology_state_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid psychological distress state: unsupported psychological distress state schema"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid psychological distress state: unsupported psychological distress state schema"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid psychological distress state: unsupported psychological distress state schema"
+    ]
+   },
+   "name": "psychology_state_schema",
+   "world": "psychology_state_schema"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "psychology_state_schema_true",
+   "world": "psychology_state_schema_true"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress last minute is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress last minute is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress last minute is invalid"
+    ]
+   },
+   "name": "psychology_state_minute",
+   "world": "psychology_state_minute"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid psychological distress state: baseline_distress must be finite and between 0 and 1"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid psychological distress state: baseline_distress must be finite and between 0 and 1"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid psychological distress state: baseline_distress must be finite and between 0 and 1"
+    ]
+   },
+   "name": "psychology_agent_baseline",
+   "world": "psychology_agent_baseline"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress agent record is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress agent record is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress agent record is invalid"
+    ]
+   },
+   "name": "psychology_agent_fields",
+   "world": "psychology_agent_fields"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress daily integral must be finite"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress daily integral must be finite"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress daily integral must be finite"
+    ]
+   },
+   "name": "psychology_agent_sum",
+   "world": "psychology_agent_sum"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress daily observed minutes are invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress daily observed minutes are invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress daily observed minutes are invalid"
+    ]
+   },
+   "name": "psychology_agent_observed",
+   "world": "psychology_agent_observed"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress high minutes are invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress high minutes are invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress high minutes are invalid"
+    ]
+   },
+   "name": "psychology_agent_high",
+   "world": "psychology_agent_high"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress daily accumulation is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress daily accumulation is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid psychological distress state: psychological distress daily accumulation is invalid"
+    ]
+   },
+   "name": "psychology_agent_accumulation",
+   "world": "psychology_agent_accumulation"
+  }
+ ],
+ "worlds": {
+  "information_belief_accepted_unexposed": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.beliefs.A001.fixture-message": {
+     "belief": "heard",
+     "belief_strength": 0.6,
+     "correction_accepted": true,
+     "correction_exposed": false,
+     "ever_forgotten": false,
+     "ever_misbelieved": false,
+     "exposed": true,
+     "last_contact": 1,
+     "last_correction_accepted": false,
+     "last_event_id": "fixture-event",
+     "message_id": "fixture-message",
+     "share_propensity": 0.5,
+     "source": "fixture-source"
+    },
+    "world.model_state.information_spread_v1.messages.fixture-message": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "fixture-source",
+     "time": 1,
+     "truth_status": "false",
+     "zone_id": "corridor"
+    }
+   }
+  },
+  "information_belief_exposed_int": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.beliefs.A001.fixture-message": {
+     "belief": "heard",
+     "belief_strength": 0.6,
+     "correction_accepted": false,
+     "correction_exposed": false,
+     "ever_forgotten": false,
+     "ever_misbelieved": false,
+     "exposed": 1,
+     "last_contact": 1,
+     "last_correction_accepted": false,
+     "last_event_id": "fixture-event",
+     "message_id": "fixture-message",
+     "share_propensity": 0.5,
+     "source": "fixture-source"
+    },
+    "world.model_state.information_spread_v1.messages.fixture-message": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "fixture-source",
+     "time": 1,
+     "truth_status": "false",
+     "zone_id": "corridor"
+    }
+   }
+  },
+  "information_belief_fields": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.beliefs.A001.fixture-message": {
+     "belief": "heard",
+     "belief_strength": 0.6,
+     "correction_accepted": false,
+     "correction_exposed": false,
+     "ever_misbelieved": false,
+     "exposed": true,
+     "last_contact": 1,
+     "last_correction_accepted": false,
+     "last_event_id": "fixture-event",
+     "message_id": "fixture-message",
+     "share_propensity": 0.5,
+     "source": "fixture-source"
+    },
+    "world.model_state.information_spread_v1.messages.fixture-message": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "fixture-source",
+     "time": 1,
+     "truth_status": "false",
+     "zone_id": "corridor"
+    }
+   }
+  },
+  "information_belief_fits": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.beliefs.A001.fixture-message": {
+     "belief": "heard",
+     "belief_strength": 0.6,
+     "correction_accepted": false,
+     "correction_exposed": false,
+     "ever_forgotten": false,
+     "ever_misbelieved": false,
+     "exposed": true,
+     "last_contact": 1,
+     "last_correction_accepted": false,
+     "last_event_id": "fixture-event",
+     "message_id": "fixture-message",
+     "share_propensity": 0.5,
+     "source": "fixture-source"
+    },
+    "world.model_state.information_spread_v1.messages.fixture-message": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "fixture-source",
+     "time": 1,
+     "truth_status": "false",
+     "zone_id": "corridor"
+    }
+   }
+  },
+  "information_belief_late": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.beliefs.A001.fixture-message": {
+     "belief": "heard",
+     "belief_strength": 0.6,
+     "correction_accepted": false,
+     "correction_exposed": false,
+     "ever_forgotten": false,
+     "ever_misbelieved": false,
+     "exposed": true,
+     "last_contact": 100000,
+     "last_correction_accepted": false,
+     "last_event_id": "fixture-event",
+     "message_id": "fixture-message",
+     "share_propensity": 0.5,
+     "source": "fixture-source"
+    },
+    "world.model_state.information_spread_v1.messages.fixture-message": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "fixture-source",
+     "time": 1,
+     "truth_status": "false",
+     "zone_id": "corridor"
+    }
+   }
+  },
+  "information_belief_other_message": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.beliefs.A001.fixture-message": {
+     "belief": "heard",
+     "belief_strength": 0.6,
+     "correction_accepted": false,
+     "correction_exposed": false,
+     "ever_forgotten": false,
+     "ever_misbelieved": false,
+     "exposed": true,
+     "last_contact": 1,
+     "last_correction_accepted": false,
+     "last_event_id": "fixture-event",
+     "message_id": "other",
+     "share_propensity": 0.5,
+     "source": "fixture-source"
+    },
+    "world.model_state.information_spread_v1.messages.fixture-message": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "fixture-source",
+     "time": 1,
+     "truth_status": "false",
+     "zone_id": "corridor"
+    }
+   }
+  },
+  "information_belief_status": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.beliefs.A001.fixture-message": {
+     "belief": "known",
+     "belief_strength": 0.6,
+     "correction_accepted": false,
+     "correction_exposed": false,
+     "ever_forgotten": false,
+     "ever_misbelieved": false,
+     "exposed": true,
+     "last_contact": 1,
+     "last_correction_accepted": false,
+     "last_event_id": "fixture-event",
+     "message_id": "fixture-message",
+     "share_propensity": 0.5,
+     "source": "fixture-source"
+    },
+    "world.model_state.information_spread_v1.messages.fixture-message": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "fixture-source",
+     "time": 1,
+     "truth_status": "false",
+     "zone_id": "corridor"
+    }
+   }
+  },
+  "information_belief_strength": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.beliefs.A001.fixture-message": {
+     "belief": "heard",
+     "belief_strength": 1.5,
+     "correction_accepted": false,
+     "correction_exposed": false,
+     "ever_forgotten": false,
+     "ever_misbelieved": false,
+     "exposed": true,
+     "last_contact": 1,
+     "last_correction_accepted": false,
+     "last_event_id": "fixture-event",
+     "message_id": "fixture-message",
+     "share_propensity": 0.5,
+     "source": "fixture-source"
+    },
+    "world.model_state.information_spread_v1.messages.fixture-message": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "fixture-source",
+     "time": 1,
+     "truth_status": "false",
+     "zone_id": "corridor"
+    }
+   }
+  },
+  "information_belief_unknown_shares": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.beliefs.A001.fixture-message": {
+     "belief": "unknown",
+     "belief_strength": 0.6,
+     "correction_accepted": false,
+     "correction_exposed": false,
+     "ever_forgotten": false,
+     "ever_misbelieved": false,
+     "exposed": true,
+     "last_contact": 1,
+     "last_correction_accepted": false,
+     "last_event_id": "fixture-event",
+     "message_id": "fixture-message",
+     "share_propensity": 0.5,
+     "source": "fixture-source"
+    },
+    "world.model_state.information_spread_v1.messages.fixture-message": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "fixture-source",
+     "time": 1,
+     "truth_status": "false",
+     "zone_id": "corridor"
+    }
+   }
+  },
+  "information_beliefs_missing_agent": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "information_spread_v1",
+      "beliefs",
+      "A001"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "information_config_contacts_float": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.information_spread.max_contacts_per_agent": 2.0
+   }
+  },
+  "information_config_contacts_high": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.information_spread.max_contacts_per_agent": 17
+   }
+  },
+  "information_config_disabled_with_state": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.information_spread.enabled": false
+   }
+  },
+  "information_config_enabled_int": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.information_spread.enabled": 1
+   }
+  },
+  "information_config_partial": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "information_spread",
+      "query_threshold"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "information_config_probability_bool": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.information_spread.trust_sensitivity": true
+   }
+  },
+  "information_config_probability_high": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.information_spread.query_utility_weight": 4.5
+   }
+  },
+  "information_config_reliability_bad_id": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.information_spread.correction_source_reliability_by_id.-x": 0.5
+   }
+  },
+  "information_config_reliability_int": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.information_spread.correction_source_reliability_by_id": 5
+   }
+  },
+  "information_config_reliability_null": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.information_spread.correction_source_reliability_by_id": null
+   }
+  },
+  "information_config_schema": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.information_spread.schema_version": 2
+   }
+  },
+  "information_config_source": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.information_spread.source_id": "ASM-OTHER"
+   }
+  },
+  "information_config_unknown": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.information_spread.nope": 1
+   }
+  },
+  "information_contact_duration": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.contacts.[\"A001\",\"A002\"]": {
+     "consecutive_minutes": 3,
+     "last_seen_minute": 1
+    }
+   }
+  },
+  "information_contact_fits": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.contacts.[\"A001\",\"A002\"]": {
+     "consecutive_minutes": 1,
+     "last_seen_minute": 1
+    }
+   }
+  },
+  "information_contact_key_same": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.contacts.[\"A001\",\"A001\"]": {
+     "consecutive_minutes": 1,
+     "last_seen_minute": 1
+    }
+   }
+  },
+  "information_contact_key_spaces": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.contacts.[\"A001\", \"A002\"]": {
+     "consecutive_minutes": 1,
+     "last_seen_minute": 1
+    }
+   }
+  },
+  "information_contact_key_text": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.contacts.not json": {
+     "consecutive_minutes": 1,
+     "last_seen_minute": 1
+    }
+   }
+  },
+  "information_contact_negative": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.contacts.[\"A001\",\"A002\"]": {
+     "consecutive_minutes": -1,
+     "last_seen_minute": 1
+    }
+   }
+  },
+  "information_contact_record": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.contacts.[\"A001\",\"A002\"]": {
+     "last_seen_minute": 1
+    }
+   }
+  },
+  "information_counter_mismatch": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.counters.support_requests": 3
+   }
+  },
+  "information_counter_negative": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.counters.contact_attempts": -1
+   }
+  },
+  "information_message_bad_id": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.messages.fixture-message": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "-x",
+     "time": 1,
+     "truth_status": "false",
+     "zone_id": "corridor"
+    }
+   }
+  },
+  "information_message_fits": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.messages.fixture-message": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "fixture-source",
+     "time": 1,
+     "truth_status": "false",
+     "zone_id": "corridor"
+    }
+   }
+  },
+  "information_message_key": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.messages.other": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "fixture-source",
+     "time": 1,
+     "truth_status": "false",
+     "zone_id": "corridor"
+    }
+   }
+  },
+  "information_message_late": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.messages.fixture-message": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "fixture-source",
+     "time": 100000,
+     "truth_status": "false",
+     "zone_id": "corridor"
+    }
+   }
+  },
+  "information_message_time": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.messages.fixture-message": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "fixture-source",
+     "time": -1,
+     "truth_status": "false",
+     "zone_id": "corridor"
+    }
+   }
+  },
+  "information_message_truth": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.messages.fixture-message": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "fixture-source",
+     "time": 1,
+     "truth_status": "maybe",
+     "zone_id": "corridor"
+    }
+   }
+  },
+  "information_message_truth_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.messages.fixture-message": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "fixture-source",
+     "time": 1,
+     "truth_status": [
+      "true"
+     ],
+     "zone_id": "corridor"
+    }
+   }
+  },
+  "information_message_zone": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.messages.fixture-message": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "fixture-source",
+     "time": 1,
+     "truth_status": "false",
+     "zone_id": "nowhere"
+    }
+   }
+  },
+  "information_pressure_high": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.query_pressure.A001": 2
+   }
+  },
+  "information_request_fields": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.counters.support_requests": 1,
+    "world.model_state.information_spread_v1.messages.fixture-message": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "fixture-source",
+     "time": 1,
+     "truth_status": "false",
+     "zone_id": "corridor"
+    },
+    "world.model_state.information_spread_v1.support_requests": [
+     {
+      "agent_id": "A001",
+      "extra": 1,
+      "message_ids": [
+       "fixture-message"
+      ],
+      "minute": 1,
+      "request_id": "fixture-request"
+     }
+    ]
+   }
+  },
+  "information_request_fits": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.counters.support_requests": 1,
+    "world.model_state.information_spread_v1.messages.fixture-message": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "fixture-source",
+     "time": 1,
+     "truth_status": "false",
+     "zone_id": "corridor"
+    },
+    "world.model_state.information_spread_v1.support_requests": [
+     {
+      "agent_id": "A001",
+      "message_ids": [
+       "fixture-message"
+      ],
+      "minute": 1,
+      "request_id": "fixture-request"
+     }
+    ]
+   }
+  },
+  "information_request_twice": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.counters.support_requests": 2,
+    "world.model_state.information_spread_v1.messages.fixture-message": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "fixture-source",
+     "time": 1,
+     "truth_status": "false",
+     "zone_id": "corridor"
+    },
+    "world.model_state.information_spread_v1.support_requests": [
+     {
+      "agent_id": "A001",
+      "message_ids": [
+       "fixture-message"
+      ],
+      "minute": 1,
+      "request_id": "fixture-request"
+     },
+     {
+      "agent_id": "A001",
+      "message_ids": [
+       "fixture-message"
+      ],
+      "minute": 1,
+      "request_id": "fixture-request"
+     }
+    ]
+   }
+  },
+  "information_request_unknown_message": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.counters.support_requests": 1,
+    "world.model_state.information_spread_v1.messages.fixture-message": {
+     "id": "fixture-message",
+     "origin_agent_id": "A001",
+     "origin_event_id": "fixture-event",
+     "source_id": "fixture-source",
+     "time": 1,
+     "truth_status": "false",
+     "zone_id": "corridor"
+    },
+    "world.model_state.information_spread_v1.support_requests": [
+     {
+      "agent_id": "A001",
+      "message_ids": [
+       "other"
+      ],
+      "minute": 1,
+      "request_id": "fixture-request"
+     }
+    ]
+   }
+  },
+  "information_requests_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.support_requests": {}
+   }
+  },
+  "information_state_extra": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.extra": 1
+   }
+  },
+  "information_state_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "information_spread_v1"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "information_state_on_small": {
+   "base": "small_replay",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1": {}
+   }
+  },
+  "information_state_schema": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.information_spread_v1.schema_version": 3
+   }
+  },
+  "psychology_agent_accumulation": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.psychological_distress_v1.agents.A001.daily_acute_sum": 10000.0
+   }
+  },
+  "psychology_agent_baseline": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.psychological_distress_v1.agents.A001.baseline_distress": 1.5
+   }
+  },
+  "psychology_agent_fields": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "psychological_distress_v1",
+      "agents",
+      "A001",
+      "completed_days"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "psychology_agent_high": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.psychological_distress_v1.agents.A001.daily_high_distress_minutes": -1
+   }
+  },
+  "psychology_agent_observed": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.psychological_distress_v1.agents.A001.daily_observed_minutes": 1440
+   }
+  },
+  "psychology_agent_sum": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.psychological_distress_v1.agents.A001.daily_acute_sum": "0"
+   }
+  },
+  "psychology_state_minute": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.psychological_distress_v1.last_updated_minute": -2
+   }
+  },
+  "psychology_state_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "psychological_distress_v1"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "psychology_state_on_small": {
+   "base": "small_replay",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.psychological_distress_v1": {}
+   }
+  },
+  "psychology_state_schema": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.psychological_distress_v1.schema_version": 2
+   }
+  },
+  "psychology_state_schema_true": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.psychological_distress_v1.schema_version": true
+   }
+  }
+ }
+}

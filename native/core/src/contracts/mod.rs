@@ -10,7 +10,7 @@
 //! answer with what Python gave for the same input (`native/core/tests/data/contracts_*.json`).
 
 mod models;
-mod pydantic;
+pub(crate) mod pydantic;
 
 use crate::error::{Error, Result};
 use crate::host::Contract;

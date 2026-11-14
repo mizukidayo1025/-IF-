@@ -22,6 +22,7 @@
 
 mod agent_dynamics;
 mod body_state;
+pub mod catalog;
 mod declared;
 mod effect_program;
 mod entities;
@@ -31,11 +32,13 @@ mod facility_queues;
 mod geometry_overlay;
 mod information;
 mod infrastructure;
+mod models;
 mod movement;
 mod operational_events;
 mod population_dynamics;
 mod population_lifecycle;
 mod psychology;
+pub mod py;
 mod resource_ledger;
 pub mod resource_service;
 pub mod selection;
