@@ -5,6 +5,10 @@
 use super::View;
 use crate::error::Result;
 
+/// What the extensions' Python rules do with a value of any type, which every port of lane D reads.
+#[path = "extension_py.rs"]
+pub(super) mod py;
+
 /// The check, as `validate` (`validate/mod.rs`) calls it in Python's order.
 pub fn validate(_view: &View<'_>) -> Result<()> {
     // STUB(lane D #349)
