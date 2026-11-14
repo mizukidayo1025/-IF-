@@ -9,8 +9,8 @@
 //! the models use, `models` the models and their validators. `tests/contracts.rs` compares each
 //! answer with what Python gave for the same input (`native/core/tests/data/contracts_*.json`).
 
-mod models;
-mod pydantic;
+pub(crate) mod models;
+pub(crate) mod pydantic;
 
 use crate::error::{Error, Result};
 use crate::host::Contract;

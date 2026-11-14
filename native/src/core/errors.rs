@@ -34,7 +34,8 @@ pub(crate) fn to_py_err(error: Error) -> PyErr {
         }
         Error::Outcome(outcome, text) => Python::with_gil(|py| marked(py, outcome, &text)),
         Error::MarkedValue(text) => Python::with_gil(|py| marked_value(py, &text)),
-        Error::Value(text) => PyValueError::new_err(text),
+        // A ValidationError Python would raise; a ValueError with its text here.
+        Error::Value(text) | Error::Validation(text) => PyValueError::new_err(text),
         Error::Key(text) => PyKeyError::new_err(text),
         Error::Runtime(text) => PyRuntimeError::new_err(text),
         Error::Type(text) => PyTypeError::new_err(text),
