@@ -137,11 +137,14 @@ pub fn differences(name: &str, expected: &BTreeMap<String, Found>, got: &BTreeMa
     out
 }
 
-/// Whether the core gave what Python raised. The core has no class of its own for pydantic's
-/// `ValidationError` (a `ValueError`; #360): it is a `ValueError` with the same text.
+/// Whether the core gave what Python raised. pydantic's `ValidationError` (a `ValueError`) is
+/// `Error::Validation` where a part gives that class (#350); a part that still gives the core's
+/// `ValueError` with the same text passes too, until it does (#360).
 pub fn same_outcome(wanted: &Found, found: &Found) -> bool {
     match (wanted, found) {
-        (Some((class, text)), Some((got_class, got_text))) if class == "ValidationError" => got_class == "ValueError" && got_text == text,
+        (Some((class, text)), Some((got_class, got_text))) if class == "ValidationError" => {
+            (got_class == "ValidationError" || got_class == "ValueError") && got_text == text
+        }
         _ => wanted == found,
     }
 }
