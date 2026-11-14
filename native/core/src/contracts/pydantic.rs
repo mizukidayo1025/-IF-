@@ -19,7 +19,8 @@ use crate::value::V;
 pub type Fields = IndexMap<Arc<str>, V>;
 
 /// The depth at which pydantic-core's recursion guard refuses a recursive model
-/// (`GuardExpression`): the root is at depth 0.
+/// (`GuardExpression`), the root at depth 0: 255 on Linux and macOS, as the native host's pydantic
+/// answers there (on Windows its guard is lower, so the fixture records no case this deep).
 const RECURSION_LIMIT: usize = 255;
 
 /// The length past which pydantic writes an input's `repr` as its first 25 and last 24 bytes.

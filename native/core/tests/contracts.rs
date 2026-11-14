@@ -3,9 +3,9 @@
 //! `tests/support/core_contracts.py`): the same dump, or the same class of error with the same
 //! text, byte for byte.
 //!
-//! A case's input is its own (`input`), a guard nested `chain` levels deep, or a valid input of the
-//! file (`bases`) with a patch: each change a path and the value to set there (a new key goes
-//! last, as Python's dict puts it; the index past a list's end appends), or a path alone to remove.
+//! A case's input is its own (`input`) or a valid input of the file (`bases`) with a patch: each
+//! change a path and the value to set there (a new key goes last, as Python's dict puts it; the
+//! index past a list's end appends), or a path alone to remove.
 
 mod support;
 
@@ -36,16 +36,6 @@ fn contract(name: &str) -> Contract {
         "spatial_constraints" => Contract::SpatialConstraints,
         operator => Contract::EffectParameters(operator.into()),
     }
-}
-
-/// `_guard_chain(levels)` of the builder.
-fn chain(levels: u64) -> Value {
-    let leaf = serde_json::json!({"operator": "eq", "field": "zone.occupancy", "value": 1});
-    let mut node = leaf.clone();
-    for _ in 0..levels {
-        node = serde_json::json!({"operator": "and", "operands": [node, leaf.clone()]});
-    }
-    node
 }
 
 fn step<'a>(value: &'a mut V, key: &Value) -> &'a mut V {
@@ -87,9 +77,6 @@ fn patched(mut value: V, patch: &Value) -> V {
 }
 
 fn input(case: &Value, bases: &Value) -> V {
-    if let Some(levels) = case.get("chain") {
-        return load::v(&chain(levels.as_u64().unwrap()));
-    }
     match case.get("base") {
         Some(base) => patched(load::v(&bases[base.as_str().unwrap()]), &case["patch"]),
         None => load::v(&case["input"]),

@@ -353,8 +353,6 @@ def _effect_cases() -> list[dict[str, Any]]:
         {"field": "x", "value": [1], "operands": 5, "zz": 1, "aa": None},
     ]
     cases.extend(_case("guard", value=guard) for guard in guards)
-    # `_guard_chain(n)`, written as its length: pydantic's recursion guard refuses depth 255.
-    cases.extend({"contract": "guard", "chain": levels} for levels in (254, 255))
     params: list[tuple[str, Any]] = [
         ("add_temporary_space", {"people_capacity": 2, "sleeping_capacity": 3}),
         ("add_temporary_space", {"people_capacity": 3, "sleeping_capacity": 3}),
@@ -930,9 +928,7 @@ def _document(contracts: tuple[str, ...], cases: list[dict[str, Any]]) -> dict[s
     seen: set[str] = set()
     out: list[dict[str, Any]] = []
     for case in cases:
-        if "chain" in case:
-            value = _normal(_guard_chain(case["chain"]))
-        elif "base" in case:
+        if "base" in case:
             used.add(case["base"])
             value = _apply(_normal(BASES[case["base"]]), case["patch"])
         else:
