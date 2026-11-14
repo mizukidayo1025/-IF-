@@ -128,6 +128,8 @@ jobs:
           check /browser/api_worker.mjs "200 text/javascript"
           check /browser/pkg/sheltersim_wasm_bg.wasm "200 application/wasm"
           check /sample/sample.json "200 application/json"
+          rows=("$RUNNER_TEMP"/site/browser/gsi-shelters/*.json)
+          check "/browser/gsi-shelters/${rows[0]##*/}" "200 application/json"
           exit $fail
       # Playwright is not a dependency of the project (docs/development.md); the version is the one
       # the checks were written with.

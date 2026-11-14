@@ -126,10 +126,11 @@ const digestOf = (wasm, text) => wasm.sha256Hex(encoder.encode(text));
 
 export class ScenarioRoutes {
   /// `wasm`: the core's module; `tree`: the store; `shelterIndex()`: the site's GSI shelter index
-  /// (research.mjs's), or null; `fetchJson`: the address search (research.mjs's default when
-  /// undefined); `now()` and `newId()`: the clock and uuid4's hex (fixed in tests).
-  constructor({ wasm, tree, shelterIndex, fetchJson, now = () => new Date(), newId = uuidHex }) {
-    Object.assign(this, { wasm, tree, shelterIndex, fetchJson, now, newId });
+  /// (research.mjs's), or null; `shelterRows(code)`: the site's rows of a code of it (research.mjs's);
+  /// `fetchJson`: the address search (research.mjs's default when undefined); `now()` and
+  /// `newId()`: the clock and uuid4's hex (fixed in tests).
+  constructor({ wasm, tree, shelterIndex, shelterRows, fetchJson, now = () => new Date(), newId = uuidHex }) {
+    Object.assign(this, { wasm, tree, shelterIndex, shelterRows, fetchJson, now, newId });
   }
 
   // ---- The preparation account (workspace.py's `_preparation_account`, `_bind_preparation`) ----
@@ -253,6 +254,7 @@ export class ScenarioRoutes {
         request: researchRequest(JSON.parse(request.text)),
         now: this.now(),
         index,
+        shelterRows: this.shelterRows,
         casefold: (value) => this.wasm.casefold(value),
         ...(this.fetchJson ? { fetchJson: this.fetchJson } : {}),
       });
@@ -284,8 +286,9 @@ export class ScenarioRoutes {
     } finally {
       built.free();
     }
-    // The draft keeps the research without the shelters' addresses (there are none: the browser
-    // lists no shelter rows).
+    // The draft keeps the research without the shelters' addresses (workspace.py's
+    // `research_record`); the answer has them.
+    const draftResearch = pyJson({ ...researched.document, shelters: researched.document.shelters.map(({ address, ...shelter }) => shelter) });
     const previewId = this.newId();
     const content = {
       usage_account_id: draftId,
@@ -297,7 +300,7 @@ export class ScenarioRoutes {
       approval_blockers: approvalBlockers,
       facility_design: new RawJson(designText),
       request: new RawJson(requestText),
-      research: new RawJson(researched.text),
+      research: new RawJson(draftResearch),
     };
     await this.saveDraft(projectId, previewId, "scenario", answerJson(content));
     return answerJson({

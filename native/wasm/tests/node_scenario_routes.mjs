@@ -5,11 +5,12 @@
 //
 // For each case of native/core/tests/data/scenario_corpus.json (#293), js/scenario_routes.mjs
 // answers `scenario-preview` with the corpus's body, clock and public services (the recorded
-// address search and shelter CSV of native/core/tests/data/research_cases.json), in a memory store.
-// The answer must be the server's: its status and error, or its fields (but `draft_id` and
-// `preview_id`, uuid4 in both), the Scenario's and the FacilityDesign's bytes (sha256) and the
-// research. A case that can start is then approved: the Run's `model_versions`, its evidence and
-// its world at minute 0 must be the server's (sha256).
+// address search and shelter CSV of native/core/tests/data/research_cases.json, the CSV's index and
+// rows by municipality code), in a memory store. The answer must be the server's: its status and
+// error, or its fields (but `draft_id` and `preview_id`, uuid4 in both), the Scenario's and the
+// FacilityDesign's bytes (sha256) and the research; the draft keeps the research without the
+// shelters' addresses, as the server's does. A case that can start is then approved: the Run's
+// `model_versions`, its evidence and its world at minute 0 must be the server's (sha256).
 
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -49,6 +50,7 @@ const routesOf = (tree) =>
     wasm,
     tree,
     shelterIndex: async () => recorded.indexes.corpus,
+    shelterRows: async (code) => recorded.rows.corpus[code],
     fetchJson: (url) => research.gsiFetchJson(url, fakeFetch),
     now: () => new Date(corpus.now),
     newId: () => `${(ids += 1).toString(16).padStart(32, "0")}`,
@@ -63,9 +65,9 @@ async function answered(task) {
   }
 }
 
-// The cases the browser answers browser_unsupported: their research needs the shelter rows (a
-// municipality code; a name that resolves to one code), which the site does not hold (#300, #332).
-const UNSUPPORTED = new Set(["text-municipality-code", "text-prefecture"]);
+// The cases the browser answers browser_unsupported: none since the site holds the shelter rows
+// a municipality code's lookup reads (#332).
+const UNSUPPORTED = new Set();
 
 let failures = 0;
 let compared = 0;
@@ -118,6 +120,13 @@ for (const [name, item] of Object.entries(corpus.cases)) {
         assert.deepEqual(body.research, corpus.research[item.research]);
       } catch {
         problems.push("the research differs");
+      }
+      const kept = JSON.parse(content).research;
+      const withoutAddresses = { ...corpus.research[item.research], shelters: corpus.research[item.research].shelters.map(({ address, ...shelter }) => shelter) };
+      try {
+        assert.deepEqual(kept, withoutAddresses);
+      } catch {
+        problems.push("the draft's research differs");
       }
     }
     if (item.run && problems.length === 0) {

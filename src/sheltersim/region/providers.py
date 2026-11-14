@@ -851,3 +851,56 @@ def gsi_shelter_index(snapshot: GsiCsvSnapshot) -> dict[str, Any]:
             for code, names in sorted(names_by_code.items())
         },
     }
+
+
+# The format of `gsi_shelter_rows`, which the browser reads by municipality code (#332).
+GSI_SHELTER_ROWS_FORMAT = "sheltersim-gsi-shelter-rows"
+GSI_SHELTER_ROWS_VERSION = 1
+# The columns of a row the research reads (research.py's `ShelterCandidate`), as the CSV holds
+# them; `named` (first) tells whether the row's municipality name is non-blank.
+GSI_SHELTER_ROW_COLUMNS = (
+    "共通ID",
+    "施設・場所名",
+    "住所",
+    "緯度",
+    "経度",
+    "受入対象者",
+    "その他市町村長が必要と認める事項",
+)
+
+
+def gsi_shelter_rows(snapshot: GsiCsvSnapshot) -> dict[str, dict[str, Any]]:
+    """The rows of a snapshot of the national shelter CSV that `search_municipality` can match,
+    by municipality code, for the browser, which reads a code's rows when a lookup needs them
+    (#332): for each code of `gsi_shelter_index`, the rows of an overnight-shelter common ID of
+    that code with a non-blank facility name, in the CSV's order and with duplicates kept, each as
+    `[named, *GSI_SHELTER_ROW_COLUMNS]` (the CSV's text, None for a column the CSV lacks). The
+    lookup's two passes are made from them: a selected code's pass takes the `named` rows, the
+    pass after a name resolved the code takes them all; both keep the first row of a common ID."""
+    codes = gsi_shelter_index(snapshot)["codes"]
+    reader = csv.DictReader(io.StringIO(snapshot.text, newline=""), strict=True)
+    rows_by_code: dict[str, list[list[Any]]] = {}
+    for row in reader:
+        parsed_id = _parse_gsi_common_id((row.get("共通ID") or "").strip())
+        if (
+            parsed_id is None
+            or parsed_id[1] != "1"
+            or parsed_id[0] not in codes
+            or not (row.get("施設・場所名") or "").strip()
+        ):
+            continue
+        named = bool((row.get("都道府県名及び市町村名") or "").strip())
+        rows_by_code.setdefault(parsed_id[0], []).append(
+            [named, *(row.get(column) for column in GSI_SHELTER_ROW_COLUMNS)]
+        )
+    return {
+        code: {
+            "format": GSI_SHELTER_ROWS_FORMAT,
+            "version": GSI_SHELTER_ROWS_VERSION,
+            "sha256": snapshot.sha256,
+            "code": code,
+            "columns": ["named", *GSI_SHELTER_ROW_COLUMNS],
+            "rows": rows_by_code.get(code, []),
+        }
+        for code in codes
+    }

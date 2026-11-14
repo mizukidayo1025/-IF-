@@ -117,8 +117,8 @@ export class BrowserApi {
     this.queue = Promise.resolve();
     this.locked = locked;
     this.computing = new Computing({ api: this, branchLock, chunkTicks, pause });
-    // The Scenario screen's routes (#301); `scenario` holds their `shelterIndex`, `fetchJson`,
-    // `now` and `newId` (scenario_routes.mjs).
+    // The Scenario screen's routes (#301); `scenario` holds their `shelterIndex`, `shelterRows`,
+    // `fetchJson`, `now` and `newId` (scenario_routes.mjs).
     this.scenarioRoutes = new ScenarioRoutes({ wasm, tree, ...scenario });
     // "project/run" -> the last fork's outcome (the server's `_fork_outcomes`, #306)
     this.forkOutcomes = new Map();
