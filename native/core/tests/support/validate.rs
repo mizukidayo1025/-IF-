@@ -34,6 +34,7 @@ pub fn class_of(error: &Error) -> String {
     match error {
         Error::Invariant(_) | Error::Corrupt { .. } => "StateInvariantError",
         Error::Value(_) | Error::MarkedValue(_) => "ValueError",
+        Error::Validation(_) => "ValidationError",
         Error::Key(_) => "KeyError",
         Error::Type(_) => "TypeError",
         Error::Ledger(_) => "ResourceLedgerError",
