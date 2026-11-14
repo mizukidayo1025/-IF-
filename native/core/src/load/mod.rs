@@ -301,8 +301,38 @@ pub fn put_namespace(world: &mut World, name: &str, value: V) -> Result<()> {
     put_row(world, name, ValueRow(value))
 }
 
+/// How `world_with` reads a namespace of `model_state` whose value does not fit its typed row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Namespaces {
+    /// It is an error (`put_namespace`): what a Run loads.
+    Strict,
+    /// The slot holds the value as a `ValueRow` (`put_namespace_as_found`): for a test of the
+    /// whole world's validation (`validate`), which reads any row as a value and gives Python's
+    /// error for a broken one. A kernel that reads the typed row refuses such a world.
+    Lenient,
+}
+
+/// `put_namespace`, but a value that does not fit its typed row is held as a `ValueRow` in the
+/// namespace's slot (`Namespaces::Lenient`).
+pub fn put_namespace_as_found(world: &mut World, name: &str, value: V) -> Result<()> {
+    if let Some(Ok(row)) = typed_row(name, &value) {
+        let slot = world.slots.get(name).ok_or_else(|| bad(format_args!("{name} has no slot")))?;
+        slot.try_borrow_mut()?.row = Some(row);
+        return Ok(());
+    }
+    if world.slots.get(name).is_none() {
+        world.slots.add(text(name), Place::Value)?;
+    }
+    put_row(world, name, ValueRow(value))
+}
+
 /// The World of a canonical document, with a slot for each owned name (`slots`: `[name, is_field]`).
 pub fn world(document: &Value, slots: &Value) -> Result<World> {
+    world_with(document, slots, Namespaces::Strict)
+}
+
+/// `world`, reading the namespaces as `namespaces` says.
+pub fn world_with(document: &Value, slots: &Value, namespaces: Namespaces) -> Result<World> {
     let mut world = World::default();
     {
         let scalars = world.scalars.get_mut();
@@ -347,7 +377,10 @@ pub fn world(document: &Value, slots: &Value) -> Result<World> {
     put_row(&mut world, world::METRIC_STATE, metrics)?;
     put_row(&mut world, world::MODEL_CONFIGS, ValueRow(value(&document["model_configs"])?))?;
     for (name, namespace) in object(&document["model_state"], "model_state")? {
-        put_namespace(&mut world, name, value(namespace)?)?;
+        match namespaces {
+            Namespaces::Strict => put_namespace(&mut world, name, value(namespace)?)?,
+            Namespaces::Lenient => put_namespace_as_found(&mut world, name, value(namespace)?)?,
+        }
     }
     let mut queue = Queue::new();
     for item in array(&document["event_queue"], "event_queue")? {

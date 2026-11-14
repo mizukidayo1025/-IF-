@@ -23,6 +23,7 @@ pub mod sections;
 pub mod steps;
 pub mod texts;
 pub mod ticks;
+pub mod validate;
 pub mod views;
 
 use std::sync::Arc;

@@ -119,7 +119,9 @@ split PR by PR; its last section sums up what is where.
   loaded world with no Python behind it, which the WASM prototype runs: the sections and the floor
   plan of the export (`load::Sections`, `load::FloorPlans`), the records of the world's log, the
   contracts (E15) giving their input back (it counts what was asked by model), the whole-world
-  validation (E6) passing, no LLM, and the metric samples kept as lines for their digest.
+  validation (E6) answered by the core's `validate` (#250: the rules ported so far, with Python's
+  classes and texts; a part not ported yet passes), no LLM, and the metric samples kept as lines
+  for their digest.
   `plain::PlainRun` reads an export, runs one tick at a time (`engine::step`: `run_tick`, the
   minute moved on, the end-of-tick check, as `TickEngine.step`) and gives the digests of the
   world's parts (`canonical::digests`) and of the samples; on the worlds of `tick_core.json` they

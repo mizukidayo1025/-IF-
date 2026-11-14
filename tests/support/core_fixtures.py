@@ -71,6 +71,10 @@ FIXTURES: dict[str, str] = {
     # Not a test's data: the table the core's minute-0 builder reads (#249), at its own path.
     "initial_table": "support.core_initial:initial_table",
     "scenario_builder": "support.core_scenario_builder:scenario_builder_fixture",
+    # The whole world's validation (#250): the valid worlds, and a file of cases per area.
+    "validate_worlds": "support.core_validate:validate_worlds_fixture",
+    "validate_entry": "support.core_validate:validate_entry_fixture",
+    # The input contracts (#346).
     "contracts_effects": "support.core_contracts:contracts_effects_fixture",
     "contracts_overlay": "support.core_contracts:contracts_overlay_fixture",
     "contracts_geometry": "support.core_contracts:contracts_geometry_fixture",
