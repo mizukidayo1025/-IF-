@@ -9,8 +9,8 @@
 //! - A contract (policy E15) gives its input back as given. What it was asked is kept by the
 //!   model's name (`contracts`): where the pydantic model would have refused or changed the input,
 //!   the Run may part from the native path's.
-//! - The whole world's validation (policy E6) passes, and the end-of-tick check asks no Python
-//!   validator (`engine::NoPython`).
+//! - The whole world's validation (policy E6) is the core's (`validate`, #250): the rules ported so
+//!   far, with Python's texts; the end-of-tick check asks no Python validator (`engine::NoPython`).
 //! - There is no LLM: the Run runs as one without (`Llm::default()`); no decision or trace goes out
 //!   (`DecisionSink::Silent`, `TraceLevel::Off`), and no foreign handler runs.
 //! - The records of the log are the world's (`load::find_record`). The log holds them in the binary
@@ -51,6 +51,7 @@ use crate::rules::action_lifecycle::ActiveActions;
 use crate::rules::common_operations::Logged;
 use crate::rules::metrics::MetricSample;
 use crate::state::resource_ledger::NAME as LEDGER;
+use crate::validate;
 use crate::value::V;
 use crate::world::WorldCell;
 
@@ -340,16 +341,23 @@ pub fn unpack_sample(packer: &Packer, bytes: &[u8]) -> Result<UnpackedSample> {
 impl Host for PlainHost {
     type Error = Error;
 
-    fn validate_candidate(&mut self, _kind: TxnKind, _stage: Stage) -> Result<()> {
-        Ok(())
+    fn validate_candidate(&mut self, _kind: TxnKind, stage: Stage) -> Result<()> {
+        self.loaded.cell.with(|world| match stage {
+            Stage::World => validate::world(world, &validate::Options::default()),
+            Stage::Candidate => validate::candidate(world),
+        })?
     }
 
     fn validate_world(&mut self) -> Result<()> {
-        Ok(())
+        self.loaded.cell.with(|world| validate::world(world, &validate::Options::default()))?
     }
 
     fn validate_extensions(&mut self) -> Result<()> {
-        Ok(())
+        self.loaded.cell.with(|world| validate::extensions(world, true))?
+    }
+
+    fn validate_in_flight(&mut self, event: &EventRow) -> Result<()> {
+        self.loaded.cell.with(|world| validate::world(world, &validate::Options { history: true, in_flight: Some(event) }))?
     }
 
     fn find_record(&mut self, event_id: &str) -> Result<Option<Logged>> {
