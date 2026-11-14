@@ -10,7 +10,7 @@
 //! Python class, and `OrPy` does it for a core call's result: `core_call().or_py()?`.
 
 
-use pyo3::exceptions::{PyKeyError, PyRuntimeError, PyTypeError, PyValueError};
+use pyo3::exceptions::{PyAttributeError, PyKeyError, PyRuntimeError, PyTypeError, PyValueError};
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
@@ -39,6 +39,7 @@ pub(crate) fn to_py_err(error: Error) -> PyErr {
         Error::Key(text) => PyKeyError::new_err(text),
         Error::Runtime(text) => PyRuntimeError::new_err(text),
         Error::Type(text) => PyTypeError::new_err(text),
+        Error::Attribute(text) => PyAttributeError::new_err(text),
         Error::Invariant(text) => PyErr::new::<StateInvariantError, _>(text),
         Error::Ledger(text) => PyErr::new::<ResourceLedgerError, _>(text),
         corrupt @ Error::Corrupt { .. } => PyErr::new::<StateInvariantError, _>(corrupt.to_string()),

@@ -67,6 +67,10 @@ pub enum Checked {
     CompilerProvenance,
     /// `PlanAssumption`.
     PlanAssumption,
+    /// `FacilityGeometry`, of `simulator_signatures` (#360).
+    FacilityGeometry,
+    /// `FacilityAwarenessConfig`, of `simulator_signatures` (#360).
+    FacilityAwareness,
 }
 
 /// How Python holds the value it validates: a namespace's or a config's tracked tree, or an
@@ -78,7 +82,7 @@ pub enum Holder {
 }
 
 /// `Model.model_validate(value).model_dump(mode="json")` of a world's value, or the
-/// `ValidationError` (a ValueError) with pydantic's text.
+/// `ValidationError` (`Error::Validation`, a ValueError) with pydantic's text.
 pub fn checked(which: &Checked, input: &V, holder: Holder) -> Result<V> {
     let model: &'static Model = match which {
         Checked::ZoneEnvironment => &models::ZONE_ENVIRONMENT,
@@ -86,10 +90,12 @@ pub fn checked(which: &Checked, input: &V, holder: Holder) -> Result<V> {
         Checked::Guard => &models::GUARD,
         Checked::CompilerProvenance => &models::COMPILER_PROVENANCE,
         Checked::PlanAssumption => &models::PLAN_ASSUMPTION,
+        Checked::FacilityGeometry => &models::FACILITY_GEOMETRY,
+        Checked::FacilityAwareness => &models::FACILITY_AWARENESS,
     };
     let given = match holder {
         Holder::Tracked => In::tracked(input),
         Holder::Frozen => In::frozen(input),
     };
-    pydantic::model(model, given, &mut Ctx::default()).map(V::Map).map_err(|errors| Error::Value(pydantic::text(model.name, &errors)))
+    pydantic::model(model, given, &mut Ctx::default()).map(V::Map).map_err(|errors| Error::Validation(pydantic::text(model.name, &errors)))
 }

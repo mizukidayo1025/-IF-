@@ -53,7 +53,14 @@ pub enum S {
     /// `str | int | float | bool` (lax, smart) with `PlanAssumption`'s field validator
     /// `finite_numeric_value` (events/effects.py, #351).
     AssumptionValue,
+    /// A type with a `mode="after"` field validator: it reads the validated value and gives the
+    /// value the field keeps, or its `ValueError`'s text, which pydantic shows with the field's
+    /// input as given (#360).
+    After(&'static S, FieldAfter),
 }
+
+/// A `mode="after"` field validator: the value the field keeps, or the `ValueError`'s text.
+pub type FieldAfter = fn(V) -> Result<V, &'static str>;
 
 /// An `int`'s schema: `strict=True`, and its bounds.
 pub struct IntS {
@@ -470,6 +477,7 @@ fn validate(s: &'static S, input: In<'_>, ctx: &mut Ctx) -> Out {
         S::Model(inner) => model(inner, input, ctx).map(V::Map),
         S::GuardValue => guard_value(input),
         S::AssumptionValue => assumption_value(input),
+        S::After(inner, after) => after(validate(inner, input, ctx)?).or_else(|text| one("value_error", format!("Value error, {text}"), input)),
     }
 }
 

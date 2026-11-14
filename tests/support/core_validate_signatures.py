@@ -79,6 +79,10 @@ def case(name: str, edit: Edit, base: str = "generated") -> Case:
     return Case(name, base, edit=edit)
 
 
+def awareness_ids(ids: Any) -> Edit:
+    return config("facility_awareness", {"initial_known_facility_ids": ids})
+
+
 PROXIMITY = {
     "schema_version": 1,
     "enabled": True,
@@ -121,6 +125,31 @@ CASES = [
         "sig_awareness_ok",
         config("facility_awareness", {"initial_known_facility_ids": ["toilet_01"]}),
     ),
+    # pydantic's ValidationError of the models the signatures read (#360). A config that is no
+    # dict never reaches the AttributeError of `.get`: `selected_models` refuses it first.
+    case("sig_geometry_invalid", config_field("facility_geometry", "schema_version", 2)),
+    case(
+        "sig_environment_invalid",
+        config_field("zone_environment", "max_rest_decision_minutes", "x"),
+    ),
+    case("sig_awareness_unstable", awareness_ids(["toilet_01", "a b"])),
+    case("sig_awareness_duplicate", awareness_ids(["toilet_01", "intake_desk", "toilet_01"])),
+    case("sig_awareness_not_tuple", awareness_ids("toilet_01")),
+    case("sig_awareness_dict", awareness_ids({"toilet_01": 1})),
+    case("sig_awareness_item", awareness_ids(["toilet_01", 3])),
+    case("sig_awareness_too_long", awareness_ids(["toilet_01"] * 1001)),
+    case("sig_awareness_extra", config("facility_awareness", {"x": 1})),
+    case("sig_awareness_list", config("facility_awareness", [])),
+    case(
+        "sig_awareness_fields",
+        config(
+            "facility_awareness",
+            {"schema_version": 2, "discover_co_located_facilities_on_arrival": 1},
+        ),
+    ),
+    case("sig_extensions_list", config("simulator_extensions", [])),
+    case("sig_extensions_none", config("simulator_extensions", None)),
+    case("sig_extensions_text", config("simulator_extensions", "enabled")),
 ]
 
 
@@ -157,12 +186,7 @@ SIGNATURE_CASES = [
     case("signed_extensions_off", config_field("simulator_extensions", "enabled", False)),
     case("signed_no_extensions", drop_config("simulator_extensions")),
     case("signed_no_zone_environment", drop_config("zone_environment")),
-    # pydantic's ValidationError, which the core raises as a ValueError with the same text.
-    case("signed_geometry_invalid", config_field("facility_geometry", "schema_version", 2)),
-    case(
-        "signed_environment_invalid",
-        config_field("zone_environment", "max_rest_decision_minutes", "x"),
-    ),
+    # pydantic's ValidationError.
     case(
         "signed_environment_dict", config_field("zone_environment", "max_rest_decision_minutes", {})
     ),

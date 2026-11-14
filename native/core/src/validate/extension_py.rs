@@ -36,14 +36,18 @@ pub enum Held {
     Tracked,
 }
 
-/// The `TypeError` of hashing a list or a dict.
-pub fn unhashable(value: &V, held: Held) -> Error {
-    let name = match (value, held) {
+/// `type(value).__name__` of a value held so.
+pub fn held_type_name(value: &V, held: Held) -> &'static str {
+    match (value, held) {
         (V::List(_), Held::Tracked) => "TrackedList",
         (V::Map(_), Held::Tracked) => "TrackedDict",
         _ => type_name(value),
-    };
-    Error::Type(format!("unhashable type: '{name}'"))
+    }
+}
+
+/// The `TypeError` of hashing a list or a dict.
+pub fn unhashable(value: &V, held: Held) -> Error {
+    Error::Type(format!("unhashable type: '{}'", held_type_name(value, held)))
 }
 
 /// `value in table` of a dict keyed by str: a str the table has; a list or a dict raises.

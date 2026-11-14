@@ -48,6 +48,9 @@ pub enum Error {
     Runtime(String),
     /// `TypeError(text)`.
     Type(String),
+    /// `AttributeError(text)`: a rule reads a value with a method its type lacks (`.get` of a
+    /// list), which no rule catches (#360).
+    Attribute(String),
     /// `StateInvariantError(text)` of `core/world.py`, from a Python rule.
     Invariant(String),
     /// `ResourceLedgerError(text)` of `domain/resources.py`, the contract of the ledger.
@@ -169,6 +172,7 @@ impl fmt::Display for Error {
             | Error::Key(text)
             | Error::Runtime(text)
             | Error::Type(text)
+            | Error::Attribute(text)
             | Error::Invariant(text)
             | Error::Ledger(text) => f.write_str(text),
             Error::Corrupt { namespace, check } => f.write_str(&corrupt_text(namespace, check)),

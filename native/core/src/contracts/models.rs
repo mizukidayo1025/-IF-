@@ -8,6 +8,7 @@ use std::sync::Arc;
 use indexmap::IndexMap;
 
 use super::pydantic::{After, Field, Fields, FloatS, IntS, Len, Lit, Model, Pattern, StrS, S};
+use crate::events::is_stable_id;
 use crate::geometry::{point_in_polygon, Pt};
 use crate::mathx::{hypot, py_max, py_min, py_sum};
 use crate::value::V;
@@ -202,6 +203,44 @@ fn is_simple_polygon(points: &[Pt]) -> bool {
 fn strictly_inside(point: Pt, polygon: &[Pt]) -> bool {
     point_in_polygon(point, polygon) && !edges(polygon).into_iter().any(|(a, b)| segments_intersect(point, point, a, b))
 }
+
+// ---- domain/facility_awareness.py --------------------------------------------------------------
+
+/// `str`, lax (pydantic takes a str only, of the values a `V` can be).
+const TEXT: S = S::Str(StrS { strip: false, min: None, max: None, pattern: None });
+
+/// `FacilityAwarenessConfig.stable_unique_facility_ids`: each ID matches `_STABLE_ID`, none is
+/// given twice, and the field keeps them sorted.
+fn stable_unique_facility_ids(value: V) -> Result<V, &'static str> {
+    let V::List(mut ids) = value else {
+        return Ok(value);
+    };
+    let text = |id: &V| match id {
+        V::Str(text) => Some(text.clone()),
+        _ => None,
+    };
+    if ids.iter().any(|id| !text(id).is_some_and(|id| is_stable_id(&id))) {
+        return Err("initial_known_facility_ids must contain stable facility IDs");
+    }
+    ids.sort_by_key(text);
+    if ids.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err("initial_known_facility_ids must be unique");
+    }
+    Ok(V::List(ids))
+}
+
+/// `FacilityAwarenessConfig` (#360).
+pub static FACILITY_AWARENESS: Model = model(
+    "FacilityAwarenessConfig",
+    &[
+        SCHEMA_VERSION,
+        with("initial_known_facility_ids", S::After(&S::Tuple(&TEXT, len(None, Some(1000))), stable_unique_facility_ids), empty),
+        with("discover_co_located_facilities_on_arrival", S::Bool { strict: true }, || V::Bool(true)),
+        with("source_type", S::Lit(&[Lit::Str("assumption")]), || text("assumption")),
+        with("source_id", S::Lit(&[Lit::Str("ASM-FACILITY-ENTRY-ORIENTATION-V1")]), || text("ASM-FACILITY-ENTRY-ORIENTATION-V1")),
+    ],
+    None,
+);
 
 // ---- contracts/extensions.py -------------------------------------------------------------------
 
