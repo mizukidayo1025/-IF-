@@ -22,6 +22,7 @@
 import { BrowserApi, installSample, SAMPLE_MARKER } from "./browser_api.mjs";
 import { ensureComputeRun, recoverInterrupted } from "./compute.mjs";
 import { opfsTree } from "./project_store.mjs";
+import { RegionProviderError } from "./research.mjs";
 
 const LOCK = "sheltersim-browser-store";
 const locked = (task) => (navigator.locks ? navigator.locks.request(LOCK, task) : task());
@@ -106,19 +107,39 @@ async function start(sampleUrl) {
     return sample;
   });
   // The site's index of the GSI shelter CSV (scripts/build_static_site.py), read once; null when
-  // the site has none (the Scenario preview then answers browser_unsupported).
+  // the site has none (the Scenario preview then answers browser_unsupported). A municipality
+  // code's rows are read when a lookup needs them (#332), and kept once read; one that cannot be
+  // read is "unavailable" in the research, as Python's CSV download that fails.
   let shelters = null;
   const shelterIndex = () =>
     (shelters ??= fetch(new URL("./gsi-shelter-index.json", import.meta.url), { cache: "no-cache" })
       .then((answer) => (answer.ok ? answer.json() : null))
       .catch(() => null));
+  const rowsByCode = new Map();
+  const shelterRows = async (code) => {
+    if (!rowsByCode.has(code)) {
+      let answer;
+      try {
+        answer = await fetch(new URL(`./gsi-shelters/${code}.json`, import.meta.url), { cache: "no-cache" });
+      } catch {
+        throw new RegionProviderError("public-data endpoint could not be reached");
+      }
+      if (!answer.ok) throw new RegionProviderError(`public-data endpoint returned HTTP ${answer.status}`);
+      try {
+        rowsByCode.set(code, await answer.json());
+      } catch {
+        throw new RegionProviderError("public-data endpoint returned invalid JSON");
+      }
+    }
+    return rowsByCode.get(code);
+  };
   const api = new BrowserApi({
     wasm,
     tree,
     quota: async () => (await navigator.storage.estimate()).quota ?? null,
     locked,
     branchLock,
-    scenario: { shelterIndex },
+    scenario: { shelterIndex, shelterRows },
   });
   return { api, wasm, installed };
 }

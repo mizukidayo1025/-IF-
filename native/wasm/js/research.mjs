@@ -11,11 +11,12 @@
 //   fails with the texts of providers.py's `_get_json`.
 // - The GSI national shelter CSV (11.7 MB, no CORS) is not fetched: the site's build reads it once
 //   and keeps its sha256, HTTP metadata, invalid-row count and the municipality names by code
-//   (`gsi_shelter_index` of providers.py, written by scripts/build_static_site.py). With these the
-//   lookup by name answers as providers.py's `GsiShelterProvider.search_municipality`: candidates
-//   by exact name or by substring. A lookup that needs the shelter rows themselves (a municipality
-//   code given, or a name that resolves to one code) is refused (`BrowserUnsupported`), as decided
-//   for this week (#285).
+//   (`gsi_shelter_index` of providers.py), and each code's rows the lookup can match, with the
+//   columns the research reads (`gsi_shelter_rows`), both written by scripts/build_static_site.py.
+//   The lookup answers as providers.py's `GsiShelterProvider.search_municipality`, from the index
+//   and, when it needs the rows (a municipality code given, or a name that resolves to one code,
+//   #332), from that code's rows (`shelterRows(code)`); the matched rows become research.py's
+//   `ShelterCandidate`s.
 // - e-Stat, the configured regional sources and the JMA forecast answer "not configured", as on the
 //   VM; the MLIT P20 note and the hazard map layers are fixed texts.
 //
@@ -34,8 +35,16 @@ export const GSI_SHELTER_CSV_URL = "https://hinanmap.gsi.go.jp/hinanjocp/default
 /// The shelter index the site's build writes (`gsi_shelter_index` of providers.py).
 export const SHELTER_INDEX_FORMAT = "sheltersim-gsi-shelter-index";
 export const SHELTER_INDEX_VERSION = 1;
+/// A municipality code's rows the site's build writes (`gsi_shelter_rows` of providers.py).
+export const SHELTER_ROWS_FORMAT = "sheltersim-gsi-shelter-rows";
+export const SHELTER_ROWS_VERSION = 1;
+const SHELTER_ROW_COLUMNS = ["named", "共通ID", "施設・場所名", "住所", "緯度", "経度", "受入対象者", "その他市町村長が必要と認める事項"];
 const MAX_RESPONSE_BYTES = 2_000_000;
 const MAX_MUNICIPALITY_CODE_SUGGESTIONS = 30;
+const MAX_MUNICIPAL_SHELTERS = 500;
+/// The longest municipality name the research's models take (pydantic's `max_length`, in code
+/// points); Python answers a longer one "unavailable" (its ValidationError is a ValueError).
+const MAX_MUNICIPALITY_NAME = 240;
 
 /// What the browser does not answer: the caller answers 409 `browser_unsupported`.
 export class BrowserUnsupported extends Error {}
@@ -222,27 +231,90 @@ export function checkShelterIndex(index) {
 /// `sorted` of (code, name) pairs; each keeps its normalized name third.
 const sortPairs = (pairs) => pairs.sort((a, b) => codePointCompare(a[0], b[0]) || codePointCompare(a[1], b[1]));
 
-/// `GsiShelterProvider.search_municipality(name)` by name alone, on the index: what it answers
-/// without the shelter rows. A name resolving to one code needs the rows: BrowserUnsupported.
-function shelterLookup(name, index, casefold) {
-  const requested = normalizeMunicipality(name, casefold);
-  if (Array.from(requested).length < 2) throw new RegionProviderError("municipality must be at least two characters", { cause: "value" });
-  const exact = Object.keys(index.codes).filter((code) => index.codes[code].some(([normalized]) => normalized === requested));
-  if (exact.length === 1) throw new BrowserUnsupported("GSIの避難所一覧の行（自治体名がひとつの自治体コードに一致）");
-  const lookup = { municipality: null, municipality_code: null, municipality_name_verified: false, complete: false, matched_count: 0, shelters: [] };
-  if (exact.length > 1) {
-    const options = sortPairs(exact.flatMap((code) => index.codes[code].map(([normalized, display]) => [code, display, normalized])));
-    return { ...lookup, status: "ambiguous_municipality", candidates: options, truncated: false };
+/// Check a municipality code's rows the site's build wrote, for the index's snapshot.
+export function checkShelterRows(rows, index, code) {
+  if (rows === null || typeof rows !== "object" || rows.format !== SHELTER_ROWS_FORMAT || rows.version !== SHELTER_ROWS_VERSION || rows.code !== code) {
+    throw new Error("not the GSI shelter rows of this code and version");
   }
-  const suggestions = sortPairs(
-    Object.entries(index.codes).flatMap(([code, names]) => names.filter(([normalized]) => normalized.includes(requested)).map(([normalized, display]) => [code, display, normalized])),
-  );
-  return {
-    ...lookup,
-    status: "unresolved_municipality",
-    candidates: suggestions.slice(0, MAX_MUNICIPALITY_CODE_SUGGESTIONS),
-    truncated: suggestions.length > MAX_MUNICIPALITY_CODE_SUGGESTIONS,
-  };
+  if (rows.sha256 !== index.sha256) throw new RegionProviderError("the site's GSI shelter rows are not of its index's snapshot; reload the page");
+  if (JSON.stringify(rows.columns) !== JSON.stringify(SHELTER_ROW_COLUMNS) || !Array.isArray(rows.rows)) throw new Error("GSI shelter rows of other columns");
+  return rows.rows.map((row) => {
+    if (!Array.isArray(row) || row.length !== SHELTER_ROW_COLUMNS.length || typeof row[0] !== "boolean" || !row.slice(1).every((value) => value === null || typeof value === "string")) {
+      throw new Error("a GSI shelter row of another shape");
+    }
+    const [named, commonId, name, address, latitude, longitude, accepted, notes] = row;
+    return { named, commonId: pyStrip(commonId ?? ""), name, address, latitude, longitude, accepted, notes };
+  });
+}
+
+/// `_parse_gsi_common_id`'s subtype of an overnight shelter's common ID ("1" or "2").
+function shelterSubtype(commonId) {
+  const match = /^E\d{5}\d{5}1([12])[0-9A-Za-z]$/.exec(commonId);
+  if (match === null) throw new Error("a GSI shelter row without an overnight shelter's common ID");
+  return match[1];
+}
+
+/// The rows of a pass of the lookup: the first of each common ID.
+function firstOfEach(rows) {
+  const seen = new Set();
+  return rows.filter((row) => !seen.has(row.commonId) && seen.add(row.commonId));
+}
+
+/// `GsiShelterProvider.search_municipality(name, municipality_code)` on the site's index, and on
+/// the rows of the code it matches (`shelterRows(code)`, read only then). Its ValueErrors are
+/// RegionProviderErrors here (research.py answers both "unavailable").
+async function shelterLookup(name, municipalityCode, index, casefold, shelterRows) {
+  const requested = normalizeMunicipality(name, casefold);
+  let code = municipalityCode === null ? null : pyStrip(municipalityCode);
+  const codeWasSelected = code !== null;
+  // Python's `\d` of a str pattern: any decimal digit (Nd).
+  if (code !== null && !/^\p{Nd}{5}$/u.test(code)) throw new RegionProviderError("municipality code must be the five-digit code in the GSI common ID");
+  if (code === null && Array.from(requested).length < 2) throw new RegionProviderError("municipality must be at least two characters");
+  const namesOf = (of) => (Object.hasOwn(index.codes, of) ? index.codes[of] : []);
+  const optionsOf = (codes) => sortPairs(codes.flatMap((of) => namesOf(of).map(([normalized, display]) => [of, display, normalized])));
+  const exact = Object.keys(index.codes).filter((of) => index.codes[of].some(([normalized]) => normalized === requested));
+  const lookup = { municipality: null, municipality_code: null, municipality_name_verified: false, complete: false, matched_count: 0, shelters: [], candidates: [], truncated: false };
+  if (code === null) {
+    if (exact.length > 1) return { ...lookup, status: "ambiguous_municipality", candidates: optionsOf(exact) };
+    if (exact.length === 0) {
+      const suggestions = sortPairs(
+        Object.entries(index.codes).flatMap(([of, names]) => names.filter(([normalized]) => normalized.includes(requested)).map(([normalized, display]) => [of, display, normalized])),
+      );
+      return {
+        ...lookup,
+        status: "unresolved_municipality",
+        candidates: suggestions.slice(0, MAX_MUNICIPALITY_CODE_SUGGESTIONS),
+        truncated: suggestions.length > MAX_MUNICIPALITY_CODE_SUGGESTIONS,
+      };
+    }
+    [code] = exact;
+  }
+  if (codeWasSelected && exact.length > 0 && !exact.includes(code)) {
+    return { ...lookup, municipality_code: code, status: "ambiguous_municipality", candidates: optionsOf(exact) };
+  }
+  const names = namesOf(code);
+  const complete = index.invalid_record_count === 0;
+  if (names.length === 0 && codeWasSelected) return { ...lookup, municipality_code: code, status: "no_published_records", complete };
+  const verified = names.some(([normalized]) => normalized === requested);
+  if (names.length !== 1) return { ...lookup, municipality_code: code, status: "ambiguous_municipality", candidates: optionsOf([code]), municipality_name_verified: verified };
+  const matched = { ...lookup, municipality: names[0][1], municipality_code: code, municipality_name_verified: verified };
+  // A selected code's pass takes the rows with a municipality name; the pass after it (or after a
+  // name resolved the code) takes every row of the code.
+  const rows = checkShelterRows(await shelterRows(code), index, code);
+  let picked = codeWasSelected ? firstOfEach(rows.filter((row) => row.named)) : [];
+  if (picked.length === 0) picked = firstOfEach(rows);
+  if (picked.length === 0) return { ...matched, status: "no_published_records", complete };
+  if (picked.length > MAX_MUNICIPAL_SHELTERS) return { ...matched, status: "result_limit_exceeded", matched_count: picked.length };
+  return { ...matched, status: "matched", complete, matched_count: picked.length, shelters: picked };
+}
+
+/// research.py's `_finite_coordinate` of a CSV value, or BrowserUnsupported where `float()` of
+/// non-ASCII digits would read what JS does not.
+function finiteCoordinate(value, lower, upper) {
+  if (value === null || !pyStrip(value)) return null;
+  if (/[^\x00-\x7f]/.test(pyStrip(value))) throw new BrowserUnsupported("GSIの避難所一覧の緯度・経度にASCIIでない文字");
+  const number = pyFloatOf(value);
+  return number !== null && Number.isFinite(number) && lower <= number && number <= upper ? number : null;
 }
 
 // ---- The research ------------------------------------------------------------------------------------
@@ -318,9 +390,10 @@ export function researchRequest(request) {
 /// `RegionResearchService.research(request)` of a research request (`researchRequest`), offline:
 /// `{document, text}`, the result's dump (floats as `PyFloat`) and its canonical JSON.
 /// `casefold` is Python's `str.casefold` (the core's, `wasm.casefold`); `index` the site's shelter
-/// index; `fetchJson(url)` the address search's JSON (`gsiFetchJson`).
-export async function research({ request, now, index, casefold, fetchJson = (url) => gsiFetchJson(url) }) {
-  if (request.municipality_code !== null) throw new BrowserUnsupported("自治体コードによるGSI避難所一覧の照合");
+/// index; `shelterRows(code)` the site's rows of a code of the index (`gsi_shelter_rows`), which
+/// fails with a RegionProviderError when they cannot be read, as Python's CSV download does;
+/// `fetchJson(url)` the address search's JSON (`gsiFetchJson`).
+export async function research({ request, now, index, shelterRows, casefold, fetchJson = (url) => gsiFetchJson(url) }) {
   checkShelterIndex(index);
   const at = pyUtc(now);
   const sources = [];
@@ -329,6 +402,7 @@ export async function research({ request, now, index, casefold, fetchJson = (url
   const hazards = [];
   const unknowns = [];
   const warnings = [];
+  const shelters = [];
   let shelterRegister;
 
   try {
@@ -419,7 +493,11 @@ export async function research({ request, now, index, casefold, fetchJson = (url
 
   const lookupName = request.selected_municipality_name || request.municipality_query;
   try {
-    const lookup = shelterLookup(lookupName, index, casefold);
+    const lookup = await shelterLookup(lookupName, request.municipality_code, index, casefold, shelterRows);
+    const tooLong = (text) => text !== null && Array.from(text).length > MAX_MUNICIPALITY_NAME;
+    if (tooLong(lookup.municipality) || lookup.candidates.some(([, display]) => tooLong(display))) {
+      throw new BrowserUnsupported("GSIの避難所一覧の240文字を超える自治体名");
+    }
     const sourceId = GSI_SHELTER_SOURCE_PREFIX + index.sha256.slice(0, 12);
     sources.push(
       dataSource({
@@ -465,14 +543,55 @@ export async function research({ request, now, index, casefold, fetchJson = (url
       municipality_update_metadata_status: "unknown",
     };
     if (index.invalid_record_count) warnings.push(`GSI避難所CSVで共通ID等を解釈できない行が${index.invalid_record_count}件あり、取得範囲は完全ではありません。`);
+    if (lookup.status === "matched" && !lookup.municipality_name_verified) {
+      warnings.push("自治体コードから避難所を照合しましたが、入力自治体名との完全一致は確認できませんでした。候補自治体名を確認してください。");
+    }
     const listed = candidates.map((item) => `${item.municipality_name} (${item.municipality_code})`).join("、");
     if (lookup.status === "ambiguous_municipality") {
       unknowns.push(`GSI避難所一覧の完全一致名から自治体コードを一意に決められません。候補の自治体コードを選択してください: ${listed}`);
-    } else {
+    } else if (lookup.status === "unresolved_municipality") {
       unknowns.push(
         `GSI避難所一覧は自治体コードで照合します。表示候補は名称検索による選択用の候補で、施設レコードの絞り込みには使っていません。GSI共通IDの5桁コードを確定してください。${listed ? ` 候補: ${listed}` : ""}`,
       );
       if (lookup.truncated) warnings.push("自治体コード候補は先頭30件のみ表示しています。検索語を具体化してください。");
+    } else if (lookup.status === "result_limit_exceeded") {
+      unknowns.push(`該当自治体のGSI避難所一覧は${lookup.matched_count}件あり、表示上限500件を超えました。部分結果は返していません。`);
+    } else if (lookup.status === "no_published_records") {
+      unknowns.push("選択した自治体コードに一致するGSI公開避難所レコードはありません。未掲載・非公開・更新遅れの可能性があり、自治体に確認してください。");
+    } else if (lookup.shelters.length > 0) {
+      for (const row of lookup.shelters) {
+        const name = pyStrip(row.name ?? "");
+        if (!name) continue;
+        const notes = ["GSIの登録データです。公開・登録の最新性および現在の指定状況は自治体に確認してください。", "定員、面積、災害別の適合性はこのレコードから確認できません。"];
+        if (row.accepted) notes.push(`受入対象者: ${pyStrip(row.accepted)}`);
+        if (row.notes) notes.push(`自治体記載事項: ${pyStrip(row.notes)}`);
+        const latitude = finiteCoordinate(row.latitude, -90, 90);
+        const longitude = finiteCoordinate(row.longitude, -180, 180);
+        shelters.push({
+          id: `GSI-${row.commonId}`,
+          name,
+          address: pyStrip(row.address ?? "") || null,
+          latitude: latitude === null ? null : new PyFloat(latitude),
+          longitude: longitude === null ? null : new PyFloat(longitude),
+          capacity: null,
+          area_m2: null,
+          supported_hazards: null,
+          source_id: sourceId,
+          source_kind: "official",
+          freshness: "unknown",
+          designation_type: "designated_shelter",
+          shelter_subtype: shelterSubtype(row.commonId) === "1" ? "general" : "welfare",
+          municipality_code: lookup.municipality_code,
+          municipality_name: lookup.municipality,
+          native_record_id: row.commonId,
+          municipality_update_date: null,
+          metadata_source_id: null,
+          verified_by_user: false,
+          notes,
+        });
+      }
+      if (shelters.length === 0) unknowns.push("GSI避難所データから表示可能な施設名を抽出できませんでした。");
+      warnings.push("GSI避難所一覧の候補です。未登録・非公開施設があり得るため、指定状況と利用可否は自治体へ確認してください。");
     }
   } catch (error) {
     if (!(error instanceof RegionProviderError)) throw error;
@@ -541,7 +660,7 @@ export async function research({ request, now, index, casefold, fetchJson = (url
     weather_observations: [],
     provider_statuses: providerStatuses,
     hazard_layers: hazards,
-    shelters: [],
+    shelters,
     shelter_register: shelterRegister,
     unknowns,
     warnings,
