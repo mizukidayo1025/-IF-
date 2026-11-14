@@ -750,14 +750,14 @@
    "text": "Day 3 08:00 トイレ1基故障、スタッフを3人追加"
   },
   {
-   "answer": "invalid",
+   "answer": "f7140eb183e8c0af47a9d1512e9a941dc1e5b6cb0e24ef055008a6a570bb9e00",
    "branch_id": "main",
    "minute": 60,
    "summary": "shelter",
    "text": "2026-10-14 14:00から16:00まで toilet outage"
   },
   {
-   "answer": "invalid",
+   "answer": "671bf9ec8cf695d1c731b6ee99154a4b68983807364fde42be1ad6502fa1d159",
    "branch_id": "main",
    "minute": 60,
    "summary": "shelter",
@@ -1352,14 +1352,14 @@
    "text": "Day 3 08:00 トイレ1基故障、スタッフを3人追加"
   },
   {
-   "answer": "invalid",
+   "answer": "d898ac5a5bc236fa9e9b0dba86e6eb69cd8774167ca96094e66b046c7b2fb621",
    "branch_id": "main",
    "minute": 60,
    "summary": "lone",
    "text": "2026-10-14 14:00から16:00まで toilet outage"
   },
   {
-   "answer": "invalid",
+   "answer": "c8e88878d274192b0777fd83151b15e1cc35369d1d6cde813095377a403af118",
    "branch_id": "main",
    "minute": 60,
    "summary": "lone",
@@ -1954,14 +1954,14 @@
    "text": "Day 3 08:00 トイレ1基故障、スタッフを3人追加"
   },
   {
-   "answer": "invalid",
+   "answer": "479f81a471b8773958083c1ccbb2a75be8367637ed606fd2e0f0ccd0836f8348",
    "branch_id": "main",
    "minute": 60,
    "summary": "empty",
    "text": "2026-10-14 14:00から16:00まで toilet outage"
   },
   {
-   "answer": "invalid",
+   "answer": "4333bf1560b9c3efbc20d6684840d3c7524c031ee8315f308aaadd06aa0affc9",
    "branch_id": "main",
    "minute": 60,
    "summary": "empty",
@@ -2556,14 +2556,14 @@
    "text": "Day 3 08:00 トイレ1基故障、スタッフを3人追加"
   },
   {
-   "answer": "invalid",
+   "answer": "23fff6c8a76bb4e2b8265039f0179eefb9ea5d3f383b863f080ae0ae2d427e07",
    "branch_id": "main",
    "minute": 60,
    "summary": "generated",
    "text": "2026-10-14 14:00から16:00まで toilet outage"
   },
   {
-   "answer": "invalid",
+   "answer": "735b71bddf512fde0eebebb4a1d748ec4e3313dcf6e599a1855f33affb759268",
    "branch_id": "main",
    "minute": 60,
    "summary": "generated",
@@ -3158,14 +3158,14 @@
    "text": "Day 3 08:00 トイレ1基故障、スタッフを3人追加"
   },
   {
-   "answer": "invalid",
+   "answer": "00ec5bbf82992fdc6e2bd0478a1edc1343d6a1173f4a527bd0c71ddb10e7aecd",
    "branch_id": "main",
    "minute": 60,
    "summary": "multi_operational",
    "text": "2026-10-14 14:00から16:00まで toilet outage"
   },
   {
-   "answer": "invalid",
+   "answer": "3b97423f7393959fe24fe9549103da7a7ae5220953e20232fe8f415485bd9593",
    "branch_id": "main",
    "minute": 60,
    "summary": "multi_operational",
@@ -3760,14 +3760,14 @@
    "text": "Day 3 08:00 トイレ1基故障、スタッフを3人追加"
   },
   {
-   "answer": "invalid",
+   "answer": "382a88ad7ca84a81c3e974a4952e362101347a6f53b6d75d41683977fe766e8d",
    "branch_id": "main",
    "minute": 60,
    "summary": "generated_7d",
    "text": "2026-10-14 14:00から16:00まで toilet outage"
   },
   {
-   "answer": "invalid",
+   "answer": "82446fff8728e7b1d286f5517f8f9fa298fe86c9364342ac3636025ddb56f7a4",
    "branch_id": "main",
    "minute": 60,
    "summary": "generated_7d",

@@ -957,6 +957,25 @@ def test_unsafe_or_unsupported_input_is_rejected(text: str, code: str) -> None:
     assert code in {item.code for item in result.issues}
 
 
+@pytest.mark.parametrize("text", ["2026-10-14 14:00 toilet outage", "10/13 9am toilet outage"])
+def test_a_date_without_a_start_date_asks_for_the_day_number(text: str) -> None:
+    """The issue offered the choice "Day N", which is not a StableId, so pydantic refused
+    it and the preview route answered 400 (#325)."""
+    context = summary().model_copy(update={"start_date": None})
+    result = parse(text, context=context)
+
+    assert result.status == "rejected"
+    assert [(item.code, item.choices) for item in result.issues] == [("missing_date_anchor", [])]
+    compiled = compile_natural_language(
+        ParseRequest(text=text, branch_id="baseline", selected_minute=0, scenario_summary=context),
+        LLMRouter(LLMSettings(mode=LLMMode.OFFLINE)),
+    )
+    assert compiled.status == "clarification_required"
+    assert compiled.choices == []
+    assert compiled.questions == [result.issues[0].message]
+    assert "Day番号を指定してください" in compiled.questions[0]
+
+
 def test_unknown_target_is_rejected_instead_of_inventing_a_facility() -> None:
     context = ScenarioSummary(
         duration_minutes=10080,

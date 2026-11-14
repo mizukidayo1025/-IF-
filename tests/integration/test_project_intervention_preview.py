@@ -205,6 +205,16 @@ def test_project_preview_changes_neither_the_branch_nor_its_history(project_api)
     assert _saved_state(project_api) == before
 
 
+@pytest.mark.parametrize("text", ["2026-10-14 14:00 toilet outage", "10/13 9am toilet outage"])
+def test_project_preview_of_a_date_asks_for_the_day_number(project_api, text) -> None:
+    """The route's summary has no start date; a date was a 400 instead of a question (#325)."""
+    preview = _preview(project_api, {"text": text})
+
+    assert preview["status"] == "clarification_required"
+    assert "program" not in preview
+    assert any("Day番号を指定してください" in item for item in preview["questions"])
+
+
 def test_project_apply_forks_at_a_past_minute_and_leaves_the_source_unchanged(
     project_api,
 ) -> None:

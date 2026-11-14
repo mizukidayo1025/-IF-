@@ -841,6 +841,21 @@ fn offline_result(request: &Request, parsed: Parsed, eligible: &[&Primitive], fa
             fallback_used,
         });
     }
+    // A date without the Scenario's start date: ask for the Day number (#325).
+    let date_questions: Vec<String> =
+        issues.iter().filter(|item| item.code == "missing_date_anchor").map(|item| item.message.clone()).collect();
+    if !date_questions.is_empty() && !eligible.is_empty() {
+        return Ok(Answer {
+            status: "clarification_required",
+            support_mode: "clarification_required",
+            plan: None,
+            mechanism_summary: "日付をシミュレーションのDayに変換できないため、作用案を作成していません。",
+            limitations: with_reason(vec!["各作用のDay番号を明示するまで作用を適用できません。".to_owned()], &reason),
+            questions: date_questions.into_iter().take(10).collect(),
+            choices: Vec::new(),
+            fallback_used,
+        });
+    }
     let mut limitation = if reason.is_empty() {
         "この入力を現在のシミュレーション機構へ安全に対応付けられません。".to_owned()
     } else {

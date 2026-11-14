@@ -731,9 +731,10 @@ fn time_window(text: &str, summary: &Summary) -> Result<std::result::Result<Opti
             return Ok(Err(fixed("invalid_time", "日付が正しくありません。")));
         };
         let Some(start) = summary.start_date else {
-            // Python's issue offers the choice "Day N", which is not a StableId: pydantic refuses
-            // the issue itself, and the request is a 400.
-            return Err(invalid("ParseIssue choices"));
+            return Ok(Err(fixed(
+                "missing_date_anchor",
+                "日付をシミュレーション分へ変換する開始日がありません。Day番号を指定してください。",
+            )));
         };
         let days = (requested - start.0) * 1440;
         if days < 0 {
@@ -742,9 +743,7 @@ fn time_window(text: &str, summary: &Summary) -> Result<std::result::Result<Opti
         base_day = Some(days);
     } else if let Some(found) = short_date {
         let Some(start) = summary.start_date else {
-            // Python's issue offers the choice "Day N", which is not a StableId: pydantic refuses
-            // the issue itself, and the request is a 400.
-            return Err(invalid("ParseIssue choices"));
+            return Ok(Err(fixed("missing_date_anchor", "月日表記を変換する開始日がありません。Day番号を指定してください。")));
         };
         let Some(requested) = ordinal(start.1, group_int(&found, 1).unwrap_or(0), group_int(&found, 2).unwrap_or(0)) else {
             return Ok(Err(fixed("invalid_time", "日付が正しくありません。")));
