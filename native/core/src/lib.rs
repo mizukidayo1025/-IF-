@@ -12,6 +12,7 @@ pub mod census;
 pub mod checkpoint;
 pub mod config;
 pub mod contacts;
+pub mod contracts;
 pub mod engine;
 pub mod entities;
 pub mod error;

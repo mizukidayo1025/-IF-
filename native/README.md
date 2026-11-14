@@ -105,6 +105,16 @@ split PR by PR; its last section sums up what is where.
   of one world. Its input is untrusted (the browser reads it): a value that is not what the
   exporter writes is an `Error`, never a panic (`core/tests/load_input.rs`). The core's tests and
   a host without Python both use it; a Checkpoint's restore is to use it later (stage 6).
+- **The input contracts without Python** (#346, part of #250): `contracts::validate` answers
+  `Host::contract` as the native host's pydantic 2.11.9 does: `model_dump(mode="json")` of the
+  model, or the `ValidationError`'s text byte for byte (the count, each error's location, message,
+  type, the input's `repr`, shortened past 50 bytes as pydantic does, and the documentation line).
+  `contracts/pydantic.rs` holds the part of pydantic the models use (strict and lax ints, floats,
+  bools and strings, literals, optional values, lists, tuples, dicts, nested and recursive models,
+  defaults, `extra="forbid"`, model and field validators); `contracts/models.rs` the 15 contracts
+  and their validators. An event's values reach the model frozen, as the native host gives them
+  (`contract_input`). `core/tests/contracts.rs` checks the answers Python recorded
+  (`tests/support/core_contracts.py`).
 - **A Run without Python** (#244, PR 4-3): `sheltersim_core::plain::PlainHost` is the host of a
   loaded world with no Python behind it, which the WASM prototype runs: the sections and the floor
   plan of the export (`load::Sections`, `load::FloorPlans`), the records of the world's log, the
