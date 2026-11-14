@@ -1,0 +1,75 @@
+{
+ "cases": [
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "WorldState v5 requires hydration_need to be zero"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "WorldState v5 requires hydration_need to be zero"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "WorldState v5 requires hydration_need to be zero"
+    ]
+   },
+   "name": "v5_hydration_need",
+   "world": "v5_hydration_need"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "WorldState v5 requires hydration_need to be zero"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "WorldState v5 requires hydration_need to be zero"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "WorldState v5 requires hydration_need to be zero"
+    ]
+   },
+   "name": "v5_initial_hydration_need",
+   "world": "v5_initial_hydration_need"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "WorldState v5 cannot contain resource service occupancy"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "WorldState v5 cannot contain resource service occupancy"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "WorldState v5 cannot contain resource service occupancy"
+    ]
+   },
+   "name": "v5_resource_occupancy",
+   "world": "v5_resource_occupancy"
+  }
+ ],
+ "worlds": {
+  "v5_hydration_need": {
+   "base": "small_replay",
+   "file": "validate_worlds"
+  },
+  "v5_initial_hydration_need": {
+   "base": "small_replay",
+   "file": "validate_worlds"
+  },
+  "v5_resource_occupancy": {
+   "base": "small_replay",
+   "file": "validate_worlds"
+  }
+ }
+}
