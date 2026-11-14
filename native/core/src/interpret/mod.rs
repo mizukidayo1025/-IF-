@@ -837,7 +837,7 @@ fn offline_result(request: &Request, parsed: Parsed, eligible: &[&Primitive], fa
             mechanism_summary: "時刻を一意に決められないため、作用案を作成していません。",
             limitations: with_reason(vec!["各イベントの時刻を明示するまで作用を適用できません。".to_owned()], &reason),
             questions: time_questions.into_iter().take(10).collect(),
-            choices: vec!["HH:MM".to_owned()],
+            choices: Vec::new(),
             fallback_used,
         });
     }

@@ -215,6 +215,16 @@ def test_project_preview_of_a_date_asks_for_the_day_number(project_api, text) ->
     assert any("Day番号を指定してください" in item for item in preview["questions"])
 
 
+def test_project_preview_of_a_vague_time_asks_without_choices(project_api) -> None:
+    """The choice "HH:MM" became a button that added "対象ID: HH:MM" to the request and
+    previewed the same question again (#340)."""
+    preview = _preview(project_api, {"text": "午後にトイレが故障"})
+
+    assert preview["status"] == "clarification_required"
+    assert preview["choices"] == []
+    assert any("具体的な時刻を指定してください" in item for item in preview["questions"])
+
+
 def test_project_apply_forks_at_a_past_minute_and_leaves_the_source_unchanged(
     project_api,
 ) -> None:
