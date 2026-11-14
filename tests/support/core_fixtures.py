@@ -76,6 +76,11 @@ FIXTURES: dict[str, str] = {
     "validate_entry": "support.core_validate:validate_entry_fixture",
     "validate_namespaces": "support.core_validate_namespaces:validate_namespaces_fixture",
     "validate_staff_tasks": "support.core_validate_namespaces:validate_staff_tasks_fixture",
+    # The input contracts (#346).
+    "contracts_effects": "support.core_contracts:contracts_effects_fixture",
+    "contracts_overlay": "support.core_contracts:contracts_overlay_fixture",
+    "contracts_geometry": "support.core_contracts:contracts_geometry_fixture",
+    "contracts_population": "support.core_contracts:contracts_population_fixture",
 }
 # The fixtures whose file is not under native/core/tests/data/.
 PATHS: dict[str, Path] = {"initial_table": INITIAL_TABLE}
