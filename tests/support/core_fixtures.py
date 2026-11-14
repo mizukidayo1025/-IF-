@@ -76,9 +76,12 @@ FIXTURES: dict[str, str] = {
     "validate_entry": "support.core_validate:validate_entry_fixture",
     "validate_entities": "support.core_validate_entities:validate_entities_fixture",
     "validate_entity_rows": "support.core_validate_entities:validate_entity_rows_fixture",
+    "validate_namespaces": "support.core_validate_namespaces:validate_namespaces_fixture",
+    "validate_staff_tasks": "support.core_validate_namespaces:validate_staff_tasks_fixture",
     "validate_resource_ledger": (
         "support.core_validate_resource_ledger:validate_resource_ledger_fixture"
     ),
+    "validate_effects": "support.core_validate_effects:validate_effects_fixture",
     # The input contracts (#346).
     "contracts_effects": "support.core_contracts:contracts_effects_fixture",
     "contracts_overlay": "support.core_contracts:contracts_overlay_fixture",
