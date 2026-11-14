@@ -200,9 +200,10 @@ python scripts/serve_static_site.py ../hinanjo-if-site --port 8000
 
 公開するときは、ディレクトリーをそのまま、ドメインの最上位で配るhostに置きます。画面は`/demo-v2.css`などを最上位からの道で読み、`/demo-v2?…`へ`history.replaceState`するので、`https://example.org/repo/`のような下の道では動きません。
 
-- `/demo-v2`を`demo-v2.html`で答えるhost：Cloudflare Pages、GitHub Pages（独自ドメインか、`<user>.github.io`のサイト）、Netlifyは、拡張子のない道を同じ名前の`.html`で答えます。Cloudflare Pagesには、`wrangler pages deploy <ディレクトリー>`でそのまま置けます（Pages Functionsは使いません）。Pagesは`404.html`がないと、ないファイルの道にも最上位の`index.html`を返すので、サイトには`404.html`を置き、ないファイルは404にします。GitHub PagesがJekyllを通さないよう`.nojekyll`も置きます。
+- 今の公開先は、Cloudflare Workersの静的なファイルの配信（static assets）です。手順と設定は下の「ブラウザー版の公開」にあります。
+- `/demo-v2`を`demo-v2.html`で答えるhost：Cloudflare Workersの静的なファイルの配信（`html_handling`が既定の`auto-trailing-slash`のとき）、Cloudflare Pages、GitHub Pages（独自ドメインか、`<user>.github.io`のサイト）、Netlifyは、拡張子のない道を同じ名前の`.html`で答えます。Pagesは`404.html`がないと、ないファイルの道にも最上位の`index.html`を返すので、サイトには`404.html`を置き、ないファイルは404にします（Workersでは`not_found_handling: "404-page"`で同じになります）。GitHub PagesがJekyllを通さないよう`.nojekyll`も置きます。
 - ほかのserverでは、拡張子のない道を`.html`で答える設定が要ります。例えばnginxなら`try_files $uri $uri.html =404;`です。`.mjs`は`text/javascript`、`.wasm`は`application/wasm`で送ります。
-- 1つのファイルは`--part-mib`以下か、それより小さく保ちます（道具は20 MiBを超えると止まります。Cloudflare Pagesの上限は1ファイル25 MiBです）。
+- 1つのファイルは`--part-mib`以下か、それより小さく保ちます（道具は20 MiBを超えると止まります。Cloudflare Workersの静的なファイルの配信とCloudflare Pagesの上限は、1ファイル25 MiBです）。
 - サーバーの機能（認証、PDF、LLMの中継）はありません。画面の「従来のデモ」（`/demo`）はサイトに含めず、ブラウザー版の`demo-v2.html`はそのリンクをstyleで隠します。`vendor/`（PDFの表示に使うpdf.js）も、`/demo-v2`が読まないので含めません。
 - 初めて開くと、例のファイル全体を取り寄せてブラウザーのOPFSに保存します（大きさと時間は#266）。OPFSを使えないブラウザー（設定やprivateの窓によっては）では、お知らせ欄に誤りを出します。
 
@@ -233,6 +234,62 @@ systemd-run --user --scope -q -p MemoryMax=8G -p MemorySwapMax=0 \
   python benchmarks/static_site_e2e.py --site ../hinanjo-if-site --work e2e-work \
   --python-projects sample-projects --output e2e.json --screenshots e2e-shots
 python benchmarks/static_site_e2e.py --url https://hinanjo-if.water7.workers.dev --output e2e-url.json
+~~~
+
+### ブラウザー版の公開（#289）
+
+ブラウザー版は、Cloudflare Workersの静的なファイルの配信（static assets）に`wrangler deploy`で置きます（`https://hinanjo-if.water7.workers.dev/`、#286）。ふだんはGitHub Actionsから公開します（下の「GitHub Actionsで公開する」）。Pagesは使いません（wrangler 4.161では、`wrangler pages project create`も、新しい静的なサイトをWorkersに作ります）。設定は`deploy/workers/wrangler.jsonc`です。
+
+| 項目 | 値 | 理由 |
+|---|---|---|
+| `name` | `hinanjo-if` | Workerの名前。URLは`https://<name>.<アカウントのsubdomain>.workers.dev/`です |
+| `compatibility_date` | `2026-11-10` | 最初に公開した日。変えたときは、下の公開の後の確かめをやり直します |
+| `main` | なし | scriptのない、ファイルを配るだけのWorkerです |
+| `assets.directory` | なし | サイトはリポジトリーの外に作るので、`--assets`で毎回渡します。渡さないとwranglerが止まります |
+| `assets.html_handling` | `auto-trailing-slash` | `/demo-v2`を`demo-v2.html`で答えます（`scripts/serve_static_site.py`と同じ）。`/demo-v2.html`は`/demo-v2`へ307で送ります |
+| `assets.not_found_handling` | `404-page` | ないファイルの道に、サイトの`404.html`をstatus 404で答えます |
+
+アカウントのID、APIトークン、`.wrangler/`（wranglerの手元の作業場所。`.gitignore`に入れています）はcommitしません。サイトは`_headers`・`_redirects`・`.assetsignore`を置かないので、配り方は上の表だけで決まります。`tests/integration/test_static_site.py`が、設定と作ったサイトがこの表のとおりであることを確かめます。
+
+#### GitHub Actionsで公開する
+
+公開は、GitHub Actionsのworkflow「ブラウザー版の公開」（`.github/workflows/deploy-browser.yml`）で行います。リポジトリーに書き込める人なら、Cloudflareのアカウントや手元のRust・wasm-bindgenがなくても公開できます。ActionsのタブでRun workflowを押すか、次のcommandで起動します。
+
+~~~shell
+gh workflow run deploy-browser.yml --ref main                    # 公開する
+gh workflow run deploy-browser.yml --ref <branch> -f dry_run=true  # 作って確かめるだけ
+~~~
+
+workflowは、上の「ブラウザー版の静的サイト」と同じ手順でサイトを作ります（Pythonのkernelはprofile `ci`、WASMは`--release`、wasm-bindgenはCIのlintのjobと同じ版とsha256、避難所の索引は`--fetch-shelters`）。それから`wrangler deploy --dry-run`で設定とファイルを確かめ、Cloudflareへ送ります。送るときは、Workerの版にcommitのhashを`--tag`（先頭12桁）と`--message`で残します。
+
+- 公開するのは`main`だけです。ほかのbranchで公開を選ぶと、何も作らずに止まります。`dry_run`はどのbranchでも使え、Cloudflareには何も送らず、secretも読みません。
+- 同時に動く公開は1つだけです。後から起動したものは、前のものが終わるのを待ちます。
+- 公開の後に、次の2つを確かめます。どちらかが通らないと、workflowは失敗します。
+  1. 道ごとの答え：`/browser/gsi-shelter-index.json`（サイトを作った時刻を持ちます）が今回作ったものになるまで待ち（最大5分）、`/`と`/demo-v2`が200の`text/html`、`/demo-v2.html`が`/demo-v2`への307、ないファイル（`/nope`）が404の`text/html`、`/browser/api_worker.mjs`が`text/javascript`、`/browser/pkg/sheltersim_wasm_bg.wasm`が`application/wasm`、`/sample/sample.json`が`application/json`であること。
+  2. 画面：公開したURLを`benchmarks/static_site_e2e.py --url`で、PlaywrightのChromiumとFirefoxで、それぞれ空のOPFSから開いて、すべての段を画面で通すこと（Pythonとは比べません）。
+- サイトを作った要約（`site-build.json`）と、画面の確かめの結果（`e2e-url.json`、画面の写し）は、runのartifact `deploy-browser`に30日残します。
+- 公開した版を戻すときは、Cloudflareのdashboardか`wrangler rollback`で前の版に戻すか、戻したいcommitを`main`に入れて公開し直します。
+
+workflowが使うsecret（リポジトリーのSettings → Secrets and variables → Actions。登録はCloudflareのアカウントを持つ人が行います）：
+
+| secret | 中身 |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Cloudflareのdashboardの「My Profile → API Tokens」で、テンプレート「Edit Cloudflare Workers」から作り、Account Resourcesを公開に使うアカウントだけに絞ったトークン |
+| `CLOUDFLARE_ACCOUNT_ID` | 公開に使うアカウントのID（dashboardのWorkers & Pagesの画面にあります） |
+
+#### 手元から公開する
+
+secretのトークンが使えないときなど、Cloudflareのアカウントに入れる人は、手元からも公開できます。上の手順でサイトを作り（`../hinanjo-if-site`）、手元のserverで`benchmarks/static_site_check.py`と`benchmarks/static_site_e2e.py`を通してから、`npx wrangler@4.161.0 login`でアカウントに入り、`--dry-run`で確かめてから送ります。wranglerは、前の版と中身が同じファイルを送り直しません。公開の後は、上の2つの確かめを同じように行います。
+
+~~~shell
+npx wrangler@4.161.0 deploy --config deploy/workers/wrangler.jsonc --assets ../hinanjo-if-site --dry-run
+npx wrangler@4.161.0 deploy --config deploy/workers/wrangler.jsonc --assets ../hinanjo-if-site
+URL=https://hinanjo-if.water7.workers.dev
+for path in / /demo-v2 /demo-v2.html /nope /browser/api_worker.mjs \
+    /browser/pkg/sheltersim_wasm_bg.wasm /sample/sample.json; do
+  curl -s -o /dev/null -w "$path %{http_code} %{content_type} %{redirect_url}\n" "$URL$path"
+done
+python benchmarks/static_site_e2e.py --url "$URL" --output e2e-url.json --screenshots e2e-url-shots
 ~~~
 
 ## 設定

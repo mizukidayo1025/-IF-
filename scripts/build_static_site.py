@@ -17,6 +17,7 @@ The site is served at the root of its domain, as the screen loads `/demo-v2.css`
                             browser computes itself (the same with run=COMPUTE_RUN, #267)
     (a missing path)        404.html, with status 404
     /demo-v2                demo-v2.html (a host serving `/demo-v2` from `demo-v2.html`, as
+                            Cloudflare Workers' static assets (deploy/workers/wrangler.jsonc, #289),
                             Cloudflare Pages, GitHub Pages and Netlify do; for others see the docs)
     /demo-v2.css, /demo-v2*.js, /demo-v2-logo.jpg   the screen's files
     /LICENSE.txt            the repository's LICENSE
@@ -32,7 +33,8 @@ The site is served at the root of its domain, as the screen loads `/demo-v2.css`
     /sample/sample.json     the sample's manifest (browser_api.mjs's SAMPLE_FORMAT) and its parts,
                             sample.shelterproj.000, .001, … of at most --part-mib MiB each
 
-No file is larger than --part-mib (16 MiB by default; Cloudflare Pages takes at most 25 MiB a file).
+No file is larger than --part-mib (16 MiB by default; Cloudflare Workers' static assets take at most
+25 MiB a file).
 OUTPUT_DIR must be outside the repository and empty or missing: the site is generated, never
 committed. scripts/serve_static_site.py serves it locally for checks.
 """
@@ -486,8 +488,9 @@ def build(
     compute_query = urlencode({"project": project_id, "run": COMPUTE_RUN, "branch": "main"})
     compute = f"/demo-v2?{compute_query}#simulation"
     (output / "index.html").write_text(index_html(target, compute, project_id), encoding="utf-8")
-    # A missing file is a 404 (Cloudflare Pages without a 404.html answers every path with the
-    # root's index.html, as for a single-page app).
+    # A missing file is a 404 (Workers' static assets answer with it under deploy/workers/'s
+    # not_found_handling "404-page"; Cloudflare Pages without a 404.html answers every path with
+    # the root's index.html, as for a single-page app).
     (output / "404.html").write_text(NOT_FOUND, encoding="utf-8")
     # The repository's license (MIT) travels with the copy of its code the site is.
     shutil.copyfile(ROOT / "LICENSE", output / "LICENSE.txt")
