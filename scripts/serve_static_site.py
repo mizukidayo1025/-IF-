@@ -4,7 +4,8 @@
 
 For checks on this machine only (it listens on 127.0.0.1). It serves the site's files at their
 paths, `/` and a folder's path from its index.html, and a path without a file from the same path
-with `.html` (`/demo-v2` from demo-v2.html), as Cloudflare Pages, GitHub Pages and Netlify do; the
+with `.html` (`/demo-v2` from demo-v2.html), as Cloudflare Workers' static assets (where the site is
+published, deploy/workers/wrangler.jsonc), Cloudflare Pages, GitHub Pages and Netlify do; the
 standard library's http.server does not, which is why this exists. JavaScript modules (.mjs) and
 WASM get their types. Anything else is 404, with the site's 404.html.
 """

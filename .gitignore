@@ -224,3 +224,6 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 /native-dist/
+
+# Cloudflare wrangler (deploy/workers/, #289)
+.wrangler/
