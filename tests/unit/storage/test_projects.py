@@ -529,6 +529,36 @@ def test_phone_numbers_are_redacted_but_dois_and_dates_are_not():
         assert safe_document(text) == text
 
 
+def test_uuid_ids_whose_middle_groups_are_digits_are_not_phone_numbers():
+    """The screens make IDs from crypto.randomUUID(); about one in 200 has three
+    all-digit middle groups, which were taken for a phone number (#321)."""
+    from sheltersim.storage.projects import safe_document
+
+    for text in (
+        "branch-3f2a9c1e-4127-4823-9012-abcdef123456",
+        "RUN-3F2A9C1E-4127-4823-9012-123456789012",
+        "branch-00000000-4000-8000-0000-000000000001",
+    ):
+        assert safe_document(text) == text
+    # Not a UUID: a short last group, a phone number after a hex group, four groups.
+    assert safe_document("3f2a9c1e-4127-4823-9012-abcdef12345") != (
+        "3f2a9c1e-4127-4823-9012-abcdef12345"
+    )
+    assert safe_document("3f2a9c1e-090-1234-5678") == "3f2a9c1e-[redacted]"
+    assert safe_document("1234-5678-9012-3456") == "[redacted]-3456"
+
+
+def test_a_branch_with_such_a_uuid_id_is_forked_and_saved(tmp_path, saved_timeline):
+    """The fork saved the child's Checkpoint, which holds its ID, and was refused with
+    "checkpoint contains sensitive data" (#321)."""
+    store, timeline = saved_timeline(tmp_path)
+    child = "branch-3f2a9c1e-4127-4823-9012-abcdef123456"
+    timeline.advance("main", 5)
+    timeline.fork("main", 5, child)
+    assert timeline.advance(child, 10).world.minute_index == 10
+    assert store.load_branch("p", "r", child)[1].simulation_minute == 10
+
+
 def test_model_signatures_are_kept_while_email_addresses_are_redacted():
     """A decimal after "@" in a model signature was taken for an address (#187)."""
     from sheltersim.storage.projects import safe_document

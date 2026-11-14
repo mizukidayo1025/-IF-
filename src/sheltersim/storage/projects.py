@@ -58,7 +58,13 @@ _SECRET = re.compile(_KEY_OR_BEARER + "|" + EMAIL_ADDRESS.pattern, re.I)
 _SECRET_WITHOUT_ADDRESS = re.compile(_KEY_OR_BEARER, re.I)
 # Three separated digit groups, so DOIs and dates in provenance are not phone
 # numbers (#190). Run artifacts and the saved-Run inspector use the same definition.
-PHONE_NUMBER = re.compile(r"(?<!\w)(?:\+\d{1,3}[ -])?\d{2,4}[- ]\d{2,4}[- ]\d{3,4}(?!\w)")
+# The three middle groups of a UUID (8-4-4-4-12 hex digits) are not one either: the
+# screens make Run and branch IDs from crypto.randomUUID(), whose middle groups are all
+# digits about once in 200 (#321).
+_UUID_MIDDLE = r"(?<=[0-9A-Fa-f]{8}-)\d{4}-\d{4}-\d{4}-[0-9A-Fa-f]{12}(?!\w)"
+PHONE_NUMBER = re.compile(
+    rf"(?<!\w)(?!{_UUID_MIDDLE})(?:\+\d{{1,3}}[ -])?\d{{2,4}}[- ]\d{{2,4}}[- ]\d{{3,4}}(?!\w)"
+)
 _TERMINAL = {"completed", "cancelled", "failed", "interrupted"}
 
 

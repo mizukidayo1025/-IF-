@@ -961,8 +961,11 @@ static SECRET: text::Pattern = text::Pattern::new_raw(
 );
 static SECRET_WITHOUT_ADDRESS: text::Pattern =
     text::Pattern::new_raw(r"(?i:sk-(?:ant-)?[A-Za-z0-9_-]{12,}|Bearer[\s\x1c-\x1f]+[^\s\x1c-\x1f]+)");
-static PHONE_NUMBER: text::Pattern =
-    text::Pattern::new(r"(?<!\w)(?:\+\d{1,3}[ -])?\d{2,4}[- ]\d{2,4}[- ]\d{3,4}(?!\w)", false);
+/// `PHONE_NUMBER`: three separated digit groups, but not the three middle groups of a UUID (#321).
+static PHONE_NUMBER: text::Pattern = text::Pattern::new(
+    r"(?<!\w)(?!(?<=[0-9A-Fa-f]{8}-)\d{4}-\d{4}-\d{4}-[0-9A-Fa-f]{12}(?!\w))(?:\+\d{1,3}[ -])?\d{2,4}[- ]\d{2,4}[- ]\d{3,4}(?!\w)",
+    false,
+);
 
 /// Whether `safe_document` (src/sheltersim/storage/projects.py `_redact`) changes the text: it
 /// holds an API key, a bearer token, an e-mail address or a phone number.
