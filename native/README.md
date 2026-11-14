@@ -118,7 +118,7 @@ split PR by PR; its last section sums up what is where.
 - **A Run without Python** (#244, PR 4-3): `sheltersim_core::plain::PlainHost` is the host of a
   loaded world with no Python behind it, which the WASM prototype runs: the sections and the floor
   plan of the export (`load::Sections`, `load::FloorPlans`), the records of the world's log, the
-  contracts (E15) giving their input back (it counts what was asked by model), the whole-world
+  contracts (E15) answered as the native host's pydantic (`contracts::validate`, #346), the whole-world
   validation (E6) answered by the core's `validate` (#250: the rules ported so far, with Python's
   classes and texts; a part not ported yet passes), no LLM, and the metric samples kept as lines
   for their digest.
@@ -130,8 +130,7 @@ split PR by PR; its last section sums up what is where.
   `PlainRun`, made with wasm-bindgen (decision 8, pinned to the CLI's version): `Simulation`
   reads an export's JSON bytes (or one world of a file of worlds, `fromWorlds`), runs ticks
   (`advance`) and gives the digests of the world's parts as `core_tick.py` writes them
-  (`digests_json`, `canonical::run_digests`), of the samples (`metrics_digest`) and the contracts
-  it took as given (`contracts_json`); `memoryBytes` is the WASM memory's size. It builds the core
+  (`digests_json`, `canonical::run_digests`) and of the samples (`metrics_digest`); `memoryBytes` is the WASM memory's size. It builds the core
   without the feature `parallel` (one thread, decision 5). `wasm/tests/node_digests.mjs` runs the
   worlds of `core/tests/data/tick_core.json` in Node and checks the native path's digests; CI's
   lint job runs it (docs/development.md has the commands).
@@ -212,8 +211,8 @@ split PR by PR; its last section sums up what is where.
   (`PlainRun::apply_effect_program`, `Simulation.applyEffectProgram`).
 - **Saved points** (#251, for the browser only; not Python's Checkpoints): `PlainRun::saved_point`
   writes the Run at a minute as `archive::SavedPoint`, a versioned binary of the world without its
-  log (`archive::world_parts`), the counts of the log's records and the metric samples, and the
-  contracts' counts. `archive::Restore` reads the stored log and samples back up to those counts
+  log (`archive::world_parts`) and the counts of the log's records and the metric samples (version
+  2; version 1 also held the contracts' counts, which a reader skips, #346). `archive::Restore` reads the stored log and samples back up to those counts
   and `PlainRun::restore` builds the Run there; the open actions are made again from the log
   (`ActiveActions::of_log`, as `active_action_index`). In WASM: `Simulation.saved_point`,
   `Restore`, `Simulation.restore`/`restoreFromWorlds`; `wasm/js/run_store.mjs` keeps a saved
@@ -267,8 +266,8 @@ split PR by PR; its last section sums up what is where.
   `runEvidence`.
 - **Out of the core** (decision 4): building a world from a Scenario the screen does not make and
   restoring a Checkpoint stay in Python and the wrapper. The whole-world validation texts (E6) and the pydantic
-  contracts (E15) stay Python behind `Host`; a host without Python passes the validation and
-  takes each contract's input as given (`PlainHost`) until stage 6.
+  contracts (E15) stay Python behind `Host` in the native host; a host without Python answers both
+  with the core's `validate` (#250, the rules ported so far) and `contracts::validate` (#346).
 
 ## Layout for lanes
 

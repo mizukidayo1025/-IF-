@@ -50,7 +50,7 @@ for (const [name, entry] of Object.entries(fixture.worlds)) {
   if (simulation.metric_count() !== wanted.metric_count) problems.push(`metric_count ${simulation.metric_count()} != ${wanted.metric_count}`);
   if (simulation.metrics_digest() !== wanted.metrics) problems.push(`metrics ${simulation.metrics_digest()} != ${wanted.metrics}`);
   const verdict = problems.length === 0 ? "ok" : "FAILED";
-  console.log(`${name}: ${verdict} (${ran} ticks in ${seconds.toFixed(2)} s, memory ${(memoryBytes() / 2 ** 20).toFixed(1)} MiB, contracts ${simulation.contracts_json()})`);
+  console.log(`${name}: ${verdict} (${ran} ticks in ${seconds.toFixed(2)} s, memory ${(memoryBytes() / 2 ** 20).toFixed(1)} MiB)`);
   for (const problem of problems) console.log(`  ${problem}`);
   failures += problems.length;
   simulation.free();
