@@ -10,6 +10,8 @@
 
 https://github.com/user-attachments/assets/86487258-815c-468b-b038-51e71b65fcfb
 
+**🌐 [ブラウザ版を試してみる](https://hinanjo-if.water7.workers.dev/)**
+
 ---
 
 ## 💡 なぜ作ったのか？
@@ -225,6 +227,8 @@ LLMは条件設定や介入指示の解釈、結果の分析などに活用し�
 ---
 
 ## ▶️ 実際に動かしてみる
+
+**🌐 [ブラウザ版を試してみる](https://hinanjo-if.water7.workers.dev/)**
 
 Python 3.12以降に対応しています。Rustのkernel（`native/`）も必要で、Rust（stable）とmaturinで作って導入します。
 
