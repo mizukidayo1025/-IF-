@@ -39,8 +39,8 @@ fn text(value: &str) -> V {
 }
 
 /// `canonical_staff_dynamics_config(raw)`: the config, or its ValueError (or the TypeError of
-/// hashing a policy that is a list or a dict).
-pub fn canonical_staff_dynamics_config(raw: &V) -> Result<Map> {
+/// hashing a policy that is a list or a dict, named as `held` says Python holds it).
+pub fn canonical_staff_dynamics_config(raw: &V, held: Held) -> Result<Map> {
     let empty = Map::new();
     let raw = match raw {
         V::Null => &empty,
@@ -65,7 +65,7 @@ pub fn canonical_staff_dynamics_config(raw: &V) -> Result<Map> {
         config.insert(key.clone(), value.clone());
     }
     if !eq_int(config.get("schema_version"), 1)
-        || !py::in_texts(get(&config, "policy_version"), Held::Tracked, &[POLICY_V1, POLICY_V2])?
+        || !py::in_texts(get(&config, "policy_version"), held, &[POLICY_V1, POLICY_V2])?
         || !matches!(get(&config, "source_id"), V::Str(source) if !source.is_empty())
     {
         return value_error("unsupported staff_dynamics policy or source");
@@ -149,7 +149,7 @@ pub fn validate(view: &View<'_>) -> Result<()> {
     if staff.len() != rows.staff.len() || !staff.keys().all(|id| rows.staff.contains_key(id)) {
         return schema();
     }
-    let config = canonical_staff_dynamics_config(get(state, "config"))?;
+    let config = canonical_staff_dynamics_config(get(state, "config"), Held::Tracked)?;
     if !eq(get(state, "policy_version"), get(&config, "policy_version")) || !eq(get(state, "source_id"), get(&config, "source_id")) {
         return value_error("staff_dynamics_v1 model identity does not match its config");
     }

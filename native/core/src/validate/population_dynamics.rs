@@ -9,11 +9,13 @@ use std::sync::Arc;
 
 use super::View;
 use crate::config::{ApproachRoute, Fault, FaultClass};
+use crate::contracts;
 use crate::error::{Error, Result};
-use crate::mathx::{hypot, py_sum};
 use crate::events::EventRow;
+use crate::host::Contract;
+use crate::mathx::{hypot, py_sum};
 use crate::rules::kit::{DYNAMICS, PRESENCE};
-use crate::rules::population::{validate_facts, Facts, Routes, RoutesFault, NO_ROW};
+use crate::rules::population::{plan_read_of, validate_facts, Facts, Routes, RoutesFault, NO_ROW};
 use crate::value::V;
 
 const LABEL: &str = "population.validate_population_dynamics_state";
@@ -24,68 +26,65 @@ fn reads_routes(state: &V) -> bool {
         if pending.iter().any(|item| matches!(item, V::Map(item) if item.contains_key("approach_route_id")))))
 }
 
-/// `parsed_facility_geometry(model_configs.get("facility_geometry", {})).arrival_approach_routes`
-/// of a config its contract (`FacilityGeometry`) accepts as it is: each route's fields as written,
-/// with its `distance_m` and `travel_minutes` properties. A config of another shape is refused
-/// here (Python raises the contract's error, read as the plan's refusal).
+/// `parsed_facility_geometry(model_configs.get("facility_geometry", {})).arrival_approach_routes`:
+/// the routes of the config's `FacilityGeometry` (`contracts`), each with its `distance_m` and
+/// `travel_minutes` properties, or the contract's error as the plan's refusal.
 fn approach_routes(view: &View<'_>) -> Result<Routes> {
-    let refused = |reason: &'static str| Ok(Err(RoutesFault { caught: false, refusal: Error::unsupported(reason) }));
-    let Some(V::Map(geometry)) = view.config("facility_geometry")? else {
-        return refused("the facility geometry is not a plain dict");
+    let raw = view.config("facility_geometry")?.unwrap_or_else(|| V::Map(Default::default()));
+    let geometry = match contracts::validate(&Contract::FacilityGeometry, &raw) {
+        Ok(geometry) => geometry,
+        Err(error) => return Ok(Err(RoutesFault { caught: false, refusal: plan_read_of(&error) })),
     };
-    let routes = match geometry.get("arrival_approach_routes") {
-        None => return Ok(Ok(Arc::from(Vec::new()))),
-        Some(V::List(routes)) => routes,
-        Some(_) => return refused("the approach routes are not a list"),
+    let shape = || Error::unsupported("the facility geometry's dump has another shape");
+    let routes = match &geometry {
+        V::Map(geometry) => match geometry.get("arrival_approach_routes") {
+            Some(V::List(routes)) => routes.as_slice(),
+            _ => return Err(shape()),
+        },
+        _ => return Err(shape()),
     };
     let text = |value: Option<&V>| match value {
-        Some(V::Str(text)) => Some(text.clone()),
-        _ => None,
+        Some(V::Str(text)) => Ok(text.clone()),
+        _ => Err(shape()),
     };
     let number = |value: Option<&V>| match value {
-        Some(V::Float(number)) if number.is_finite() => Some(*number),
-        Some(V::Int(number)) => Some(*number as f64),
-        _ => None,
+        Some(V::Float(number)) => Ok(*number),
+        _ => Err(shape()),
     };
     let mut out = Vec::with_capacity(routes.len());
     for route in routes {
         let V::Map(route) = route else {
-            return refused("an approach route is not a plain dict");
+            return Err(shape());
         };
-        let (Some(route_id), Some(destination_zone_id), Some(walking_speed)) =
-            (text(route.get("route_id")), text(route.get("destination_zone_id")), number(route.get("walking_speed_m_per_min")))
-        else {
-            return refused("an approach route has another shape");
+        let (Some(V::List(sources)), Some(V::List(points))) = (route.get("source_ids"), route.get("points_m")) else {
+            return Err(shape());
         };
-        let Some(V::List(sources)) = route.get("source_ids") else {
-            return refused("an approach route has another shape");
-        };
-        let source_ids: Option<Vec<Arc<str>>> = sources.iter().map(|source| text(Some(source))).collect();
-        let Some(V::List(points)) = route.get("points_m") else {
-            return refused("an approach route has another shape");
-        };
-        let points: Option<Vec<(f64, f64)>> = points
+        let source_ids = sources.iter().map(|source| text(Some(source))).collect::<Result<Vec<_>>>()?;
+        let points = points
             .iter()
             .map(|point| match point {
-                V::Map(point) => Some((number(point.get("x"))?, number(point.get("y"))?)),
-                _ => None,
+                V::Map(point) => Ok((number(point.get("x"))?, number(point.get("y"))?)),
+                _ => Err(shape()),
             })
-            .collect();
-        let (Some(source_ids), Some(points)) = (source_ids, points) else {
-            return refused("an approach route has another shape");
-        };
-        if points.len() < 2 || walking_speed <= 0.0 {
-            return refused("an approach route has another shape");
-        }
+            .collect::<Result<Vec<_>>>()?;
+        let walking_speed = number(route.get("walking_speed_m_per_min"))?;
         let legs: Vec<f64> = points.windows(2).map(|pair| hypot(&[pair[1].0 - pair[0].0, pair[1].1 - pair[0].1])).collect();
         let distance = py_sum(&legs);
+        // `max(1, math.ceil(distance / speed))`: an infinite quotient is OverflowError.
         let minutes = (distance / walking_speed).ceil();
-        let travel_minutes = if minutes.is_finite() && minutes < 9.0e15 {
+        let travel_minutes = if minutes.is_finite() && minutes.abs() < 9.0e15 {
             Ok((minutes as i64).max(1))
         } else {
             Err(Fault::new(FaultClass::Other("builtins.OverflowError".into()), "cannot convert float infinity to integer"))
         };
-        out.push(ApproachRoute { route_id, destination_zone_id, source_ids, walking_speed, distance, travel_minutes });
+        out.push(ApproachRoute {
+            route_id: text(route.get("route_id"))?,
+            destination_zone_id: text(route.get("destination_zone_id"))?,
+            source_ids,
+            walking_speed,
+            distance,
+            travel_minutes,
+        });
     }
     Ok(Ok(Arc::from(out)))
 }
