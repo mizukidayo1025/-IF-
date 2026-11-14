@@ -165,6 +165,13 @@ BODY_STATE = [
     case("body_config_minutes_float", body_config("social_interaction_minutes", 5.0)),
     case("body_config_minutes_zero", body_config("social_interaction_minutes", 0)),
     case("body_config_affect_int", body_config("affect_policy", 1)),
+    case("body_config_affect_unknown", body_config("affect_policy", "x")),
+    # The Policy Registry selects the affect model: the saved config must name it, and has it.
+    case(
+        "body_config_affect_other",
+        body_config("affect_policy", "trust-weighted-positive-negative-v1"),
+    ),
+    case("body_config_affect_missing", drop(BODY, "config", "affect_policy")),
     case("body_config_distance", body_config("relationship_distance_scale_m", 0.05)),
     case("body_config_distance_int", body_config("relationship_distance_scale_m", 3)),
     case("body_config_per_agent_empty", body_config("sleep_debt_stress_rate_by_agent", {})),

@@ -708,6 +708,72 @@
     ],
     "extensions": [
      "ValueError",
+     "body affect policy has no installed implementation"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_affect_unknown",
+   "world": "body_config_affect_unknown"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 affect model does not match the shared Policy Registry"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_affect_other",
+   "world": "body_config_affect_other"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 config is not canonical"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_affect_missing",
+   "world": "body_config_affect_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
      "body_dynamics relationship_distance_scale_m must be within 0.1..100 metres"
     ],
     "validate": [
@@ -4488,6 +4554,36 @@
    "file": "validate_worlds",
    "set": {
     "world.model_state.body_state_v1.config.affect_policy": 1
+   }
+  },
+  "body_config_affect_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "body_state_v1",
+      "config",
+      "affect_policy"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "body_config_affect_other": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.affect_policy": "trust-weighted-positive-negative-v1"
+   }
+  },
+  "body_config_affect_unknown": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.affect_policy": "x"
    }
   },
   "body_config_distance": {
