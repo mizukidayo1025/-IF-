@@ -114,7 +114,10 @@ split PR by PR; its last section sums up what is where.
   defaults, `extra="forbid"`, model and field validators); `contracts/models.rs` the 15 contracts
   and their validators. An event's values reach the model frozen, as the native host gives them
   (`contract_input`). `core/tests/contracts.rs` checks the answers Python recorded
-  (`tests/support/core_contracts.py`).
+  (`tests/support/core_contracts.py`). `contracts::checked` gives the models the world's
+  validation reads (#351: the zone environment config, a zone condition's parameters, a guard,
+  `CompilerProvenance`, `PlanAssumption`) a world's value as Python holds it: a namespace or a
+  config as its tracked tree (`TrackedDict` in the texts), an event's values frozen.
 - **A Run without Python** (#244, PR 4-3): `sheltersim_core::plain::PlainHost` is the host of a
   loaded world with no Python behind it, which the WASM prototype runs: the sections and the floor
   plan of the export (`load::Sections`, `load::FloorPlans`), the records of the world's log, the
