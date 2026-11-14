@@ -74,6 +74,9 @@ FIXTURES: dict[str, str] = {
     # The whole world's validation (#250): the valid worlds, and a file of cases per area.
     "validate_worlds": "support.core_validate:validate_worlds_fixture",
     "validate_entry": "support.core_validate:validate_entry_fixture",
+    "validate_resource_ledger": (
+        "support.core_validate_resource_ledger:validate_resource_ledger_fixture"
+    ),
     # The input contracts (#346).
     "contracts_effects": "support.core_contracts:contracts_effects_fixture",
     "contracts_overlay": "support.core_contracts:contracts_overlay_fixture",
