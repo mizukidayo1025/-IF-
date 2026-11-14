@@ -1,0 +1,468 @@
+{
+ "cases": [
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "unsupported world-state schema version: 7"
+    ],
+    "extensions": null,
+    "in_flight": [
+     "StateInvariantError",
+     "unsupported world-state schema version: 7"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "unsupported world-state schema version: 7"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "unsupported world-state schema version: 7"
+    ]
+   },
+   "in_flight": {
+    "causation_id": "toilet-complete-52",
+    "due_minute": 15,
+    "event_id": "agent-travel-complete-69",
+    "event_type": "agent_travel_complete",
+    "kind": "completion",
+    "payload": {
+     "agent_id": "A004",
+     "destination_zone_id": "sleeping",
+     "facility_id": null,
+     "purpose": "return",
+     "route_edge_ids": [
+      "route_toilet_corridor",
+      "route_corridor_sleeping"
+     ],
+     "route_zone_ids": [
+      "toilet",
+      "corridor",
+      "sleeping"
+     ],
+     "task_id": "agent-travel-69",
+     "travel_minutes": 3
+    },
+    "priority": 0,
+    "provenance": {
+     "policy_version": "shortest-travel-time-v1",
+     "source_id": "ASM-ZONE-ROUTING-V1",
+     "source_type": "assumption"
+    },
+    "sequence": 69,
+    "source_id": "agent-travel-69"
+   },
+   "name": "schema_version_7",
+   "world": "schema_version_7"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "unsupported world-state schema version: 4"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "unsupported world-state schema version: 4"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "unsupported world-state schema version: 4"
+    ]
+   },
+   "name": "schema_version_4_small",
+   "world": "schema_version_4_small"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 requires its signed Scenario contract"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_operations_without_contract",
+   "world": "shared_operations_without_contract"
+  }
+ ],
+ "worlds": {
+  "schema_version_4_small": {
+   "base": "small_replay",
+   "file": "validate_worlds",
+   "set": {
+    "world.schema_version": 4
+   }
+  },
+  "schema_version_7": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "agents",
+      0,
+      "needs",
+      "hydration_need"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "agents",
+      0,
+      "profile",
+      "initial_needs",
+      "hydration_need"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "agents",
+      1,
+      "needs",
+      "hydration_need"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "agents",
+      1,
+      "profile",
+      "initial_needs",
+      "hydration_need"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "agents",
+      2,
+      "needs",
+      "hydration_need"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "agents",
+      2,
+      "profile",
+      "initial_needs",
+      "hydration_need"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "agents",
+      3,
+      "needs",
+      "hydration_need"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "agents",
+      3,
+      "profile",
+      "initial_needs",
+      "hydration_need"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "agents",
+      4,
+      "needs",
+      "hydration_need"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "agents",
+      4,
+      "profile",
+      "initial_needs",
+      "hydration_need"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "agents",
+      5,
+      "needs",
+      "hydration_need"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "agents",
+      5,
+      "profile",
+      "initial_needs",
+      "hydration_need"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "agents",
+      6,
+      "needs",
+      "hydration_need"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "agents",
+      6,
+      "profile",
+      "initial_needs",
+      "hydration_need"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "agents",
+      7,
+      "needs",
+      "hydration_need"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "agents",
+      7,
+      "profile",
+      "initial_needs",
+      "hydration_need"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "agents",
+      8,
+      "needs",
+      "hydration_need"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "agents",
+      8,
+      "profile",
+      "initial_needs",
+      "hydration_need"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "agents",
+      9,
+      "needs",
+      "hydration_need"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "agents",
+      9,
+      "profile",
+      "initial_needs",
+      "hydration_need"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "facilities",
+      0,
+      "resource_active_agent_ids"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "facilities",
+      0,
+      "resource_queue_agent_ids"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "facilities",
+      1,
+      "resource_active_agent_ids"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "facilities",
+      1,
+      "resource_queue_agent_ids"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "facilities",
+      2,
+      "resource_active_agent_ids"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "facilities",
+      2,
+      "resource_queue_agent_ids"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "facilities",
+      3,
+      "resource_active_agent_ids"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "facilities",
+      3,
+      "resource_queue_agent_ids"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "facilities",
+      4,
+      "resource_active_agent_ids"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "facilities",
+      4,
+      "resource_queue_agent_ids"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "facilities",
+      5,
+      "resource_active_agent_ids"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "facilities",
+      5,
+      "resource_queue_agent_ids"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "facilities",
+      6,
+      "resource_active_agent_ids"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "facilities",
+      6,
+      "resource_queue_agent_ids"
+     ]
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.schema_version": 7
+   }
+  },
+  "shared_operations_without_contract": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "shared_operations"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  }
+ }
+}

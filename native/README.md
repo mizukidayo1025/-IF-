@@ -119,7 +119,9 @@ split PR by PR; its last section sums up what is where.
   loaded world with no Python behind it, which the WASM prototype runs: the sections and the floor
   plan of the export (`load::Sections`, `load::FloorPlans`), the records of the world's log, the
   contracts (E15) answered as the native host's pydantic (`contracts::validate`, #346), the whole-world
-  validation (E6) passing, no LLM, and the metric samples kept as lines for their digest.
+  validation (E6) answered by the core's `validate` (#250: the rules ported so far, with Python's
+  classes and texts; a part not ported yet passes), no LLM, and the metric samples kept as lines
+  for their digest.
   `plain::PlainRun` reads an export, runs one tick at a time (`engine::step`: `run_tick`, the
   minute moved on, the end-of-tick check, as `TickEngine.step`) and gives the digests of the
   world's parts (`canonical::digests`) and of the samples; on the worlds of `tick_core.json` they
@@ -264,8 +266,8 @@ split PR by PR; its last section sums up what is where.
   `runEvidence`.
 - **Out of the core** (decision 4): building a world from a Scenario the screen does not make and
   restoring a Checkpoint stay in Python and the wrapper. The whole-world validation texts (E6) and the pydantic
-  contracts (E15) stay Python behind `Host` in the native host; a host without Python passes the
-  validation (until #250 moves it) and answers the contracts with `contracts::validate` (#346).
+  contracts (E15) stay Python behind `Host` in the native host; a host without Python answers both
+  with the core's `validate` (#250, the rules ported so far) and `contracts::validate` (#346).
 
 ## Layout for lanes
 
