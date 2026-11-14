@@ -74,6 +74,8 @@ FIXTURES: dict[str, str] = {
     # The whole world's validation (#250): the valid worlds, and a file of cases per area.
     "validate_worlds": "support.core_validate:validate_worlds_fixture",
     "validate_entry": "support.core_validate:validate_entry_fixture",
+    "validate_namespaces": "support.core_validate_namespaces:validate_namespaces_fixture",
+    "validate_staff_tasks": "support.core_validate_namespaces:validate_staff_tasks_fixture",
 }
 # The fixtures whose file is not under native/core/tests/data/.
 PATHS: dict[str, Path] = {"initial_table": INITIAL_TABLE}
