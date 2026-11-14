@@ -1,0 +1,2699 @@
+{
+ "cases": [
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ],
+    "extensions": [
+     "ValueError",
+     "model configs must map names to configuration objects"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ]
+   },
+   "name": "configs_value_not_a_dict",
+   "world": "configs_value_not_a_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "unknown behavior coefficient; explicit registry support required"
+    ],
+    "extensions": [
+     "ValueError",
+     "unknown behavior coefficient; explicit registry support required"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "unknown behavior coefficient; explicit registry support required"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "unknown behavior coefficient; explicit registry support required"
+    ]
+   },
+   "name": "behavior_unknown_key",
+   "world": "behavior_unknown_key"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior decision interval must be a positive integer"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior decision interval must be a positive integer"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior decision interval must be a positive integer"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior decision interval must be a positive integer"
+    ]
+   },
+   "name": "behavior_interval_zero",
+   "world": "behavior_interval_zero"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior decision interval must be a positive integer"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior decision interval must be a positive integer"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior decision interval must be a positive integer"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior decision interval must be a positive integer"
+    ]
+   },
+   "name": "behavior_interval_float",
+   "world": "behavior_interval_float"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior decision interval must be a positive integer"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior decision interval must be a positive integer"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior decision interval must be a positive integer"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior decision interval must be a positive integer"
+    ]
+   },
+   "name": "behavior_interval_bool",
+   "world": "behavior_interval_bool"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior temperature must be finite and positive"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior temperature must be finite and positive"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior temperature must be finite and positive"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior temperature must be finite and positive"
+    ]
+   },
+   "name": "behavior_temperature_zero",
+   "world": "behavior_temperature_zero"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior temperature must be finite and positive"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior temperature must be finite and positive"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior temperature must be finite and positive"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior temperature must be finite and positive"
+    ]
+   },
+   "name": "behavior_temperature_text",
+   "world": "behavior_temperature_text"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "behavior_temperature_int",
+   "world": "behavior_temperature_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "unknown policy_registry setting"
+    ],
+    "extensions": [
+     "ValueError",
+     "unknown policy_registry setting"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "unknown policy_registry setting"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "unknown policy_registry setting"
+    ]
+   },
+   "name": "registry_unknown_key",
+   "world": "registry_unknown_key"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "unsupported policy_registry schema"
+    ],
+    "extensions": [
+     "ValueError",
+     "unsupported policy_registry schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "unsupported policy_registry schema"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "unsupported policy_registry schema"
+    ]
+   },
+   "name": "registry_schema_4",
+   "world": "registry_schema_4"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "unsupported policy_registry schema"
+    ],
+    "extensions": [
+     "ValueError",
+     "unsupported policy_registry schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "unsupported policy_registry schema"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "unsupported policy_registry schema"
+    ]
+   },
+   "name": "registry_schema_text",
+   "world": "registry_schema_text"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "unsupported policy_registry schema"
+    ],
+    "extensions": [
+     "ValueError",
+     "unsupported policy_registry schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "unsupported policy_registry schema"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "unsupported policy_registry schema"
+    ]
+   },
+   "name": "registry_schema_float",
+   "world": "registry_schema_float"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "unsupported or incorrectly versioned model suite"
+    ],
+    "extensions": [
+     "ValueError",
+     "unsupported or incorrectly versioned model suite"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "unsupported or incorrectly versioned model suite"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "unsupported or incorrectly versioned model suite"
+    ]
+   },
+   "name": "registry_suite_unknown",
+   "world": "registry_suite_unknown"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid WorldState document: unhashable type: 'TrackedList'"
+    ],
+    "extensions": [
+     "TypeError",
+     "unhashable type: 'TrackedList'"
+    ],
+    "validate": [
+     "TypeError",
+     "unhashable type: 'TrackedList'"
+    ],
+    "validate_tick": [
+     "TypeError",
+     "unhashable type: 'TrackedList'"
+    ]
+   },
+   "name": "registry_suite_list",
+   "world": "registry_suite_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid WorldState document: unhashable type: 'TrackedDict'"
+    ],
+    "extensions": [
+     "TypeError",
+     "unhashable type: 'TrackedDict'"
+    ],
+    "validate": [
+     "TypeError",
+     "unhashable type: 'TrackedDict'"
+    ],
+    "validate_tick": [
+     "TypeError",
+     "unhashable type: 'TrackedDict'"
+    ]
+   },
+   "name": "registry_suite_dict",
+   "world": "registry_suite_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "unsupported or incorrectly versioned model suite"
+    ],
+    "extensions": [
+     "ValueError",
+     "unsupported or incorrectly versioned model suite"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "unsupported or incorrectly versioned model suite"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "unsupported or incorrectly versioned model suite"
+    ]
+   },
+   "name": "registry_suite_int",
+   "world": "registry_suite_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "unsupported or incorrectly versioned model suite"
+    ],
+    "extensions": [
+     "ValueError",
+     "unsupported or incorrectly versioned model suite"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "unsupported or incorrectly versioned model suite"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "unsupported or incorrectly versioned model suite"
+    ]
+   },
+   "name": "registry_suite_schema_2",
+   "world": "registry_suite_schema_2"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "model suite selectors cannot be mixed with per-domain overrides"
+    ],
+    "extensions": [
+     "ValueError",
+     "model suite selectors cannot be mixed with per-domain overrides"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "model suite selectors cannot be mixed with per-domain overrides"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "model suite selectors cannot be mixed with per-domain overrides"
+    ]
+   },
+   "name": "registry_suite_conflict",
+   "world": "registry_suite_conflict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior policy does not match the selected model suite"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior policy does not match the selected model suite"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior policy does not match the selected model suite"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior policy does not match the selected model suite"
+    ]
+   },
+   "name": "registry_suite_behavior_mismatch",
+   "world": "registry_suite_behavior_mismatch"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "unsupported installed affect model: 'nope'"
+    ],
+    "extensions": [
+     "ValueError",
+     "unsupported installed affect model: 'nope'"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "unsupported installed affect model: 'nope'"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "unsupported installed affect model: 'nope'"
+    ]
+   },
+   "name": "registry_without_suite_unknown_model",
+   "world": "registry_without_suite_unknown_model"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "unsupported installed affect model: 'causal-stress-v1'"
+    ],
+    "extensions": [
+     "ValueError",
+     "unsupported installed affect model: 'causal-stress-v1'"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "unsupported installed affect model: 'causal-stress-v1'"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "unsupported installed affect model: 'causal-stress-v1'"
+    ]
+   },
+   "name": "registry_without_suite_model_of_other_domain",
+   "world": "registry_without_suite_model_of_other_domain"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "unsupported installed queue model: [1, 'a']"
+    ],
+    "extensions": [
+     "ValueError",
+     "unsupported installed queue model: [1, 'a']"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "unsupported installed queue model: [1, 'a']"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "unsupported installed queue model: [1, 'a']"
+    ]
+   },
+   "name": "registry_without_suite_model_not_a_str",
+   "world": "registry_without_suite_model_not_a_str"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "unsupported installed behavior model: 'nope-v1'"
+    ],
+    "extensions": [
+     "ValueError",
+     "unsupported installed behavior model: 'nope-v1'"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "unsupported installed behavior model: 'nope-v1'"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "unsupported installed behavior model: 'nope-v1'"
+    ]
+   },
+   "name": "behavior_policy_unknown_small",
+   "world": "behavior_policy_unknown_small"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "unsupported installed behavior model: ['x']"
+    ],
+    "extensions": [
+     "ValueError",
+     "unsupported installed behavior model: ['x']"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "unsupported installed behavior model: ['x']"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "unsupported installed behavior model: ['x']"
+    ]
+   },
+   "name": "behavior_policy_list_small",
+   "world": "behavior_policy_list_small"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior selector must agree with model_configs.behavior.policy"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior selector must agree with model_configs.behavior.policy"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior selector must agree with model_configs.behavior.policy"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior selector must agree with model_configs.behavior.policy"
+    ]
+   },
+   "name": "behavior_selector_disagrees",
+   "world": "behavior_selector_disagrees"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior.sleep_debt_utility_weight is not supported by the selected behavior model"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior.sleep_debt_utility_weight is not supported by the selected behavior model"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior.sleep_debt_utility_weight is not supported by the selected behavior model"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior.sleep_debt_utility_weight is not supported by the selected behavior model"
+    ]
+   },
+   "name": "sleep_weight_unsupported_small",
+   "world": "sleep_weight_unsupported_small"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior.sleep_debt_utility_weight must be finite"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior.sleep_debt_utility_weight must be finite"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior.sleep_debt_utility_weight must be finite"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior.sleep_debt_utility_weight must be finite"
+    ]
+   },
+   "name": "sleep_weight_text",
+   "world": "sleep_weight_text"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior.sleep_debt_utility_weight must be finite"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior.sleep_debt_utility_weight must be finite"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior.sleep_debt_utility_weight must be finite"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior.sleep_debt_utility_weight must be finite"
+    ]
+   },
+   "name": "sleep_weight_bool",
+   "world": "sleep_weight_bool"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior.sleep_debt_utility_weight is outside its Model Catalog bounds"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior.sleep_debt_utility_weight is outside its Model Catalog bounds"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior.sleep_debt_utility_weight is outside its Model Catalog bounds"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior.sleep_debt_utility_weight is outside its Model Catalog bounds"
+    ]
+   },
+   "name": "sleep_weight_above",
+   "world": "sleep_weight_above"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior.sleep_debt_utility_weight is outside its Model Catalog bounds"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior.sleep_debt_utility_weight is outside its Model Catalog bounds"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior.sleep_debt_utility_weight is outside its Model Catalog bounds"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior.sleep_debt_utility_weight is outside its Model Catalog bounds"
+    ]
+   },
+   "name": "sleep_weight_below",
+   "world": "sleep_weight_below"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "sleep_weight_bound_int",
+   "world": "sleep_weight_bound_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior.decision_interval_minutes_by_agent must be a bounded Agent ID map"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior.decision_interval_minutes_by_agent must be a bounded Agent ID map"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior.decision_interval_minutes_by_agent must be a bounded Agent ID map"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior.decision_interval_minutes_by_agent must be a bounded Agent ID map"
+    ]
+   },
+   "name": "intervals_not_a_map",
+   "world": "intervals_not_a_map"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior.decision_interval_minutes_by_agent must be a bounded Agent ID map"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior.decision_interval_minutes_by_agent must be a bounded Agent ID map"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior.decision_interval_minutes_by_agent must be a bounded Agent ID map"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior.decision_interval_minutes_by_agent must be a bounded Agent ID map"
+    ]
+   },
+   "name": "intervals_too_many",
+   "world": "intervals_too_many"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior.decision_interval_minutes_by_agent contains an invalid Agent ID"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior.decision_interval_minutes_by_agent contains an invalid Agent ID"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior.decision_interval_minutes_by_agent contains an invalid Agent ID"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior.decision_interval_minutes_by_agent contains an invalid Agent ID"
+    ]
+   },
+   "name": "intervals_empty_id",
+   "world": "intervals_empty_id"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior.decision_interval_minutes_by_agent contains an invalid Agent ID"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior.decision_interval_minutes_by_agent contains an invalid Agent ID"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior.decision_interval_minutes_by_agent contains an invalid Agent ID"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior.decision_interval_minutes_by_agent contains an invalid Agent ID"
+    ]
+   },
+   "name": "intervals_long_id",
+   "world": "intervals_long_id"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior.decision_interval_minutes_by_agent values must be finite numbers"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior.decision_interval_minutes_by_agent values must be finite numbers"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior.decision_interval_minutes_by_agent values must be finite numbers"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior.decision_interval_minutes_by_agent values must be finite numbers"
+    ]
+   },
+   "name": "intervals_text_value",
+   "world": "intervals_text_value"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior decision intervals must be positive integer minutes"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior decision intervals must be positive integer minutes"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior decision intervals must be positive integer minutes"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior decision intervals must be positive integer minutes"
+    ]
+   },
+   "name": "intervals_float_value",
+   "world": "intervals_float_value"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior decision intervals must be positive integer minutes"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior decision intervals must be positive integer minutes"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior decision intervals must be positive integer minutes"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior decision intervals must be positive integer minutes"
+    ]
+   },
+   "name": "intervals_zero",
+   "world": "intervals_zero"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior.decision_interval_minutes_by_agent value is outside its Model Catalog bounds"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior.decision_interval_minutes_by_agent value is outside its Model Catalog bounds"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior.decision_interval_minutes_by_agent value is outside its Model Catalog bounds"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior.decision_interval_minutes_by_agent value is outside its Model Catalog bounds"
+    ]
+   },
+   "name": "intervals_above",
+   "world": "intervals_above"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "intervals_fit",
+   "world": "intervals_fit"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior.temperature_by_agent value is outside its Model Catalog bounds"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior.temperature_by_agent value is outside its Model Catalog bounds"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior.temperature_by_agent value is outside its Model Catalog bounds"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior.temperature_by_agent value is outside its Model Catalog bounds"
+    ]
+   },
+   "name": "temperatures_at_lower",
+   "world": "temperatures_at_lower"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior.temperature_by_agent value is outside its Model Catalog bounds"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior.temperature_by_agent value is outside its Model Catalog bounds"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior.temperature_by_agent value is outside its Model Catalog bounds"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior.temperature_by_agent value is outside its Model Catalog bounds"
+    ]
+   },
+   "name": "temperatures_above",
+   "world": "temperatures_above"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "temperatures_fit",
+   "world": "temperatures_fit"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "behavior.temperature_by_agent is not supported by selected priority-rule-v1"
+    ],
+    "extensions": [
+     "ValueError",
+     "behavior.temperature_by_agent is not supported by selected priority-rule-v1"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "behavior.temperature_by_agent is not supported by selected priority-rule-v1"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "behavior.temperature_by_agent is not supported by selected priority-rule-v1"
+    ]
+   },
+   "name": "temperatures_unsupported",
+   "world": "temperatures_unsupported"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "affect model requires the installed life-state psychology operator"
+    ],
+    "extensions": [
+     "ValueError",
+     "affect model requires the installed life-state psychology operator"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "affect model requires the installed life-state psychology operator"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "affect model requires the installed life-state psychology operator"
+    ]
+   },
+   "name": "affect_without_life_state",
+   "world": "affect_without_life_state"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "body_dynamics formula selection requires body_dynamics config and life-state psychology"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_dynamics formula selection requires body_dynamics config and life-state psychology"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "body_dynamics formula selection requires body_dynamics config and life-state psychology"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "body_dynamics formula selection requires body_dynamics config and life-state psychology"
+    ]
+   },
+   "name": "body_dynamics_config_missing",
+   "world": "body_dynamics_config_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "staff_operations formula selection requires staff_operations config"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations formula selection requires staff_operations config"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "staff_operations formula selection requires staff_operations config"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "staff_operations formula selection requires staff_operations config"
+    ]
+   },
+   "name": "staff_operations_config_missing",
+   "world": "staff_operations_config_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "staff_fatigue formula selection requires staff_dynamics config"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_fatigue formula selection requires staff_dynamics config"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "staff_fatigue formula selection requires staff_dynamics config"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "staff_fatigue formula selection requires staff_dynamics config"
+    ]
+   },
+   "name": "staff_dynamics_config_missing",
+   "world": "staff_dynamics_config_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "environment formula selection requires zone_environment config"
+    ],
+    "extensions": [
+     "ValueError",
+     "environment formula selection requires zone_environment config"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "environment formula selection requires zone_environment config"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "environment formula selection requires zone_environment config"
+    ]
+   },
+   "name": "zone_environment_config_missing",
+   "world": "zone_environment_config_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "1 validation error for ScenarioZoneEnvironmentConfig\npolicy_version\n  Input should be 'zone-environment-v1' or 'zone-environment-v2' [type=literal_error, input_value='nope', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error"
+    ],
+    "extensions": [
+     "ValidationError",
+     "1 validation error for ScenarioZoneEnvironmentConfig\npolicy_version\n  Input should be 'zone-environment-v1' or 'zone-environment-v2' [type=literal_error, input_value='nope', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "1 validation error for ScenarioZoneEnvironmentConfig\npolicy_version\n  Input should be 'zone-environment-v1' or 'zone-environment-v2' [type=literal_error, input_value='nope', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "1 validation error for ScenarioZoneEnvironmentConfig\npolicy_version\n  Input should be 'zone-environment-v1' or 'zone-environment-v2' [type=literal_error, input_value='nope', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error"
+    ]
+   },
+   "name": "zone_environment_config_invalid",
+   "world": "zone_environment_config_invalid"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "1 validation error for ScenarioZoneEnvironmentConfig\nextra\n  Extra inputs are not permitted [type=extra_forbidden, input_value=1, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden"
+    ],
+    "extensions": [
+     "ValidationError",
+     "1 validation error for ScenarioZoneEnvironmentConfig\nextra\n  Extra inputs are not permitted [type=extra_forbidden, input_value=1, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "1 validation error for ScenarioZoneEnvironmentConfig\nextra\n  Extra inputs are not permitted [type=extra_forbidden, input_value=1, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "1 validation error for ScenarioZoneEnvironmentConfig\nextra\n  Extra inputs are not permitted [type=extra_forbidden, input_value=1, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden"
+    ]
+   },
+   "name": "zone_environment_config_extra",
+   "world": "zone_environment_config_extra"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "environment formula selection requires zone-environment-v2"
+    ],
+    "extensions": [
+     "ValueError",
+     "environment formula selection requires zone-environment-v2"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "environment formula selection requires zone-environment-v2"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "environment formula selection requires zone-environment-v2"
+    ]
+   },
+   "name": "zone_environment_config_empty",
+   "world": "zone_environment_config_empty"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "1 validation error for ScenarioZoneEnvironmentConfig\npolicy_version\n  Input should be 'zone-environment-v1' or 'zone-environment-v2' [type=literal_error, input_value=['zone-environment-v2'], input_type=TrackedList]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error"
+    ],
+    "extensions": [
+     "ValidationError",
+     "1 validation error for ScenarioZoneEnvironmentConfig\npolicy_version\n  Input should be 'zone-environment-v1' or 'zone-environment-v2' [type=literal_error, input_value=['zone-environment-v2'], input_type=TrackedList]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "1 validation error for ScenarioZoneEnvironmentConfig\npolicy_version\n  Input should be 'zone-environment-v1' or 'zone-environment-v2' [type=literal_error, input_value=['zone-environment-v2'], input_type=TrackedList]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "1 validation error for ScenarioZoneEnvironmentConfig\npolicy_version\n  Input should be 'zone-environment-v1' or 'zone-environment-v2' [type=literal_error, input_value=['zone-environment-v2'], input_type=TrackedList]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error"
+    ]
+   },
+   "name": "zone_environment_config_list_value",
+   "world": "zone_environment_config_list_value"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ],
+    "extensions": [
+     "ValueError",
+     "model configs must map names to configuration objects"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ]
+   },
+   "name": "zone_environment_config_list",
+   "world": "zone_environment_config_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "replaceable formula factories require policy_registry schema_version 2 or 3"
+    ],
+    "extensions": [
+     "ValueError",
+     "replaceable formula factories require policy_registry schema_version 2 or 3"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "replaceable formula factories require policy_registry schema_version 2 or 3"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "replaceable formula factories require policy_registry schema_version 2 or 3"
+    ]
+   },
+   "name": "formula_needs_schema_2",
+   "world": "formula_needs_schema_2"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "disabled-proximity-v1 conflicts with an enabled social_proximity config"
+    ],
+    "extensions": [
+     "ValueError",
+     "disabled-proximity-v1 conflicts with an enabled social_proximity config"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "disabled-proximity-v1 conflicts with an enabled social_proximity config"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "disabled-proximity-v1 conflicts with an enabled social_proximity config"
+    ]
+   },
+   "name": "proximity_enabled_but_disabled_model",
+   "world": "proximity_enabled_but_disabled_model"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "proximity_disabled_config_fits",
+   "world": "proximity_disabled_config_fits"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "social_proximity config fields do not match"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_proximity config fields do not match"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "social_proximity config fields do not match"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "social_proximity config fields do not match"
+    ]
+   },
+   "name": "proximity_config_fields",
+   "world": "proximity_config_fields"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "social_proximity config version is unsupported"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_proximity config version is unsupported"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "social_proximity config version is unsupported"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "social_proximity config version is unsupported"
+    ]
+   },
+   "name": "proximity_config_version",
+   "world": "proximity_config_version"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "social_proximity bounds are invalid"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_proximity bounds are invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "social_proximity bounds are invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "social_proximity bounds are invalid"
+    ]
+   },
+   "name": "proximity_config_bounds",
+   "world": "proximity_config_bounds"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "distance-sampled-proximity-v1 requires an enabled social_proximity config"
+    ],
+    "extensions": [
+     "ValueError",
+     "distance-sampled-proximity-v1 requires an enabled social_proximity config"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "distance-sampled-proximity-v1 requires an enabled social_proximity config"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "distance-sampled-proximity-v1 requires an enabled social_proximity config"
+    ]
+   },
+   "name": "proximity_sampled_without_config",
+   "world": "proximity_sampled_without_config"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "unsupported state_contracts declaration"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "unsupported state_contracts declaration"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "unsupported state_contracts declaration"
+    ]
+   },
+   "name": "state_contracts_fields",
+   "world": "state_contracts_fields"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "unsupported state_contracts declaration"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "unsupported state_contracts declaration"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "unsupported state_contracts declaration"
+    ]
+   },
+   "name": "state_contracts_schema",
+   "world": "state_contracts_schema"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "state_contracts namespaces must be an object"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "state_contracts namespaces must be an object"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "state_contracts namespaces must be an object"
+    ]
+   },
+   "name": "state_contracts_namespaces_list",
+   "world": "state_contracts_namespaces_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "requested model-state contract is not installed"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "requested model-state contract is not installed"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "requested model-state contract is not installed"
+    ]
+   },
+   "name": "state_contracts_unknown_namespace",
+   "world": "state_contracts_unknown_namespace"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "model-state implementation/schema mismatch; migration required"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "model-state implementation/schema mismatch; migration required"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "model-state implementation/schema mismatch; migration required"
+    ]
+   },
+   "name": "state_contracts_signature_mismatch",
+   "world": "state_contracts_signature_mismatch"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "missing or incompatible required model-state namespace"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "missing or incompatible required model-state namespace"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "missing or incompatible required model-state namespace"
+    ]
+   },
+   "name": "presence_missing",
+   "world": "presence_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "missing or incompatible required model-state namespace"
+    ],
+    "extensions": [
+     "KernelRefusal",
+     "population_lifecycle.validate_population_lifecycle_state refused: the presence state has another schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "missing or incompatible required model-state namespace"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "missing or incompatible required model-state namespace"
+    ]
+   },
+   "name": "presence_schema",
+   "world": "presence_schema"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ],
+    "extensions": [
+     "KernelRefusal",
+     "population_lifecycle.validate_population_lifecycle_state refused: the presence state has another field"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ]
+   },
+   "name": "presence_extra_field",
+   "world": "presence_extra_field"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ],
+    "extensions": [
+     "KernelRefusal",
+     "population_lifecycle.validate_population_lifecycle_state refused: a presence status is another value"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ]
+   },
+   "name": "presence_bad_status",
+   "world": "presence_bad_status"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ]
+   },
+   "name": "presence_future_since",
+   "world": "presence_future_since"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ],
+    "extensions": [
+     "KernelRefusal",
+     "population_lifecycle.validate_population_lifecycle_state refused: admitted presence requires a zone"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ]
+   },
+   "name": "presence_admitted_without_zone",
+   "world": "presence_admitted_without_zone"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ]
+   },
+   "name": "presence_unknown_zone",
+   "world": "presence_unknown_zone"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ]
+   },
+   "name": "presence_departed_but_here",
+   "world": "presence_departed_but_here"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ]
+   },
+   "name": "presence_omits_a_person",
+   "world": "presence_omits_a_person"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ],
+    "extensions": [
+     "KernelRefusal",
+     "population_lifecycle.validate_population_lifecycle_state refused: a presence transition has another hash"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ]
+   },
+   "name": "presence_receipt_hash",
+   "world": "presence_receipt_hash"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "presence_receipt_fits",
+   "world": "presence_receipt_fits"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ]
+   },
+   "name": "presence_receipt_future",
+   "world": "presence_receipt_future"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "declared model-state validation failed"
+    ]
+   },
+   "name": "presence_archive_path_missing",
+   "world": "presence_archive_path_missing"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "presence_archive_path_fits",
+   "world": "presence_archive_path_fits"
+  }
+ ],
+ "worlds": {
+  "affect_without_life_state": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "policy_registry",
+      "suite_id"
+     ]
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.policy_registry.psychology": "mean-reverting-distress-v1"
+   }
+  },
+  "behavior_interval_bool": {
+   "base": "small_replay",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.decision_interval_minutes": true
+   }
+  },
+  "behavior_interval_float": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.decision_interval_minutes": 15.0
+   }
+  },
+  "behavior_interval_zero": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.decision_interval_minutes": 0
+   }
+  },
+  "behavior_policy_list_small": {
+   "base": "small_replay",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.policy": [
+     "x"
+    ]
+   }
+  },
+  "behavior_policy_unknown_small": {
+   "base": "small_replay",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.policy": "nope-v1"
+   }
+  },
+  "behavior_selector_disagrees": {
+   "base": "small_replay",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.policy_registry": {
+     "behavior": "priority-rule-v1",
+     "schema_version": 1
+    }
+   }
+  },
+  "behavior_temperature_int": {
+   "base": "small_replay",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.temperature": 1
+   }
+  },
+  "behavior_temperature_text": {
+   "base": "small_replay",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.temperature": "0.2"
+   }
+  },
+  "behavior_temperature_zero": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.temperature": 0
+   }
+  },
+  "behavior_unknown_key": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.foo": 1
+   }
+  },
+  "body_dynamics_config_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "body_dynamics"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "configs_value_not_a_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.toilet_service": [
+     1
+    ]
+   }
+  },
+  "formula_needs_schema_2": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "policy_registry",
+      "suite_id"
+     ]
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.policy_registry.schema_version": 1
+   }
+  },
+  "intervals_above": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.decision_interval_minutes_by_agent": {
+     "A001": 1441
+    }
+   }
+  },
+  "intervals_empty_id": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.decision_interval_minutes_by_agent": {
+     "": 15
+    }
+   }
+  },
+  "intervals_fit": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.decision_interval_minutes_by_agent": {
+     "A001": 1440
+    }
+   }
+  },
+  "intervals_float_value": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.decision_interval_minutes_by_agent": {
+     "A001": 15.0
+    }
+   }
+  },
+  "intervals_long_id": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.decision_interval_minutes_by_agent": {
+     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": 15
+    }
+   }
+  },
+  "intervals_not_a_map": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.decision_interval_minutes_by_agent": [
+     1
+    ]
+   }
+  },
+  "intervals_text_value": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.decision_interval_minutes_by_agent": {
+     "A001": "15"
+    }
+   }
+  },
+  "intervals_too_many": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.decision_interval_minutes_by_agent": {
+     "A0": 15,
+     "A1": 15,
+     "A10": 15,
+     "A100": 15,
+     "A11": 15,
+     "A12": 15,
+     "A13": 15,
+     "A14": 15,
+     "A15": 15,
+     "A16": 15,
+     "A17": 15,
+     "A18": 15,
+     "A19": 15,
+     "A2": 15,
+     "A20": 15,
+     "A21": 15,
+     "A22": 15,
+     "A23": 15,
+     "A24": 15,
+     "A25": 15,
+     "A26": 15,
+     "A27": 15,
+     "A28": 15,
+     "A29": 15,
+     "A3": 15,
+     "A30": 15,
+     "A31": 15,
+     "A32": 15,
+     "A33": 15,
+     "A34": 15,
+     "A35": 15,
+     "A36": 15,
+     "A37": 15,
+     "A38": 15,
+     "A39": 15,
+     "A4": 15,
+     "A40": 15,
+     "A41": 15,
+     "A42": 15,
+     "A43": 15,
+     "A44": 15,
+     "A45": 15,
+     "A46": 15,
+     "A47": 15,
+     "A48": 15,
+     "A49": 15,
+     "A5": 15,
+     "A50": 15,
+     "A51": 15,
+     "A52": 15,
+     "A53": 15,
+     "A54": 15,
+     "A55": 15,
+     "A56": 15,
+     "A57": 15,
+     "A58": 15,
+     "A59": 15,
+     "A6": 15,
+     "A60": 15,
+     "A61": 15,
+     "A62": 15,
+     "A63": 15,
+     "A64": 15,
+     "A65": 15,
+     "A66": 15,
+     "A67": 15,
+     "A68": 15,
+     "A69": 15,
+     "A7": 15,
+     "A70": 15,
+     "A71": 15,
+     "A72": 15,
+     "A73": 15,
+     "A74": 15,
+     "A75": 15,
+     "A76": 15,
+     "A77": 15,
+     "A78": 15,
+     "A79": 15,
+     "A8": 15,
+     "A80": 15,
+     "A81": 15,
+     "A82": 15,
+     "A83": 15,
+     "A84": 15,
+     "A85": 15,
+     "A86": 15,
+     "A87": 15,
+     "A88": 15,
+     "A89": 15,
+     "A9": 15,
+     "A90": 15,
+     "A91": 15,
+     "A92": 15,
+     "A93": 15,
+     "A94": 15,
+     "A95": 15,
+     "A96": 15,
+     "A97": 15,
+     "A98": 15,
+     "A99": 15
+    }
+   }
+  },
+  "intervals_zero": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.decision_interval_minutes_by_agent": {
+     "A001": 0
+    }
+   }
+  },
+  "presence_admitted_without_zone": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_presence_v1.people.A001.transition_zone_id": null
+   }
+  },
+  "presence_archive_path_fits": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_presence_v1.people.A001.archive_path": [
+     "population_dynamics_v1",
+     "schema_version"
+    ]
+   }
+  },
+  "presence_archive_path_missing": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_presence_v1.people.A001.archive_path": [
+     "nope_v1"
+    ]
+   }
+  },
+  "presence_bad_status": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_presence_v1.people.A001.status": "gone"
+   }
+  },
+  "presence_departed_but_here": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_presence_v1.people.A001.status": "departed"
+   }
+  },
+  "presence_extra_field": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_presence_v1.extra": 1
+   }
+  },
+  "presence_future_since": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_presence_v1.people.A001.since_minute": 10000
+   }
+  },
+  "presence_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "population_presence_v1"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "presence_omits_a_person": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "population_presence_v1",
+      "people",
+      "A001"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "presence_receipt_fits": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_presence_v1.history": [
+     {
+      "action": "relocated",
+      "agent_id": "A001",
+      "causation_id": null,
+      "event_id": "fixture-event",
+      "from_household_id": null,
+      "from_zone_id": null,
+      "minute": 1,
+      "schema_version": 2,
+      "source_ids": [],
+      "state_snapshot_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "time_semantics": "recorded_event_minute",
+      "to_household_id": null,
+      "to_zone_id": null,
+      "transition_id": "fixture-transition"
+     }
+    ]
+   }
+  },
+  "presence_receipt_future": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_presence_v1.history": [
+     {
+      "action": "relocated",
+      "agent_id": "A001",
+      "causation_id": null,
+      "event_id": "fixture-event",
+      "from_household_id": null,
+      "from_zone_id": null,
+      "minute": 10000,
+      "schema_version": 2,
+      "source_ids": [],
+      "state_snapshot_hash": null,
+      "time_semantics": "recorded_event_minute",
+      "to_household_id": null,
+      "to_zone_id": null,
+      "transition_id": "fixture-transition"
+     }
+    ]
+   }
+  },
+  "presence_receipt_hash": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_presence_v1.history": [
+     {
+      "action": "relocated",
+      "agent_id": "A001",
+      "causation_id": null,
+      "event_id": "fixture-event",
+      "from_household_id": null,
+      "from_zone_id": null,
+      "minute": 1,
+      "schema_version": 2,
+      "source_ids": [],
+      "state_snapshot_hash": "XYZ",
+      "time_semantics": "recorded_event_minute",
+      "to_household_id": null,
+      "to_zone_id": null,
+      "transition_id": "fixture-transition"
+     }
+    ]
+   }
+  },
+  "presence_schema": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_presence_v1.schema_version": 2
+   }
+  },
+  "presence_unknown_zone": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_presence_v1.people.A001.transition_zone_id": "nowhere"
+   }
+  },
+  "proximity_config_bounds": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.social_proximity": {
+     "enabled": true,
+     "max_distance_m": 11,
+     "max_pairs_per_sample": 100,
+     "policy_version": "distance-sampled-proximity-v1",
+     "sample_interval_minutes": 5,
+     "schema_version": 1
+    }
+   }
+  },
+  "proximity_config_fields": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.social_proximity": {
+     "enabled": true
+    }
+   }
+  },
+  "proximity_config_version": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.social_proximity": {
+     "enabled": true,
+     "max_distance_m": 2.0,
+     "max_pairs_per_sample": 100,
+     "policy_version": "distance-sampled-proximity-v1",
+     "sample_interval_minutes": 5,
+     "schema_version": 2
+    }
+   }
+  },
+  "proximity_disabled_config_fits": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.social_proximity": {
+     "enabled": false,
+     "max_distance_m": 2.0,
+     "max_pairs_per_sample": 100,
+     "policy_version": "distance-sampled-proximity-v1",
+     "sample_interval_minutes": 5,
+     "schema_version": 1
+    }
+   }
+  },
+  "proximity_enabled_but_disabled_model": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.social_proximity": {
+     "enabled": true,
+     "max_distance_m": 2.0,
+     "max_pairs_per_sample": 100,
+     "policy_version": "distance-sampled-proximity-v1",
+     "sample_interval_minutes": 5,
+     "schema_version": 1
+    }
+   }
+  },
+  "proximity_sampled_without_config": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "policy_registry",
+      "suite_id"
+     ]
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.policy_registry.social_proximity": "distance-sampled-proximity-v1"
+   }
+  },
+  "registry_schema_4": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.policy_registry.schema_version": 4
+   }
+  },
+  "registry_schema_float": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.policy_registry.schema_version": 3.0
+   }
+  },
+  "registry_schema_text": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.policy_registry.schema_version": "3"
+   }
+  },
+  "registry_suite_behavior_mismatch": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.policy": "utility-softmax-v1"
+   }
+  },
+  "registry_suite_conflict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.policy_registry.psychology": "causal-stress-v1"
+   }
+  },
+  "registry_suite_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.policy_registry.suite_id": {
+     "a": 1
+    }
+   }
+  },
+  "registry_suite_int": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.policy_registry.suite_id": 2
+   }
+  },
+  "registry_suite_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.policy_registry.suite_id": [
+     "a"
+    ]
+   }
+  },
+  "registry_suite_schema_2": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.policy_registry.schema_version": 2
+   }
+  },
+  "registry_suite_unknown": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.policy_registry.suite_id": "nope"
+   }
+  },
+  "registry_unknown_key": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.policy_registry.nope": "x"
+   }
+  },
+  "registry_without_suite_model_not_a_str": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "policy_registry",
+      "suite_id"
+     ]
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.policy_registry.queue": [
+     1,
+     "a"
+    ]
+   }
+  },
+  "registry_without_suite_model_of_other_domain": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "policy_registry",
+      "suite_id"
+     ]
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.policy_registry.affect": "causal-stress-v1"
+   }
+  },
+  "registry_without_suite_unknown_model": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "policy_registry",
+      "suite_id"
+     ]
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.policy_registry.affect": "nope"
+   }
+  },
+  "sleep_weight_above": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.sleep_debt_utility_weight": 5.5
+   }
+  },
+  "sleep_weight_below": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.sleep_debt_utility_weight": -1
+   }
+  },
+  "sleep_weight_bool": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.sleep_debt_utility_weight": true
+   }
+  },
+  "sleep_weight_bound_int": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.sleep_debt_utility_weight": 5
+   }
+  },
+  "sleep_weight_text": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.sleep_debt_utility_weight": "1"
+   }
+  },
+  "sleep_weight_unsupported_small": {
+   "base": "small_replay",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.sleep_debt_utility_weight": 1.0
+   }
+  },
+  "staff_dynamics_config_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "staff_dynamics"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "staff_operations_config_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "staff_operations"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "state_contracts_fields": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.state_contracts.extra": 1
+   }
+  },
+  "state_contracts_namespaces_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.state_contracts.namespaces": []
+   }
+  },
+  "state_contracts_schema": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.state_contracts.schema_version": 2
+   }
+  },
+  "state_contracts_signature_mismatch": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.state_contracts.namespaces.population_presence_v1.implementation_version": "2"
+   }
+  },
+  "state_contracts_unknown_namespace": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.state_contracts.namespaces.nope_v1": {}
+   }
+  },
+  "temperatures_above": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.temperature_by_agent": {
+     "A001": 10.5
+    }
+   }
+  },
+  "temperatures_at_lower": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.temperature_by_agent": {
+     "A001": 0
+    }
+   }
+  },
+  "temperatures_fit": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.temperature_by_agent": {
+     "A001": 0.5
+    }
+   }
+  },
+  "temperatures_unsupported": {
+   "base": "small_replay",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.behavior.policy": "priority-rule-v1",
+    "world.model_configs.behavior.temperature_by_agent": {
+     "A001": 0.5
+    }
+   }
+  },
+  "zone_environment_config_empty": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "zone_environment",
+      "baseline_by_zone"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "zone_environment",
+      "comfortable_max_temperature_c"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "zone_environment",
+      "comfortable_min_temperature_c"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "zone_environment",
+      "lighting_sleep_efficiency_loss"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "zone_environment",
+      "max_active_modifiers_per_zone"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "zone_environment",
+      "max_probability_multiplier"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "zone_environment",
+      "max_rest_decision_minutes"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "zone_environment",
+      "min_probability_multiplier"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "zone_environment",
+      "min_rest_decision_minutes"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "zone_environment",
+      "noise_rest_efficiency_loss"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "zone_environment",
+      "policy_version"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "zone_environment",
+      "privacy_discontent_per_minute"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "zone_environment",
+      "schema_version"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "zone_environment",
+      "source_id"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "zone_environment",
+      "source_type"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "zone_environment",
+      "temperature_stress_per_degree_minute"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "zone_environment",
+      "ventilation_hygiene_growth_per_minute"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "zone_environment_config_extra": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.zone_environment.extra": 1
+   }
+  },
+  "zone_environment_config_invalid": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.zone_environment.policy_version": "nope"
+   }
+  },
+  "zone_environment_config_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.zone_environment": [
+     1
+    ]
+   }
+  },
+  "zone_environment_config_list_value": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.zone_environment.policy_version": [
+     "zone-environment-v2"
+    ]
+   }
+  },
+  "zone_environment_config_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "zone_environment"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  }
+ }
+}

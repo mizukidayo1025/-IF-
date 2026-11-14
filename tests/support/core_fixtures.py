@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from sheltersim.core.world_export import export_world
-from support.paths import CORE_TEST_DATA, INITIAL_TABLE
+from support.paths import CORE_TEST_DATA, INITIAL_TABLE, VALIDATE_CATALOG
 
 # Each fixture file under native/core/tests/data/ (its stem) and the function that builds its
 # document, as "module:function". A lane adds a file here and its builder in a support module.
@@ -74,6 +74,10 @@ FIXTURES: dict[str, str] = {
     # The whole world's validation (#250): the valid worlds, and a file of cases per area.
     "validate_worlds": "support.core_validate:validate_worlds_fixture",
     "validate_entry": "support.core_validate:validate_entry_fixture",
+    "validate_selection": "support.core_validate_world:validate_selection_fixture",
+    "validate_service": "support.core_validate_world:validate_service_fixture",
+    "validate_information": "support.core_validate_world:validate_information_fixture",
+    "validate_events": "support.core_validate_world:validate_events_fixture",
     "validate_entities": "support.core_validate_entities:validate_entities_fixture",
     "validate_entity_rows": "support.core_validate_entities:validate_entity_rows_fixture",
     "validate_operations": "support.core_validate_operations:validate_operations_fixture",
@@ -88,11 +92,13 @@ FIXTURES: dict[str, str] = {
     "contracts_overlay": "support.core_contracts:contracts_overlay_fixture",
     "contracts_geometry": "support.core_contracts:contracts_geometry_fixture",
     "contracts_population": "support.core_contracts:contracts_population_fixture",
+    # Not a test's data: the catalog the core's validation reads (#347), at its own path.
+    "validate_catalog": "support.core_validate:validate_catalog",
 }
 # The fixtures whose file is not under native/core/tests/data/.
-PATHS: dict[str, Path] = {"initial_table": INITIAL_TABLE}
+PATHS: dict[str, Path] = {"initial_table": INITIAL_TABLE, "validate_catalog": VALIDATE_CATALOG}
 # The fixtures the core's build embeds (`include_str!`), written without spaces.
-COMPACT = frozenset({"initial_table"})
+COMPACT = frozenset({"initial_table", "validate_catalog"})
 
 # ---- The registry ------------------------------------------------------------------------------
 

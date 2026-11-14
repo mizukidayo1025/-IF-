@@ -1,0 +1,393 @@
+{
+ "cases": [
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "ID counters cannot be negative"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "ID counters cannot be negative"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "ID counters cannot be negative"
+    ]
+   },
+   "name": "counter_negative",
+   "world": "counter_negative"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid WorldState document: '<' not supported between instances of 'str' and 'int'"
+    ],
+    "extensions": null,
+    "validate": [
+     "TypeError",
+     "'<' not supported between instances of 'str' and 'int'"
+    ],
+    "validate_tick": [
+     "TypeError",
+     "'<' not supported between instances of 'str' and 'int'"
+    ]
+   },
+   "name": "counter_text",
+   "world": "counter_text"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid WorldState document: '<' not supported between instances of 'TrackedList' and 'int'"
+    ],
+    "extensions": null,
+    "validate": [
+     "TypeError",
+     "'<' not supported between instances of 'TrackedList' and 'int'"
+    ],
+    "validate_tick": [
+     "TypeError",
+     "'<' not supported between instances of 'TrackedList' and 'int'"
+    ]
+   },
+   "name": "counter_list",
+   "world": "counter_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "event ID counter must be greater than scheduled sequences"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "event ID counter must be greater than scheduled sequences"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "event ID counter must be greater than scheduled sequences"
+    ]
+   },
+   "name": "event_counter_low",
+   "world": "event_counter_low"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid WorldState document: '<' not supported between instances of 'str' and 'int'"
+    ],
+    "extensions": null,
+    "validate": [
+     "TypeError",
+     "'<' not supported between instances of 'str' and 'int'"
+    ],
+    "validate_tick": [
+     "TypeError",
+     "'<' not supported between instances of 'str' and 'int'"
+    ]
+   },
+   "name": "event_counter_text",
+   "world": "event_counter_text"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "event ID counter must be greater than scheduled sequences"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "event ID counter must be greater than scheduled sequences"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "event ID counter must be greater than scheduled sequences"
+    ]
+   },
+   "name": "event_counter_missing",
+   "world": "event_counter_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "event log cannot contain future realization times"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "event log cannot contain future realization times"
+    ],
+    "validate_tick": null
+   },
+   "name": "log_future_realization",
+   "world": "log_future_realization"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "event log is outside the scenario duration"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "event log is outside the scenario duration"
+    ],
+    "validate_tick": null
+   },
+   "name": "log_outside_duration",
+   "world": "log_outside_duration"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "an event cannot be both pending and realized"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "an event cannot be both pending and realized"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "an event cannot be both pending and realized"
+    ]
+   },
+   "name": "pending_and_realized",
+   "world": "pending_and_realized"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "event sequences must be unique across queue and log"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "event sequences must be unique across queue and log"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "event sequences must be unique across queue and log"
+    ]
+   },
+   "name": "sequence_in_queue_and_log",
+   "world": "sequence_in_queue_and_log"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "event 'h00-toilet-recovery' is outside the scenario"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "event 'h00-toilet-recovery' is outside the scenario"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "event 'h00-toilet-recovery' is outside the scenario"
+    ]
+   },
+   "name": "pending_outside_scenario",
+   "world": "pending_outside_scenario"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "in_flight": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "in_flight": {
+    "causation_id": "toilet-complete-52",
+    "due_minute": 15,
+    "event_id": "agent-travel-complete-69",
+    "event_type": "agent_travel_complete",
+    "kind": "completion",
+    "payload": {
+     "agent_id": "A004",
+     "destination_zone_id": "sleeping",
+     "facility_id": null,
+     "purpose": "return",
+     "route_edge_ids": [
+      "route_toilet_corridor",
+      "route_corridor_sleeping"
+     ],
+     "route_zone_ids": [
+      "toilet",
+      "corridor",
+      "sleeping"
+     ],
+     "task_id": "agent-travel-69",
+     "travel_minutes": 3
+    },
+    "priority": 0,
+    "provenance": {
+     "policy_version": "shortest-travel-time-v1",
+     "source_id": "ASM-ZONE-ROUTING-V1",
+     "source_type": "assumption"
+    },
+    "sequence": 69,
+    "source_id": "agent-travel-69"
+   },
+   "name": "in_flight_event",
+   "world": "in_flight_event"
+  }
+ ],
+ "worlds": {
+  "counter_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.fixture": [
+     1
+    ]
+   }
+  },
+  "counter_negative": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.fixture": -1
+   }
+  },
+  "counter_text": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.fixture": "1"
+   }
+  },
+  "event_counter_low": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 1
+   }
+  },
+  "event_counter_missing": {
+   "base": "small_replay",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "id_counters",
+      "event"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "event_counter_text": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": "9"
+   }
+  },
+  "in_flight_event": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.fixture": 0
+   }
+  },
+  "log_future_realization": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.event_log.68.realized_minute": 100
+   }
+  },
+  "log_outside_duration": {
+   "base": "small_replay",
+   "file": "validate_worlds",
+   "set": {
+    "world.event_log.17.realized_minute": 1440,
+    "world.minute_index": 1440
+   }
+  },
+  "pending_and_realized": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": "autonomous action completed",
+      "event": {
+       "causation_id": "toilet-complete-52",
+       "due_minute": 15,
+       "event_id": "agent-travel-complete-69",
+       "event_type": "agent_travel_complete",
+       "kind": "completion",
+       "payload": {
+        "agent_id": "A004",
+        "destination_zone_id": "sleeping",
+        "facility_id": null,
+        "purpose": "return",
+        "route_edge_ids": [
+         "route_toilet_corridor",
+         "route_corridor_sleeping"
+        ],
+        "route_zone_ids": [
+         "toilet",
+         "corridor",
+         "sleeping"
+        ],
+        "task_id": "agent-travel-69",
+        "travel_minutes": 3
+       },
+       "priority": 0,
+       "provenance": {
+        "policy_version": "shortest-travel-time-v1",
+        "source_id": "ASM-ZONE-ROUTING-V1",
+        "source_type": "assumption"
+       },
+       "sequence": 9000000,
+       "source_id": "agent-travel-69"
+      },
+      "realized_minute": 14,
+      "status": "applied"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 9000001
+   }
+  },
+  "pending_outside_scenario": {
+   "base": "small_replay",
+   "file": "validate_worlds",
+   "set": {
+    "world.event_queue.0.due_minute": 1440
+   }
+  },
+  "sequence_in_queue_and_log": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.event_queue.0.sequence": 5
+   }
+  }
+ }
+}
