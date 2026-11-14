@@ -228,20 +228,11 @@ function base64Url(bytes) {
   return btoa(binary).replaceAll("+", "-").replaceAll("/", "_");
 }
 
-/// The `scope` a cursor of the index holds. `HistoryIndex.search` names two things `scope`: the
-/// digest of the query, and then the SQL term that selects the rows of the branch and of each
-/// ancestor before its fork (`_scope`), which is the one its cursors hold and are checked against.
-/// So a cursor is bound to the branch's lineage and head, not to the query: a cursor of another
-/// query of the same branch is taken, as the server takes it.
-async function cursorScope(tree, projectId, runId, record) {
-  const terms = ["r.branch=?"];
-  const seen = new Set([record.branch_id]);
-  for (let parent = record.parent_branch_id; parent !== null && !seen.has(parent); ) {
-    seen.add(parent);
-    terms.push("(r.branch=? AND r.minute<?)");
-    parent = (await branchRecord(tree, projectId, runId, parent)).parent_branch_id;
-  }
-  return `(${terms.join(" OR ")})`;
+/// The `scope` a cursor of the index holds (`HistoryIndex.search`): the digest of the branch's ids
+/// and the query but its cursor and limit, so a cursor pages only the query it came from (#278).
+function cursorScope(wasm, projectId, runId, branchId, query) {
+  const { cursor: _cursor, limit: _limit, ...asked } = query;
+  return sha256(wasm, sortedJson({ project: projectId, run: runId, branch: branchId, schema_version: 1, ...asked }));
 }
 
 /// `cursor_decode` of the index: the cursor's (minute, key) for this scope and anchor, or the
@@ -341,7 +332,7 @@ export async function historyResponse({ wasm, tree, projectId, runId, branchId, 
   if (asked.kind !== "kpis") throw storageError(`browser_unsupported: history of kind ${asked.kind} is not answered by the browser version`);
   const anchor = record.checkpoint_hash;
   const { cursor, limit } = asked;
-  const scope = await cursorScope(tree, projectId, runId, record);
+  const scope = cursorScope(wasm, projectId, runId, branchId, asked);
   const after = cursor === null ? null : cursorRow(cursor, scope, anchor);
   const start = Number(asked.start);
   const end = Number(asked.end);

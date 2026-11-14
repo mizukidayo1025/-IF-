@@ -4,28 +4,28 @@
    "branch": "main",
    "pages": [
     {
-     "length": 26752,
-     "sha256": "de812388e240fce520eea3822da58b580ec3ae15978f2fcedc65d37c6daf03de",
+     "length": 26820,
+     "sha256": "e1ca5c29f0b52cebf0d030774fac43b1d27d915b594089f0c3dcf01d39b6a81e",
      "status": 200
     },
     {
-     "length": 26861,
-     "sha256": "5db636b9679e2d7248c3dafd03ad969737a2536485b933ddd017145a83b0cf26",
+     "length": 26929,
+     "sha256": "a1f42171d5f268189f5e12a6e9580930fcd6f120832418d66350edca33de70e1",
      "status": 200
     },
     {
-     "length": 26981,
-     "sha256": "dae28b0ab60199118ca51a36fd92c515ee834f23eb8c05ecd547af748830202c",
+     "length": 27049,
+     "sha256": "553273d8d5a643c059aed098877a28876f53ccf032769c964c4e218f4372bf56",
      "status": 200
     },
     {
-     "length": 26492,
-     "sha256": "6e76db0dc8d4820579336ee1ec627dbd3676459c14a6672a901bbad3bd4af147",
+     "length": 26560,
+     "sha256": "79d900497c9d896fba2d5a56d5da2bf7c4620f858e3e64a438d100b4e4a8da54",
      "status": 200
     },
     {
-     "length": 26618,
-     "sha256": "69f3bea0407a2a45819159b0e696774d6241b75f57d90c7366aa9d38264a3f08",
+     "length": 26690,
+     "sha256": "75799e2ef3c2e35bfe7779122f5a85495a266be0e94f5326ed987541491840a1",
      "status": 200
     },
     {
@@ -41,18 +41,18 @@
    "branch": "main",
    "pages": [
     {
-     "length": 6267,
-     "sha256": "3a9543140d1ecdd30bad821fef81aaeb62679fc388d1b4c3c36e1d0edef9e6c8",
+     "length": 6335,
+     "sha256": "8cf23bb0a5bd580bff746e5e49ca3d62844321bbdc7fcc06c9c755203b227cfe",
      "status": 200
     },
     {
-     "length": 6284,
-     "sha256": "fa9b598209be9c227431fb9653e486bcb7419d15e4c6953fa3fe520d61e1b287",
+     "length": 6352,
+     "sha256": "94c5318b0135b8a803ff0bc7be8b0c531b7f1cac5ab1017a0b1d098396363c4b",
      "status": 200
     },
     {
-     "length": 6202,
-     "sha256": "a795de213c93c9cd89933ceb6080f94536e216af02181fb23b3b9eb58f1cb778",
+     "length": 6274,
+     "sha256": "38d64c36d0c465d51ab6019e4c5c9f97754dcb7d4f67fd7bb2d27b4c78911e47",
      "status": 200
     },
     {
@@ -140,23 +140,23 @@
    "branch": "main",
    "pages": [
     {
-     "length": 8247,
-     "sha256": "1fdcae1c663f144c8b48f3125737b5459f18cd8c02977935c2391ae9885ba680",
+     "length": 8315,
+     "sha256": "e252c65a2138408674b5262df7f0d767a55868d6f654ec95a1152f468af4b31a",
      "status": 200
     },
     {
-     "length": 8298,
-     "sha256": "db8e2c0379b8a79f8bb92bb947f4ad6d98ffd22a5fdd9de00bf46c3f8fb957c1",
+     "length": 8366,
+     "sha256": "30d3b98d9494db2bf41fa6686379a2815710077349a4172ef20ed33c9387a5cb",
      "status": 200
     },
     {
-     "length": 8284,
-     "sha256": "19d1bcbdd1201f5dfdbe19e7a877027941c0578f0780a3d53ceb7669fed37bba",
+     "length": 8352,
+     "sha256": "62250f698f49f947eec6f0e1879773bfaecc42c23f504aa56b3f0dc285d81f69",
      "status": 200
     },
     {
-     "length": 8332,
-     "sha256": "449628e81280560da3369c86db1818114efa877da9cb320bcbe1c5d826dd102c",
+     "length": 8400,
+     "sha256": "3d96d0d70263c55ccf72752639c798a84c46cb14236fb45b1eec89ab4ea9dcd1",
      "status": 200
     },
     {
@@ -172,13 +172,45 @@
    "branch": "main",
    "pages": [
     {
-     "length": 11320,
-     "sha256": "829b01d084dc3d949a2416bb5b5f87e987020a0e98f476684e3fa7e49420aaa7",
+     "length": 8315,
+     "sha256": "72478a07530897fbbe67ee7dde266902d32d8d176fcfebffea27bade03a6ae87",
      "status": 200
     },
     {
-     "length": 11373,
-     "sha256": "8997727c8e4c77b162c9b37569f85e78822e1c247ec92761501ce75e3870e39d",
+     "length": 8366,
+     "sha256": "8b2e1f043efe8fd44422145603cab7d902d9ce5433a2380b8e164d99455fec33",
+     "status": 200
+    },
+    {
+     "length": 8352,
+     "sha256": "b1c7b059352177c060b7352caf1b24196d3919c39c80208fbd3c1519a4e2e903",
+     "status": 200
+    },
+    {
+     "length": 8400,
+     "sha256": "07c9f88197c74f03fa643902df7f783d20e892d91d0f69940e57b6392f75221a",
+     "status": 200
+    },
+    {
+     "length": 4136,
+     "sha256": "2c08e4988995636fd132f36b8ce177f3705c22f3e436ae5b78f689c855471b06",
+     "status": 200
+    }
+   ],
+   "query": "kind=kpis&end=30&limit=7&text=%E3%80%8C%01%E2%80%A8%E3%80%8D%22%5C+",
+   "route": "history"
+  },
+  {
+   "branch": "main",
+   "pages": [
+    {
+     "length": 11388,
+     "sha256": "174e67262ba087acc67fb90a285e2b3e473fd5b0ca4648b79404e477c25f7c5e",
+     "status": 200
+    },
+    {
+     "length": 11441,
+     "sha256": "1172f4f7f206f599e242e85ef5c52a8763f93326ee8e33df15f8f33b17dc3d01",
      "status": 200
     },
     {
@@ -194,8 +226,8 @@
    "branch": "main",
    "pages": [
     {
-     "length": 4148,
-     "sha256": "4ae34fb9f70fa715fd46b9c70917de8ae76e6d4a4ea372d40cc911e8b5172161",
+     "length": 4216,
+     "sha256": "bbe26c37d06153a20dc5a80082eb875966a18a0ea051fc67f944d8b2731b2f30",
      "status": 200
     }
    ],
@@ -381,13 +413,27 @@
    "route": "llm-status"
   }
  ],
- "foreign_cursor": {
-  "from": "kind=kpis&start=13&end=140&step=7&limit=5",
-  "length": 6263,
-  "sha256": "b5c7748409abae86e87c550bb2002250af7744b85411a8741bdbdc932f87ad11",
-  "status": 200,
-  "to": "kind=kpis&end=140&limit=5"
- },
+ "foreign_cursors": [
+  {
+   "body": "{\"code\":\"stale_or_foreign_cursor\",\"error\":\"stale_or_foreign_cursor: restart this query\"}",
+   "from": "kind=kpis&start=13&end=140&step=7&limit=5",
+   "status": 409,
+   "to": "kind=kpis&end=140&limit=5"
+  },
+  {
+   "from": "kind=kpis&start=13&end=140&step=7&limit=5",
+   "length": 10427,
+   "sha256": "0fbabb00f971f8b499d651a46e1ccc3cd4d0a9efc6c45a64704963680de572c3",
+   "status": 200,
+   "to": "kind=kpis&start=13&end=140&step=7&limit=9"
+  },
+  {
+   "body": "{\"code\":\"stale_or_foreign_cursor\",\"error\":\"stale_or_foreign_cursor: restart this query\"}",
+   "from": "kind=kpis&end=30&limit=7&text=%21%21",
+   "status": 409,
+   "to": "kind=kpis&end=30&limit=7&text=%21"
+  }
+ ],
  "pdf_cases": [
   {
    "answer": "{\"code\":\"pdf_analysis_offline\",\"error\":\"pdf_analysis_offline: Opusの記録応答またはAPI接続が必要です。\"}",

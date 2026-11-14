@@ -132,11 +132,12 @@ for (const { route, branch, query, pages } of fixture.cases) {
     }
   }
 }
-{
-  const { from, to, ...expected } = fixture.foreign_cursor;
+// A cursor of one query given to another (#278).
+for (const { from, to, ...expected } of fixture.foreign_cursors) {
   const first = JSON.parse((await answer("history", branchId, from, cache)).body);
-  compare("a cursor of another query", await answer("history", branchId, `${to}&cursor=${first.next_cursor}`, cache), expected);
+  compare(`the cursor of ${from} given to ${to}`, await answer("history", branchId, `${to}&cursor=${first.next_cursor}`, cache), expected);
 }
+check(fixture.foreign_cursors.length > 0, "the fixture has cursors of other queries");
 console.log(`${asked} answers compared with the server's in ${((performance.now() - started) / 1000).toFixed(2)} s`);
 
 // `POST runs/{run}/pdf-report` (#309): the server's checks and, past them, its 409 without an API key.

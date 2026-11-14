@@ -149,6 +149,43 @@ def test_hash_keys_are_bytes_read_back_and_ordered_as_their_text(index):
     assert _counts(index)["records"] == len(keys)
 
 
+def test_a_cursor_is_taken_only_by_its_own_query(index):
+    """#278: a cursor is bound to the query it pages (all but its cursor and limit), not only to
+    the branch's rows and head: another query of the same branch refuses it."""
+    keys = [f"event:event-{number}" for number in range(4)]
+    _put(
+        index,
+        *(
+            ("actions", {**_record(number), "event_id": key}, key)
+            for number, key in enumerate(keys)
+        ),
+    )
+    with index.connect(write=True) as db:
+        db.execute("INSERT INTO heads VALUES('main','head',60,'{}'),('other','head',60,'{}')")
+    first = index.search("main", HistoryQuery(kind="actions", end=60, limit=1), "head", 60)
+    cursor = first["next_cursor"]
+    following = index.search(
+        "main", HistoryQuery(kind="actions", end=60, limit=2, cursor=cursor), "head", 60
+    )
+    assert [item["event_id"] for item in following["items"]] == keys[1:3]
+    for other in (
+        {"kind": "actions", "end": 59},
+        {"kind": "actions", "end": 60, "start": 1},
+        {"kind": "actions", "end": 60, "agent_id": "agent-1"},
+        {"kind": "actions", "end": 60, "text": "!!"},
+        {"kind": "events", "end": 60},
+    ):
+        with pytest.raises(StorageError, match="stale_or_foreign_cursor"):
+            index.search("main", HistoryQuery(**other, limit=1, cursor=cursor), "head", 60)
+    with pytest.raises(StorageError, match="stale_or_foreign_cursor"):
+        index.search(
+            "other",
+            HistoryQuery(kind="actions", end=60, limit=1, cursor=cursor),
+            "head",
+            60,
+        )
+
+
 def test_a_repeated_record_is_stored_once_within_and_across_writes(index):
     _put(
         index, ("events", _record(1), "k"), ("events", _record(1), "k"), ("kpis", _record(2), None)

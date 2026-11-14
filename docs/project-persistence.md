@@ -133,7 +133,7 @@ Pythonの欄のうち、ブラウザーで意味が変わるもの：
 
 レポートは、画面のofflineのRun（`scenario-approve`から作り、`SHELTERSIM_LLM_MODE=offline`で計算したもの）でserverが書くものです。評価の依頼はofflineで規則のfallbackになり（`rule_fallback`）、最後の指標の標本、最後の100件の記録のうち重要なもの20件、Scenarioから決まる仮定のID、世界のdigest（`state_hash`）を持ちます。`execution_mode: offline`で作ったRun（実験用、`offline_experiment_no_paid_review`）の答えではありません。
 
-Pythonの索引のcursorは、問い合わせの内容ではなく、Branchの行の範囲（`HistoryIndex.search`で、問い合わせのdigestと同じ名前`scope`に後から入るSQLの条件）と先頭に結び付いています。そのため、同じBranchの別の問い合わせのcursorも受け付けます。ブラウザーも同じにしています。
+履歴のcursorは、問い合わせ（Project、Run、Branchと、`cursor`・`limit`を除く`HistoryQuery`の欄）のdigest（`scope`）と先頭に結び付いています。同じBranchでも別の問い合わせのcursorは`stale_or_foreign_cursor`で断り、`limit`だけが違う問い合わせには使えます（#278）。ブラウザーも同じdigestを作ります。
 
 `native/wasm/tests/node_api_answers.mjs`が、`native/core/tests/data/api_answers.json`のRunで、serverの答えと同じbytesになることを確かめます。
 

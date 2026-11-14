@@ -92,7 +92,7 @@ python benchmarks/wasm_trial_measure.py --worlds wasm-trial --pkg wasm-web --sto
 node native/wasm/tests/node_project_store.mjs wasm-pkg
 ~~~
 
-Branchの指標の時系列（`GET …/history?kind=kpis`）、レポート（`GET …/report`）、LLMの状態（`GET …/llm-status`）には、`native/wasm/js/api_answers.mjs`が、同じRunにPythonのserverが返すJSONと同じbytesで答えます（#266）。時系列は保存した指標の標本から作り（中核の`sheltersim_core::history`、WASMの`KpiHistory`）、Pythonの履歴の索引と同じ行、同じページ送り、同じ誤りにします。小数は中核が書くので、JSで読み直しません。レポートは、画面のofflineのRunが終わったときにserverが書くもの（評価の規則のfallback）を、保存したRunの最後の分から作ります。Pythonと違う所は[project-persistence.md](project-persistence.md#ブラウザーの時系列レポートllmの状態266)にあります。`native/wasm/tests/node_api_answers.mjs`は、`native/core/tests/data/api_answers.json`（`tests/support/core_api_answers.py`が、Projectの画面の経路で計算したRunとserverの答えから作ります）と同じRunをWASMで計算し、いくつもの`start`・`end`・`step`・`limit`とcursorのページ送り、誤りの答えが、serverの答えと同じsha256になることを確かめます。CIのlintのjobも動かします。2番目の引数に、同じ作り方の大きいRunのファイルを渡せます。
+Branchの指標の時系列（`GET …/history?kind=kpis`）、レポート（`GET …/report`）、LLMの状態（`GET …/llm-status`）には、`native/wasm/js/api_answers.mjs`が、同じRunにPythonのserverが返すJSONと同じbytesで答えます（#266）。時系列は保存した指標の標本から作り（中核の`sheltersim_core::history`、WASMの`KpiHistory`）、Pythonの履歴の索引と同じ行、同じページ送り、同じ誤りにします。小数は中核が書くので、JSで読み直しません。レポートは、画面のofflineのRunが終わったときにserverが書くもの（評価の規則のfallback）を、保存したRunの最後の分から作ります。Pythonと違う所は[project-persistence.md](project-persistence.md#ブラウザーの時系列レポートllmの状態266)にあります。`native/wasm/tests/node_api_answers.mjs`は、`native/core/tests/data/api_answers.json`（`tests/support/core_api_answers.py`が、Projectの画面の経路で計算したRunとserverの答えから作ります）と同じRunをWASMで計算し、いくつもの`start`・`end`・`step`・`limit`とcursorのページ送り、別の問い合わせのcursor（#278）、誤りの答えが、serverの答えと同じsha256になることを確かめます。CIのlintのjobも動かします。2番目の引数に、同じ作り方の大きいRunのファイルを渡せます。
 
 ~~~shell
 node native/wasm/tests/node_api_answers.mjs wasm-pkg

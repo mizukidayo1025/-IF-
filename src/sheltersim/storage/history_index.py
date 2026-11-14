@@ -1304,9 +1304,11 @@ class HistoryIndex:
                     [(branch, None)] if kind == "conversations" else _segments(db, branch)
                 )
             ]
-            scope, scope_args = _scope(segments)
-            where[0] = scope
-            args[:1] = scope_args
+            # The rows of the branch's lineage. A cursor is bound to the query (scope), not to
+            # these (#278).
+            lineage, lineage_args = _scope(segments)
+            where[0] = lineage
+            args[:1] = lineage_args
 
             def position(cursor: tuple[int, str] | None, allowed: tuple[str, ...]) -> None:
                 if cursor is None:
@@ -1331,10 +1333,10 @@ class HistoryIndex:
                     links = db.execute(
                         # Ordered, so that a graph cut off at 500 events keeps the same ones
                         # whatever order the rows and names were written in (#48, #130).
-                        f"SELECT r.event,r.cause FROM records r WHERE {scope} AND "
+                        f"SELECT r.event,r.cause FROM records r WHERE {lineage} AND "
                         f"r.kind={_EVENTS} AND (r.event=? OR r.cause=?) "
                         f"ORDER BY r.minute,{_R_KEY} LIMIT 501",
-                        (*scope_args, current, current),
+                        (*lineage_args, current, current),
                     ).fetchall()
                     link_limit_hit = link_limit_hit or len(links) >= 501
                     for row in links:
@@ -1356,9 +1358,9 @@ class HistoryIndex:
                     or bool(frontier)
                     or len(visited) >= 500,
                     "root_present": db.execute(
-                        f"SELECT 1 FROM records r WHERE {scope} AND r.kind={_EVENTS} AND "
+                        f"SELECT 1 FROM records r WHERE {lineage} AND r.kind={_EVENTS} AND "
                         "r.event=? LIMIT 1",
-                        (*scope_args, root),
+                        (*lineage_args, root),
                     ).fetchone()
                     is not None,
                 }
@@ -1372,7 +1374,7 @@ class HistoryIndex:
             # One ordered select per branch of the lineage keeps each on its index;
             # the compound select merges them in order.
             parts, part_args = [], []
-            rest, rest_args = where[1:], args[len(scope_args) :]
+            rest, rest_args = where[1:], args[len(lineage_args) :]
             for segment in segments:
                 segment_scope, segment_args = _scope([segment])
                 parts.append(
@@ -1387,10 +1389,11 @@ class HistoryIndex:
                 (*part_args, query.limit + 1),
             ).fetchall()
             coverage_rows = db.execute(
-                f"SELECT r.kind,MIN(r.minute),MAX(r.minute),COUNT(*) FROM records r WHERE {scope} "
+                "SELECT r.kind,MIN(r.minute),MAX(r.minute),COUNT(*) FROM records r "
+                f"WHERE {lineage} "
                 "AND r.kind IN (" + ",".join("?" for _ in codes) + ") "
                 "AND r.minute BETWEEN ? AND ? GROUP BY r.kind",
-                (*scope_args, *codes, query.start, query.end),
+                (*lineage_args, *codes, query.start, query.end),
             ).fetchall()
             head = db.execute("SELECT counts FROM heads WHERE branch=?", (branch,)).fetchone()
             selected = rows[: query.limit]
