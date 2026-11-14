@@ -6,9 +6,8 @@
 //! - The Python-parsed sections of the configs are the exported world's (`load::Sections`), and
 //!   the floor plan is built from them with the world's overlay now, again when the overlay's
 //!   facility moves or partitions change (`load::FloorPlans`).
-//! - A contract (policy E15) gives its input back as given. What it was asked is kept by the
-//!   model's name (`contracts`): where the pydantic model would have refused or changed the input,
-//!   the Run may part from the native path's.
+//! - A contract (policy E15) answers as the native host's pydantic does (`contracts::validate`,
+//!   #346): the model's dump, or the `ValidationError` with pydantic's text.
 //! - The whole world's validation (policy E6) passes, and the end-of-tick check asks no Python
 //!   validator (`engine::NoPython`).
 //! - There is no LLM: the Run runs as one without (`Llm::default()`); no decision or trace goes out
@@ -27,7 +26,6 @@
 //!   browser only): see `archive::SavedPoint`.
 
 use std::cell::RefCell;
-use std::collections::BTreeMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -54,15 +52,6 @@ use crate::state::resource_ledger::NAME as LEDGER;
 use crate::value::V;
 use crate::world::WorldCell;
 
-/// The name a contract is kept by: the pydantic model's, or the operator's for an effect's
-/// parameters.
-fn contract_name(which: &Contract) -> String {
-    match which {
-        Contract::EffectParameters(operator) => format!("_PARAMETER_MODELS[{operator}]"),
-        other => other.model().1.to_owned(),
-    }
-}
-
 /// The host of a loaded world without Python.
 pub struct PlainHost {
     loaded: Rc<Loaded>,
@@ -70,14 +59,12 @@ pub struct PlainHost {
     plans: FloorPlans,
     /// The metric samples, packed (`MetricSamples`).
     pub samples: MetricSamples,
-    /// How many times each contract gave its input back, by the model's name.
-    pub contracts: BTreeMap<String, u64>,
 }
 
 impl PlainHost {
     /// The host of `loaded`, with the sections of the exported entry it was loaded from.
     pub fn new(entry: &Value, loaded: Rc<Loaded>) -> Result<Self> {
-        Ok(Self { loaded, sections: Sections::of_entry(entry)?, plans: FloorPlans::default(), samples: MetricSamples::default(), contracts: BTreeMap::new() })
+        Ok(Self { loaded, sections: Sections::of_entry(entry)?, plans: FloorPlans::default(), samples: MetricSamples::default() })
     }
 
     /// How many times the floor plan was built.
@@ -362,8 +349,7 @@ impl Host for PlainHost {
     }
 
     fn contract(&mut self, which: &Contract, input: &V) -> Result<V> {
-        *self.contracts.entry(contract_name(which)).or_default() += 1;
-        Ok(input.clone())
+        crate::contracts::validate(which, input)
     }
 
     fn llm(&self) -> Result<Llm> {
@@ -579,7 +565,7 @@ impl PlainRun {
     /// The Run now as a saved point (`archive::SavedPoint`, #251), between two ticks.
     pub fn saved_point(&self) -> Result<SavedPoint> {
         let (world, records) = self.loaded.cell.with(|world| -> Result<_> { Ok((archive::world_parts(world)?, world.log()?.len() as u64)) })??;
-        Ok(SavedPoint { minute: self.minute()?, records, samples: self.host.samples.len() as u64, contracts: self.host.contracts.clone(), world })
+        Ok(SavedPoint { minute: self.minute()?, records, samples: self.host.samples.len() as u64, world })
     }
 
     /// The Run at a saved point (#251): its world, the log and the samples `restore` took, and
@@ -605,7 +591,6 @@ impl PlainRun {
         loaded.run.try_borrow_mut().map_err(|_| Error::unsupported("the Run is borrowed"))?.actions = actions;
         let mut host = PlainHost::new(&entry, Rc::clone(&loaded))?;
         host.samples = samples;
-        host.contracts = point.contracts;
         Ok(Self { loaded, host, stepping: Stepping::default(), rng_state, log_node: RefCell::default() })
     }
 

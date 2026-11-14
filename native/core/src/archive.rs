@@ -20,7 +20,7 @@
 //! time, and keeps their first records and samples up to the saved point's counts; then
 //! `PlainRun::restore` builds the Run at the saved point's minute, which goes on as the Run did.
 
-use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
@@ -189,26 +189,30 @@ impl SampleReader {
 /// The first bytes of a saved point.
 const SAVED_POINT_MAGIC: &[u8] = b"SHSP";
 
-/// The version of a saved point's bytes: a reader takes this version only, and any other is an
-/// error, not read as this one.
-pub const SAVED_POINT_VERSION: u64 = 1;
+/// The version of a saved point's bytes: a reader takes this version and version 1, and any
+/// other is an error, not read as this one.
+pub const SAVED_POINT_VERSION: u64 = 2;
 
-/// A Run at a minute, as a browser's Run stores it: the world without its log (`world_parts`), how
-/// many records the log held and how many metric samples the Run took, and how many times each
-/// contract gave its input back (`PlainHost::contracts`). The random source is the world's seed
-/// (`CounterRNG`), and the ID counters, the scheduled events and the model state are parts of the
-/// world; the floor plan is built again from the world's overlay, and the open actions from the
-/// log (`ActiveActions::of_log`).
+/// The version of #251: the same bytes with, after the samples, how many times each contract gave
+/// its input back (the host without Python counted them before its contracts answered as
+/// pydantic, #346). Read, the counts skipped; never written.
+const SAVED_POINT_VERSION_1: u64 = 1;
+
+/// A Run at a minute, as a browser's Run stores it: the world without its log (`world_parts`), and
+/// how many records the log held and how many metric samples the Run took. The random source is
+/// the world's seed (`CounterRNG`), and the ID counters, the scheduled events and the model state
+/// are parts of the world; the floor plan is built again from the world's overlay, and the open
+/// actions from the log (`ActiveActions::of_log`).
 ///
-/// Its bytes: `SHSP`, then varints: the version, the minute (zigzag), the records, the samples,
-/// the contracts' count and each contract's name (its length and its UTF-8) and count; then the
-/// world's parts as `world_parts` writes them, to the end.
+/// Its bytes: `SHSP`, then varints: the version, the minute (zigzag), the records, the samples;
+/// then the world's parts as `world_parts` writes them, to the end. Version 1 also has, before the
+/// world's parts, the contracts' count and each contract's name (its length and its UTF-8) and
+/// count.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SavedPoint {
     pub minute: i64,
     pub records: u64,
     pub samples: u64,
-    pub contracts: BTreeMap<String, u64>,
     /// `world_parts` of the world at `minute`.
     pub world: Vec<u8>,
 }
@@ -221,18 +225,12 @@ impl SavedPoint {
         put_zigzag(&mut out, self.minute);
         put_varint(&mut out, self.records);
         put_varint(&mut out, self.samples);
-        put_varint(&mut out, self.contracts.len() as u64);
-        for (name, count) in &self.contracts {
-            put_varint(&mut out, name.len() as u64);
-            out.extend_from_slice(name.as_bytes());
-            put_varint(&mut out, *count);
-        }
         out.extend_from_slice(&self.world);
         out
     }
 
-    /// The saved point `to_bytes` wrote: an error for bytes that are not one, or of another
-    /// version. Its world's parts are read when it is restored (`world_document`).
+    /// The saved point `to_bytes` wrote, or one of version 1: an error for bytes that are not one,
+    /// or of another version. Its world's parts are read when it is restored (`world_document`).
     pub fn of_bytes(bytes: &[u8]) -> Result<Self> {
         let bad = |what: &str| Error::Value(format!("not a saved point: {what}"));
         let mut cursor = Cursor::new(bytes);
@@ -240,25 +238,30 @@ impl SavedPoint {
             return Err(bad("its first bytes"));
         }
         let version = cursor.varint()?;
-        if version != SAVED_POINT_VERSION {
-            return Err(Error::Value(format!("a saved point of version {version}: this core reads version {SAVED_POINT_VERSION} only")));
+        if version != SAVED_POINT_VERSION && version != SAVED_POINT_VERSION_1 {
+            return Err(Error::Value(format!(
+                "a saved point of version {version}: this core reads versions {SAVED_POINT_VERSION_1} and {SAVED_POINT_VERSION} only"
+            )));
         }
         let minute = cursor.zigzag()?;
         let records = cursor.varint()?;
         let samples = cursor.varint()?;
-        let count = cursor.varint()?;
-        let mut contracts = BTreeMap::new();
-        for _ in 0..count {
-            let length = usize::try_from(cursor.varint()?).map_err(|_| bad("a length"))?;
-            let name = std::str::from_utf8(cursor.take(length)?).map_err(|_| bad("a contract's name"))?.to_owned();
-            if contracts.insert(name, cursor.varint()?).is_some() {
-                return Err(bad("a contract twice"));
+        if version == SAVED_POINT_VERSION_1 {
+            let count = cursor.varint()?;
+            let mut names = BTreeSet::new();
+            for _ in 0..count {
+                let length = usize::try_from(cursor.varint()?).map_err(|_| bad("a length"))?;
+                let name = std::str::from_utf8(cursor.take(length)?).map_err(|_| bad("a contract's name"))?.to_owned();
+                cursor.varint()?;
+                if !names.insert(name) {
+                    return Err(bad("a contract twice"));
+                }
             }
         }
         if minute < 0 {
             return Err(bad("its minute"));
         }
-        Ok(Self { minute, records, samples, contracts, world: cursor.rest().to_vec() })
+        Ok(Self { minute, records, samples, world: cursor.rest().to_vec() })
     }
 }
 
