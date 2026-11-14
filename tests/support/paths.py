@@ -32,3 +32,4 @@ CORE_TEST_DATA = FIXTURES.parent / "native" / "core" / "tests" / "data"
 # The table the core's minute-0 builder reads (native/core/src/initial/, #249), which
 # support/core_initial.py writes.
 INITIAL_TABLE = FIXTURES.parent / "native" / "core" / "src" / "initial" / "table.json"
+VALIDATE_CATALOG = FIXTURES.parent / "native" / "core" / "src" / "validate" / "catalog.json"

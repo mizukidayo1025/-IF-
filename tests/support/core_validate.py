@@ -94,6 +94,71 @@ def validate_worlds_fixture() -> dict[str, Any]:
     return {"worlds": worlds}
 
 
+# ---- The catalog the validation reads ---------------------------------------------------------
+
+
+def validate_catalog() -> dict[str, Any]:
+    """`native/core/src/validate/catalog.json`: what `selected_models` and the declared states read
+    of the installed code (`sheltersim_core::validate::catalog`): each model of the Model Catalog
+    (its domain, whether a factory is installed, its required state contracts, its state schema
+    and the bounds of its `behavior.` parameters), the default models and the suites, the installed
+    state contracts and the psychology models of each kind."""
+    from sheltersim.contracts.bootstrap import ensure_builtin_contracts
+    from sheltersim.contracts.policies import (
+        CORE_MODEL_SUITES,
+        DEFAULT_MODELS,
+        MODEL_DEFINITIONS,
+        model_catalog,
+    )
+    from sheltersim.contracts.runtime import _CONTRACTS
+    from sheltersim.domain.psychological_state import (
+        LIFE_STATE_PSYCHOLOGY_POLICIES,
+        MEAN_REVERTING_PSYCHOLOGY_POLICIES,
+    )
+    from sheltersim.policies.registry import has_installed_factory
+
+    ensure_builtin_contracts()
+    catalog = model_catalog()
+    models = []
+    for model_id, definition in MODEL_DEFINITIONS.items():
+        parameters = {
+            name: {key: metadata.get(key) for key in ("lower", "upper", "lower_exclusive")}
+            for name, metadata in definition.get("parameters", {}).items()
+            if name.startswith("behavior.")
+        }
+        models.append(
+            {
+                "id": model_id,
+                "domain": definition["domain"],
+                "factory": has_installed_factory(definition["domain"], model_id),
+                "required_state_contracts": definition.get("required_state_contracts", {}),
+                "state_schema_version": catalog[model_id]["state_schema_version"],
+                "behavior_parameters": parameters,
+            }
+        )
+    contracts = [
+        {
+            "namespace": namespace,
+            "implementation_id": descriptor.implementation_id,
+            "implementation_version": descriptor.implementation_version,
+            "schema_version": descriptor.schema_version,
+            "policy_domain": descriptor.policy_domain,
+        }
+        for namespace, (descriptor, *_) in sorted(_CONTRACTS.items())
+    ]
+    return {
+        "models": models,
+        "default_models": [[domain, model] for domain, model in DEFAULT_MODELS.items()],
+        "suites": {
+            suite: [[domain, model] for domain, model in models_of.items()]
+            for suite, models_of in CORE_MODEL_SUITES.items()
+        },
+        "state_contracts": contracts,
+        "life_state_psychology": sorted(LIFE_STATE_PSYCHOLOGY_POLICIES),
+        "mean_reverting_psychology": sorted(MEAN_REVERTING_PSYCHOLOGY_POLICIES),
+    }
+
+
 # ---- Python's errors -----------------------------------------------------------------------------
 
 

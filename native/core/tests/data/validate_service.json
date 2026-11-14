@@ -1,0 +1,1519 @@
+{
+ "cases": [
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource_service requires WorldState v6; v6 requires resource_service"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource_service requires WorldState v6; v6 requires resource_service"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource_service requires WorldState v6; v6 requires resource_service"
+    ]
+   },
+   "name": "service_config_on_v5",
+   "world": "service_config_on_v5"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource_service requires WorldState v6; v6 requires resource_service"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource_service requires WorldState v6; v6 requires resource_service"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource_service requires WorldState v6; v6 requires resource_service"
+    ]
+   },
+   "name": "service_config_missing_on_v6",
+   "world": "service_config_missing_on_v6"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource_service state requires WorldState v6"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource_service state requires WorldState v6"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource_service state requires WorldState v6"
+    ]
+   },
+   "name": "service_state_without_v6",
+   "world": "service_state_without_v6"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource_service config: 1 validation error for ResourceServiceConfig\nschema_version\n  Input should be 1 [type=literal_error, input_value=2, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource_service config: 1 validation error for ResourceServiceConfig\nschema_version\n  Input should be 1 [type=literal_error, input_value=2, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource_service config: 1 validation error for ResourceServiceConfig\nschema_version\n  Input should be 1 [type=literal_error, input_value=2, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error"
+    ]
+   },
+   "name": "service_config_schema",
+   "world": "service_config_schema"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource_service config: 1 validation error for ResourceServiceConfig\nextra\n  Extra inputs are not permitted [type=extra_forbidden, input_value=1, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource_service config: 1 validation error for ResourceServiceConfig\nextra\n  Extra inputs are not permitted [type=extra_forbidden, input_value=1, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource_service config: 1 validation error for ResourceServiceConfig\nextra\n  Extra inputs are not permitted [type=extra_forbidden, input_value=1, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden"
+    ]
+   },
+   "name": "service_config_extra",
+   "world": "service_config_extra"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource_service config: 1 validation error for ResourceServiceConfig\nservice_minutes\n  Input should be greater than 0 [type=greater_than, input_value=0, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/greater_than"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource_service config: 1 validation error for ResourceServiceConfig\nservice_minutes\n  Input should be greater than 0 [type=greater_than, input_value=0, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/greater_than"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource_service config: 1 validation error for ResourceServiceConfig\nservice_minutes\n  Input should be greater than 0 [type=greater_than, input_value=0, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/greater_than"
+    ]
+   },
+   "name": "service_config_minutes_zero",
+   "world": "service_config_minutes_zero"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource_service config must contain the complete canonical v1 values"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource_service config must contain the complete canonical v1 values"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource_service config must contain the complete canonical v1 values"
+    ]
+   },
+   "name": "service_config_minutes_text",
+   "world": "service_config_minutes_text"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "service_config_minutes_float",
+   "world": "service_config_minutes_float"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource_service config: 7 validation errors for ResourceServiceConfig\npolicy_version\n  Field required [type=missing, input_value={'schema_version': 1, 'water_ml_per_service': -1}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\nsource_id\n  Field required [type=missing, input_value={'schema_version': 1, 'water_ml_per_service': -1}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\nsource_type\n  Field required [type=missing, input_value={'schema_version': 1, 'water_ml_per_service': -1}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\nservice_minutes\n  Field required [type=missing, input_value={'schema_version': 1, 'water_ml_per_service': -1}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\nwater_ml_per_service\n  Input should be greater than 0 [type=greater_than, input_value=-1, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/greater_than\nfood_meal_units_per_service\n  Field required [type=missing, input_value={'schema_version': 1, 'water_ml_per_service': -1}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\nhydration_growth_per_minute\n  Field required [type=missing, input_value={'schema_version': 1, 'water_ml_per_service': -1}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource_service config: 7 validation errors for ResourceServiceConfig\npolicy_version\n  Field required [type=missing, input_value={'schema_version': 1, 'water_ml_per_service': -1}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\nsource_id\n  Field required [type=missing, input_value={'schema_version': 1, 'water_ml_per_service': -1}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\nsource_type\n  Field required [type=missing, input_value={'schema_version': 1, 'water_ml_per_service': -1}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\nservice_minutes\n  Field required [type=missing, input_value={'schema_version': 1, 'water_ml_per_service': -1}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\nwater_ml_per_service\n  Input should be greater than 0 [type=greater_than, input_value=-1, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/greater_than\nfood_meal_units_per_service\n  Field required [type=missing, input_value={'schema_version': 1, 'water_ml_per_service': -1}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\nhydration_growth_per_minute\n  Field required [type=missing, input_value={'schema_version': 1, 'water_ml_per_service': -1}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource_service config: 7 validation errors for ResourceServiceConfig\npolicy_version\n  Field required [type=missing, input_value={'schema_version': 1, 'water_ml_per_service': -1}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\nsource_id\n  Field required [type=missing, input_value={'schema_version': 1, 'water_ml_per_service': -1}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\nsource_type\n  Field required [type=missing, input_value={'schema_version': 1, 'water_ml_per_service': -1}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\nservice_minutes\n  Field required [type=missing, input_value={'schema_version': 1, 'water_ml_per_service': -1}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\nwater_ml_per_service\n  Input should be greater than 0 [type=greater_than, input_value=-1, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/greater_than\nfood_meal_units_per_service\n  Field required [type=missing, input_value={'schema_version': 1, 'water_ml_per_service': -1}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\nhydration_growth_per_minute\n  Field required [type=missing, input_value={'schema_version': 1, 'water_ml_per_service': -1}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing"
+    ]
+   },
+   "name": "service_config_many_errors",
+   "world": "service_config_many_errors"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource_service config: 1 validation error for ResourceServiceConfig\nhydration_action_threshold\n  Input should be less than or equal to 1 [type=less_than_equal, input_value=1.5, input_type=float]\n    For further information visit https://errors.pydantic.dev/2.11/v/less_than_equal"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource_service config: 1 validation error for ResourceServiceConfig\nhydration_action_threshold\n  Input should be less than or equal to 1 [type=less_than_equal, input_value=1.5, input_type=float]\n    For further information visit https://errors.pydantic.dev/2.11/v/less_than_equal"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource_service config: 1 validation error for ResourceServiceConfig\nhydration_action_threshold\n  Input should be less than or equal to 1 [type=less_than_equal, input_value=1.5, input_type=float]\n    For further information visit https://errors.pydantic.dev/2.11/v/less_than_equal"
+    ]
+   },
+   "name": "service_config_threshold_high",
+   "world": "service_config_threshold_high"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource_service config must contain the complete canonical v1 values"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource_service config must contain the complete canonical v1 values"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource_service config must contain the complete canonical v1 values"
+    ]
+   },
+   "name": "service_config_skill_spaces",
+   "world": "service_config_skill_spaces"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid resource_service config: 1 validation error for ResourceServiceConfig\nwater_staff_skill\n  String should match pattern '^[A-Za-z0-9][A-Za-z0-9._:-]*$' [type=string_pattern_mismatch, input_value='-bad', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/string_pattern_mismatch"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "invalid resource_service config: 1 validation error for ResourceServiceConfig\nwater_staff_skill\n  String should match pattern '^[A-Za-z0-9][A-Za-z0-9._:-]*$' [type=string_pattern_mismatch, input_value='-bad', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/string_pattern_mismatch"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid resource_service config: 1 validation error for ResourceServiceConfig\nwater_staff_skill\n  String should match pattern '^[A-Za-z0-9][A-Za-z0-9._:-]*$' [type=string_pattern_mismatch, input_value='-bad', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/string_pattern_mismatch"
+    ]
+   },
+   "name": "service_config_skill_bad",
+   "world": "service_config_skill_bad"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource_service config must contain the complete canonical v1 values"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource_service config must contain the complete canonical v1 values"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource_service config must contain the complete canonical v1 values"
+    ]
+   },
+   "name": "service_config_not_canonical",
+   "world": "service_config_not_canonical"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "service_config_int_for_float",
+   "world": "service_config_int_for_float"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "WorldState v6 requires a resource ledger"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "WorldState v6 requires a resource ledger"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "WorldState v6 requires a resource ledger"
+    ]
+   },
+   "name": "service_without_ledger",
+   "world": "service_without_ledger"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ]
+   },
+   "name": "service_state_missing",
+   "world": "service_state_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ]
+   },
+   "name": "service_state_extra",
+   "world": "service_state_extra"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ]
+   },
+   "name": "service_state_schema",
+   "world": "service_state_schema"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "service_state_schema_float",
+   "world": "service_state_schema_float"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ]
+   },
+   "name": "service_cancelled_empty_id",
+   "world": "service_cancelled_empty_id"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ]
+   },
+   "name": "service_cancelled_twice",
+   "world": "service_cancelled_twice"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ]
+   },
+   "name": "service_reservations_not_a_list",
+   "world": "service_reservations_not_a_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ]
+   },
+   "name": "service_requests_not_a_list",
+   "world": "service_requests_not_a_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource_service_v1 state is invalid"
+    ]
+   },
+   "name": "service_stall_state_list",
+   "world": "service_stall_state_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ]
+   },
+   "name": "service_request_extra_field",
+   "world": "service_request_extra_field"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ]
+   },
+   "name": "service_request_minute_future",
+   "world": "service_request_minute_future"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ]
+   },
+   "name": "service_request_minute_bool",
+   "world": "service_request_minute_bool"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ]
+   },
+   "name": "service_request_unknown_agent",
+   "world": "service_request_unknown_agent"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid WorldState document: unhashable type: 'TrackedList'"
+    ],
+    "extensions": null,
+    "validate": [
+     "TypeError",
+     "unhashable type: 'TrackedList'"
+    ],
+    "validate_tick": [
+     "TypeError",
+     "unhashable type: 'TrackedList'"
+    ]
+   },
+   "name": "service_request_agent_list",
+   "world": "service_request_agent_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid WorldState document: unhashable type: 'TrackedDict'"
+    ],
+    "extensions": null,
+    "validate": [
+     "TypeError",
+     "unhashable type: 'TrackedDict'"
+    ],
+    "validate_tick": [
+     "TypeError",
+     "unhashable type: 'TrackedDict'"
+    ]
+   },
+   "name": "service_request_action_dict",
+   "world": "service_request_action_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ]
+   },
+   "name": "service_request_unknown_action",
+   "world": "service_request_unknown_action"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ]
+   },
+   "name": "service_request_unknown_zone",
+   "world": "service_request_unknown_zone"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ]
+   },
+   "name": "service_request_unknown_facility",
+   "world": "service_request_unknown_facility"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ]
+   },
+   "name": "service_request_detail_int",
+   "world": "service_request_detail_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource service request history has wrong facility"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource service request history has wrong facility"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource service request history has wrong facility"
+    ]
+   },
+   "name": "service_request_wrong_facility",
+   "world": "service_request_wrong_facility"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource service request outcome is inconsistent"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource service request outcome is inconsistent"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource service request outcome is inconsistent"
+    ]
+   },
+   "name": "service_request_inconsistent",
+   "world": "service_request_inconsistent"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource service request history is invalid"
+    ],
+    "validate_tick": null
+   },
+   "name": "service_request_old_bad",
+   "world": "service_request_old_bad"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "service_stall_fits",
+   "world": "service_stall_fits"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource queue stall history is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource queue stall history is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource queue stall history is invalid"
+    ]
+   },
+   "name": "service_stall_unknown_reason",
+   "world": "service_stall_unknown_reason"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid WorldState document: unhashable type: 'TrackedList'"
+    ],
+    "extensions": null,
+    "validate": [
+     "TypeError",
+     "unhashable type: 'TrackedList'"
+    ],
+    "validate_tick": [
+     "TypeError",
+     "unhashable type: 'TrackedList'"
+    ]
+   },
+   "name": "service_stall_reason_list",
+   "world": "service_stall_reason_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource queue stall history is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource queue stall history is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource queue stall history is invalid"
+    ]
+   },
+   "name": "service_stall_minute_future",
+   "world": "service_stall_minute_future"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource queue stall history is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource queue stall history is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource queue stall history is invalid"
+    ]
+   },
+   "name": "service_stall_unknown_facility",
+   "world": "service_stall_unknown_facility"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource queue stall history is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource queue stall history is invalid"
+    ],
+    "validate_tick": null
+   },
+   "name": "service_stall_out_of_order",
+   "world": "service_stall_out_of_order"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource queue stall must describe the current facility queue head"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource queue stall must describe the current facility queue head"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource queue stall must describe the current facility queue head"
+    ]
+   },
+   "name": "service_stall_state_fits_not_head",
+   "world": "service_stall_state_fits_not_head"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource queue stall state is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource queue stall state is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource queue stall state is invalid"
+    ]
+   },
+   "name": "service_stall_state_unknown_facility",
+   "world": "service_stall_state_unknown_facility"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource queue stall must describe the current facility queue head"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource queue stall must describe the current facility queue head"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource queue stall must describe the current facility queue head"
+    ]
+   },
+   "name": "service_stall_state_not_resource",
+   "world": "service_stall_state_not_resource"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource queue stall state is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource queue stall state is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource queue stall state is invalid"
+    ]
+   },
+   "name": "service_stall_state_bad_reason",
+   "world": "service_stall_state_bad_reason"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid WorldState document: unhashable type: 'TrackedList'"
+    ],
+    "extensions": null,
+    "validate": [
+     "TypeError",
+     "unhashable type: 'TrackedList'"
+    ],
+    "validate_tick": [
+     "TypeError",
+     "unhashable type: 'TrackedList'"
+    ]
+   },
+   "name": "service_stall_state_agent_list",
+   "world": "service_stall_state_agent_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "resource queue stall state is invalid"
+    ],
+    "extensions": null,
+    "validate": [
+     "StateInvariantError",
+     "resource queue stall state is invalid"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "resource queue stall state is invalid"
+    ]
+   },
+   "name": "service_stall_state_extra",
+   "world": "service_stall_state_extra"
+  }
+ ],
+ "worlds": {
+  "service_cancelled_empty_id": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.cancelled_task_ids": [
+     ""
+    ]
+   }
+  },
+  "service_cancelled_twice": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.cancelled_task_ids": [
+     "t",
+     "t"
+    ]
+   }
+  },
+  "service_config_extra": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.resource_service.extra": 1
+   }
+  },
+  "service_config_int_for_float": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.resource_service.hunger_relief": 1
+   }
+  },
+  "service_config_many_errors": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "resource_service",
+      "food_meal_units_per_service"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "resource_service",
+      "hunger_action_threshold"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "resource_service",
+      "hunger_relief"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "resource_service",
+      "hydration_action_threshold"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "resource_service",
+      "hydration_growth_per_minute"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "resource_service",
+      "hydration_relief"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "resource_service",
+      "meal_staff_skill"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "resource_service",
+      "meal_utility_base"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "resource_service",
+      "meal_utility_need_weight"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "resource_service",
+      "policy_version"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "resource_service",
+      "service_minutes"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "resource_service",
+      "source_id"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "resource_service",
+      "source_type"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "resource_service",
+      "water_staff_skill"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "resource_service",
+      "water_utility_base"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "resource_service",
+      "water_utility_need_weight"
+     ]
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.resource_service.water_ml_per_service": -1
+   }
+  },
+  "service_config_minutes_float": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.resource_service.service_minutes": 12.0
+   }
+  },
+  "service_config_minutes_text": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.resource_service.service_minutes": "12"
+   }
+  },
+  "service_config_minutes_zero": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.resource_service.service_minutes": 0
+   }
+  },
+  "service_config_missing_on_v6": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "resource_service"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "service_config_not_canonical": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "resource_service",
+      "hunger_relief"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "service_config_on_v5": {
+   "base": "small_replay",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.resource_service": {}
+   }
+  },
+  "service_config_schema": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.resource_service.schema_version": 2
+   }
+  },
+  "service_config_skill_bad": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.resource_service.water_staff_skill": "-bad"
+   }
+  },
+  "service_config_skill_spaces": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.resource_service.water_staff_skill": " water_service "
+   }
+  },
+  "service_config_threshold_high": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.resource_service.hydration_action_threshold": 1.5
+   }
+  },
+  "service_request_action_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.request_history.1.action": {
+     "a": 1
+    }
+   }
+  },
+  "service_request_agent_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.request_history.1.agent_id": [
+     "A001"
+    ]
+   }
+  },
+  "service_request_detail_int": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.request_history.1.detail": 1
+   }
+  },
+  "service_request_extra_field": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.request_history.1.extra": 1
+   }
+  },
+  "service_request_inconsistent": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.request_history.1.reason": "no_route"
+   }
+  },
+  "service_request_minute_bool": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.request_history.1.minute": true
+   }
+  },
+  "service_request_minute_future": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.request_history.1.minute": 10000
+   }
+  },
+  "service_request_old_bad": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "resource_service_v1",
+      "request_history",
+      2
+     ],
+     {
+      "action": "collect_meal",
+      "agent_id": "A002",
+      "detail": null,
+      "facility_id": "meal_distribution_main",
+      "minute": 2,
+      "origin_zone_id": "food",
+      "outcome": "queued",
+      "reason": "arrived_at_facility"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.request_history.0.reason": "nope",
+    "world.model_state.resource_service_v1.request_history.1.minute": 0,
+    "world.model_state.resource_service_v1.request_history.1.origin_zone_id": "sleeping",
+    "world.model_state.resource_service_v1.request_history.1.outcome": "travel_scheduled",
+    "world.model_state.resource_service_v1.request_history.1.reason": "route_available"
+   }
+  },
+  "service_request_unknown_action": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.request_history.1.action": "eat"
+   }
+  },
+  "service_request_unknown_agent": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.request_history.1.agent_id": "nobody"
+   }
+  },
+  "service_request_unknown_facility": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.request_history.1.facility_id": "nowhere"
+   }
+  },
+  "service_request_unknown_zone": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.request_history.1.origin_zone_id": "nowhere"
+   }
+  },
+  "service_request_wrong_facility": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.request_history.1.facility_id": "water_station_main"
+   }
+  },
+  "service_requests_not_a_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.request_history": {}
+   }
+  },
+  "service_reservations_not_a_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.active_reservation_ids": {}
+   }
+  },
+  "service_stall_fits": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.queue_stall_history": [
+     {
+      "agent_id": "A001",
+      "facility_id": "water_station_main",
+      "minute": 1,
+      "reason": "capacity"
+     }
+    ]
+   }
+  },
+  "service_stall_minute_future": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.queue_stall_history": [
+     {
+      "agent_id": "A001",
+      "facility_id": "water_station_main",
+      "minute": 10000,
+      "reason": "capacity"
+     }
+    ]
+   }
+  },
+  "service_stall_out_of_order": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.queue_stall_history": [
+     {
+      "agent_id": "A001",
+      "facility_id": "water_station_main",
+      "minute": 10,
+      "reason": "capacity"
+     },
+     {
+      "agent_id": "A001",
+      "facility_id": "water_station_main",
+      "minute": 5,
+      "reason": "capacity"
+     }
+    ]
+   }
+  },
+  "service_stall_reason_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.queue_stall_history": [
+     {
+      "agent_id": "A001",
+      "facility_id": "water_station_main",
+      "minute": 1,
+      "reason": [
+       "capacity"
+      ]
+     }
+    ]
+   }
+  },
+  "service_stall_state_agent_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.stall_state.water_station_main": {
+     "agent_id": [
+      "A001"
+     ],
+     "reason": "capacity"
+    }
+   }
+  },
+  "service_stall_state_bad_reason": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.stall_state.water_station_main": {
+     "agent_id": "A001",
+     "reason": "tired"
+    }
+   }
+  },
+  "service_stall_state_extra": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.stall_state.water_station_main": {
+     "agent_id": "A001",
+     "extra": 1,
+     "reason": "capacity"
+    }
+   }
+  },
+  "service_stall_state_fits_not_head": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.stall_state.water_station_main": {
+     "agent_id": "A001",
+     "reason": "capacity"
+    }
+   }
+  },
+  "service_stall_state_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.stall_state": []
+   }
+  },
+  "service_stall_state_not_resource": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.stall_state.toilet_01": {
+     "agent_id": "A001",
+     "reason": "capacity"
+    }
+   }
+  },
+  "service_stall_state_unknown_facility": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.stall_state.nowhere": {
+     "agent_id": "A001",
+     "reason": "capacity"
+    }
+   }
+  },
+  "service_stall_unknown_facility": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.queue_stall_history": [
+     {
+      "agent_id": "A001",
+      "facility_id": "nowhere",
+      "minute": 1,
+      "reason": "capacity"
+     }
+    ]
+   }
+  },
+  "service_stall_unknown_reason": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.queue_stall_history": [
+     {
+      "agent_id": "A001",
+      "facility_id": "water_station_main",
+      "minute": 1,
+      "reason": "tired"
+     }
+    ]
+   }
+  },
+  "service_state_extra": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.extra": 1
+   }
+  },
+  "service_state_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "resource_service_v1"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "service_state_schema": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.schema_version": 2
+   }
+  },
+  "service_state_schema_float": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1.schema_version": 1.0
+   }
+  },
+  "service_state_without_v6": {
+   "base": "small_replay",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.resource_service_v1": {}
+   }
+  },
+  "service_without_ledger": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "resource_ledger_v1"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  }
+ }
+}
