@@ -8,9 +8,10 @@
 //!   facility moves or partitions change (`load::FloorPlans`).
 //! - A contract (policy E15) answers as the native host's pydantic does (`contracts::validate`,
 //!   #346): the model's dump, or the `ValidationError` with pydantic's text.
-//! - The whole world's validation (policy E6) is the core's (`validate`, #250): the rules ported so
-//!   far, with Python's texts; each tick ends with it too, without the event history
-//!   (`engine::EndCheck::Whole`, what `validate_after_tick` answers).
+//! - The whole world's validation (policy E6) is the core's (`validate`, #250), with Python's
+//!   classes and texts. Each tick ends as `validate_after_tick` ends it
+//!   (`engine::EndCheck::Whole`): the kernel's check with the core's validators of the namespaces
+//!   (`rules::tick_checks`), and where it refuses, the validation without the event history.
 //! - There is no LLM: the Run runs as one without (`Llm::default()`); no decision or trace goes out
 //!   (`DecisionSink::Silent`, `TraceLevel::Off`), and no foreign handler runs.
 //! - The records of the log are the world's (`load::find_record`). The log holds them in the binary

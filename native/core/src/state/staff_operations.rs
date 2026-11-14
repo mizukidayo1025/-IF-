@@ -299,4 +299,41 @@ impl StaffOperationsRow {
             && self.staff.keys().all(|id| rows.staff.get(id).is_some())
             && self.history.iter().all(|item| item.is_valid(rows, zones))
     }
+
+    /// `_validate_staff_operation_receipt` (`domain/common_operations.py`) of a receipt that passed
+    /// its contract, of this task at this minute: whether the retained completions agree with it
+    /// (#152; in the core since #250).
+    pub fn completion_agrees(&self, task_id: &str, minute: i64, receipt: &serde_json::Value, history_truncated: bool) -> bool {
+        let row = self;
+        let text = |key: &str| receipt.get(key).and_then(serde_json::Value::as_str);
+        let int = |key: &str| receipt.get(key).and_then(serde_json::Value::as_i64);
+        let mut matches = row.history.iter().filter(|item| &*item.task_id == task_id && item.complete_minute == minute);
+        let Some(found) = matches.next() else {
+            return history_truncated && !row.history.is_empty() && row.history.iter().all(|item| item.complete_minute > minute);
+        };
+        if matches.next().is_some() {
+            return false;
+        }
+        let target = receipt.get("target_id");
+        let target_agrees = match (&found.target_id, target) {
+            (None, Some(serde_json::Value::Null)) => true,
+            (Some(id), Some(serde_json::Value::String(text))) => &**id == text,
+            _ => false,
+        };
+        let arrival_agrees = match (found.arrival_minute, receipt.get("arrival_minute")) {
+            (None, Some(serde_json::Value::Null)) => true,
+            (Some(arrival), Some(value)) => value.as_i64() == Some(arrival),
+            _ => false,
+        };
+        text("staff_id") == Some(&*found.staff_id)
+            && text("task_kind") == Some(&*found.task_kind)
+            && target_agrees
+            && text("target_zone_id") == Some(&*found.target_zone_id)
+            && text("reason") == Some(&*found.reason)
+            && text("status") == Some(found.status.text())
+            && int("start_minute") == Some(found.start_minute)
+            && arrival_agrees
+            && int("travel_minutes") == Some(found.travel_minutes)
+            && text("causation_id").is_some_and(|cause| found.causation_event_ids.iter().any(|id| &**id == cause))
+    }
 }

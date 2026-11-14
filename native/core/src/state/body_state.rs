@@ -11,6 +11,7 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
+use crate::entities::{AgentRow, Table};
 use crate::error::{Misfit, Result};
 use crate::json::Encoder;
 use crate::row::{value_bytes, Field, IdMap, Items};
@@ -185,6 +186,61 @@ pub fn key_is_valid<T>(key: &str, people: &IdMap<T>) -> bool {
     pair_of(key).is_some_and(|(first, second)| {
         first != second && people.contains_key(first) && people.contains_key(second)
     })
+}
+
+impl BodyRow {
+    /// `_ROWS_VALID`, the validator of the rows (#152; in the core since #250, for the end-of-tick
+    /// check of a world without Python too): true only if the header, the Agent records and the
+    /// relationships pass every rule `validate_body_state` has for them, for a world of these
+    /// people. Its checks of the config and the history read what the row doesn't hold. False
+    /// decides nothing: the rules then run, with their texts. What is accepted is not read again
+    /// until it is written (`Relationships::written`); after a false, the next call reads every
+    /// relationship again.
+    pub fn rows_valid(&mut self, people: &Table<AgentRow>) -> bool {
+        let accepted = self.rows_pass(people);
+        if !accepted {
+            // The rules decide now. If they pass it, the next check starts over, and the list of
+            // written keys does not grow at each tick of such a world.
+            self.relationships.read_all = true;
+            self.relationships.written.clear();
+        }
+        accepted
+    }
+
+    fn rows_pass(&mut self, people: &Table<AgentRow>) -> bool {
+        if self.schema_version != 1
+            || &*self.policy_version != POLICY_VERSION
+            || &*self.source_id != SOURCE_ID
+            || self.agents.len() != people.len()
+            || self.relationships.map.len() > MAX_SOCIAL_RELATIONSHIPS
+            || self.history.items.len() > MAX_SOCIAL_HISTORY
+            || !self.agents.iter().all(|(id, record)| people.get(id).is_some() && record_is_valid(record))
+        {
+            return false;
+        }
+        let relationships = &mut self.relationships;
+        let same_people = relationships.people.len() == self.agents.len()
+            && relationships.people.iter().zip(self.agents.keys()).all(|(known, id)| known == id);
+        if relationships.read_all || !same_people {
+            let valid = relationships.map.iter().all(|(key, record)| key_is_valid(key, &self.agents) && relationship_is_valid(record));
+            if !valid {
+                return false;
+            }
+            relationships.read_all = false;
+            relationships.people = self.agents.keys().cloned().collect();
+        } else {
+            // A written key that left the map has nothing to check any more.
+            let valid = relationships
+                .written
+                .iter()
+                .all(|key| relationships.map.get(key).is_none_or(|record| key_is_valid(key, &self.agents) && relationship_is_valid(record)));
+            if !valid {
+                return false;
+            }
+        }
+        relationships.written.clear();
+        true
+    }
 }
 
 /// The record `_record_relationship` starts a pair with.

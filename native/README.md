@@ -126,9 +126,13 @@ split PR by PR; its last section sums up what is where.
   `validate_simulator_extensions` and the candidate's wrapping, with Python's classes and texts), no
   LLM, and the metric samples kept as lines for their digest.
   `plain::PlainRun` reads an export, runs one tick at a time (`engine::step`: `run_tick`, the
-  minute moved on, the end-of-tick check, as `TickEngine.step`; the check is the core's
-  `validate(validate_event_history=False)`, `engine::EndCheck::Whole`, which is what
-  `validate_after_tick` answers) and gives the digests of the
+  minute moved on, the end-of-tick check, as `TickEngine.step`; the check is what
+  `validate_after_tick` answers, `engine::EndCheck::Whole`: the kernel's check `after_tick::check`
+  with its questions answered by the core (`rules::tick_checks::CoreChecks`: the validators of the
+  namespaces, the body rows and config, the shared operations and the effect program's check, the
+  same rules the PyO3 crate's validators run, reading the core's rows), and where it refuses, the
+  core's `validate(validate_event_history=False)`, which passes or gives Python's error) and gives
+  the digests of the
   world's parts (`canonical::digests`) and of the samples; on the worlds of `tick_core.json` they
   are the native path's (`core/tests/tick_core.rs`).
 - **The core in WASM** (#244, PR 4-4): `wasm/` (`sheltersim_wasm`) is the JS boundary of a
@@ -1010,7 +1014,9 @@ are correctly rounded everywhere, and not `**` with a float.
   reads of `model_configs`, made by the contracts in `core/tick_validation.py` (`tick_plan`) when the
   configs change and kept as the core's `TickPlan` in the section `tick_plan` of the configs.
   Validators come from `_RUST_VALIDATORS`, asked with the world given back (the core's `Checks`); a
-  namespace with none is refused. The memo reads a settled request again when its row is written
+  namespace with none is refused. Their rules on the namespaces' rows are the core's (`BodyRow::
+  rows_valid`, `AgentDynamicsRow::accepts`, `ServiceRow::passes_rules`, ...); a world without Python
+  asks the same rules through `core/src/rules/tick_checks.rs` (#250). The memo reads a settled request again when its row is written
   (`Table::marked`, from Rust or Python). `TickMemo.unsettled_requests(world)` serves
   `WorldState.unsettled_support_requests`; `facts()` and `written_requests(world)` are for tests.
   `install` lists what a patch of sends the tick to the Python check. `stats()` says what ran. See `docs/rust-port/lanes/l7-validate.md` and, for v5,

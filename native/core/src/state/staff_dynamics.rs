@@ -3,6 +3,9 @@
 //! and of a saved namespace (docs/rust-port/lanes/s-staff-dynamics.md). The PyO3 crate's
 //! `state/staff_dynamics.rs` reads it from Python and holds its validator.
 
+use std::sync::Arc;
+
+use crate::entities::Entities;
 use crate::error::{Misfit, Result};
 use crate::json::Encoder;
 use crate::row::{Field, IdMap, Maybe};
@@ -199,5 +202,19 @@ impl StaffDynamicsRow {
             && self.policy_version == self.config.policy_version
             && self.source_id == self.config.source_id
             && self.staff.values().all(StaffRecord::is_valid)
+    }
+
+    /// `validate_staff_dynamics_state` for a row of its types (#152; in the core since #250): true
+    /// only if the Python rule passes. A record for each staff member and none else, and the
+    /// per-staff limits and shifts only of the world's staff.
+    pub fn accepts(&self, rows: &Entities) -> bool {
+        if !self.is_valid_without_staff_ids() {
+            return false;
+        }
+        let known = |id: &Arc<str>| rows.staff.get(id).is_some();
+        self.staff.len() == rows.staff.len()
+            && self.staff.keys().all(known)
+            && self.config.max_continuous_work_minutes_by_staff.0.as_ref().is_none_or(|limits| limits.keys().all(known))
+            && self.config.shift_windows_by_staff.0.as_ref().is_none_or(|windows| windows.keys().all(known))
     }
 }

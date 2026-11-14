@@ -1,9 +1,10 @@
 //! A Run's ticks without Python, as `TickEngine.step` steps a world (#214; in the crate since #244,
 //! PR 4-3, for a host without Python such as the WASM prototype): `run_tick` at the world's minute
-//! with the host, the minute moved on, then the end-of-tick check (`EndCheck`): the core's whole
-//! validation without the event history (`validate::world`, #250), what `validate_after_tick` of
-//! Python answers, or for a test the kernel's check alone (`after_tick::check`, with no Python
-//! validator to ask: `NoPython`).
+//! with the host, the minute moved on, then the end-of-tick check (`EndCheck`): what
+//! `validate_after_tick` of Python answers (#250), the kernel's check (`after_tick::check`) with its
+//! questions answered by the core (`tick_checks::CoreChecks`) and, where it refuses, the core's
+//! whole validation without the event history (`validate::world`); or for a test the kernel's check
+//! alone, with no validator to ask (`NoPython`).
 //!
 //! `metric_line` writes a metric sample as the JSON list of the snapshot's fields, as `json.dumps`
 //! of `_snapshot_fields` with `separators=(",", ":")` writes it: the lines a host keeps for the
@@ -15,20 +16,21 @@ use std::sync::Arc;
 use crate::cell::Shard;
 use crate::config::movement::RouteCapacities;
 use crate::config::overlay::overlay_schema;
-use crate::config::SectionId;
+use crate::config::{SectionId, TickPlan};
 use crate::error::{Error, Result};
-use crate::host::Host;
+use crate::host::{Holding, Host, HostFailure};
 use crate::json::Encoder;
 use crate::load::Loaded;
 use crate::rules::after_tick::{self, Checks, HeldNamespaces, Inputs, Memo};
 use crate::rules::kit;
 use crate::rules::metrics::MetricSample;
 use crate::rules::tick::{self, Failed, Tick};
+use crate::rules::tick_checks::{self, CoreChecks};
 use crate::run::Run;
 use crate::world::{Fit, World, WorldCell, MODEL_CONFIGS};
 
-/// The end-of-tick check's questions to Python: a world without Python has no validator of its
-/// own, and every namespace's row is the world's (policy E6). It keeps what was asked.
+/// The end-of-tick check's questions answered yes, every namespace taken as valid: for the tests of
+/// the kernel's check alone (`EndCheck::Kernel`). It keeps what was asked.
 #[derive(Default)]
 pub struct NoPython {
     pub asked: Vec<String>,
@@ -61,9 +63,30 @@ impl Checks for NoPython {
     }
 }
 
-/// `WorldState.validate_after_tick`: the core's check, with the plan and the sections it reads
-/// through the host.
+/// `WorldState.validate_after_tick`'s kernel check (`after_tick::check`), with the plan and the
+/// sections it reads through the host, its questions asked of `checks`.
 pub fn check_after_tick<H: Host>(cell: &Shard<World>, host: &mut H, memo: &mut Memo, checks: &mut impl Checks) -> std::result::Result<(), H::Error> {
+    check_with(cell, host, memo, |_, _, _, inputs, memo| after_tick::check(cell, memo, inputs, checks))
+}
+
+/// The kernel check with its questions answered by the core (`tick_checks::CoreChecks`), for a world
+/// without Python. What was asked goes to `asked`.
+pub fn check_after_tick_core<H: Host>(cell: &Shard<World>, host: &mut H, memo: &mut Memo, asked: &mut Vec<String>) -> std::result::Result<(), H::Error> {
+    check_with(cell, host, memo, |host, holding, plan, inputs, memo| {
+        let mut checks = CoreChecks::new(cell, host, holding, plan);
+        let answer = after_tick::check(cell, memo, inputs, &mut checks);
+        asked.append(&mut checks.asked);
+        answer
+    })
+}
+
+/// The kernel check's inputs, read through the host, and `check` run with them.
+fn check_with<H: Host>(
+    cell: &Shard<World>,
+    host: &mut H,
+    memo: &mut Memo,
+    check: impl FnOnce(&mut H, &Holding, &TickPlan, &Inputs<'_>, &mut Memo) -> Result<()>,
+) -> std::result::Result<(), H::Error> {
     let holding = kit::holding(cell, host)?;
     let plan = kit::kept_of(kit::section(cell, host, &holding, SectionId::TickPlan, |configs| &configs.tick_plan)?);
     let plan = kit::kept(&plan)?.clone();
@@ -87,20 +110,22 @@ pub fn check_after_tick<H: Host>(cell: &Shard<World>, host: &mut H, memo: &mut M
         *memo = Memo::default();
     }
     let inputs = Inputs { plan: &plan, configs: stamp, held: &held, route_capacities: &route_capacities, overlay_schema: &overlay };
-    after_tick::check(cell, memo, &inputs, checks).map_err(H::Error::from)
+    check(host, &holding, &plan, &inputs, memo).map_err(H::Error::from)
 }
 
 /// Which check ends a tick.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum EndCheck {
-    /// The kernel's check alone (`after_tick::check` with `NoPython`): it takes every namespace as
-    /// valid and has no texts. For tests of the kernel's check.
+    /// The kernel's check alone, its questions asked of `NoPython`, which takes every namespace as
+    /// valid: no texts, and no answer for a world the kernel's own rules pass but a namespace
+    /// breaks. For tests of the kernel's check.
     #[default]
     Kernel,
-    /// `WorldState.validate_after_tick`: `validate(validate_event_history=False)`, the core's
-    /// (`validate::world`, #250), with Python's class and text of the first error. The native path
-    /// asks the kernel's check first and runs Python's validation where it refuses; the kernel says
-    /// yes only where every rule passes, so the answer is the validation's.
+    /// `WorldState.validate_after_tick` as the native path answers it: the kernel's check, its
+    /// questions answered by the core (`tick_checks::CoreChecks`), and where it refuses, the whole
+    /// validation without the event history (`validate::world`, #250), which passes or gives
+    /// Python's class and text of the first error. The kernel's check says yes only where every
+    /// rule of that validation passes, so the answer is the validation's.
     Whole,
 }
 
@@ -110,19 +135,42 @@ pub struct Stepping {
     pub memo: Memo,
     pub checks: NoPython,
     pub end: EndCheck,
+    /// With `EndCheck::Whole`: the questions the core answered (`CoreChecks`), and each refusal of
+    /// the kernel's check as `(minute, reason)`, after which the whole validation decided.
+    pub asked: Vec<String>,
+    pub refused: Vec<(i64, String)>,
 }
 
 impl Stepping {
-    /// The stepping of a Run without Python (`plain::PlainRun`): each tick ends with the whole
-    /// validation (`EndCheck::Whole`).
+    /// The stepping of a Run without Python (`plain::PlainRun`): each tick ends as
+    /// `validate_after_tick` ends it (`EndCheck::Whole`).
     pub fn whole() -> Self {
         Self { end: EndCheck::Whole, ..Self::default() }
     }
 }
 
-/// `WorldState.validate_after_tick` (`EndCheck::Whole`): `validate(validate_event_history=False)`.
-pub fn validate_after_tick(cell: &Shard<World>) -> Result<()> {
-    cell.with(|world| crate::validate::world(world, &crate::validate::Options { history: false, in_flight: None }))?
+/// `WorldState.validate_after_tick` of a world without Python (`EndCheck::Whole`): the kernel's
+/// check with the core's answers, and where it refuses, `validate(validate_event_history=False)`.
+/// A validation that passes tells the rows so, as Python's rules do; one that fails drops the memo,
+/// as Python drops `_tick_memo`.
+pub fn validate_after_tick<H: Host>(cell: &Shard<World>, host: &mut H, stepping: &mut Stepping) -> std::result::Result<(), H::Error> {
+    let minute = cell.with(|world| world.minute_index()).and_then(|minute| minute).map_err(H::Error::from)?;
+    let refusal = match check_after_tick_core(cell, host, &mut stepping.memo, &mut stepping.asked) {
+        Ok(()) => return Ok(()),
+        Err(error) => error.text(),
+    };
+    stepping.refused.push((minute, refusal));
+    let validated = cell.with(|world| {
+        crate::validate::world(world, &crate::validate::Options { history: false, in_flight: None })?;
+        tick_checks::validation_passed(world)
+    });
+    match validated.and_then(|validated| validated) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            stepping.memo = Memo::default();
+            Err(H::Error::from(error))
+        }
+    }
 }
 
 /// Why a step stopped: the tick's failure (the phase's label and the host's error), or the check's.
@@ -164,7 +212,7 @@ pub fn step<H: Host>(loaded: &Loaded, host: &mut H, stepping: &mut Stepping) -> 
         .map_err(|error| StepError::Check { minute, error: <H::Error as From<Error>>::from(error) })?;
     match stepping.end {
         EndCheck::Kernel => check_after_tick(cell, host, &mut stepping.memo, &mut stepping.checks),
-        EndCheck::Whole => validate_after_tick(cell).map_err(<H::Error as From<Error>>::from),
+        EndCheck::Whole => validate_after_tick(cell, host, stepping),
     }
     .map_err(|error| StepError::Check { minute, error })?;
     Ok(minute)

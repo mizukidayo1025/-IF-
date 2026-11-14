@@ -13,7 +13,7 @@ use crate::core::row::{attribute, namespace_is_absent, py_row};
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::V;
 use crate::core::world_core::{mirror_of, raw_dict_get, with_state_value, NamespaceMirror, RowType};
-use crate::state::entities::{entities_of, Entities, EntityStore};
+use crate::state::entities::{entities_of, EntityStore};
 use crate::Unsupported;
 
 const QUEUES_KEY: &str = "facility_queues_v1";
@@ -52,7 +52,9 @@ struct Known<'py> {
     archived: Option<rustc_hash::FxHashSet<Arc<str>>>,
 }
 
-impl Known<'_> {
+impl ServiceWorld for Known<'_> {
+    type Error = PyErr;
+
     fn person(&self, id: &str) -> PyResult<bool> {
         let key = PyString::new(self.agents.py(), id);
         if raw_dict_get(&self.agents, key.as_any())?.is_some() {
@@ -67,67 +69,6 @@ impl Known<'_> {
     fn zone(&self, id: &str) -> PyResult<bool> {
         Ok(raw_dict_get(&self.zones, PyString::new(self.zones.py(), id).as_any())?.is_some())
     }
-}
-
-/// The rules of a tick's check in `WorldState.validate`, given a row of the right types. True
-/// says the Python rules accept; false decides nothing.
-fn passes_rules(row: &ServiceRow, rows: &Entities, known: &Known<'_>, minute_index: i64, heads: &std::collections::HashMap<Arc<str>, Vec<Arc<str>>>) -> PyResult<bool> {
-    if row.schema_version != SCHEMA_VERSION
-        || !listed_once(&row.cancelled_task_ids)
-        || !listed_once(&row.active_reservation_ids)
-    {
-        return Ok(false);
-    }
-    let from = window_start(&row.request_history, |record| record.minute, minute_index);
-    for record in &row.request_history[from..] {
-        let expected_kind = match &*record.action {
-            "fetch_water" => "water_station",
-            "collect_meal" => "meal_distribution",
-            _ => return Ok(false),
-        };
-        if !(0..=minute_index).contains(&record.minute)
-            || !request_outcome_is_known(record)
-            || !known.person(&record.agent_id)?
-            || !known.zone(&record.origin_zone_id)?
-        {
-            return Ok(false);
-        }
-        if let Some(facility_id) = &record.facility_id {
-            if rows.facilities.get(facility_id).is_none_or(|facility| &*facility.kind != expected_kind) {
-                return Ok(false);
-            }
-        }
-    }
-    let from = window_start(&row.queue_stall_history, |record| record.minute, minute_index);
-    let mut previous = -1;
-    for record in &row.queue_stall_history[from..] {
-        if record.minute < 0
-            || record.minute < previous
-            || record.minute > minute_index
-            || rows.facilities.get(&record.facility_id).is_none()
-            || !known.person(&record.agent_id)?
-            || !stall_reason_is_known(&record.reason)
-        {
-            return Ok(false);
-        }
-        previous = record.minute;
-    }
-    for (facility_id, record) in &row.stall_state {
-        let Some(facility) = rows.facilities.get(facility_id) else {
-            return Ok(false);
-        };
-        if !matches!(&*facility.kind, "water_station" | "meal_distribution")
-            || rows.agents.get(&record.agent_id).is_none()
-            || !stall_reason_is_known(&record.reason)
-            || !(match heads.get(facility_id) {
-                Some(heads) => heads.contains(&record.agent_id),
-                None => facility.resource_queue_agent_ids.first() == Some(&record.agent_id),
-            })
-        {
-            return Ok(false);
-        }
-    }
-    Ok(true)
 }
 
 /// The part of `WorldState.validate` a tick runs: accepts, or leaves it to the Python rules.
@@ -166,7 +107,7 @@ fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let mirror = held_mirror(world)?;
     let store = entities_of(world)?;
     NamespaceMirror::with_row::<ServiceRow, _>(&mirror, |row| {
-        EntityStore::with_rows(&store, |rows| passes_rules(row, rows, &known, minute_index, &heads))
+        EntityStore::with_rows(&store, |rows| row.passes_rules(rows, &known, minute_index, &heads))
     })
 }
 

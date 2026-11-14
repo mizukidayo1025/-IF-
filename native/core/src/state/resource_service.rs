@@ -6,8 +6,10 @@
 //!
 //! The PyO3 crate's `state/resource_service.rs` reads it from Python and holds its validator.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::entities::Entities;
 use crate::row::IdMap;
 use crate::state_row;
 
@@ -84,4 +86,79 @@ pub fn window_start<T>(history: &[T], minute_of: impl Fn(&T) -> i64, minute_inde
         start -= 1;
     }
     start.saturating_sub(1)
+}
+
+/// What `ServiceRow::passes_rules` reads of the world beside the entity rows: whether a person is
+/// here or archived (`population_lifecycle_v1.people`), and whether a zone is the world's. A reader
+/// that cannot answer fails, and the check fails with its error.
+pub trait ServiceWorld {
+    type Error;
+    fn person(&self, id: &str) -> std::result::Result<bool, Self::Error>;
+    fn zone(&self, id: &str) -> std::result::Result<bool, Self::Error>;
+}
+
+impl ServiceRow {
+    /// The rules of a tick's check in `WorldState.validate` (#152; in the core since #250), for a
+    /// world of these rows, people and zones, at this minute; `heads` are the heads of the
+    /// independent queues of each facility that has them. True says the Python rules accept; false
+    /// decides nothing.
+    pub fn passes_rules<W: ServiceWorld>(&self, rows: &Entities, known: &W, minute_index: i64, heads: &HashMap<Arc<str>, Vec<Arc<str>>>) -> std::result::Result<bool, W::Error> {
+        let row = self;
+        if row.schema_version != SCHEMA_VERSION
+            || !listed_once(&row.cancelled_task_ids)
+            || !listed_once(&row.active_reservation_ids)
+        {
+            return Ok(false);
+        }
+        let from = window_start(&row.request_history, |record| record.minute, minute_index);
+        for record in &row.request_history[from..] {
+            let expected_kind = match &*record.action {
+                "fetch_water" => "water_station",
+                "collect_meal" => "meal_distribution",
+                _ => return Ok(false),
+            };
+            if !(0..=minute_index).contains(&record.minute)
+                || !request_outcome_is_known(record)
+                || !known.person(&record.agent_id)?
+                || !known.zone(&record.origin_zone_id)?
+            {
+                return Ok(false);
+            }
+            if let Some(facility_id) = &record.facility_id {
+                if rows.facilities.get(facility_id).is_none_or(|facility| &*facility.kind != expected_kind) {
+                    return Ok(false);
+                }
+            }
+        }
+        let from = window_start(&row.queue_stall_history, |record| record.minute, minute_index);
+        let mut previous = -1;
+        for record in &row.queue_stall_history[from..] {
+            if record.minute < 0
+                || record.minute < previous
+                || record.minute > minute_index
+                || rows.facilities.get(&record.facility_id).is_none()
+                || !known.person(&record.agent_id)?
+                || !stall_reason_is_known(&record.reason)
+            {
+                return Ok(false);
+            }
+            previous = record.minute;
+        }
+        for (facility_id, record) in &row.stall_state {
+            let Some(facility) = rows.facilities.get(facility_id) else {
+                return Ok(false);
+            };
+            if !matches!(&*facility.kind, "water_station" | "meal_distribution")
+                || rows.agents.get(&record.agent_id).is_none()
+                || !stall_reason_is_known(&record.reason)
+                || !(match heads.get(facility_id) {
+                    Some(heads) => heads.contains(&record.agent_id),
+                    None => facility.resource_queue_agent_ids.first() == Some(&record.agent_id),
+                })
+            {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
 }

@@ -8,9 +8,11 @@
 //!
 //! The rules read the rows (Issue #152, lane P8 d4): the entity rows (`rules/tick_validation.rs`),
 //! the rows of the namespaces and fields, and the queue's event rows. The validators of the
-//! namespaces whose kernels are still the PyO3 crate's, the effect program's check and the reading
-//! of the saved body config are asked through `Checks`, with the world given back (rule R6 of
-//! design-p8.md): the check borrows the world twice, before and after them.
+//! namespaces, the effect program's check and the reading of the saved body config are asked
+//! through `Checks`, with the world given back (rule R6 of design-p8.md): the check borrows the
+//! world twice, before and after them. The native path answers them with what Python registers
+//! (the PyO3 crate's `PyChecks`), a world without Python with the core's own
+//! (`rules::tick_checks::CoreChecks`, #250); both run the same rules of the core.
 //!
 //! The memo (`Memo`) is the facts of the last check this kernel passed, and lets it skip what is
 //! provably unchanged since: see "What the memo skips" below. A check that refuses leaves the memo
@@ -100,8 +102,8 @@ fn refuse<T>(reason: &'static str) -> Result<T> {
     Err(Error::unsupported(reason))
 }
 
-/// What the Python check would call that the PyO3 crate still holds: asked with the world given
-/// back. An error refuses the check.
+/// What the Python check would call besides the rules here: asked with the world given back. An
+/// error refuses the check. Each yes must hold only where the Python validator passes.
 pub trait Checks {
     /// The validator registered for a namespace (`state_mirror._RUST_VALIDATORS`): whether it takes
     /// the world, its rows being what the world holds; None where none is registered.

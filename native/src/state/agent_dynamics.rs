@@ -126,13 +126,7 @@ fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
         if row.schema_version != 1 || &*row.policy_version != policy {
             return Ok(false);
         }
-        EntityStore::with_rows(&store, |rows| {
-            Ok(row.agents.len() == rows.agents.len()
-                && row
-                    .agents
-                    .iter()
-                    .all(|(id, record)| rows.agents.get(id).is_some() && record.is_valid(|id| rows.facilities.get(id).is_some())))
-        })
+        EntityStore::with_rows(&store, |rows| Ok(row.accepts(policy, rows)))
     })
 }
 

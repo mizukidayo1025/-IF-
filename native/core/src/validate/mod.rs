@@ -21,7 +21,7 @@
 //! of append-only histories that passed before, is not here: a later Issue may give `View` one.
 
 mod agent_dynamics;
-mod body_state;
+pub(crate) mod body_state;
 pub mod catalog;
 mod declared;
 mod effect_program;
@@ -35,8 +35,8 @@ mod infrastructure;
 mod models;
 mod movement;
 mod operational_events;
-mod population_dynamics;
-mod population_lifecycle;
+pub(crate) mod population_dynamics;
+pub(crate) mod population_lifecycle;
 mod psychology;
 pub mod py;
 mod resource_ledger;

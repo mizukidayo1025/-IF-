@@ -232,8 +232,8 @@ fn historical_ids(view: &View<'_>, departures: bool) -> Result<HashSet<Key>> {
     Ok(ids)
 }
 
-/// `validate_body_config(world, state)`.
-fn validate_body_config(view: &View<'_>, state: &Map) -> Result<()> {
+/// `validate_body_config(world, state)`: the people the per-person parameters name.
+fn validate_body_config(view: &View<'_>, state: &Map) -> Result<HashSet<Key>> {
     let saved = get(state, "config");
     let config = canonical_body_config(saved)?;
     let mut configured: HashSet<Key> = HashSet::new();
@@ -266,7 +266,24 @@ fn validate_body_config(view: &View<'_>, state: &Map) -> Result<()> {
     if !fits {
         return value_error("body_state_v1 config is not canonical");
     }
-    Ok(())
+    Ok(configured)
+}
+
+/// `body_config_ids(world)` of `core/tick_validation.py`: `sorted(validate_body_config(world,
+/// {"config": config}))` of the saved config, the people its per-person parameters name, or what
+/// `validate_body_config` raises. For the end-of-tick check (`rules::tick_checks`), which then
+/// reads whether each is here or in the population state's history. A name that is not a str
+/// (Python's `sorted` would compare it with the str ones) is a refusal.
+pub(crate) fn body_config_ids(view: &View<'_>, config: &V) -> Result<Vec<Arc<str>>> {
+    let mut state = Map::new();
+    state.insert(Arc::from("config"), config.clone());
+    let configured = validate_body_config(view, &state)?;
+    if configured.iter().any(|id| !matches!(id, Key::Str(_))) {
+        return Err(Error::unsupported("a per-person parameter names a value that is not a str"));
+    }
+    let mut named: Vec<Arc<str>> = configured.into_iter().filter_map(|id| if let Key::Str(id) = id { Some(id) } else { None }).collect();
+    named.sort_unstable();
+    Ok(named)
 }
 
 /// `_validate_body_rows(world, state)`.

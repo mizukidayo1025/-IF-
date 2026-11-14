@@ -294,9 +294,18 @@ fn the_plain_host_runs_each_world_to_the_native_path_s_world() {
         let lines: Vec<Vec<u8>> = (0..run.host.samples.len()).map(|index| run.host.samples.line(index).unwrap().unwrap()).collect();
         assert_eq!(sha256_hex(&lines.join(&b'\n')), wanted["metrics"].as_str().unwrap(), "{name}");
         assert!(run.host.samples.line(lines.len()).unwrap().is_none());
-        // Each tick ended with the core's whole validation (#250): the kernel's check asked nothing.
+        // Each tick ended as `validate_after_tick` ends it (#250): the kernel's check, its questions
+        // answered by the core, said yes at every tick, so the whole validation never had to run.
         assert_eq!(run.stepping.end, sheltersim_core::engine::EndCheck::Whole, "{name}");
         assert!(run.stepping.checks.asked.is_empty(), "{name}");
+        assert_eq!(run.stepping.refused, Vec::<(i64, String)>::new(), "{name}");
+        let asked: std::collections::BTreeSet<&str> = run.stepping.asked.iter().map(String::as_str).collect();
+        assert!(asked.contains("effects") && asked.contains("namespace movement_v1"), "{name}: {asked:?}");
+        if name == "generated" {
+            // Every question of the check: the namespaces' validators, the body rows and config, the
+            // shared operations.
+            assert_eq!(asked.len(), 19, "{asked:?}");
+        }
     }
     // The generated world's EffectProgram moved four facilities: the plan was built again after each.
     let fixture = load::entry("tick_core", "generated");
