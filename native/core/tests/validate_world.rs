@@ -4,13 +4,11 @@
 
 mod support;
 
-use support::validate::{check_file, check_file_without};
+use support::validate::check_file;
 
 #[test]
 fn the_selected_models_and_the_declared_states_give_python_s_errors() {
-    // `validate_simulator_extensions` reads the selection through `simulator_signatures` (lane D,
-    // #349), and the presence through the lifecycle's validator: its answers wait for that lane.
-    assert!(check_file_without("validate_selection", &["extensions"]) > 50);
+    assert!(check_file("validate_selection") > 50);
 }
 
 #[test]

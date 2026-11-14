@@ -129,11 +129,20 @@ pub fn differences(name: &str, expected: &BTreeMap<String, Found>, got: &BTreeMa
     let mut out = Vec::new();
     for (entry, wanted) in expected {
         let found = got.get(entry.as_str()).unwrap_or_else(|| panic!("{name}: no entry point {entry}"));
-        if found != wanted {
+        if !same_outcome(wanted, found) {
             out.push(format!("{name} {entry}: Python {wanted:?}, the core {found:?}"));
         }
     }
     out
+}
+
+/// Whether the core gave what Python raised. The core has no class of its own for pydantic's
+/// `ValidationError` (a `ValueError`; #360): it is a `ValueError` with the same text.
+pub fn same_outcome(wanted: &Found, found: &Found) -> bool {
+    match (wanted, found) {
+        (Some((class, text)), Some((got_class, got_text))) if class == "ValidationError" => got_class == "ValueError" && got_text == text,
+        _ => wanted == found,
+    }
 }
 
 /// Check every case of a file (`validate_<area>.json`); fails with all the cases that differ. The

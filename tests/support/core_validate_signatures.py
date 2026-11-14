@@ -163,6 +163,9 @@ SIGNATURE_CASES = [
         "signed_environment_invalid",
         config_field("zone_environment", "max_rest_decision_minutes", "x"),
     ),
+    case(
+        "signed_environment_dict", config_field("zone_environment", "max_rest_decision_minutes", {})
+    ),
     case("signed_no_service_points", _geometry_service_points(lambda points: [])),
     case("signed_one_service_point", _geometry_service_points(lambda points: points[:1])),
     case(

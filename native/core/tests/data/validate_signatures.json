@@ -2326,6 +2326,14 @@
   },
   {
    "expected": [
+    "ValidationError",
+    "1 validation error for ScenarioZoneEnvironmentConfig\nmax_rest_decision_minutes\n  Input should be a valid integer [type=int_type, input_value={}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/int_type"
+   ],
+   "name": "signed_environment_dict",
+   "world": "signed_environment_dict"
+  },
+  {
+   "expected": [
     [
      "simulator:agent_dynamics_v1",
      "need-led-autonomy-memory-v3@1:state1"
@@ -3145,6 +3153,13 @@
       "intake_desk"
      ]
     }
+   }
+  },
+  "signed_environment_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.zone_environment.max_rest_decision_minutes": {}
    }
   },
   "signed_environment_invalid": {

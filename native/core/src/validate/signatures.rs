@@ -20,7 +20,7 @@ use indexmap::IndexMap;
 use super::agent_dynamics::canonical_agent_dynamics_policy;
 use super::extension_head::py::{self, get, Held};
 use super::staff_dynamics::canonical_staff_dynamics_config;
-use super::{selection, View};
+use super::{models, selection, View};
 use crate::checkpoint::sha256_hex;
 use crate::contracts;
 use crate::error::{Error, Result};
@@ -140,7 +140,7 @@ pub fn canonical_proximity(raw: Option<&V>) -> Result<Option<(f64, i64, i64)>> {
 
 /// `ScenarioZoneEnvironmentConfig.model_validate(raw).policy_version`, or pydantic's error.
 fn zone_environment_policy(raw: &V) -> Result<Arc<str>> {
-    match contracts::validate(&Contract::ZoneEnvironment, raw)? {
+    match contracts::validate(&Contract::ZoneEnvironment, raw).map_err(models::tracked)? {
         V::Map(dump) => match dump.get("policy_version") {
             Some(V::Str(policy)) => Ok(policy.clone()),
             _ => Err(Error::unsupported("the zone environment has no policy")),
@@ -156,7 +156,7 @@ pub fn independent_queues_required(configs: &Map) -> Result<bool> {
     let Some(raw @ V::Map(_)) = configs.get("facility_geometry") else {
         return Ok(false);
     };
-    let geometry = contracts::validate(&Contract::FacilityGeometry, raw)?;
+    let geometry = contracts::validate(&Contract::FacilityGeometry, raw).map_err(models::tracked)?;
     let points = match &geometry {
         V::Map(geometry) => match geometry.get("service_points") {
             Some(V::List(points)) => points.as_slice(),

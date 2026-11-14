@@ -10,7 +10,7 @@ mod support;
 use serde_json::Value;
 use sheltersim_core::validate::signatures::simulator_signatures;
 use sheltersim_core::validate::{py_str, View};
-use support::validate::{self, class_of, load_entry, Files};
+use support::validate::{self, class_of, load_entry, same_outcome, Files, Found};
 
 const FILE: &str = "validate_signatures";
 
@@ -31,12 +31,13 @@ fn the_signatures_are_python_s() {
             Ok(signatures) => Value::Array(signatures.iter().map(|(key, value)| Value::from(vec![key.to_string(), value.to_string()])).collect()),
             Err(error) => Value::from(vec![class_of(&error), py_str(&error)]),
         };
-        // The core has no class of its own for pydantic's ValidationError: a ValueError with its text.
-        let expected = match item["expected"].as_array().map(Vec::as_slice) {
-            Some([class, text]) if class == "ValidationError" => Value::from(vec![Value::from("ValueError"), text.clone()]),
-            _ => item["expected"].clone(),
+        // The core has no class of its own for pydantic's ValidationError (#360).
+        let pair = |value: &Value| -> Found { value.as_array().filter(|pair| pair.len() == 2 && pair[0].is_string()).map(|pair| (pair[0].as_str().unwrap().to_owned(), pair[1].as_str().unwrap_or_default().to_owned())) };
+        let same = match (pair(&item["expected"]), pair(&got)) {
+            (Some(wanted), Some(found)) => same_outcome(&Some(wanted), &Some(found)),
+            _ => got == item["expected"],
         };
-        if got != expected {
+        if !same {
             failures.push(format!("{name}: Python {}, the core {got}", item["expected"]));
         }
     }
