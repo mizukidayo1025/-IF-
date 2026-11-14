@@ -328,7 +328,7 @@ def browser_modules() -> list[str]:
 
 def _output(*command: str) -> str:
     """What `command` writes; ValueError with what it wrote to stderr if it fails."""
-    result = subprocess.run(command, capture_output=True, text=True)
+    result = subprocess.run(command, capture_output=True, encoding="utf-8")
     if result.returncode != 0:
         raise ValueError(f"{' '.join(command[:2])} failed: {result.stderr.strip()}")
     return result.stdout
