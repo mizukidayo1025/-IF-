@@ -74,6 +74,11 @@ FIXTURES: dict[str, str] = {
     # The whole world's validation (#250): the valid worlds, and a file of cases per area.
     "validate_worlds": "support.core_validate:validate_worlds_fixture",
     "validate_entry": "support.core_validate:validate_entry_fixture",
+    # The input contracts (#346).
+    "contracts_effects": "support.core_contracts:contracts_effects_fixture",
+    "contracts_overlay": "support.core_contracts:contracts_overlay_fixture",
+    "contracts_geometry": "support.core_contracts:contracts_geometry_fixture",
+    "contracts_population": "support.core_contracts:contracts_population_fixture",
 }
 # The fixtures whose file is not under native/core/tests/data/.
 PATHS: dict[str, Path] = {"initial_table": INITIAL_TABLE}
