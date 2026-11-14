@@ -16,6 +16,7 @@ use indexmap::{IndexMap, IndexSet};
 use rustc_hash::FxHashMap;
 
 use super::entities::{get, in_table, index, is_text, payload_hashable, pending_events, same, state_hashable};
+use super::extension_head::py::{held_type_name, Held};
 use super::View;
 use crate::error::{Error, Result};
 use crate::events::{EventKind, EventRow};
@@ -448,7 +449,7 @@ fn h03_event(event: &EventRow, rows: &crate::entities::Entities, duration: i64, 
 
 /// `infrastructure_delay`: a delay the infrastructure model scheduled as a completion. Its source
 /// is read from `model_configs.get("infrastructure", {})`, which Python reads with `.get`: a config
-/// that is no dict raises an `AttributeError`, which a `RuntimeError` with its text stands for.
+/// that is no dict raises an `AttributeError`.
 fn infrastructure_delay(event: &EventRow, infrastructure: Option<&V>) -> Result<bool> {
     if &*event.event_type != "delivery_delayed"
         || event.kind != EventKind::Completion
@@ -460,7 +461,8 @@ fn infrastructure_delay(event: &EventRow, infrastructure: Option<&V>) -> Result<
     let source = match infrastructure {
         None => None,
         Some(V::Map(config)) => config.get("source_id"),
-        Some(other) => return Err(Error::Runtime(format!("'{}' object has no attribute 'get'", super::entities::type_name(other)))),
+        // `selected_models` refuses such a config first, so a world never gets here with one.
+        Some(other) => return Err(Error::Attribute(format!("'{}' object has no attribute 'get'", held_type_name(other, Held::Tracked)))),
     };
     Ok(eq(get(&event.provenance, "source_id"), source))
 }

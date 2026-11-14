@@ -101,7 +101,7 @@ impl HostFailure for Error {
             Error::Key(_) => ErrorClass::Key,
             Error::Type(_) => ErrorClass::Type,
             // `TickExecutionError` is a RuntimeError.
-            Error::Runtime(_) | Error::Math(_) | Error::Clock => ErrorClass::Other,
+            Error::Runtime(_) | Error::Attribute(_) | Error::Math(_) | Error::Clock => ErrorClass::Other,
         }
     }
 

@@ -31,7 +31,7 @@ use sheltersim_core::validate::{self, Options};
 use sheltersim_core::world::{World, WorldCell};
 
 use support::load;
-use support::validate::{load_entry, outcome_of, same_outcome, Files, Found};
+use support::validate::{load_entry, outcome_of, Files, Found};
 
 /// The files of recorded cases (all but the file of valid worlds).
 const CASE_FILES: [&str; 15] = [
@@ -95,7 +95,7 @@ fn every_recorded_broken_world_ends_a_tick_with_python_s_error() {
             if found != whole {
                 failures.push(format!("{file} {name}: the whole validation {whole:?}, the end of the tick {found:?}"));
             }
-            if same_outcome(&wanted, &found) {
+            if wanted == found {
                 as_python += 1;
             }
             if stepping.refused.iter().any(|(_, reason)| reason.contains("its kernel did not take it") || reason.contains("are the Python rule's")) {

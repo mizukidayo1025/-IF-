@@ -479,6 +479,314 @@
    },
    "name": "sig_awareness_ok",
    "world": "sig_awareness_ok"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValidationError",
+     "1 validation error for FacilityGeometry\nschema_version\n  Input should be 1 [type=literal_error, input_value=2, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sig_geometry_invalid",
+   "world": "sig_geometry_invalid"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "1 validation error for ScenarioZoneEnvironmentConfig\nmax_rest_decision_minutes\n  Input should be a valid integer [type=int_type, input_value='x', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/int_type"
+    ],
+    "extensions": [
+     "ValidationError",
+     "1 validation error for ScenarioZoneEnvironmentConfig\nmax_rest_decision_minutes\n  Input should be a valid integer [type=int_type, input_value='x', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/int_type"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "1 validation error for ScenarioZoneEnvironmentConfig\nmax_rest_decision_minutes\n  Input should be a valid integer [type=int_type, input_value='x', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/int_type"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "1 validation error for ScenarioZoneEnvironmentConfig\nmax_rest_decision_minutes\n  Input should be a valid integer [type=int_type, input_value='x', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/int_type"
+    ]
+   },
+   "name": "sig_environment_invalid",
+   "world": "sig_environment_invalid"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValidationError",
+     "1 validation error for FacilityAwarenessConfig\ninitial_known_facility_ids\n  Value error, initial_known_facility_ids must contain stable facility IDs [type=value_error, input_value=['toilet_01', 'a b'], input_type=TrackedList]\n    For further information visit https://errors.pydantic.dev/2.11/v/value_error"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sig_awareness_unstable",
+   "world": "sig_awareness_unstable"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValidationError",
+     "1 validation error for FacilityAwarenessConfig\ninitial_known_facility_ids\n  Value error, initial_known_facility_ids must be unique [type=value_error, input_value=['toilet_01', 'intake_desk', 'toilet_01'], input_type=TrackedList]\n    For further information visit https://errors.pydantic.dev/2.11/v/value_error"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sig_awareness_duplicate",
+   "world": "sig_awareness_duplicate"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValidationError",
+     "1 validation error for FacilityAwarenessConfig\ninitial_known_facility_ids\n  Input should be a valid tuple [type=tuple_type, input_value='toilet_01', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/tuple_type"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sig_awareness_not_tuple",
+   "world": "sig_awareness_not_tuple"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValidationError",
+     "1 validation error for FacilityAwarenessConfig\ninitial_known_facility_ids\n  Input should be a valid tuple [type=tuple_type, input_value={'toilet_01': 1}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/tuple_type"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sig_awareness_dict",
+   "world": "sig_awareness_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValidationError",
+     "1 validation error for FacilityAwarenessConfig\ninitial_known_facility_ids.1\n  Input should be a valid string [type=string_type, input_value=3, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/string_type"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sig_awareness_item",
+   "world": "sig_awareness_item"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValidationError",
+     "1 validation error for FacilityAwarenessConfig\ninitial_known_facility_ids\n  Tuple should have at most 1000 items after validation, not 1001 [type=too_long, input_value=['toilet_01', 'toilet_01'...toilet_01', 'toilet_01'], input_type=TrackedList]\n    For further information visit https://errors.pydantic.dev/2.11/v/too_long"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sig_awareness_too_long",
+   "world": "sig_awareness_too_long"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValidationError",
+     "1 validation error for FacilityAwarenessConfig\nx\n  Extra inputs are not permitted [type=extra_forbidden, input_value=1, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sig_awareness_extra",
+   "world": "sig_awareness_extra"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ],
+    "extensions": [
+     "ValueError",
+     "model configs must map names to configuration objects"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ]
+   },
+   "name": "sig_awareness_list",
+   "world": "sig_awareness_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValidationError",
+     "2 validation errors for FacilityAwarenessConfig\nschema_version\n  Input should be 1 [type=literal_error, input_value=2, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ndiscover_co_located_facilities_on_arrival\n  Input should be a valid boolean [type=bool_type, input_value=1, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/bool_type"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sig_awareness_fields",
+   "world": "sig_awareness_fields"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ],
+    "extensions": [
+     "ValueError",
+     "model configs must map names to configuration objects"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ]
+   },
+   "name": "sig_extensions_list",
+   "world": "sig_extensions_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ],
+    "extensions": [
+     "ValueError",
+     "model configs must map names to configuration objects"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ]
+   },
+   "name": "sig_extensions_none",
+   "world": "sig_extensions_none"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ],
+    "extensions": [
+     "ValueError",
+     "model configs must map names to configuration objects"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ]
+   },
+   "name": "sig_extensions_text",
+   "world": "sig_extensions_text"
   }
  ],
  "signatures": [
@@ -1490,6 +1798,118 @@
   },
   {
    "expected": [
+    "ValidationError",
+    "1 validation error for FacilityGeometry\nschema_version\n  Input should be 1 [type=literal_error, input_value=2, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error"
+   ],
+   "name": "sig_geometry_invalid",
+   "world": "sig_geometry_invalid"
+  },
+  {
+   "expected": [
+    "ValidationError",
+    "1 validation error for ScenarioZoneEnvironmentConfig\nmax_rest_decision_minutes\n  Input should be a valid integer [type=int_type, input_value='x', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/int_type"
+   ],
+   "name": "sig_environment_invalid",
+   "world": "sig_environment_invalid"
+  },
+  {
+   "expected": [
+    "ValidationError",
+    "1 validation error for FacilityAwarenessConfig\ninitial_known_facility_ids\n  Value error, initial_known_facility_ids must contain stable facility IDs [type=value_error, input_value=['toilet_01', 'a b'], input_type=TrackedList]\n    For further information visit https://errors.pydantic.dev/2.11/v/value_error"
+   ],
+   "name": "sig_awareness_unstable",
+   "world": "sig_awareness_unstable"
+  },
+  {
+   "expected": [
+    "ValidationError",
+    "1 validation error for FacilityAwarenessConfig\ninitial_known_facility_ids\n  Value error, initial_known_facility_ids must be unique [type=value_error, input_value=['toilet_01', 'intake_desk', 'toilet_01'], input_type=TrackedList]\n    For further information visit https://errors.pydantic.dev/2.11/v/value_error"
+   ],
+   "name": "sig_awareness_duplicate",
+   "world": "sig_awareness_duplicate"
+  },
+  {
+   "expected": [
+    "ValidationError",
+    "1 validation error for FacilityAwarenessConfig\ninitial_known_facility_ids\n  Input should be a valid tuple [type=tuple_type, input_value='toilet_01', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/tuple_type"
+   ],
+   "name": "sig_awareness_not_tuple",
+   "world": "sig_awareness_not_tuple"
+  },
+  {
+   "expected": [
+    "ValidationError",
+    "1 validation error for FacilityAwarenessConfig\ninitial_known_facility_ids\n  Input should be a valid tuple [type=tuple_type, input_value={'toilet_01': 1}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/tuple_type"
+   ],
+   "name": "sig_awareness_dict",
+   "world": "sig_awareness_dict"
+  },
+  {
+   "expected": [
+    "ValidationError",
+    "1 validation error for FacilityAwarenessConfig\ninitial_known_facility_ids.1\n  Input should be a valid string [type=string_type, input_value=3, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/string_type"
+   ],
+   "name": "sig_awareness_item",
+   "world": "sig_awareness_item"
+  },
+  {
+   "expected": [
+    "ValidationError",
+    "1 validation error for FacilityAwarenessConfig\ninitial_known_facility_ids\n  Tuple should have at most 1000 items after validation, not 1001 [type=too_long, input_value=['toilet_01', 'toilet_01'...toilet_01', 'toilet_01'], input_type=TrackedList]\n    For further information visit https://errors.pydantic.dev/2.11/v/too_long"
+   ],
+   "name": "sig_awareness_too_long",
+   "world": "sig_awareness_too_long"
+  },
+  {
+   "expected": [
+    "ValidationError",
+    "1 validation error for FacilityAwarenessConfig\nx\n  Extra inputs are not permitted [type=extra_forbidden, input_value=1, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/extra_forbidden"
+   ],
+   "name": "sig_awareness_extra",
+   "world": "sig_awareness_extra"
+  },
+  {
+   "expected": [
+    "ValueError",
+    "model configs must map names to configuration objects"
+   ],
+   "name": "sig_awareness_list",
+   "world": "sig_awareness_list"
+  },
+  {
+   "expected": [
+    "ValidationError",
+    "2 validation errors for FacilityAwarenessConfig\nschema_version\n  Input should be 1 [type=literal_error, input_value=2, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error\ndiscover_co_located_facilities_on_arrival\n  Input should be a valid boolean [type=bool_type, input_value=1, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/bool_type"
+   ],
+   "name": "sig_awareness_fields",
+   "world": "sig_awareness_fields"
+  },
+  {
+   "expected": [
+    "ValueError",
+    "model configs must map names to configuration objects"
+   ],
+   "name": "sig_extensions_list",
+   "world": "sig_extensions_list"
+  },
+  {
+   "expected": [
+    "ValueError",
+    "model configs must map names to configuration objects"
+   ],
+   "name": "sig_extensions_none",
+   "world": "sig_extensions_none"
+  },
+  {
+   "expected": [
+    "ValueError",
+    "model configs must map names to configuration objects"
+   ],
+   "name": "sig_extensions_text",
+   "world": "sig_extensions_text"
+  },
+  {
+   "expected": [
     [
      "simulator:agent_dynamics_v1",
      "need-led-autonomy-memory-v3@1:state1"
@@ -2311,22 +2731,6 @@
   {
    "expected": [
     "ValidationError",
-    "1 validation error for FacilityGeometry\nschema_version\n  Input should be 1 [type=literal_error, input_value=2, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error"
-   ],
-   "name": "signed_geometry_invalid",
-   "world": "signed_geometry_invalid"
-  },
-  {
-   "expected": [
-    "ValidationError",
-    "1 validation error for ScenarioZoneEnvironmentConfig\nmax_rest_decision_minutes\n  Input should be a valid integer [type=int_type, input_value='x', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/int_type"
-   ],
-   "name": "signed_environment_invalid",
-   "world": "signed_environment_invalid"
-  },
-  {
-   "expected": [
-    "ValidationError",
     "1 validation error for ScenarioZoneEnvironmentConfig\nmax_rest_decision_minutes\n  Input should be a valid integer [type=int_type, input_value={}, input_type=TrackedDict]\n    For further information visit https://errors.pydantic.dev/2.11/v/int_type"
    ],
    "name": "signed_environment_dict",
@@ -2997,6 +3401,77 @@
     "world.model_configs.agent_dynamics.policy_version": []
    }
   },
+  "sig_awareness_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.facility_awareness": {
+     "initial_known_facility_ids": {
+      "toilet_01": 1
+     }
+    }
+   }
+  },
+  "sig_awareness_duplicate": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.facility_awareness": {
+     "initial_known_facility_ids": [
+      "toilet_01",
+      "intake_desk",
+      "toilet_01"
+     ]
+    }
+   }
+  },
+  "sig_awareness_extra": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.facility_awareness": {
+     "x": 1
+    }
+   }
+  },
+  "sig_awareness_fields": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.facility_awareness": {
+     "discover_co_located_facilities_on_arrival": 1,
+     "schema_version": 2
+    }
+   }
+  },
+  "sig_awareness_item": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.facility_awareness": {
+     "initial_known_facility_ids": [
+      "toilet_01",
+      3
+     ]
+    }
+   }
+  },
+  "sig_awareness_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.facility_awareness": []
+   }
+  },
+  "sig_awareness_not_tuple": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.facility_awareness": {
+     "initial_known_facility_ids": "toilet_01"
+    }
+   }
+  },
   "sig_awareness_ok": {
    "base": "generated",
    "file": "validate_worlds",
@@ -3006,6 +3481,1064 @@
       "toilet_01"
      ]
     }
+   }
+  },
+  "sig_awareness_too_long": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.facility_awareness": {
+     "initial_known_facility_ids": [
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01",
+      "toilet_01"
+     ]
+    }
+   }
+  },
+  "sig_awareness_unstable": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.facility_awareness": {
+     "initial_known_facility_ids": [
+      "toilet_01",
+      "a b"
+     ]
+    }
+   }
+  },
+  "sig_environment_invalid": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.zone_environment.max_rest_decision_minutes": "x"
+   }
+  },
+  "sig_extensions_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.simulator_extensions": []
+   }
+  },
+  "sig_extensions_none": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.simulator_extensions": null
+   }
+  },
+  "sig_extensions_text": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.simulator_extensions": "enabled"
+   }
+  },
+  "sig_geometry_invalid": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_configs.facility_geometry.schema_version": 2
    }
   },
   "sig_overlay_extra": {
@@ -3162,13 +4695,6 @@
     "world.model_configs.zone_environment.max_rest_decision_minutes": {}
    }
   },
-  "signed_environment_invalid": {
-   "base": "generated",
-   "file": "validate_worlds",
-   "set": {
-    "world.model_configs.zone_environment.max_rest_decision_minutes": "x"
-   }
-  },
   "signed_extensions_off": {
    "base": "generated",
    "file": "validate_worlds",
@@ -3179,13 +4705,6 @@
   "signed_generated": {
    "base": "generated",
    "file": "validate_worlds"
-  },
-  "signed_geometry_invalid": {
-   "base": "generated",
-   "file": "validate_worlds",
-   "set": {
-    "world.model_configs.facility_geometry.schema_version": 2
-   }
   },
   "signed_no_extensions": {
    "base": "generated",

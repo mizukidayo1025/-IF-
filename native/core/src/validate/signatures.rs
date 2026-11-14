@@ -6,11 +6,10 @@
 //! extension key), and raises its error as it is; the head of the extensions
 //! (`extension_head.rs`) reads the required states from it.
 //!
-//! The pydantic models it validates are the core's contracts (`crate::contracts`):
-//! `ScenarioZoneEnvironmentConfig` and `FacilityGeometry`. Two small models are read here:
-//! `SharedOperationsConfig` (whose error Python replaces with its own text) and
-//! `FacilityAwarenessConfig`, of which only a config the model accepts is read; for another, the
-//! core does not write pydantic's text (#250 follow-up) and refuses.
+//! The pydantic models it validates are the core's contracts (`crate::contracts::checked`):
+//! `ScenarioZoneEnvironmentConfig`, `FacilityGeometry` and `FacilityAwarenessConfig`, whose errors
+//! it raises as pydantic's `ValidationError` (#360). `SharedOperationsConfig` is read here: Python
+//! replaces its error with its own text.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -20,12 +19,10 @@ use indexmap::IndexMap;
 use super::agent_dynamics::canonical_agent_dynamics_policy;
 use super::extension_head::py::{self, get, Held};
 use super::staff_dynamics::canonical_staff_dynamics_config;
-use super::{models, selection, View};
+use super::{selection, View};
 use crate::checkpoint::sha256_hex;
-use crate::contracts;
+use crate::contracts::{self, Checked, Holder};
 use crate::error::{Error, Result};
-use crate::events::is_stable_id;
-use crate::host::Contract;
 use crate::json::python_float_repr;
 use crate::value::V;
 
@@ -60,7 +57,6 @@ const GEOMETRY_OVERLAY_POLICY: &str = "bounded-runtime-geometry-v1";
 const BODY_STATE: &str = "body_state_v1";
 const BODY_POLICY: &str = "life-state-feedback-v1";
 const FACILITY_AWARENESS_POLICY: &str = "entry-orientation-and-arrival-discovery-v1";
-const FACILITY_AWARENESS_SOURCE: &str = "ASM-FACILITY-ENTRY-ORIENTATION-V1";
 const PROXIMITY_POLICY: &str = "distance-sampled-proximity-v1";
 const TEMPORARY_ROOM_BED_POLICY: &str = "exclusive-physical-sleep-beds-v1";
 const TEMPORARY_ROOM_INTAKE_POLICY: &str = "physical-temporary-room-intake-v1";
@@ -81,8 +77,9 @@ fn extensions_enabled(configs: &Map) -> Result<bool> {
     match configs.get("simulator_extensions") {
         None => Ok(false),
         Some(V::Map(extensions)) => Ok(extensions.get("enabled").is_some_and(V::is_truthy)),
-        // `.get` of another value is Python's AttributeError, which the core has no class for.
-        Some(_) => Err(Error::unsupported("simulator_extensions is not a dict")),
+        // `.get` of another value is Python's AttributeError. `selected_models` (read before)
+        // refuses a config that is no dict, so a world never gets here with one.
+        Some(other) => Err(Error::Attribute(format!("'{}' object has no attribute 'get'", py::held_type_name(other, Held::Tracked)))),
     }
 }
 
@@ -140,7 +137,7 @@ pub fn canonical_proximity(raw: Option<&V>) -> Result<Option<(f64, i64, i64)>> {
 
 /// `ScenarioZoneEnvironmentConfig.model_validate(raw).policy_version`, or pydantic's error.
 fn zone_environment_policy(raw: &V) -> Result<Arc<str>> {
-    match contracts::validate(&Contract::ZoneEnvironment, raw).map_err(models::tracked)? {
+    match contracts::checked(&Checked::ZoneEnvironment, raw, Holder::Tracked)? {
         V::Map(dump) => match dump.get("policy_version") {
             Some(V::Str(policy)) => Ok(policy.clone()),
             _ => Err(Error::unsupported("the zone environment has no policy")),
@@ -156,7 +153,7 @@ pub fn independent_queues_required(configs: &Map) -> Result<bool> {
     let Some(raw @ V::Map(_)) = configs.get("facility_geometry") else {
         return Ok(false);
     };
-    let geometry = contracts::validate(&Contract::FacilityGeometry, raw).map_err(models::tracked)?;
+    let geometry = contracts::checked(&Checked::FacilityGeometry, raw, Holder::Tracked)?;
     let points = match &geometry {
         V::Map(geometry) => match geometry.get("service_points") {
             Some(V::List(points)) => points.as_slice(),
@@ -179,47 +176,10 @@ pub fn independent_queues_required(configs: &Map) -> Result<bool> {
     Ok(false)
 }
 
-/// `canonical_facility_awareness_config(raw)`: `FacilityAwarenessConfig`'s `model_dump(mode="json")`
-/// of a config it accepts. Another config is refused: pydantic's text of it is not written here.
+/// `canonical_facility_awareness_config(raw)`: `FacilityAwarenessConfig`'s `model_dump(mode="json")`,
+/// or pydantic's error.
 fn canonical_facility_awareness(raw: &V) -> Result<V> {
-    let refused = || Err(Error::unsupported("a facility_awareness config FacilityAwarenessConfig does not accept"));
-    let V::Map(raw) = raw else {
-        return refused();
-    };
-    let mut ids: Vec<Arc<str>> = Vec::new();
-    let mut discover = true;
-    for (key, value) in raw {
-        match (&**key, value) {
-            ("schema_version", V::Int(1) | V::Bool(true)) => {}
-            ("schema_version", V::Float(number)) if *number == 1.0 => {}
-            ("initial_known_facility_ids", V::List(items)) if items.len() <= 1000 => {
-                for item in items {
-                    let V::Str(id) = item else {
-                        return refused();
-                    };
-                    ids.push(id.clone());
-                }
-                if ids.iter().any(|id| !is_stable_id(id)) {
-                    return refused();
-                }
-                ids.sort_unstable();
-                if ids.windows(2).any(|pair| pair[0] == pair[1]) {
-                    return refused();
-                }
-            }
-            ("discover_co_located_facilities_on_arrival", V::Bool(flag)) => discover = *flag,
-            ("source_type", V::Str(source)) if &**source == "assumption" => {}
-            ("source_id", V::Str(source)) if &**source == FACILITY_AWARENESS_SOURCE => {}
-            _ => return refused(),
-        }
-    }
-    let mut dump = Map::new();
-    dump.insert(text("schema_version"), V::Int(1));
-    dump.insert(text("initial_known_facility_ids"), V::List(ids.into_iter().map(V::Str).collect()));
-    dump.insert(text("discover_co_located_facilities_on_arrival"), V::Bool(discover));
-    dump.insert(text("source_type"), V::Str(text("assumption")));
-    dump.insert(text("source_id"), V::Str(text(FACILITY_AWARENESS_SOURCE)));
-    Ok(V::Map(dump))
+    contracts::checked(&Checked::FacilityAwareness, raw, Holder::Tracked)
 }
 
 /// `_simulator_signature(key, version)`.

@@ -37,6 +37,7 @@ pub fn class_of(error: &Error) -> String {
         Error::Validation(_) => "ValidationError",
         Error::Key(_) => "KeyError",
         Error::Type(_) => "TypeError",
+        Error::Attribute(_) => "AttributeError",
         Error::Ledger(_) => "ResourceLedgerError",
         Error::Runtime(_) => "RuntimeError",
         Error::Outcome(Outcome::Failed, _) => "EventApplicationError",
@@ -130,23 +131,11 @@ pub fn differences(name: &str, expected: &BTreeMap<String, Found>, got: &BTreeMa
     let mut out = Vec::new();
     for (entry, wanted) in expected {
         let found = got.get(entry.as_str()).unwrap_or_else(|| panic!("{name}: no entry point {entry}"));
-        if !same_outcome(wanted, found) {
+        if wanted != found {
             out.push(format!("{name} {entry}: Python {wanted:?}, the core {found:?}"));
         }
     }
     out
-}
-
-/// Whether the core gave what Python raised. pydantic's `ValidationError` (a `ValueError`) is
-/// `Error::Validation` where a part gives that class (#350); a part that still gives the core's
-/// `ValueError` with the same text passes too, until it does (#360).
-pub fn same_outcome(wanted: &Found, found: &Found) -> bool {
-    match (wanted, found) {
-        (Some((class, text)), Some((got_class, got_text))) if class == "ValidationError" => {
-            (got_class == "ValidationError" || got_class == "ValueError") && got_text == text
-        }
-        _ => wanted == found,
-    }
 }
 
 /// Check every case of a file (`validate_<area>.json`); fails with all the cases that differ. The

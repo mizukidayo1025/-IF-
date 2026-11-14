@@ -13,9 +13,8 @@ use super::catalog::{catalog, Bounds};
 use super::py::{equal, finite, number, unhashable};
 use super::{repr, View};
 use crate::config::Selection;
-use crate::contracts;
+use crate::contracts::{self, Checked, Holder};
 use crate::error::{Error, Result};
-use crate::host::Contract;
 use crate::value::V;
 
 const BEHAVIOR_KEYS: [&str; 9] = [
@@ -251,7 +250,7 @@ pub fn select(configs: &V) -> Result<Selection> {
         let Some(environment) = configs.get("zone_environment") else {
             return Err(value_error("environment formula selection requires zone_environment config"));
         };
-        let dumped = contracts::validate(&Contract::ZoneEnvironment, environment).map_err(super::models::tracked)?;
+        let dumped = contracts::checked(&Checked::ZoneEnvironment, environment, Holder::Tracked)?;
         let v2 = matches!(&dumped, V::Map(dumped) if matches!(dumped.get("policy_version"), Some(V::Str(policy)) if &**policy == "zone-environment-v2"));
         if !v2 {
             return Err(value_error("environment formula selection requires zone-environment-v2"));

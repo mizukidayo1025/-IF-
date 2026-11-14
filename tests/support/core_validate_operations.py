@@ -302,6 +302,25 @@ OPERATIONAL_CASES = [
         ),
     ),
     Case(
+        "delivery_delay_infrastructure_config_list",
+        BASE,
+        edit=both(
+            add(
+                event_of(
+                    "delivery_delayed",
+                    {"shipment_id": SHIPMENT, "to_minute": 70},
+                    kind="completion",
+                    causation_id="region-condition-001-power_outage",
+                    provenance={
+                        "policy_version": "infrastructure-events-v1",
+                        "source_id": "GATE-SYNTHETIC-INPUT",
+                    },
+                )
+            ),
+            config("infrastructure", []),
+        ),
+    ),
+    Case(
         "delivery_delay_completion",
         BASE,
         edit=add(

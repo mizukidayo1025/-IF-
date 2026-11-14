@@ -576,6 +576,28 @@
    "expected": {
     "candidate": [
      "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ],
+    "extensions": [
+     "ValueError",
+     "model configs must map names to configuration objects"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "model configs must map names to configuration objects"
+    ]
+   },
+   "name": "delivery_delay_infrastructure_config_list",
+   "world": "delivery_delay_infrastructure_config_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
      "invalid operational events state: delivery_delayed event shape or provenance is invalid"
     ],
     "extensions": null,
@@ -2122,6 +2144,41 @@
    ],
    "set": {
     "world.id_counters.event": 120
+   }
+  },
+  "delivery_delay_infrastructure_config_list": {
+   "base": "operations",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_queue",
+      12
+     ],
+     {
+      "causation_id": "region-condition-001-power_outage",
+      "due_minute": 80,
+      "event_id": "test-delivery-delayed",
+      "event_type": "delivery_delayed",
+      "kind": "completion",
+      "payload": {
+       "shipment_id": "region-shipment-006",
+       "to_minute": 70
+      },
+      "priority": 0,
+      "provenance": {
+       "policy_version": "infrastructure-events-v1",
+       "source_id": "GATE-SYNTHETIC-INPUT"
+      },
+      "sequence": 119,
+      "source_id": "SRC-OPERATOR-INITIAL-CONDITIONS"
+     }
+    ]
+   ],
+   "set": {
+    "world.id_counters.event": 120,
+    "world.model_configs.infrastructure": []
    }
   },
   "delivery_delay_minute_text": {
