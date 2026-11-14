@@ -613,6 +613,33 @@ fn operator_shape_and_complexity_are_valid(fields: &mut Fields) -> Result<(), St
     Ok(())
 }
 
+// ---- The records of a program in effect_program_v1 (#351) --------------------------------------
+
+/// `CompilerProvenance` of events/effects.py.
+pub static COMPILER_PROVENANCE: Model = model(
+    "CompilerProvenance",
+    &[
+        required("compiler_kind", S::Lit(&[Lit::Str("offline_rule"), Lit::Str("llm")])),
+        required("compiler_version", STABLE),
+        with("model_id", S::Opt(&STABLE), null),
+        with("prompt_hash", S::Opt(&S::Str(StrS { strip: false, min: None, max: Some(128), pattern: None })), null),
+    ],
+    None,
+);
+
+/// `PlanAssumption` of events/effects.py.
+pub static PLAN_ASSUMPTION: Model = model(
+    "PlanAssumption",
+    &[
+        required("assumption_id", STABLE),
+        required("description", S::Str(StrS { strip: false, min: Some(1), max: Some(500), pattern: None })),
+        required("source_id", STABLE),
+        with("units", S::Opt(&STABLE), null),
+        with("value", S::Opt(&S::AssumptionValue), null),
+    ],
+    None,
+);
+
 static TEMPORARY_SPACE: Model = model(
     "_TemporarySpaceParameters",
     &[required("people_capacity", strict_int(None, Some(0), Some(1000))), with("sleeping_capacity", strict_int(Some(0), None, Some(1000)), || V::Int(0))],

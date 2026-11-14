@@ -12,6 +12,8 @@
 pub(crate) mod models;
 pub(crate) mod pydantic;
 
+use std::sync::Arc;
+
 use crate::error::{Error, Result};
 use crate::host::Contract;
 use crate::text::py_repr;
@@ -42,10 +44,52 @@ pub fn validate(which: &Contract, input: &V) -> Result<V> {
     };
     let given = match (which, input) {
         // `set_staff_role` builds a dict around the payload's frozen skills (lane P8 d3).
-        (Contract::EffectParameters(operator), V::Map(_)) if &**operator == "set_staff_role" => In { v: input, frozen: false, kids: true },
+        (Contract::EffectParameters(operator), V::Map(_)) if &**operator == "set_staff_role" => In { v: input, frozen: false, kids: true, tracked: false },
         // A guard, an effect's parameters and a presence command are an event's values.
         (Contract::Guard | Contract::EffectParameters(_) | Contract::PresenceCommand, _) => In::frozen(input),
         _ => In::plain(input),
+    };
+    pydantic::model(model, given, &mut Ctx::default()).map(V::Map).map_err(|errors| Error::Value(pydantic::text(model.name, &errors)))
+}
+
+// ---- The contracts the world's validation reads (#351) --------------------------------------------
+
+/// A model `WorldState.validate` reads a world's values with (`validate::zone_environment`,
+/// `validate::effect_program`).
+pub enum Checked {
+    /// `ScenarioZoneEnvironmentConfig`.
+    ZoneEnvironment,
+    /// The parameters' model of a zone condition's operator (`_PARAMETER_MODELS`).
+    Parameters(Arc<str>),
+    /// `GuardExpression`.
+    Guard,
+    /// `CompilerProvenance`.
+    CompilerProvenance,
+    /// `PlanAssumption`.
+    PlanAssumption,
+}
+
+/// How Python holds the value it validates: a namespace's or a config's tracked tree, or an
+/// event's frozen values.
+#[derive(Clone, Copy)]
+pub enum Holder {
+    Tracked,
+    Frozen,
+}
+
+/// `Model.model_validate(value).model_dump(mode="json")` of a world's value, or the
+/// `ValidationError` (a ValueError) with pydantic's text.
+pub fn checked(which: &Checked, input: &V, holder: Holder) -> Result<V> {
+    let model: &'static Model = match which {
+        Checked::ZoneEnvironment => &models::ZONE_ENVIRONMENT,
+        Checked::Parameters(operator) => models::parameter_model(operator).ok_or_else(|| Error::Key(py_repr(operator)))?,
+        Checked::Guard => &models::GUARD,
+        Checked::CompilerProvenance => &models::COMPILER_PROVENANCE,
+        Checked::PlanAssumption => &models::PLAN_ASSUMPTION,
+    };
+    let given = match holder {
+        Holder::Tracked => In::tracked(input),
+        Holder::Frozen => In::frozen(input),
     };
     pydantic::model(model, given, &mut Ctx::default()).map(V::Map).map_err(|errors| Error::Value(pydantic::text(model.name, &errors)))
 }
