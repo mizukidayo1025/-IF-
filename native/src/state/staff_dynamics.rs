@@ -64,23 +64,7 @@ fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
         if !row.is_valid_without_staff_ids() {
             return Ok(false);
         }
-        EntityStore::with_rows(&store, |rows| {
-            let known = |id: &std::sync::Arc<str>| rows.staff.get(id).is_some();
-            Ok(row.staff.len() == rows.staff.len()
-                && row.staff.keys().all(known)
-                && row
-                    .config
-                    .max_continuous_work_minutes_by_staff
-                    .0
-                    .as_ref()
-                    .is_none_or(|limits| limits.keys().all(known))
-                && row
-                    .config
-                    .shift_windows_by_staff
-                    .0
-                    .as_ref()
-                    .is_none_or(|windows| windows.keys().all(known)))
-        })
+        EntityStore::with_rows(&store, |rows| Ok(row.accepts(rows)))
     })
 }
 

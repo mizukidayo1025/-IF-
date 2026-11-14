@@ -8,8 +8,10 @@
 //!   facility moves or partitions change (`load::FloorPlans`).
 //! - A contract (policy E15) answers as the native host's pydantic does (`contracts::validate`,
 //!   #346): the model's dump, or the `ValidationError` with pydantic's text.
-//! - The whole world's validation (policy E6) is the core's (`validate`, #250): the rules ported so
-//!   far, with Python's texts; the end-of-tick check asks no Python validator (`engine::NoPython`).
+//! - The whole world's validation (policy E6) is the core's (`validate`, #250), with Python's
+//!   classes and texts. Each tick ends as `validate_after_tick` ends it
+//!   (`engine::EndCheck::Whole`): the kernel's check with the core's validators of the namespaces
+//!   (`rules::tick_checks`), and where it refuses, the validation without the event history.
 //! - There is no LLM: the Run runs as one without (`Llm::default()`); no decision or trace goes out
 //!   (`DecisionSink::Silent`, `TraceLevel::Off`), and no foreign handler runs.
 //! - The records of the log are the world's (`load::find_record`). The log holds them in the binary
@@ -455,7 +457,7 @@ impl PlainRun {
         loaded.cell.with(|world| world.log_mut().and_then(|mut log| log.pack_records()))??;
         let host = PlainHost::new(entry, Rc::clone(&loaded))?;
         let rng_state = load::value(&entry["world"]["rng_state"])?;
-        Ok(Self { loaded, host, stepping: Stepping::default(), rng_state, log_node: RefCell::default() })
+        Ok(Self { loaded, host, stepping: Stepping::whole(), rng_state, log_node: RefCell::default() })
     }
 
     /// `of_entry` of the entry's JSON text.
@@ -599,7 +601,7 @@ impl PlainRun {
         loaded.run.try_borrow_mut().map_err(|_| Error::unsupported("the Run is borrowed"))?.actions = actions;
         let mut host = PlainHost::new(&entry, Rc::clone(&loaded))?;
         host.samples = samples;
-        Ok(Self { loaded, host, stepping: Stepping::default(), rng_state, log_node: RefCell::default() })
+        Ok(Self { loaded, host, stepping: Stepping::whole(), rng_state, log_node: RefCell::default() })
     }
 
     /// The exported entry of `of_json`'s JSON text, for `restore`.

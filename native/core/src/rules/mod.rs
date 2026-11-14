@@ -57,6 +57,7 @@ pub mod travel_completion;
 pub mod after_tick;
 pub mod information_events;
 pub mod social_interaction;
+pub mod tick_checks;
 pub mod tick_validation;
 // lane d2
 pub mod handlers;

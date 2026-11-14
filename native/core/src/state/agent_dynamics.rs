@@ -7,6 +7,7 @@
 
 use std::sync::Arc;
 
+use crate::entities::Entities;
 use crate::row::IdMap;
 use crate::state_row;
 
@@ -42,6 +43,19 @@ impl AgentMemory {
             && self.last_decision_minute.is_none_or(|minute| minute >= 0)
             && self.known_facility_ids.iter().all(|id| is_facility(id))
             && has_no_repeats(&self.known_facility_ids)
+    }
+}
+
+impl AgentDynamicsRow {
+    /// `validate_agent_dynamics_state` of a world whose configs select this policy, for a row of its
+    /// types (#152; in the core since #250): true only if the Python rule passes. A record for each
+    /// Agent and none else, each valid and knowing only facilities of the world.
+    pub fn accepts(&self, policy: &str, rows: &Entities) -> bool {
+        if self.schema_version != 1 || &*self.policy_version != policy {
+            return false;
+        }
+        self.agents.len() == rows.agents.len()
+            && self.agents.iter().all(|(id, record)| rows.agents.get(id).is_some() && record.is_valid(|id| rows.facilities.get(id).is_some()))
     }
 }
 

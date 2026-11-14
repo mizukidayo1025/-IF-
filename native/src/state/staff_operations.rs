@@ -274,9 +274,9 @@ fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
 /// tree is not the row's.
 pub(crate) fn completion_agrees(world: &Bound<'_, PyAny>, receipt: &serde_json::Value, history_truncated: bool) -> PyResult<bool> {
     let py = world.py();
-    let text = |key: &str| receipt.get(key).and_then(serde_json::Value::as_str);
-    let int = |key: &str| receipt.get(key).and_then(serde_json::Value::as_i64);
-    let (Some(task_id), Some(minute)) = (text("task_id"), int("minute")) else {
+    let task_id = receipt.get("task_id").and_then(serde_json::Value::as_str);
+    let minute = receipt.get("minute").and_then(serde_json::Value::as_i64);
+    let (Some(task_id), Some(minute)) = (task_id, minute) else {
         return unsupported("a staff operation receipt lacks its task or minute");
     };
     let table = attribute(world, intern!(py, "model_state"))?;
@@ -289,36 +289,7 @@ pub(crate) fn completion_agrees(world: &Bound<'_, PyAny>, receipt: &serde_json::
     if !mirror.try_borrow()?.holds_state(&tree) {
         return unsupported("the staff operations are another tree than the row's");
     }
-    NamespaceMirror::with_row::<StaffOperationsRow, _>(&mirror, |row| {
-        let mut matches = row.history.iter().filter(|item| &*item.task_id == task_id && item.complete_minute == minute);
-        let Some(found) = matches.next() else {
-            return Ok(history_truncated && !row.history.is_empty() && row.history.iter().all(|item| item.complete_minute > minute));
-        };
-        if matches.next().is_some() {
-            return Ok(false);
-        }
-        let target = receipt.get("target_id");
-        let target_agrees = match (&found.target_id, target) {
-            (None, Some(serde_json::Value::Null)) => true,
-            (Some(id), Some(serde_json::Value::String(text))) => &**id == text,
-            _ => false,
-        };
-        let arrival_agrees = match (found.arrival_minute, receipt.get("arrival_minute")) {
-            (None, Some(serde_json::Value::Null)) => true,
-            (Some(arrival), Some(value)) => value.as_i64() == Some(arrival),
-            _ => false,
-        };
-        Ok(text("staff_id") == Some(&*found.staff_id)
-            && text("task_kind") == Some(&*found.task_kind)
-            && target_agrees
-            && text("target_zone_id") == Some(&*found.target_zone_id)
-            && text("reason") == Some(&*found.reason)
-            && text("status") == Some(found.status.text())
-            && int("start_minute") == Some(found.start_minute)
-            && arrival_agrees
-            && int("travel_minutes") == Some(found.travel_minutes)
-            && text("causation_id").is_some_and(|cause| found.causation_event_ids.iter().any(|id| &**id == cause)))
-    })
+    NamespaceMirror::with_row::<StaffOperationsRow, _>(&mirror, |row| Ok(row.completion_agrees(task_id, minute, receipt, history_truncated)))
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

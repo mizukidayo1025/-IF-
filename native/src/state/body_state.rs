@@ -111,10 +111,11 @@ impl PyField for History {
     }
 }
 
-/// True only if the header, the Agent records and the relationships pass every rule
-/// `validate_body_state` has for them. Its checks of the config and the history read what the row
-/// doesn't hold, and stay in Python. Anything else, a false or Unsupported, runs the Python rules,
-/// so their errors keep their text. What is accepted is not read again until it is written.
+/// `BodyRow::rows_valid` of the core (true only if the header, the Agent records and the
+/// relationships pass every rule `validate_body_state` has for them), for the people the world
+/// holds. Its checks of the config and the history read what the row doesn't hold, and stay in
+/// Python. Anything else, a false or Unsupported, runs the Python rules, so their errors keep their
+/// text.
 #[pyfunction]
 fn rows_valid(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     if namespace_is_absent(world, intern!(world.py(), NAME))? {
@@ -122,54 +123,7 @@ fn rows_valid(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     }
     let mirror = mirror_of(world, NAME)?;
     let store = entities_of(world)?;
-    NamespaceMirror::with_row::<BodyRow, _>(&mirror, |row| {
-        let accepted = EntityStore::with_rows(&store, |rows| {
-            let people = &rows.agents;
-            if row.schema_version != 1
-                || &*row.policy_version != POLICY_VERSION
-                || &*row.source_id != SOURCE_ID
-                || row.agents.len() != people.len()
-                || row.relationships.map.len() > MAX_SOCIAL_RELATIONSHIPS
-                || row.history.items.len() > MAX_SOCIAL_HISTORY
-                || !row.agents.iter().all(|(id, record)| people.get(id).is_some() && record_is_valid(record))
-            {
-                return Ok(false);
-            }
-            let relationships = &mut row.relationships;
-            let same_people = relationships.people.len() == row.agents.len()
-                && relationships.people.iter().zip(row.agents.keys()).all(|(known, id)| known == id);
-            if relationships.read_all || !same_people {
-                let valid = relationships
-                    .map
-                    .iter()
-                    .all(|(key, record)| key_is_valid(key, &row.agents) && relationship_is_valid(record));
-                if !valid {
-                    return Ok(false);
-                }
-                relationships.read_all = false;
-                relationships.people = row.agents.keys().cloned().collect();
-            } else {
-                // A written key that left the map has nothing to check any more.
-                let valid = relationships.written.iter().all(|key| {
-                    relationships.map.get(key).is_none_or(|record| {
-                        key_is_valid(key, &row.agents) && relationship_is_valid(record)
-                    })
-                });
-                if !valid {
-                    return Ok(false);
-                }
-            }
-            relationships.written.clear();
-            Ok(true)
-        })?;
-        if !accepted {
-            // The Python rules decide now. If they pass it, the next check starts over, and the
-            // list of written keys does not grow at each tick of such a world.
-            row.relationships.read_all = true;
-            row.relationships.written.clear();
-        }
-        Ok(accepted)
-    })
+    NamespaceMirror::with_row::<BodyRow, _>(&mirror, |row| EntityStore::with_rows(&store, |rows| Ok(row.rows_valid(&rows.agents))))
 }
 
 /// The canonical JSON of the row's records of these people and these relationships, and of its
