@@ -1,0 +1,3643 @@
+{
+ "cases": [
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_not_dict",
+   "world": "shared_not_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_policy",
+   "world": "shared_policy"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_extra_field",
+   "world": "shared_extra_field"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "shared_truncated_text",
+   "world": "shared_truncated_text"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "KeyError",
+     "'history'"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_without_history",
+   "world": "shared_without_history"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 care request head does not match its retained history"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_without_heads",
+   "world": "shared_without_heads"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_receipt_unknown_type",
+   "world": "shared_receipt_unknown_type"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_receipt_bad_minute",
+   "world": "shared_receipt_bad_minute"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_receipt_old_bad",
+   "world": "shared_receipt_old_bad"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_receipt_new_bad",
+   "world": "shared_receipt_new_bad"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_head_key",
+   "world": "shared_head_key"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_head_terminal",
+   "world": "shared_head_terminal"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_head_time",
+   "world": "shared_head_time"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 history is over limit or out of time order"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_out_of_order",
+   "world": "shared_out_of_order"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 history has future, duplicate, or unordered records"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_future",
+   "world": "shared_future"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 history has future, duplicate, or unordered records"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_duplicate",
+   "world": "shared_duplicate"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 record must link to a realized applied event"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_unlinked_payload",
+   "world": "shared_unlinked_payload"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 record must link to a realized applied event"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_unlinked_last_payload",
+   "world": "shared_unlinked_last_payload"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 record must link to a realized applied event"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_unlinked_minute",
+   "world": "shared_unlinked_minute"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 record must link to a realized applied event"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_unlinked_missing",
+   "world": "shared_unlinked_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 record must link to a realized applied event"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_unlinked_failed",
+   "world": "shared_unlinked_failed"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 record must link to a realized applied event"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_unlinked_causation",
+   "world": "shared_unlinked_causation"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 record must link to a realized applied event"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_unlinked_source",
+   "world": "shared_unlinked_source"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 care request head does not match its retained history"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_old_cause_type",
+   "world": "shared_old_cause_type"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "a support request must begin with a requested transition"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_begins_assigned",
+   "world": "shared_begins_assigned"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "support request identity changed during its lifecycle"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_identity_changed",
+   "world": "shared_identity_changed"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "support lifecycle transition is out of order"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_transition_out_of_order",
+   "world": "shared_transition_out_of_order"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 care request head does not match its retained history"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_head_mismatch",
+   "world": "shared_head_mismatch"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 care request head does not match its retained history"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_head_missing",
+   "world": "shared_head_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 care head has no matching persisted support request"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_head_without_request",
+   "world": "shared_head_without_request"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 care status disagrees with the persisted support request"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_head_status_disagrees",
+   "world": "shared_head_status_disagrees"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 care status disagrees with the persisted support request"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_head_unresolved",
+   "world": "shared_head_unresolved"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "shared_head_unresolved_timeout",
+   "world": "shared_head_unresolved_timeout"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 care status disagrees with the persisted support request"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_head_unresolved_failed_timeout",
+   "world": "shared_head_unresolved_failed_timeout"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 assigned staff disagrees with the support task"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_assigned_staff_disagrees",
+   "world": "shared_assigned_staff_disagrees"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "shared_truncated_heads",
+   "world": "shared_truncated_heads"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "truncated care request head has no applied event evidence"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_truncated_head_minute",
+   "world": "shared_truncated_head_minute"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "truncated care request head disagrees with its applied event"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_truncated_head_event",
+   "world": "shared_truncated_head_event"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "truncated care request head has no applied event evidence"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_truncated_head_failed",
+   "world": "shared_truncated_head_failed"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "truncated care request head event has an invalid receipt"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_truncated_head_receipt",
+   "world": "shared_truncated_head_receipt"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "truncated care request head disagrees with its applied event"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_truncated_head_disagrees",
+   "world": "shared_truncated_head_disagrees"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 care request head does not match its retained history"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_continuity_requeued",
+   "world": "shared_continuity_requeued"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "shared_continuity_requeued_head",
+   "world": "shared_continuity_requeued_head"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 care request head has no matching history"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_continuity_unresolved",
+   "world": "shared_continuity_unresolved"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "support continuity does not follow assigned resident care"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_continuity_without_care",
+   "world": "shared_continuity_without_care"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "support continuity does not follow assigned resident care"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_continuity_other_agent",
+   "world": "shared_continuity_other_agent"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_continuity_self_cause",
+   "world": "shared_continuity_self_cause"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "truncated care history has an invalid creation minute"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_truncated_created_late",
+   "world": "shared_truncated_created_late"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "shared_truncated_history_kept",
+   "world": "shared_truncated_history_kept"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "truncated support continuity does not match the active request"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_truncated_continuity",
+   "world": "shared_truncated_continuity"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "support continuity must follow an active care transition"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_truncated_continuity_unknown",
+   "world": "shared_truncated_continuity_unknown"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "shared_truncated_continuity_unresolved",
+   "world": "shared_truncated_continuity_unresolved"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValidationError",
+     "1 validation error for CareRequestState\n  Value error, care request update cannot precede its creation [type=value_error, input_value={'request_id': 'support-5...ent_id': 'continuity-1'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/value_error"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "shared_truncated_continuity_early",
+   "world": "shared_truncated_continuity_early"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "shared_staff_operation",
+   "world": "shared_staff_operation"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff operation receipt has no matching retained completion"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_staff_operation_unretained",
+   "world": "shared_staff_operation_unretained"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "shared_staff_operation_truncated_later",
+   "world": "shared_staff_operation_truncated_later"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff operation receipt matches duplicate completion history"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_staff_operation_twice",
+   "world": "shared_staff_operation_twice"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff operation receipt disagrees with retained completion history"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_staff_operation_disagrees",
+   "world": "shared_staff_operation_disagrees"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff operation receipt disagrees with retained completion history"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_staff_operation_cause",
+   "world": "shared_staff_operation_cause"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "shared_operations_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "shared_staff_operation_bad_count",
+   "world": "shared_staff_operation_bad_count"
+  }
+ ],
+ "worlds": {
+  "shared_assigned_staff_disagrees": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.support_requests.1.assigned_staff_id": "staff_002"
+   }
+  },
+  "shared_begins_assigned": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.history": [
+     {
+      "agent_id": "A001",
+      "causation_id": null,
+      "event_id": "care-support-transition-5",
+      "event_type": "care_support_transition",
+      "household_id": "H000001",
+      "minute": 0,
+      "outcome_observation": "not_applicable",
+      "record_type": "care",
+      "request_id": "support-464131df94b1012ff8261017",
+      "schema_version": 1,
+      "source_ids": [
+       "ASM-CARE-TRANSITION-PRODUCER-V1",
+       "ASM-STAFF-SUPPORT-LIFECYCLE-V1",
+       "ASM-SYNTHETIC-AGE-BANDS-V1",
+       "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+       "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+       "ASM-SYNTHETIC-LANGUAGE-V1",
+       "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+      ],
+      "staff_id": null,
+      "state_changes": [],
+      "status": "requested",
+      "support_kind": "emotional_support"
+     },
+     {
+      "agent_id": "A006",
+      "causation_id": null,
+      "event_id": "care-support-transition-16",
+      "event_type": "care_support_transition",
+      "household_id": "H000003",
+      "minute": 0,
+      "outcome_observation": "not_applicable",
+      "record_type": "care",
+      "request_id": "support-87cc42433937ba8716311ea1",
+      "schema_version": 1,
+      "source_ids": [
+       "ASM-CARE-TRANSITION-PRODUCER-V1",
+       "ASM-STAFF-SUPPORT-LIFECYCLE-V1",
+       "ASM-SYNTHETIC-AGE-BANDS-V1",
+       "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+       "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+       "ASM-SYNTHETIC-LANGUAGE-V1",
+       "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+      ],
+      "staff_id": null,
+      "state_changes": [],
+      "status": "requested",
+      "support_kind": "emotional_support"
+     },
+     {
+      "agent_id": "A007",
+      "causation_id": null,
+      "event_id": "care-support-transition-19",
+      "event_type": "care_support_transition",
+      "household_id": "H000004",
+      "minute": 0,
+      "outcome_observation": "not_applicable",
+      "record_type": "care",
+      "request_id": "support-54390414266e615c91fbc528",
+      "schema_version": 1,
+      "source_ids": [
+       "ASM-CARE-TRANSITION-PRODUCER-V1",
+       "ASM-STAFF-SUPPORT-LIFECYCLE-V1",
+       "ASM-SYNTHETIC-AGE-BANDS-V1",
+       "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+       "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+       "ASM-SYNTHETIC-LANGUAGE-V1",
+       "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+      ],
+      "staff_id": null,
+      "state_changes": [],
+      "status": "requested",
+      "support_kind": "emotional_support"
+     },
+     {
+      "agent_id": "A008",
+      "causation_id": "staff-support-28",
+      "event_id": "care-support-transition-30",
+      "event_type": "care_support_transition",
+      "household_id": "H000004",
+      "minute": 0,
+      "outcome_observation": "not_applicable",
+      "record_type": "care",
+      "request_id": "support-1f35c22dd47d70682865bdab",
+      "schema_version": 1,
+      "source_ids": [
+       "ASM-CARE-TRANSITION-PRODUCER-V1",
+       "ASM-STAFF-SUPPORT-LIFECYCLE-V1",
+       "ASM-SYNTHETIC-AGE-BANDS-V1",
+       "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+       "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+       "ASM-SYNTHETIC-LANGUAGE-V1",
+       "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+      ],
+      "staff_id": "staff_001",
+      "state_changes": [],
+      "status": "assigned",
+      "support_kind": "emotional_support"
+     },
+     {
+      "agent_id": "A008",
+      "causation_id": "staff-support-28",
+      "event_id": "care-support-transition-33",
+      "event_type": "care_support_transition",
+      "household_id": "H000004",
+      "minute": 2,
+      "outcome_observation": "not_applicable",
+      "record_type": "care",
+      "request_id": "support-1f35c22dd47d70682865bdab",
+      "schema_version": 1,
+      "source_ids": [
+       "ASM-CARE-TRANSITION-PRODUCER-V1",
+       "ASM-STAFF-SUPPORT-LIFECYCLE-V1",
+       "ASM-SYNTHETIC-AGE-BANDS-V1",
+       "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+       "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+       "ASM-SYNTHETIC-LANGUAGE-V1",
+       "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+      ],
+      "staff_id": "staff_001",
+      "state_changes": [],
+      "status": "started",
+      "support_kind": "emotional_support"
+     },
+     {
+      "agent_id": "A008",
+      "causation_id": "staff-support-complete-28",
+      "event_id": "care-support-transition-67",
+      "event_type": "care_support_transition",
+      "household_id": "H000004",
+      "minute": 12,
+      "outcome_observation": "observed_change",
+      "record_type": "care",
+      "request_id": "support-1f35c22dd47d70682865bdab",
+      "schema_version": 1,
+      "source_ids": [
+       "ASM-CARE-TRANSITION-PRODUCER-V1",
+       "ASM-LIFE-STATE-FEEDBACK-V1",
+       "ASM-STAFF-SUPPORT-LIFECYCLE-V1"
+      ],
+      "staff_id": "staff_001",
+      "state_changes": [
+       {
+        "after": 0.03637102576571882,
+        "before": 0.05637102576571883,
+        "entity_id": "A008",
+        "entity_kind": "agent",
+        "field_path": "stress",
+        "unit": "normalized_0_1"
+       },
+       {
+        "after": 0.505,
+        "before": 0.5,
+        "entity_id": "A008",
+        "entity_kind": "agent",
+        "field_path": "trust",
+        "unit": "normalized_0_1"
+       },
+       {
+        "after": 0.02,
+        "before": 0.0,
+        "entity_id": "A008",
+        "entity_kind": "model_state",
+        "field_path": "body_state_v1.agents.reassurance",
+        "unit": "normalized_0_1"
+       },
+       {
+        "after": 0.51,
+        "before": 0.5,
+        "entity_id": "A008",
+        "entity_kind": "model_state",
+        "field_path": "body_state_v1.agents.positive_affect",
+        "unit": "normalized_0_1"
+       },
+       {
+        "after": 0.0,
+        "before": 0.0003004579820967292,
+        "entity_id": "A008",
+        "entity_kind": "model_state",
+        "field_path": "body_state_v1.agents.negative_affect",
+        "unit": "normalized_0_1"
+       }
+      ],
+      "status": "completed",
+      "support_kind": "emotional_support"
+     },
+     {
+      "agent_id": "A001",
+      "causation_id": "staff-support-75",
+      "event_id": "care-support-transition-77",
+      "event_type": "care_support_transition",
+      "household_id": "H000001",
+      "minute": 12,
+      "outcome_observation": "not_applicable",
+      "record_type": "care",
+      "request_id": "support-464131df94b1012ff8261017",
+      "schema_version": 1,
+      "source_ids": [
+       "ASM-CARE-TRANSITION-PRODUCER-V1",
+       "ASM-STAFF-SUPPORT-LIFECYCLE-V1",
+       "ASM-SYNTHETIC-AGE-BANDS-V1",
+       "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+       "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+       "ASM-SYNTHETIC-LANGUAGE-V1",
+       "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+      ],
+      "staff_id": "staff_001",
+      "state_changes": [],
+      "status": "assigned",
+      "support_kind": "emotional_support"
+     }
+    ]
+   }
+  },
+  "shared_continuity_other_agent": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "care-support-transition-77",
+       "due_minute": 13,
+       "event_id": "continuity-1",
+       "event_type": "staff_support_continuity",
+       "kind": "endogenous",
+       "payload": {
+        "agent_id": "A002",
+        "causation_id": "care-support-transition-77",
+        "cause_type": "staff_unavailable",
+        "event_id": "continuity-1",
+        "event_type": "staff_support_continuity",
+        "minute": 13,
+        "previous_staff_id": "staff_001",
+        "record_type": "care",
+        "request_id": "support-464131df94b1012ff8261017",
+        "schema_version": 1,
+        "source_ids": [],
+        "status": "requeued",
+        "task_id": "staff-support-75"
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 13,
+      "status": "applied"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "history",
+      8
+     ],
+     {
+      "agent_id": "A002",
+      "causation_id": "care-support-transition-77",
+      "cause_type": "staff_unavailable",
+      "event_id": "continuity-1",
+      "event_type": "staff_support_continuity",
+      "minute": 13,
+      "previous_staff_id": "staff_001",
+      "record_type": "care",
+      "request_id": "support-464131df94b1012ff8261017",
+      "schema_version": 1,
+      "source_ids": [],
+      "status": "requeued",
+      "task_id": "staff-support-75"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83
+   }
+  },
+  "shared_continuity_requeued": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "care-support-transition-77",
+       "due_minute": 13,
+       "event_id": "continuity-1",
+       "event_type": "staff_support_continuity",
+       "kind": "endogenous",
+       "payload": {
+        "agent_id": "A001",
+        "causation_id": "care-support-transition-77",
+        "cause_type": "staff_unavailable",
+        "event_id": "continuity-1",
+        "event_type": "staff_support_continuity",
+        "minute": 13,
+        "previous_staff_id": "staff_001",
+        "record_type": "care",
+        "request_id": "support-464131df94b1012ff8261017",
+        "schema_version": 1,
+        "source_ids": [],
+        "status": "requeued",
+        "task_id": "staff-support-75"
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 13,
+      "status": "applied"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "history",
+      8
+     ],
+     {
+      "agent_id": "A001",
+      "causation_id": "care-support-transition-77",
+      "cause_type": "staff_unavailable",
+      "event_id": "continuity-1",
+      "event_type": "staff_support_continuity",
+      "minute": 13,
+      "previous_staff_id": "staff_001",
+      "record_type": "care",
+      "request_id": "support-464131df94b1012ff8261017",
+      "schema_version": 1,
+      "source_ids": [],
+      "status": "requeued",
+      "task_id": "staff-support-75"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83
+   }
+  },
+  "shared_continuity_requeued_head": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "care-support-transition-77",
+       "due_minute": 13,
+       "event_id": "continuity-1",
+       "event_type": "staff_support_continuity",
+       "kind": "endogenous",
+       "payload": {
+        "agent_id": "A001",
+        "causation_id": "care-support-transition-77",
+        "cause_type": "staff_unavailable",
+        "event_id": "continuity-1",
+        "event_type": "staff_support_continuity",
+        "minute": 13,
+        "previous_staff_id": "staff_001",
+        "record_type": "care",
+        "request_id": "support-464131df94b1012ff8261017",
+        "schema_version": 1,
+        "source_ids": [],
+        "status": "requeued",
+        "task_id": "staff-support-75"
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 13,
+      "status": "applied"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "history",
+      8
+     ],
+     {
+      "agent_id": "A001",
+      "causation_id": "care-support-transition-77",
+      "cause_type": "staff_unavailable",
+      "event_id": "continuity-1",
+      "event_type": "staff_support_continuity",
+      "minute": 13,
+      "previous_staff_id": "staff_001",
+      "record_type": "care",
+      "request_id": "support-464131df94b1012ff8261017",
+      "schema_version": 1,
+      "source_ids": [],
+      "status": "requeued",
+      "task_id": "staff-support-75"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83,
+    "world.model_state.shared_operations_v1.support_requests.support-464131df94b1012ff8261017.latest_event_id": "continuity-1",
+    "world.model_state.shared_operations_v1.support_requests.support-464131df94b1012ff8261017.status": "requested",
+    "world.model_state.shared_operations_v1.support_requests.support-464131df94b1012ff8261017.updated_minute": 13,
+    "world.support_requests.1.assigned_staff_id": null,
+    "world.support_requests.1.status": "pending",
+    "world.support_requests.1.task_id": null
+   }
+  },
+  "shared_continuity_self_cause": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "continuity-1",
+       "due_minute": 13,
+       "event_id": "continuity-1",
+       "event_type": "staff_support_continuity",
+       "kind": "endogenous",
+       "payload": {
+        "agent_id": "A001",
+        "causation_id": "continuity-1",
+        "cause_type": "staff_unavailable",
+        "event_id": "continuity-1",
+        "event_type": "staff_support_continuity",
+        "minute": 13,
+        "previous_staff_id": "staff_001",
+        "record_type": "care",
+        "request_id": "support-464131df94b1012ff8261017",
+        "schema_version": 1,
+        "source_ids": [],
+        "status": "requeued",
+        "task_id": "staff-support-75"
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 13,
+      "status": "applied"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "history",
+      8
+     ],
+     {
+      "agent_id": "A001",
+      "causation_id": "continuity-1",
+      "cause_type": "staff_unavailable",
+      "event_id": "continuity-1",
+      "event_type": "staff_support_continuity",
+      "minute": 13,
+      "previous_staff_id": "staff_001",
+      "record_type": "care",
+      "request_id": "support-464131df94b1012ff8261017",
+      "schema_version": 1,
+      "source_ids": [],
+      "status": "requeued",
+      "task_id": "staff-support-75"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83
+   }
+  },
+  "shared_continuity_unresolved": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "care-support-transition-77",
+       "due_minute": 13,
+       "event_id": "continuity-1",
+       "event_type": "staff_support_continuity",
+       "kind": "endogenous",
+       "payload": {
+        "agent_id": "A001",
+        "causation_id": "care-support-transition-77",
+        "cause_type": "staff_unavailable",
+        "event_id": "continuity-1",
+        "event_type": "staff_support_continuity",
+        "minute": 13,
+        "previous_staff_id": "staff_001",
+        "record_type": "care",
+        "request_id": "support-464131df94b1012ff8261017",
+        "schema_version": 1,
+        "source_ids": [],
+        "status": "unresolved",
+        "task_id": "staff-support-75"
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 13,
+      "status": "applied"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "history",
+      8
+     ],
+     {
+      "agent_id": "A001",
+      "causation_id": "care-support-transition-77",
+      "cause_type": "staff_unavailable",
+      "event_id": "continuity-1",
+      "event_type": "staff_support_continuity",
+      "minute": 13,
+      "previous_staff_id": "staff_001",
+      "record_type": "care",
+      "request_id": "support-464131df94b1012ff8261017",
+      "schema_version": 1,
+      "source_ids": [],
+      "status": "unresolved",
+      "task_id": "staff-support-75"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83
+   }
+  },
+  "shared_continuity_without_care": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "care-support-transition-77",
+       "due_minute": 13,
+       "event_id": "continuity-1",
+       "event_type": "staff_support_continuity",
+       "kind": "endogenous",
+       "payload": {
+        "agent_id": "A006",
+        "causation_id": "care-support-transition-77",
+        "cause_type": "staff_unavailable",
+        "event_id": "continuity-1",
+        "event_type": "staff_support_continuity",
+        "minute": 13,
+        "previous_staff_id": "staff_001",
+        "record_type": "care",
+        "request_id": "support-87cc42433937ba8716311ea1",
+        "schema_version": 1,
+        "source_ids": [],
+        "status": "requeued",
+        "task_id": "staff-support-75"
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 13,
+      "status": "applied"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "history",
+      8
+     ],
+     {
+      "agent_id": "A006",
+      "causation_id": "care-support-transition-77",
+      "cause_type": "staff_unavailable",
+      "event_id": "continuity-1",
+      "event_type": "staff_support_continuity",
+      "minute": 13,
+      "previous_staff_id": "staff_001",
+      "record_type": "care",
+      "request_id": "support-87cc42433937ba8716311ea1",
+      "schema_version": 1,
+      "source_ids": [],
+      "status": "requeued",
+      "task_id": "staff-support-75"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83
+   }
+  },
+  "shared_duplicate": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "history",
+      8
+     ],
+     {
+      "agent_id": "A001",
+      "causation_id": "staff-support-75",
+      "event_id": "care-support-transition-77",
+      "event_type": "care_support_transition",
+      "household_id": "H000001",
+      "minute": 12,
+      "outcome_observation": "not_applicable",
+      "record_type": "care",
+      "request_id": "support-464131df94b1012ff8261017",
+      "schema_version": 1,
+      "source_ids": [
+       "ASM-CARE-TRANSITION-PRODUCER-V1",
+       "ASM-STAFF-SUPPORT-LIFECYCLE-V1",
+       "ASM-SYNTHETIC-AGE-BANDS-V1",
+       "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+       "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+       "ASM-SYNTHETIC-LANGUAGE-V1",
+       "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+      ],
+      "staff_id": "staff_001",
+      "state_changes": [],
+      "status": "assigned",
+      "support_kind": "emotional_support"
+     }
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "shared_extra_field": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.extra": 1
+   }
+  },
+  "shared_future": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.event_log.65.event.payload.minute": 20,
+    "world.model_state.shared_operations_v1.history.7.minute": 20
+   }
+  },
+  "shared_head_key": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.support_requests.support-54390414266e615c91fbc528.request_id": "other"
+   }
+  },
+  "shared_head_mismatch": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.support_requests.support-464131df94b1012ff8261017.updated_minute": 11
+   }
+  },
+  "shared_head_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "support_requests",
+      "support-54390414266e615c91fbc528"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "shared_head_status_disagrees": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.support_requests.2.status": "assigned"
+   }
+  },
+  "shared_head_terminal": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.support_requests.support-54390414266e615c91fbc528.status": "completed"
+   }
+  },
+  "shared_head_time": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.support_requests.support-54390414266e615c91fbc528.created_minute": 5
+   }
+  },
+  "shared_head_unresolved": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.support_requests.2.status": "unresolved"
+   }
+  },
+  "shared_head_unresolved_failed_timeout": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": null,
+       "due_minute": 15,
+       "event_id": "support_request_timeout-82",
+       "event_type": "support_request_timeout",
+       "kind": "endogenous",
+       "payload": {
+        "request_id": "support-54390414266e615c91fbc528"
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 15,
+      "status": "failed"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83,
+    "world.support_requests.2.status": "unresolved"
+   }
+  },
+  "shared_head_unresolved_timeout": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": null,
+       "due_minute": 15,
+       "event_id": "support_request_timeout-82",
+       "event_type": "support_request_timeout",
+       "kind": "endogenous",
+       "payload": {
+        "request_id": "support-54390414266e615c91fbc528"
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 15,
+      "status": "applied"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.agents.6.support_request_id": null,
+    "world.id_counters.event": 83,
+    "world.support_requests.2.status": "unresolved"
+   }
+  },
+  "shared_head_without_request": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.support_requests": [
+     {
+      "agent_id": "A008",
+      "assigned_staff_id": "staff_001",
+      "cooldown_until": 42,
+      "id": "support-1f35c22dd47d70682865bdab",
+      "last_assignment_attempt_minute": 0,
+      "requested_minute": 0,
+      "resolved_minute": 12,
+      "status": "resolved",
+      "task_id": "staff-support-28",
+      "timeout_minute": 90
+     },
+     {
+      "agent_id": "A001",
+      "assigned_staff_id": "staff_001",
+      "cooldown_until": 0,
+      "id": "support-464131df94b1012ff8261017",
+      "last_assignment_attempt_minute": 12,
+      "requested_minute": 0,
+      "resolved_minute": null,
+      "status": "assigned",
+      "task_id": "staff-support-75",
+      "timeout_minute": 90
+     },
+     {
+      "agent_id": "A006",
+      "assigned_staff_id": null,
+      "cooldown_until": 0,
+      "id": "support-87cc42433937ba8716311ea1",
+      "last_assignment_attempt_minute": 14,
+      "last_assignment_wait_reason_code": "no_available_qualified_staff",
+      "requested_minute": 0,
+      "resolved_minute": null,
+      "status": "pending",
+      "task_id": null,
+      "timeout_minute": 90
+     }
+    ]
+   }
+  },
+  "shared_identity_changed": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.event_log.21.event.payload.household_id": "H000009",
+    "world.model_state.shared_operations_v1.history.5.household_id": "H000009"
+   }
+  },
+  "shared_not_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1": []
+   }
+  },
+  "shared_old_cause_type": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "care-support-transition-77",
+       "due_minute": 13,
+       "event_id": "continuity-1",
+       "event_type": "staff_support_continuity",
+       "kind": "endogenous",
+       "payload": {
+        "agent_id": "A001",
+        "causation_id": "care-support-transition-77",
+        "event_id": "continuity-1",
+        "event_type": "staff_support_continuity",
+        "minute": 13,
+        "previous_staff_id": "staff_001",
+        "record_type": "care",
+        "request_id": "support-464131df94b1012ff8261017",
+        "schema_version": 1,
+        "source_ids": [],
+        "status": "requeued",
+        "task_id": "staff-support-75"
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 13,
+      "status": "applied"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "history",
+      8
+     ],
+     {
+      "agent_id": "A001",
+      "causation_id": "care-support-transition-77",
+      "cause_type": "staff_unavailable",
+      "event_id": "continuity-1",
+      "event_type": "staff_support_continuity",
+      "minute": 13,
+      "previous_staff_id": "staff_001",
+      "record_type": "care",
+      "request_id": "support-464131df94b1012ff8261017",
+      "schema_version": 1,
+      "source_ids": [],
+      "status": "requeued",
+      "task_id": "staff-support-75"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83
+   }
+  },
+  "shared_out_of_order": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.history.3.minute": 3
+   }
+  },
+  "shared_policy": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.policy_version": "other"
+   }
+  },
+  "shared_receipt_bad_minute": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.history.0.minute": -1
+   }
+  },
+  "shared_receipt_new_bad": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.history.7.agent_id": ""
+   }
+  },
+  "shared_receipt_old_bad": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.history.0.agent_id": ""
+   }
+  },
+  "shared_receipt_unknown_type": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.history.0.event_type": "other"
+   }
+  },
+  "shared_staff_operation": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "cause-1",
+       "due_minute": 14,
+       "event_id": "staff-operation-1",
+       "event_type": "staff_operation_transition",
+       "kind": "endogenous",
+       "payload": {
+        "arrival_minute": 12,
+        "causation_id": "cause-1",
+        "event_id": "staff-operation-1",
+        "event_type": "staff_operation_transition",
+        "minute": 14,
+        "outcome_observation": "not_measured",
+        "reason": "scheduled",
+        "record_type": "operations",
+        "schema_version": 1,
+        "source_ids": [],
+        "staff_id": "staff_002",
+        "start_minute": 10,
+        "state_changes": [],
+        "state_changes_truncated": false,
+        "status": "completed",
+        "target_id": null,
+        "target_zone_id": "toilet",
+        "task_id": "staff-task-1",
+        "task_kind": "cleaning",
+        "total_state_change_count": 0,
+        "travel_minutes": 2
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 14,
+      "status": "applied"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "history",
+      8
+     ],
+     {
+      "arrival_minute": 12,
+      "causation_id": "cause-1",
+      "event_id": "staff-operation-1",
+      "event_type": "staff_operation_transition",
+      "minute": 14,
+      "outcome_observation": "not_measured",
+      "reason": "scheduled",
+      "record_type": "operations",
+      "schema_version": 1,
+      "source_ids": [],
+      "staff_id": "staff_002",
+      "start_minute": 10,
+      "state_changes": [],
+      "state_changes_truncated": false,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": "toilet",
+      "task_id": "staff-task-1",
+      "task_kind": "cleaning",
+      "total_state_change_count": 0,
+      "travel_minutes": 2
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83,
+    "world.model_state.staff_operations_v1.history": [
+     {
+      "arrival_minute": 12,
+      "causation_event_ids": [
+       "cause-1"
+      ],
+      "complete_minute": 14,
+      "reason": "scheduled",
+      "staff_id": "staff_002",
+      "start_minute": 10,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": "toilet",
+      "task_id": "staff-task-1",
+      "task_kind": "cleaning",
+      "travel_minutes": 2
+     }
+    ]
+   }
+  },
+  "shared_staff_operation_bad_count": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "cause-1",
+       "due_minute": 14,
+       "event_id": "staff-operation-1",
+       "event_type": "staff_operation_transition",
+       "kind": "endogenous",
+       "payload": {
+        "arrival_minute": 12,
+        "causation_id": "cause-1",
+        "event_id": "staff-operation-1",
+        "event_type": "staff_operation_transition",
+        "minute": 14,
+        "outcome_observation": "not_measured",
+        "reason": "scheduled",
+        "record_type": "operations",
+        "schema_version": 1,
+        "source_ids": [],
+        "staff_id": "staff_002",
+        "start_minute": 10,
+        "state_changes": [],
+        "state_changes_truncated": false,
+        "status": "completed",
+        "target_id": null,
+        "target_zone_id": "toilet",
+        "task_id": "staff-task-1",
+        "task_kind": "cleaning",
+        "total_state_change_count": 2,
+        "travel_minutes": 2
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 14,
+      "status": "applied"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "history",
+      8
+     ],
+     {
+      "arrival_minute": 12,
+      "causation_id": "cause-1",
+      "event_id": "staff-operation-1",
+      "event_type": "staff_operation_transition",
+      "minute": 14,
+      "outcome_observation": "not_measured",
+      "reason": "scheduled",
+      "record_type": "operations",
+      "schema_version": 1,
+      "source_ids": [],
+      "staff_id": "staff_002",
+      "start_minute": 10,
+      "state_changes": [],
+      "state_changes_truncated": false,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": "toilet",
+      "task_id": "staff-task-1",
+      "task_kind": "cleaning",
+      "total_state_change_count": 2,
+      "travel_minutes": 2
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83,
+    "world.model_state.staff_operations_v1.history": [
+     {
+      "arrival_minute": 12,
+      "causation_event_ids": [
+       "cause-1"
+      ],
+      "complete_minute": 14,
+      "reason": "scheduled",
+      "staff_id": "staff_002",
+      "start_minute": 10,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": "toilet",
+      "task_id": "staff-task-1",
+      "task_kind": "cleaning",
+      "travel_minutes": 2
+     }
+    ]
+   }
+  },
+  "shared_staff_operation_cause": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "cause-1",
+       "due_minute": 14,
+       "event_id": "staff-operation-1",
+       "event_type": "staff_operation_transition",
+       "kind": "endogenous",
+       "payload": {
+        "arrival_minute": 12,
+        "causation_id": "cause-1",
+        "event_id": "staff-operation-1",
+        "event_type": "staff_operation_transition",
+        "minute": 14,
+        "outcome_observation": "not_measured",
+        "reason": "scheduled",
+        "record_type": "operations",
+        "schema_version": 1,
+        "source_ids": [],
+        "staff_id": "staff_002",
+        "start_minute": 10,
+        "state_changes": [],
+        "state_changes_truncated": false,
+        "status": "completed",
+        "target_id": null,
+        "target_zone_id": "toilet",
+        "task_id": "staff-task-1",
+        "task_kind": "cleaning",
+        "total_state_change_count": 0,
+        "travel_minutes": 2
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 14,
+      "status": "applied"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "history",
+      8
+     ],
+     {
+      "arrival_minute": 12,
+      "causation_id": "cause-1",
+      "event_id": "staff-operation-1",
+      "event_type": "staff_operation_transition",
+      "minute": 14,
+      "outcome_observation": "not_measured",
+      "reason": "scheduled",
+      "record_type": "operations",
+      "schema_version": 1,
+      "source_ids": [],
+      "staff_id": "staff_002",
+      "start_minute": 10,
+      "state_changes": [],
+      "state_changes_truncated": false,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": "toilet",
+      "task_id": "staff-task-1",
+      "task_kind": "cleaning",
+      "total_state_change_count": 0,
+      "travel_minutes": 2
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83,
+    "world.model_state.staff_operations_v1.history": [
+     {
+      "arrival_minute": 12,
+      "causation_event_ids": [],
+      "complete_minute": 14,
+      "reason": "scheduled",
+      "staff_id": "staff_002",
+      "start_minute": 10,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": "toilet",
+      "task_id": "staff-task-1",
+      "task_kind": "cleaning",
+      "travel_minutes": 2
+     }
+    ]
+   }
+  },
+  "shared_staff_operation_disagrees": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "cause-1",
+       "due_minute": 14,
+       "event_id": "staff-operation-1",
+       "event_type": "staff_operation_transition",
+       "kind": "endogenous",
+       "payload": {
+        "arrival_minute": 12,
+        "causation_id": "cause-1",
+        "event_id": "staff-operation-1",
+        "event_type": "staff_operation_transition",
+        "minute": 14,
+        "outcome_observation": "not_measured",
+        "reason": "scheduled",
+        "record_type": "operations",
+        "schema_version": 1,
+        "source_ids": [],
+        "staff_id": "staff_002",
+        "start_minute": 10,
+        "state_changes": [],
+        "state_changes_truncated": false,
+        "status": "completed",
+        "target_id": null,
+        "target_zone_id": "toilet",
+        "task_id": "staff-task-1",
+        "task_kind": "cleaning",
+        "total_state_change_count": 0,
+        "travel_minutes": 2
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 14,
+      "status": "applied"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "history",
+      8
+     ],
+     {
+      "arrival_minute": 12,
+      "causation_id": "cause-1",
+      "event_id": "staff-operation-1",
+      "event_type": "staff_operation_transition",
+      "minute": 14,
+      "outcome_observation": "not_measured",
+      "reason": "scheduled",
+      "record_type": "operations",
+      "schema_version": 1,
+      "source_ids": [],
+      "staff_id": "staff_002",
+      "start_minute": 10,
+      "state_changes": [],
+      "state_changes_truncated": false,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": "toilet",
+      "task_id": "staff-task-1",
+      "task_kind": "cleaning",
+      "total_state_change_count": 0,
+      "travel_minutes": 2
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83,
+    "world.model_state.staff_operations_v1.history": [
+     {
+      "arrival_minute": 12,
+      "causation_event_ids": [
+       "cause-1"
+      ],
+      "complete_minute": 14,
+      "reason": "other",
+      "staff_id": "staff_002",
+      "start_minute": 10,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": "toilet",
+      "task_id": "staff-task-1",
+      "task_kind": "cleaning",
+      "travel_minutes": 2
+     }
+    ]
+   }
+  },
+  "shared_staff_operation_truncated_later": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "cause-1",
+       "due_minute": 14,
+       "event_id": "staff-operation-1",
+       "event_type": "staff_operation_transition",
+       "kind": "endogenous",
+       "payload": {
+        "arrival_minute": 12,
+        "causation_id": "cause-1",
+        "event_id": "staff-operation-1",
+        "event_type": "staff_operation_transition",
+        "minute": 14,
+        "outcome_observation": "not_measured",
+        "reason": "scheduled",
+        "record_type": "operations",
+        "schema_version": 1,
+        "source_ids": [],
+        "staff_id": "staff_002",
+        "start_minute": 10,
+        "state_changes": [],
+        "state_changes_truncated": false,
+        "status": "completed",
+        "target_id": null,
+        "target_zone_id": "toilet",
+        "task_id": "staff-task-1",
+        "task_kind": "cleaning",
+        "total_state_change_count": 0,
+        "travel_minutes": 2
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 14,
+      "status": "applied"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "history",
+      8
+     ],
+     {
+      "arrival_minute": 12,
+      "causation_id": "cause-1",
+      "event_id": "staff-operation-1",
+      "event_type": "staff_operation_transition",
+      "minute": 14,
+      "outcome_observation": "not_measured",
+      "reason": "scheduled",
+      "record_type": "operations",
+      "schema_version": 1,
+      "source_ids": [],
+      "staff_id": "staff_002",
+      "start_minute": 10,
+      "state_changes": [],
+      "state_changes_truncated": false,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": "toilet",
+      "task_id": "staff-task-1",
+      "task_kind": "cleaning",
+      "total_state_change_count": 0,
+      "travel_minutes": 2
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83,
+    "world.model_state.shared_operations_v1.history_truncated": true,
+    "world.model_state.staff_operations_v1.history": [
+     {
+      "arrival_minute": 12,
+      "causation_event_ids": [
+       "cause-1"
+      ],
+      "complete_minute": 15,
+      "reason": "scheduled",
+      "staff_id": "staff_002",
+      "start_minute": 10,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": "toilet",
+      "task_id": "staff-task-1",
+      "task_kind": "cleaning",
+      "travel_minutes": 2
+     }
+    ]
+   }
+  },
+  "shared_staff_operation_twice": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "cause-1",
+       "due_minute": 14,
+       "event_id": "staff-operation-1",
+       "event_type": "staff_operation_transition",
+       "kind": "endogenous",
+       "payload": {
+        "arrival_minute": 12,
+        "causation_id": "cause-1",
+        "event_id": "staff-operation-1",
+        "event_type": "staff_operation_transition",
+        "minute": 14,
+        "outcome_observation": "not_measured",
+        "reason": "scheduled",
+        "record_type": "operations",
+        "schema_version": 1,
+        "source_ids": [],
+        "staff_id": "staff_002",
+        "start_minute": 10,
+        "state_changes": [],
+        "state_changes_truncated": false,
+        "status": "completed",
+        "target_id": null,
+        "target_zone_id": "toilet",
+        "task_id": "staff-task-1",
+        "task_kind": "cleaning",
+        "total_state_change_count": 0,
+        "travel_minutes": 2
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 14,
+      "status": "applied"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "history",
+      8
+     ],
+     {
+      "arrival_minute": 12,
+      "causation_id": "cause-1",
+      "event_id": "staff-operation-1",
+      "event_type": "staff_operation_transition",
+      "minute": 14,
+      "outcome_observation": "not_measured",
+      "reason": "scheduled",
+      "record_type": "operations",
+      "schema_version": 1,
+      "source_ids": [],
+      "staff_id": "staff_002",
+      "start_minute": 10,
+      "state_changes": [],
+      "state_changes_truncated": false,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": "toilet",
+      "task_id": "staff-task-1",
+      "task_kind": "cleaning",
+      "total_state_change_count": 0,
+      "travel_minutes": 2
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83,
+    "world.model_state.staff_operations_v1.history": [
+     {
+      "arrival_minute": 12,
+      "causation_event_ids": [
+       "cause-1"
+      ],
+      "complete_minute": 14,
+      "reason": "scheduled",
+      "staff_id": "staff_002",
+      "start_minute": 10,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": "toilet",
+      "task_id": "staff-task-1",
+      "task_kind": "cleaning",
+      "travel_minutes": 2
+     },
+     {
+      "arrival_minute": 12,
+      "causation_event_ids": [
+       "cause-1"
+      ],
+      "complete_minute": 14,
+      "reason": "scheduled",
+      "staff_id": "staff_002",
+      "start_minute": 10,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": "toilet",
+      "task_id": "staff-task-1",
+      "task_kind": "cleaning",
+      "travel_minutes": 2
+     }
+    ]
+   }
+  },
+  "shared_staff_operation_unretained": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "cause-1",
+       "due_minute": 14,
+       "event_id": "staff-operation-1",
+       "event_type": "staff_operation_transition",
+       "kind": "endogenous",
+       "payload": {
+        "arrival_minute": 12,
+        "causation_id": "cause-1",
+        "event_id": "staff-operation-1",
+        "event_type": "staff_operation_transition",
+        "minute": 14,
+        "outcome_observation": "not_measured",
+        "reason": "scheduled",
+        "record_type": "operations",
+        "schema_version": 1,
+        "source_ids": [],
+        "staff_id": "staff_002",
+        "start_minute": 10,
+        "state_changes": [],
+        "state_changes_truncated": false,
+        "status": "completed",
+        "target_id": null,
+        "target_zone_id": "toilet",
+        "task_id": "staff-task-1",
+        "task_kind": "cleaning",
+        "total_state_change_count": 0,
+        "travel_minutes": 2
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 14,
+      "status": "applied"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "history",
+      8
+     ],
+     {
+      "arrival_minute": 12,
+      "causation_id": "cause-1",
+      "event_id": "staff-operation-1",
+      "event_type": "staff_operation_transition",
+      "minute": 14,
+      "outcome_observation": "not_measured",
+      "reason": "scheduled",
+      "record_type": "operations",
+      "schema_version": 1,
+      "source_ids": [],
+      "staff_id": "staff_002",
+      "start_minute": 10,
+      "state_changes": [],
+      "state_changes_truncated": false,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": "toilet",
+      "task_id": "staff-task-1",
+      "task_kind": "cleaning",
+      "total_state_change_count": 0,
+      "travel_minutes": 2
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83
+   }
+  },
+  "shared_transition_out_of_order": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.event_log.21.event.payload.status": "requested",
+    "world.model_state.shared_operations_v1.history.5.status": "requested"
+   }
+  },
+  "shared_truncated_continuity": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "care-support-transition-19",
+       "due_minute": 13,
+       "event_id": "care-support-transition-19x",
+       "event_type": "staff_support_continuity",
+       "kind": "endogenous",
+       "payload": {
+        "agent_id": "A007",
+        "causation_id": "care-support-transition-19",
+        "cause_type": "staff_unavailable",
+        "event_id": "care-support-transition-19x",
+        "event_type": "staff_support_continuity",
+        "minute": 13,
+        "previous_staff_id": "staff_001",
+        "record_type": "care",
+        "request_id": "support-54390414266e615c91fbc528",
+        "schema_version": 1,
+        "source_ids": [],
+        "status": "requeued",
+        "task_id": "staff-support-75"
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 13,
+      "status": "applied"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83,
+    "world.model_state.shared_operations_v1.history": [
+     {
+      "agent_id": "A007",
+      "causation_id": "care-support-transition-19",
+      "cause_type": "staff_unavailable",
+      "event_id": "care-support-transition-19x",
+      "event_type": "staff_support_continuity",
+      "minute": 13,
+      "previous_staff_id": "staff_001",
+      "record_type": "care",
+      "request_id": "support-54390414266e615c91fbc528",
+      "schema_version": 1,
+      "source_ids": [],
+      "status": "requeued",
+      "task_id": "staff-support-75"
+     }
+    ],
+    "world.model_state.shared_operations_v1.history_truncated": true
+   }
+  },
+  "shared_truncated_continuity_early": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "care-support-transition-19",
+       "due_minute": 13,
+       "event_id": "continuity-1",
+       "event_type": "staff_support_continuity",
+       "kind": "endogenous",
+       "payload": {
+        "agent_id": "A007",
+        "causation_id": "care-support-transition-19",
+        "cause_type": "staff_unavailable",
+        "event_id": "continuity-1",
+        "event_type": "staff_support_continuity",
+        "minute": 13,
+        "previous_staff_id": "staff_001",
+        "record_type": "care",
+        "request_id": "support-54390414266e615c91fbc528",
+        "schema_version": 1,
+        "source_ids": [],
+        "status": "requeued",
+        "task_id": "staff-support-75"
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 13,
+      "status": "applied"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83,
+    "world.model_state.shared_operations_v1.history": [
+     {
+      "agent_id": "A007",
+      "causation_id": "care-support-transition-19",
+      "cause_type": "staff_unavailable",
+      "event_id": "continuity-1",
+      "event_type": "staff_support_continuity",
+      "minute": 13,
+      "previous_staff_id": "staff_001",
+      "record_type": "care",
+      "request_id": "support-54390414266e615c91fbc528",
+      "schema_version": 1,
+      "source_ids": [],
+      "status": "requeued",
+      "task_id": "staff-support-75"
+     }
+    ],
+    "world.model_state.shared_operations_v1.history_truncated": true,
+    "world.model_state.shared_operations_v1.support_requests.support-54390414266e615c91fbc528.created_minute": 14,
+    "world.model_state.shared_operations_v1.support_requests.support-54390414266e615c91fbc528.latest_event_id": "continuity-1",
+    "world.model_state.shared_operations_v1.support_requests.support-54390414266e615c91fbc528.updated_minute": 14
+   }
+  },
+  "shared_truncated_continuity_unknown": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "care-support-transition-77",
+       "due_minute": 13,
+       "event_id": "continuity-1",
+       "event_type": "staff_support_continuity",
+       "kind": "endogenous",
+       "payload": {
+        "agent_id": "A002",
+        "causation_id": "care-support-transition-77",
+        "cause_type": "staff_unavailable",
+        "event_id": "continuity-1",
+        "event_type": "staff_support_continuity",
+        "minute": 13,
+        "previous_staff_id": "staff_001",
+        "record_type": "care",
+        "request_id": "support-new",
+        "schema_version": 1,
+        "source_ids": [],
+        "status": "requeued",
+        "task_id": "staff-support-75"
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 13,
+      "status": "applied"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83,
+    "world.model_state.shared_operations_v1.history": [
+     {
+      "agent_id": "A002",
+      "causation_id": "care-support-transition-77",
+      "cause_type": "staff_unavailable",
+      "event_id": "continuity-1",
+      "event_type": "staff_support_continuity",
+      "minute": 13,
+      "previous_staff_id": "staff_001",
+      "record_type": "care",
+      "request_id": "support-new",
+      "schema_version": 1,
+      "source_ids": [],
+      "status": "requeued",
+      "task_id": "staff-support-75"
+     }
+    ],
+    "world.model_state.shared_operations_v1.history_truncated": true
+   }
+  },
+  "shared_truncated_continuity_unresolved": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "care-support-transition-77",
+       "due_minute": 13,
+       "event_id": "continuity-1",
+       "event_type": "staff_support_continuity",
+       "kind": "endogenous",
+       "payload": {
+        "agent_id": "A002",
+        "causation_id": "care-support-transition-77",
+        "cause_type": "staff_unavailable",
+        "event_id": "continuity-1",
+        "event_type": "staff_support_continuity",
+        "minute": 13,
+        "previous_staff_id": "staff_001",
+        "record_type": "care",
+        "request_id": "support-new",
+        "schema_version": 1,
+        "source_ids": [],
+        "status": "unresolved",
+        "task_id": "staff-support-75"
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 13,
+      "status": "applied"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83,
+    "world.model_state.shared_operations_v1.history": [
+     {
+      "agent_id": "A002",
+      "causation_id": "care-support-transition-77",
+      "cause_type": "staff_unavailable",
+      "event_id": "continuity-1",
+      "event_type": "staff_support_continuity",
+      "minute": 13,
+      "previous_staff_id": "staff_001",
+      "record_type": "care",
+      "request_id": "support-new",
+      "schema_version": 1,
+      "source_ids": [],
+      "status": "unresolved",
+      "task_id": "staff-support-75"
+     }
+    ],
+    "world.model_state.shared_operations_v1.history_truncated": true
+   }
+  },
+  "shared_truncated_created_late": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.history": [
+     {
+      "agent_id": "A001",
+      "causation_id": "staff-support-75",
+      "event_id": "care-support-transition-77",
+      "event_type": "care_support_transition",
+      "household_id": "H000001",
+      "minute": 12,
+      "outcome_observation": "not_applicable",
+      "record_type": "care",
+      "request_id": "support-464131df94b1012ff8261017",
+      "schema_version": 1,
+      "source_ids": [
+       "ASM-CARE-TRANSITION-PRODUCER-V1",
+       "ASM-STAFF-SUPPORT-LIFECYCLE-V1",
+       "ASM-SYNTHETIC-AGE-BANDS-V1",
+       "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+       "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+       "ASM-SYNTHETIC-LANGUAGE-V1",
+       "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+      ],
+      "staff_id": "staff_001",
+      "state_changes": [],
+      "status": "assigned",
+      "support_kind": "emotional_support"
+     }
+    ],
+    "world.model_state.shared_operations_v1.history_truncated": true,
+    "world.model_state.shared_operations_v1.support_requests.support-464131df94b1012ff8261017.created_minute": 13,
+    "world.model_state.shared_operations_v1.support_requests.support-464131df94b1012ff8261017.updated_minute": 13
+   }
+  },
+  "shared_truncated_head_disagrees": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.history": [],
+    "world.model_state.shared_operations_v1.history_truncated": true,
+    "world.model_state.shared_operations_v1.support_requests.support-54390414266e615c91fbc528.household_id": "H000009"
+   }
+  },
+  "shared_truncated_head_event": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.history": [],
+    "world.model_state.shared_operations_v1.history_truncated": true,
+    "world.model_state.shared_operations_v1.support_requests.support-54390414266e615c91fbc528.latest_event_id": "care-support-transition-16"
+   }
+  },
+  "shared_truncated_head_failed": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.event_log.8.status": "failed",
+    "world.model_state.shared_operations_v1.history": [],
+    "world.model_state.shared_operations_v1.history_truncated": true
+   }
+  },
+  "shared_truncated_head_minute": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.history": [],
+    "world.model_state.shared_operations_v1.history_truncated": true,
+    "world.model_state.shared_operations_v1.support_requests.support-54390414266e615c91fbc528.updated_minute": 1
+   }
+  },
+  "shared_truncated_head_receipt": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.event_log.8.event.payload.support_kind": "other",
+    "world.model_state.shared_operations_v1.history": [],
+    "world.model_state.shared_operations_v1.history_truncated": true
+   }
+  },
+  "shared_truncated_heads": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.history": [],
+    "world.model_state.shared_operations_v1.history_truncated": true
+   }
+  },
+  "shared_truncated_history_kept": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.history": [
+     {
+      "agent_id": "A001",
+      "causation_id": "staff-support-75",
+      "event_id": "care-support-transition-77",
+      "event_type": "care_support_transition",
+      "household_id": "H000001",
+      "minute": 12,
+      "outcome_observation": "not_applicable",
+      "record_type": "care",
+      "request_id": "support-464131df94b1012ff8261017",
+      "schema_version": 1,
+      "source_ids": [
+       "ASM-CARE-TRANSITION-PRODUCER-V1",
+       "ASM-STAFF-SUPPORT-LIFECYCLE-V1",
+       "ASM-SYNTHETIC-AGE-BANDS-V1",
+       "ASM-SYNTHETIC-HOUSEHOLD-SIZES-V1",
+       "ASM-SYNTHETIC-HOUSEHOLD-TEMPLATES-V1",
+       "ASM-SYNTHETIC-LANGUAGE-V1",
+       "ASM-SYNTHETIC-PERSON-TRAITS-V1"
+      ],
+      "staff_id": "staff_001",
+      "state_changes": [],
+      "status": "assigned",
+      "support_kind": "emotional_support"
+     }
+    ],
+    "world.model_state.shared_operations_v1.history_truncated": true
+   }
+  },
+  "shared_truncated_text": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.history_truncated": "no"
+   }
+  },
+  "shared_unlinked_causation": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "other",
+       "due_minute": 13,
+       "event_id": "continuity-1",
+       "event_type": "staff_support_continuity",
+       "kind": "endogenous",
+       "payload": {
+        "agent_id": "A001",
+        "causation_id": "care-support-transition-77",
+        "cause_type": "staff_unavailable",
+        "event_id": "continuity-1",
+        "event_type": "staff_support_continuity",
+        "minute": 13,
+        "previous_staff_id": "staff_001",
+        "record_type": "care",
+        "request_id": "support-464131df94b1012ff8261017",
+        "schema_version": 1,
+        "source_ids": [],
+        "status": "requeued",
+        "task_id": "staff-support-75"
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 13,
+      "status": "applied"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "history",
+      8
+     ],
+     {
+      "agent_id": "A001",
+      "causation_id": "care-support-transition-77",
+      "cause_type": "staff_unavailable",
+      "event_id": "continuity-1",
+      "event_type": "staff_support_continuity",
+      "minute": 13,
+      "previous_staff_id": "staff_001",
+      "record_type": "care",
+      "request_id": "support-464131df94b1012ff8261017",
+      "schema_version": 1,
+      "source_ids": [],
+      "status": "requeued",
+      "task_id": "staff-support-75"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83
+   }
+  },
+  "shared_unlinked_failed": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "care-support-transition-77",
+       "due_minute": 13,
+       "event_id": "continuity-1",
+       "event_type": "staff_support_continuity",
+       "kind": "endogenous",
+       "payload": {
+        "agent_id": "A001",
+        "causation_id": "care-support-transition-77",
+        "cause_type": "staff_unavailable",
+        "event_id": "continuity-1",
+        "event_type": "staff_support_continuity",
+        "minute": 13,
+        "previous_staff_id": "staff_001",
+        "record_type": "care",
+        "request_id": "support-464131df94b1012ff8261017",
+        "schema_version": 1,
+        "source_ids": [],
+        "status": "requeued",
+        "task_id": "staff-support-75"
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": null
+      },
+      "realized_minute": 13,
+      "status": "failed"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "history",
+      8
+     ],
+     {
+      "agent_id": "A001",
+      "causation_id": "care-support-transition-77",
+      "cause_type": "staff_unavailable",
+      "event_id": "continuity-1",
+      "event_type": "staff_support_continuity",
+      "minute": 13,
+      "previous_staff_id": "staff_001",
+      "record_type": "care",
+      "request_id": "support-464131df94b1012ff8261017",
+      "schema_version": 1,
+      "source_ids": [],
+      "status": "requeued",
+      "task_id": "staff-support-75"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83
+   }
+  },
+  "shared_unlinked_last_payload": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.history.7.source_ids": [
+     "ASM-OTHER"
+    ]
+   }
+  },
+  "shared_unlinked_minute": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.event_log.65.event.payload.minute": 13,
+    "world.model_state.shared_operations_v1.history.7.minute": 13
+   }
+  },
+  "shared_unlinked_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "history",
+      8
+     ],
+     {
+      "agent_id": "A001",
+      "causation_id": "care-support-transition-77",
+      "cause_type": "staff_unavailable",
+      "event_id": "continuity-1",
+      "event_type": "staff_support_continuity",
+      "minute": 13,
+      "previous_staff_id": "staff_001",
+      "record_type": "care",
+      "request_id": "support-464131df94b1012ff8261017",
+      "schema_version": 1,
+      "source_ids": [],
+      "status": "requeued",
+      "task_id": "staff-support-75"
+     }
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "shared_unlinked_payload": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.shared_operations_v1.history.0.source_ids": [
+     "ASM-OTHER"
+    ]
+   }
+  },
+  "shared_unlinked_source": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "event_log",
+      69
+     ],
+     {
+      "detail": null,
+      "event": {
+       "causation_id": "care-support-transition-77",
+       "due_minute": 13,
+       "event_id": "continuity-1",
+       "event_type": "staff_support_continuity",
+       "kind": "endogenous",
+       "payload": {
+        "agent_id": "A001",
+        "causation_id": "care-support-transition-77",
+        "cause_type": "staff_unavailable",
+        "event_id": "continuity-1",
+        "event_type": "staff_support_continuity",
+        "minute": 13,
+        "previous_staff_id": "staff_001",
+        "record_type": "care",
+        "request_id": "support-464131df94b1012ff8261017",
+        "schema_version": 1,
+        "source_ids": [],
+        "status": "requeued",
+        "task_id": "staff-support-75"
+       },
+       "priority": 0,
+       "provenance": {},
+       "sequence": 82,
+       "source_id": "ASM-OTHER"
+      },
+      "realized_minute": 13,
+      "status": "applied"
+     }
+    ],
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "history",
+      8
+     ],
+     {
+      "agent_id": "A001",
+      "causation_id": "care-support-transition-77",
+      "cause_type": "staff_unavailable",
+      "event_id": "continuity-1",
+      "event_type": "staff_support_continuity",
+      "minute": 13,
+      "previous_staff_id": "staff_001",
+      "record_type": "care",
+      "request_id": "support-464131df94b1012ff8261017",
+      "schema_version": 1,
+      "source_ids": [],
+      "status": "requeued",
+      "task_id": "staff-support-75"
+     }
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.id_counters.event": 83
+   }
+  },
+  "shared_without_heads": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "support_requests"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "shared_without_history": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "shared_operations_v1",
+      "history"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  }
+ }
+}

@@ -74,6 +74,8 @@ FIXTURES: dict[str, str] = {
     # The whole world's validation (#250): the valid worlds, and a file of cases per area.
     "validate_worlds": "support.core_validate:validate_worlds_fixture",
     "validate_entry": "support.core_validate:validate_entry_fixture",
+    "validate_places": "support.core_validate_places:validate_places_fixture",
+    "validate_shared_operations": "support.core_validate_places:validate_shared_operations_fixture",
     "validate_selection": "support.core_validate_world:validate_selection_fixture",
     "validate_service": "support.core_validate_world:validate_service_fixture",
     "validate_information": "support.core_validate_world:validate_information_fixture",

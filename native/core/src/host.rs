@@ -93,6 +93,7 @@ impl HostFailure for Error {
             | Error::Outcome(..)
             | Error::MarkedValue(_)
             | Error::Value(_)
+            | Error::Validation(_)
             | Error::Invariant(_)
             | Error::Ledger(_)
             | Error::Corrupt { .. }

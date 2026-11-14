@@ -39,6 +39,9 @@ pub enum Error {
     MarkedValue(String),
     /// `ValueError(text)` of a Python rule.
     Value(String),
+    /// pydantic's `ValidationError` (a `ValueError`) with its text, where a rule lets it through
+    /// as it is (`contracts::pydantic::text`; the whole world's validation, #250).
+    Validation(String),
     /// `KeyError(text)`.
     Key(String),
     /// `RuntimeError(text)`.
@@ -162,6 +165,7 @@ impl fmt::Display for Error {
             Error::Outcome(_, text)
             | Error::MarkedValue(text)
             | Error::Value(text)
+            | Error::Validation(text)
             | Error::Key(text)
             | Error::Runtime(text)
             | Error::Type(text)
