@@ -1,0 +1,7084 @@
+{
+ "cases": [
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "agent_dynamics_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "ad_not_a_dict",
+   "world": "ad_not_a_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "agent_dynamics_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "ad_extra_field",
+   "world": "ad_extra_field"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "agent_dynamics_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "ad_schema_2",
+   "world": "ad_schema_2"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "ad_schema_true",
+   "world": "ad_schema_true"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "agent_dynamics_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "ad_policy_v2",
+   "world": "ad_policy_v2"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "agent_dynamics_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "ad_agent_missing",
+   "world": "ad_agent_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "agent_dynamics_v1 record for 'A001' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "ad_record_not_a_dict",
+   "world": "ad_record_not_a_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "agent_dynamics_v1 record for 'A001' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "ad_record_extra_field",
+   "world": "ad_record_extra_field"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "agent_dynamics_v1 record for 'A001' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "ad_known_repeated",
+   "world": "ad_known_repeated"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "TypeError",
+     "unhashable type: 'TrackedList'"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "ad_known_unhashable",
+   "world": "ad_known_unhashable"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "agent_dynamics_v1 record for 'A001' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "ad_known_unknown",
+   "world": "ad_known_unknown"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "agent_dynamics_v1 record for 'A001' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "ad_known_not_a_list",
+   "world": "ad_known_not_a_list"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "ad_due_true",
+   "world": "ad_due_true"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "agent_dynamics_v1 record for 'A001' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "ad_due_negative",
+   "world": "ad_due_negative"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "agent_dynamics_v1 record for 'A001' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "ad_due_float",
+   "world": "ad_due_float"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "agent_dynamics_v1 decision minute for 'A001' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "ad_last_true",
+   "world": "ad_last_true"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "ad_last_none",
+   "world": "ad_last_none"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "agent_dynamics_v1 decision minute for 'A002' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "ad_last_negative",
+   "world": "ad_last_negative"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_not_a_dict",
+   "world": "body_not_a_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_source",
+   "world": "body_source"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_policy",
+   "world": "body_policy"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_agent_extra",
+   "world": "body_agent_extra"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationships_list",
+   "world": "body_relationships_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_history_dict",
+   "world": "body_history_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 config is not canonical"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_none",
+   "world": "body_config_none"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_dynamics config must be an object"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_list",
+   "world": "body_config_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_dynamics config contains unsupported fields"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_extra",
+   "world": "body_config_extra"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "unsupported body_dynamics policy or source"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_schema",
+   "world": "body_config_schema"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_dynamics sleep_debt_stress_rate must be finite and within 0..1"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_rate_true",
+   "world": "body_config_rate_true"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_dynamics correction_reassurance_gain must be finite and within 0..1"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_rate_high",
+   "world": "body_config_rate_high"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "body_config_rate_int",
+   "world": "body_config_rate_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_dynamics social_interaction_minutes must be within 1..1440"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_minutes_float",
+   "world": "body_config_minutes_float"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_dynamics social_interaction_minutes must be within 1..1440"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_minutes_zero",
+   "world": "body_config_minutes_zero"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_dynamics affect_policy must be an installed model ID"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_affect_int",
+   "world": "body_config_affect_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_dynamics relationship_distance_scale_m must be within 0.1..100 metres"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_distance",
+   "world": "body_config_distance"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "body_config_distance_int",
+   "world": "body_config_distance_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_dynamics per-Agent sleep debt rates must be a non-empty ID map"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_per_agent_empty",
+   "world": "body_config_per_agent_empty"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_dynamics per-Agent hygiene support relief must be a non-empty ID map"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_per_agent_list",
+   "world": "body_config_per_agent_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_dynamics per-Agent sleep debt rates are invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_per_agent_bad_id",
+   "world": "body_config_per_agent_bad_id"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_dynamics per-Agent discontent stress rates are invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_per_agent_bool",
+   "world": "body_config_per_agent_bool"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "TypeError",
+     "'NoneType' object is not iterable"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_per_agent_none",
+   "world": "body_config_per_agent_none"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 per-Agent parameter references an unknown resident"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_per_agent_unknown",
+   "world": "body_config_per_agent_unknown"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "body_config_per_agent_known",
+   "world": "body_config_per_agent_known"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 per-Agent parameter references an unknown resident"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_population_none",
+   "world": "body_config_population_none"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "TypeError",
+     "'int' object is not iterable"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_population_traits_int",
+   "world": "body_config_population_traits_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "TypeError",
+     "unhashable type: 'list'"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_population_ids_unhashable",
+   "world": "body_config_population_ids_unhashable"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "body_config_optional_missing",
+   "world": "body_config_optional_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 config is not canonical"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_config_required_missing",
+   "world": "body_config_required_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 record for 'A001' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_record_not_a_dict",
+   "world": "body_record_not_a_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 record for 'A001' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_record_extra",
+   "world": "body_record_extra"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 uncertainty for 'A001' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_record_true",
+   "world": "body_record_true"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "body_record_int",
+   "world": "body_record_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 sleep_debt_minutes for 'A001' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_record_sleep_high",
+   "world": "body_record_sleep_high"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "body_record_sleep_max",
+   "world": "body_record_sleep_max"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 hygiene_need for 'A003' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_record_negative",
+   "world": "body_record_negative"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "body_relationship_ok",
+   "world": "body_relationship_ok"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 relationship key is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_unparsable",
+   "world": "body_relationship_unparsable"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 relationship key is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_not_json",
+   "world": "body_relationship_not_json"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_single",
+   "world": "body_relationship_single"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_dict",
+   "world": "body_relationship_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "TypeError",
+     "unhashable type: 'list'"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_unhashable_first",
+   "world": "body_relationship_unhashable_first"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "TypeError",
+     "unhashable type: 'dict'"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_unhashable_second",
+   "world": "body_relationship_unhashable_second"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_unknown_then_list",
+   "world": "body_relationship_unknown_then_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_spaced",
+   "world": "body_relationship_spaced"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_escaped",
+   "world": "body_relationship_escaped"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_same",
+   "world": "body_relationship_same"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_unknown",
+   "world": "body_relationship_unknown"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_number",
+   "world": "body_relationship_number"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_nan",
+   "world": "body_relationship_nan"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_surrogate",
+   "world": "body_relationship_surrogate"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "Exceeds the limit (4300 digits) for integer string conversion: value has 4301 digits; use sys.set_int_max_str_digits() to increase the limit"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_long_int",
+   "world": "body_relationship_long_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_count_true",
+   "world": "body_relationship_count_true"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_minutes_negative",
+   "world": "body_relationship_minutes_negative"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_topics",
+   "world": "body_relationship_topics"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "body_relationship_topic_long",
+   "world": "body_relationship_topic_long"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_topic_too_long",
+   "world": "body_relationship_topic_too_long"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_topic_int",
+   "world": "body_relationship_topic_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 trust must be within 0..1"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_trust_high",
+   "world": "body_relationship_trust_high"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 trust must be within 0..1"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_trust_true",
+   "world": "body_relationship_trust_true"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "body_relationship_trust_int",
+   "world": "body_relationship_trust_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 contact minute is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_minute_float",
+   "world": "body_relationship_minute_float"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_relationship_record_list",
+   "world": "body_relationship_record_list"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "body_history_ok",
+   "world": "body_history_ok"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 social history item is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_history_not_a_dict",
+   "world": "body_history_not_a_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 social history item is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_history_missing",
+   "world": "body_history_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 social history item is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_history_minute_true",
+   "world": "body_history_minute_true"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 social history item is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_history_minute_negative",
+   "world": "body_history_minute_negative"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 social history item is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_history_actor_unknown",
+   "world": "body_history_actor_unknown"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "TypeError",
+     "unhashable type: 'list'"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_history_actor_unhashable",
+   "world": "body_history_actor_unhashable"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "body_history_actor_departed",
+   "world": "body_history_actor_departed"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "TypeError",
+     "'int' object is not iterable"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_history_departures_int",
+   "world": "body_history_departures_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 social history item is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_history_deltas_list",
+   "world": "body_history_deltas_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 social history item is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": null
+   },
+   "name": "body_history_old_bad",
+   "world": "body_history_old_bad"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "body_state_v1 social history item is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "body_history_old_bad_kept",
+   "world": "body_history_old_bad_kept"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_not_a_dict",
+   "world": "sd_not_a_dict"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "sd_schema_true",
+   "world": "sd_schema_true"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_schema_float",
+   "world": "sd_schema_float"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_staff_missing",
+   "world": "sd_staff_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics config has unsupported fields"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_config_extra",
+   "world": "sd_config_extra"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics config has unsupported fields"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_config_not_a_dict",
+   "world": "sd_config_not_a_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics_v1 config is not canonical"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_config_none",
+   "world": "sd_config_none"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "TypeError",
+     "unhashable type: 'TrackedList'"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_config_policy_list",
+   "world": "sd_config_policy_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "unsupported staff_dynamics policy or source"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_config_policy_other",
+   "world": "sd_config_policy_other"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "unsupported staff_dynamics policy or source"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_config_source_empty",
+   "world": "sd_config_source_empty"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff shift and off-shift recovery assumptions require policy v2"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_config_v1_windows",
+   "world": "sd_config_v1_windows"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff shift and off-shift recovery assumptions require policy v2"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_config_v1_recovery",
+   "world": "sd_config_v1_recovery"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics rest_minutes is outside its supported range"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_config_rest_zero",
+   "world": "sd_config_rest_zero"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics rest_minutes is outside its supported range"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_config_rest_true",
+   "world": "sd_config_rest_true"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics max_continuous_work_minutes is outside its supported range"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_config_max_float",
+   "world": "sd_config_max_float"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics per-staff work limits must be an object"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_config_maxima_list",
+   "world": "sd_config_maxima_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics per-staff work limits must be integer minutes in 1..1440"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_config_maxima_value",
+   "world": "sd_config_maxima_value"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "sd_config_maxima_ok",
+   "world": "sd_config_maxima_ok"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics per-staff work limits reference unknown staff"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_config_maxima_unknown",
+   "world": "sd_config_maxima_unknown"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "sd_v2_ok",
+   "world": "sd_v2_ok"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics shift_windows_by_staff must be an object"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_v2_windows_list",
+   "world": "sd_v2_windows_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics shift windows require a staff ID and at most 21 intervals"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_v2_windows_many",
+   "world": "sd_v2_windows_many"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff shift intervals must be non-empty [start,end) weekly minutes"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_v2_windows_row",
+   "world": "sd_v2_windows_row"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff shift intervals for one person cannot overlap"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_v2_windows_overlap",
+   "world": "sd_v2_windows_overlap"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "sd_v2_windows_touch",
+   "world": "sd_v2_windows_touch"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics shift roster references unknown staff"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_v2_windows_unknown",
+   "world": "sd_v2_windows_unknown"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics off-shift recovery must be within 0..1 per minute"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_v2_recovery_high",
+   "world": "sd_v2_recovery_high"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics_v1 model identity does not match its config"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_identity",
+   "world": "sd_identity"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics_v1 config is not canonical"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_config_not_canonical",
+   "world": "sd_config_not_canonical"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "sd_config_legacy",
+   "world": "sd_config_legacy"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics_v1 record for 'staff_001' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_record_not_a_dict",
+   "world": "sd_record_not_a_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics_v1 total_work_minutes for 'staff_001' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_record_minutes_true",
+   "world": "sd_record_minutes_true"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics_v1 rest_until_minute for 'staff_002' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_record_minutes_negative",
+   "world": "sd_record_minutes_negative"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics_v1 fatigue for 'staff_001' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_record_fatigue_high",
+   "world": "sd_record_fatigue_high"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "sd_record_fatigue_int",
+   "world": "sd_record_fatigue_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_dynamics_v1 activity for 'staff_001' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_record_activity",
+   "world": "sd_record_activity"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "TypeError",
+     "unhashable type: 'TrackedList'"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sd_record_activity_list",
+   "world": "sd_record_activity_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_not_a_dict",
+   "world": "so_not_a_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_zone_missing",
+   "world": "so_zone_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_history_dict",
+   "world": "so_history_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "TypeError",
+     "argument of type 'NoneType' is not iterable"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_config_none",
+   "world": "so_config_none"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations config has unsupported fields"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_config_extra",
+   "world": "so_config_extra"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "unsupported staff_operations policy or source"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_config_source",
+   "world": "so_config_source"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations task durations must define every registered task"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_config_durations_missing",
+   "world": "so_config_durations_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations duration for maintenance is outside 1..1440 minutes"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_config_duration_zero",
+   "world": "so_config_duration_zero"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations duration for cleaning is outside 1..1440 minutes"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_config_duration_float",
+   "world": "so_config_duration_float"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations patrol_reassurance must be finite and within 0..1"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_config_rate_high",
+   "world": "so_config_rate_high"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations cleaning_sanitation_recovery must be finite and within 0..1"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_config_rate_true",
+   "world": "so_config_rate_true"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations thresholds_by_zone must be an object"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_config_thresholds_list",
+   "world": "so_config_thresholds_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations per-zone threshold entry is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_config_threshold_empty",
+   "world": "so_config_threshold_empty"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations per-zone threshold entry is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_config_threshold_name",
+   "world": "so_config_threshold_name"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations per-zone patrol_stress_at_least must be finite and within 0..1"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_config_threshold_value",
+   "world": "so_config_threshold_value"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "so_config_threshold_ok",
+   "world": "so_config_threshold_ok"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations_v1 per-zone threshold references an unknown zone"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_config_threshold_unknown_zone",
+   "world": "so_config_threshold_unknown_zone"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations effects_by_zone must be an object"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_config_effects_list",
+   "world": "so_config_effects_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations per-zone sanitation_use_per_person_minute must be finite and within 0..0.01"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_config_effect_sanitation",
+   "world": "so_config_effect_sanitation"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations per-zone patrol_reassurance must be finite and within 0..1"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_config_effect_patrol",
+   "world": "so_config_effect_patrol"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations_v1 per-zone effect references an unknown zone"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_config_effect_unknown_zone",
+   "world": "so_config_effect_unknown_zone"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "so_config_legacy",
+   "world": "so_config_legacy"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations_v1 config is not canonical"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_config_not_canonical",
+   "world": "so_config_not_canonical"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations_v1 zone state for 'food' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_zone_sanitation",
+   "world": "so_zone_sanitation"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations_v1 zone state for 'food' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_zone_minute_true",
+   "world": "so_zone_minute_true"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations_v1 record for 'staff_002' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_record_phase",
+   "world": "so_record_phase"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "TypeError",
+     "unhashable type: 'TrackedList'"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_record_phase_list",
+   "world": "so_record_phase_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations_v1 record for 'staff_002' is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_record_extra",
+   "world": "so_record_extra"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "idle staff_operations_v1 record for 'staff_002' retains a task"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_idle_retains",
+   "world": "so_idle_retains"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "so_idle_travel_float",
+   "world": "so_idle_travel_float"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "so_history_ok",
+   "world": "so_history_ok"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "so_history_interrupted",
+   "world": "so_history_interrupted"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations_v1 history item is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_history_no_arrival",
+   "world": "so_history_no_arrival"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations_v1 history item is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_history_status",
+   "world": "so_history_status"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "TypeError",
+     "unhashable type: 'TrackedList'"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_history_staff_list",
+   "world": "so_history_staff_list"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "TypeError",
+     "unhashable type: 'TrackedDict'"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_history_zone_dict",
+   "world": "so_history_zone_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations_v1 history item is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_history_target_unknown",
+   "world": "so_history_target_unknown"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations_v1 history item is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_history_minutes",
+   "world": "so_history_minutes"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations_v1 history item is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_history_arrival_late",
+   "world": "so_history_arrival_late"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "staff_operations_v1 history item is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "so_history_causes",
+   "world": "so_history_causes"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_network_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_not_a_dict",
+   "world": "sn_not_a_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_network_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_policy",
+   "world": "sn_policy"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "sn_schema_float",
+   "world": "sn_schema_float"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_network_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_count_missing",
+   "world": "sn_count_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_network_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_relationships_list",
+   "world": "sn_relationships_list"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "sn_tie_ok",
+   "world": "sn_tie_ok"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_network_v1 relationship key is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_key_unparsable",
+   "world": "sn_key_unparsable"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_network_v1 relationship key is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_key_empty",
+   "world": "sn_key_empty"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_network_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_key_single",
+   "world": "sn_key_single"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_network_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_key_int",
+   "world": "sn_key_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_network_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_key_same",
+   "world": "sn_key_same"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_network_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_key_spaced",
+   "world": "sn_key_spaced"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "sn_key_unknown_people",
+   "world": "sn_key_unknown_people"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "sn_key_surrogate",
+   "world": "sn_key_surrogate"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "sn_key_escaped_quote",
+   "world": "sn_key_escaped_quote"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_network_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_key_escaped_slash",
+   "world": "sn_key_escaped_slash"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "Exceeds the limit (4300 digits) for integer string conversion: value has 4400 digits; use sys.set_int_max_str_digits() to increase the limit"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_key_long_int",
+   "world": "sn_key_long_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_network_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_key_infinity",
+   "world": "sn_key_infinity"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_network_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_count_true",
+   "world": "sn_count_true"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_network_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_count_negative",
+   "world": "sn_count_negative"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_network_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_messages_dict",
+   "world": "sn_messages_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_network_v1 relationship record is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_tie_extra",
+   "world": "sn_tie_extra"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_network_v1 trust value is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_trust_high",
+   "world": "sn_trust_high"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_network_v1 trust value is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_trust_true",
+   "world": "sn_trust_true"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "sn_trust_int",
+   "world": "sn_trust_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_network_v1 contact time is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_minute_true",
+   "world": "sn_minute_true"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "social_network_v1 contact time is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "sn_minute_negative",
+   "world": "sn_minute_negative"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "population_dynamics_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "pd_not_a_dict",
+   "world": "pd_not_a_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "population_dynamics_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "pd_field_missing",
+   "world": "pd_field_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "population_dynamics_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "pd_initial_repeated",
+   "world": "pd_initial_repeated"
+  },
+  {
+   "expected": {
+    "candidate": null,
+    "extensions": null,
+    "validate": null,
+    "validate_tick": null
+   },
+   "name": "pd_traits_int",
+   "world": "pd_traits_int"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "population_dynamics_v1 has an invalid dynamic context index"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "pd_context_unknown",
+   "world": "pd_context_unknown"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "population_dynamics_v1 pending arrival is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "pd_pending_bad",
+   "world": "pd_pending_bad"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "population_lifecycle_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "pl_not_a_dict",
+   "world": "pl_not_a_dict"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "population_lifecycle_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "pl_field_missing",
+   "world": "pl_field_missing"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "population_lifecycle_v1 has an invalid exact schema"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "pl_schema",
+   "world": "pl_schema"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "population_lifecycle_v1 archived person is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "pl_person_bad",
+   "world": "pl_person_bad"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "population_lifecycle_v1 pending return is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "pl_return_bad",
+   "world": "pl_return_bad"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "population_lifecycle_v1 pending relocation is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "pl_relocation_bad",
+   "world": "pl_relocation_bad"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "population_lifecycle_v1 relationship archive is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "pl_archive_bad",
+   "world": "pl_archive_bad"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "population_lifecycle_v1 retained message is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "pl_message_bad",
+   "world": "pl_message_bad"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "population_lifecycle_v1 deferred beliefs are invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "pl_beliefs_bad",
+   "world": "pl_beliefs_bad"
+  },
+  {
+   "expected": {
+    "candidate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "extensions": [
+     "ValueError",
+     "population_lifecycle_v1 retained message is invalid"
+    ],
+    "validate": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ],
+    "validate_tick": [
+     "StateInvariantError",
+     "invalid simulator extension state"
+    ]
+   },
+   "name": "pl_message_unhashable",
+   "world": "pl_message_unhashable"
+  }
+ ],
+ "worlds": {
+  "ad_agent_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "agent_dynamics_v1",
+      "agents",
+      "A010"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "ad_due_float": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.agent_dynamics_v1.agents.A001.decision_due_minute": 15.0
+   }
+  },
+  "ad_due_negative": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.agent_dynamics_v1.agents.A001.decision_due_minute": -1
+   }
+  },
+  "ad_due_true": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.agent_dynamics_v1.agents.A001.decision_due_minute": true
+   }
+  },
+  "ad_extra_field": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.agent_dynamics_v1.extra": 1
+   }
+  },
+  "ad_known_not_a_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.agent_dynamics_v1.agents.A001.known_facility_ids": "toilet_01"
+   }
+  },
+  "ad_known_repeated": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "agent_dynamics_v1",
+      "agents",
+      "A001",
+      "known_facility_ids",
+      7
+     ],
+     "accessible_toilet_01"
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "ad_known_unhashable": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.agent_dynamics_v1.agents.A001.known_facility_ids": [
+     [
+      1
+     ]
+    ]
+   }
+  },
+  "ad_known_unknown": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.agent_dynamics_v1.agents.A001.known_facility_ids": [
+     "nowhere"
+    ]
+   }
+  },
+  "ad_last_negative": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.agent_dynamics_v1.agents.A002.last_decision_minute": -3
+   }
+  },
+  "ad_last_none": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.agent_dynamics_v1.agents.A001.last_decision_minute": null
+   }
+  },
+  "ad_last_true": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.agent_dynamics_v1.agents.A001.last_decision_minute": true
+   }
+  },
+  "ad_not_a_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.agent_dynamics_v1": []
+   }
+  },
+  "ad_policy_v2": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.agent_dynamics_v1.policy_version": "need-led-autonomy-memory-v2"
+   }
+  },
+  "ad_record_extra_field": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.agent_dynamics_v1.agents.A001.extra": 1
+   }
+  },
+  "ad_record_not_a_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.agent_dynamics_v1.agents.A001": 1
+   }
+  },
+  "ad_schema_2": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.agent_dynamics_v1.schema_version": 2
+   }
+  },
+  "ad_schema_true": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.agent_dynamics_v1.schema_version": true
+   }
+  },
+  "body_agent_extra": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.agents.Z999": {}
+   }
+  },
+  "body_config_affect_int": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.affect_policy": 1
+   }
+  },
+  "body_config_distance": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.relationship_distance_scale_m": 0.05
+   }
+  },
+  "body_config_distance_int": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.relationship_distance_scale_m": 3
+   }
+  },
+  "body_config_extra": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.extra": 1
+   }
+  },
+  "body_config_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config": []
+   }
+  },
+  "body_config_minutes_float": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.social_interaction_minutes": 5.0
+   }
+  },
+  "body_config_minutes_zero": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.social_interaction_minutes": 0
+   }
+  },
+  "body_config_none": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config": null
+   }
+  },
+  "body_config_optional_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "body_state_v1",
+      "config",
+      "hygiene_support_relief"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "body_config_per_agent_bad_id": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.sleep_debt_stress_rate_by_agent": {
+     "-A": 0.1
+    }
+   }
+  },
+  "body_config_per_agent_bool": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.discontent_stress_rate_by_agent": {
+     "A001": true
+    }
+   }
+  },
+  "body_config_per_agent_empty": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.sleep_debt_stress_rate_by_agent": {}
+   }
+  },
+  "body_config_per_agent_known": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.medical_assessment_uncertainty_relief_by_agent": {
+     "A001": 0.1
+    }
+   }
+  },
+  "body_config_per_agent_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.hygiene_support_relief_by_agent": []
+   }
+  },
+  "body_config_per_agent_none": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.sleep_debt_stress_rate_by_agent": null
+   }
+  },
+  "body_config_per_agent_unknown": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.sleep_debt_stress_rate_by_agent": {
+     "Z999": 0.1
+    }
+   }
+  },
+  "body_config_population_ids_unhashable": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "population_dynamics_v1",
+      "initial_agent_ids",
+      10
+     ],
+     [
+      "Z999"
+     ]
+    ]
+   ],
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.sleep_debt_stress_rate_by_agent": {
+     "Z999": 0.1
+    }
+   }
+  },
+  "body_config_population_none": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.sleep_debt_stress_rate_by_agent": {
+     "Z999": 0.1
+    },
+    "world.model_state.population_dynamics_v1": null
+   }
+  },
+  "body_config_population_traits_int": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.sleep_debt_stress_rate_by_agent": {
+     "Z999": 0.1
+    },
+    "world.model_state.population_dynamics_v1.profile_traits": 3
+   }
+  },
+  "body_config_rate_high": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.correction_reassurance_gain": 1.5
+   }
+  },
+  "body_config_rate_int": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.sleep_debt_stress_rate": 1
+   }
+  },
+  "body_config_rate_true": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.sleep_debt_stress_rate": true
+   }
+  },
+  "body_config_required_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "body_state_v1",
+      "config",
+      "sleep_debt_stress_rate"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "body_config_schema": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.config.schema_version": 2
+   }
+  },
+  "body_history_actor_departed": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.history": [
+     {
+      "actor_ids": [
+       "Z999"
+      ],
+      "causation_id": null,
+      "deltas": {},
+      "event_id": "social-1",
+      "kind": "conversation",
+      "minute": 15,
+      "topic_id": null
+     }
+    ],
+    "world.model_state.population_dynamics_v1.departures": [
+     {
+      "agent_id": "Z999"
+     }
+    ]
+   }
+  },
+  "body_history_actor_unhashable": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.history": [
+     {
+      "actor_ids": [
+       [
+        "A001"
+       ]
+      ],
+      "causation_id": null,
+      "deltas": {},
+      "event_id": "social-1",
+      "kind": "conversation",
+      "minute": 15,
+      "topic_id": null
+     }
+    ]
+   }
+  },
+  "body_history_actor_unknown": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.history": [
+     {
+      "actor_ids": [
+       "Z999"
+      ],
+      "causation_id": null,
+      "deltas": {},
+      "event_id": "social-1",
+      "kind": "conversation",
+      "minute": 15,
+      "topic_id": null
+     }
+    ]
+   }
+  },
+  "body_history_deltas_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.history": [
+     {
+      "actor_ids": [
+       "A001",
+       "A002"
+      ],
+      "causation_id": null,
+      "deltas": [],
+      "event_id": "social-1",
+      "kind": "conversation",
+      "minute": 15,
+      "topic_id": null
+     }
+    ]
+   }
+  },
+  "body_history_departures_int": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.history": [
+     {
+      "actor_ids": [
+       "A001",
+       "A002"
+      ],
+      "causation_id": null,
+      "deltas": {},
+      "event_id": "social-1",
+      "kind": "conversation",
+      "minute": 15,
+      "topic_id": null
+     }
+    ],
+    "world.model_state.population_dynamics_v1.departures": 7
+   }
+  },
+  "body_history_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.history": {}
+   }
+  },
+  "body_history_minute_negative": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.history": [
+     {
+      "actor_ids": [
+       "A001",
+       "A002"
+      ],
+      "causation_id": null,
+      "deltas": {},
+      "event_id": "social-1",
+      "kind": "conversation",
+      "minute": -1,
+      "topic_id": null
+     }
+    ]
+   }
+  },
+  "body_history_minute_true": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.history": [
+     {
+      "actor_ids": [
+       "A001",
+       "A002"
+      ],
+      "causation_id": null,
+      "deltas": {},
+      "event_id": "social-1",
+      "kind": "conversation",
+      "minute": true,
+      "topic_id": null
+     }
+    ]
+   }
+  },
+  "body_history_missing": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.history": [
+     {
+      "actor_ids": [
+       "A001",
+       "A002"
+      ],
+      "causation_id": null,
+      "event_id": "social-1",
+      "kind": "conversation",
+      "minute": 15,
+      "topic_id": null
+     }
+    ]
+   }
+  },
+  "body_history_not_a_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.history": [
+     {
+      "actor_ids": [
+       "A001",
+       "A002"
+      ],
+      "causation_id": null,
+      "deltas": {},
+      "event_id": "social-1",
+      "kind": "conversation",
+      "minute": 15,
+      "topic_id": null
+     },
+     3
+    ]
+   }
+  },
+  "body_history_ok": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.history": [
+     {
+      "actor_ids": [
+       "A001",
+       "A002"
+      ],
+      "causation_id": null,
+      "deltas": {},
+      "event_id": "social-1",
+      "kind": "conversation",
+      "minute": 3,
+      "topic_id": null
+     },
+     {
+      "actor_ids": [
+       "A001",
+       "A002"
+      ],
+      "causation_id": null,
+      "deltas": {},
+      "event_id": "social-1",
+      "kind": "conversation",
+      "minute": 14,
+      "topic_id": null
+     },
+     {
+      "actor_ids": [
+       "A001",
+       "A002"
+      ],
+      "causation_id": null,
+      "deltas": {},
+      "event_id": "social-1",
+      "kind": "conversation",
+      "minute": 15,
+      "topic_id": null
+     }
+    ]
+   }
+  },
+  "body_history_old_bad": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.history": [
+     {
+      "actor_ids": [
+       "A001",
+       "A002"
+      ],
+      "causation_id": null,
+      "deltas": null,
+      "event_id": "social-1",
+      "kind": "conversation",
+      "minute": 2,
+      "topic_id": null
+     },
+     {
+      "actor_ids": [
+       "A001",
+       "A002"
+      ],
+      "causation_id": null,
+      "deltas": {},
+      "event_id": "social-1",
+      "kind": "conversation",
+      "minute": 10,
+      "topic_id": null
+     },
+     {
+      "actor_ids": [
+       "A001",
+       "A002"
+      ],
+      "causation_id": null,
+      "deltas": {},
+      "event_id": "social-1",
+      "kind": "conversation",
+      "minute": 14,
+      "topic_id": null
+     },
+     {
+      "actor_ids": [
+       "A001",
+       "A002"
+      ],
+      "causation_id": null,
+      "deltas": {},
+      "event_id": "social-1",
+      "kind": "conversation",
+      "minute": 15,
+      "topic_id": null
+     }
+    ]
+   }
+  },
+  "body_history_old_bad_kept": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.history": [
+     {
+      "actor_ids": [
+       "A001",
+       "A002"
+      ],
+      "causation_id": null,
+      "deltas": {},
+      "event_id": "social-1",
+      "kind": "conversation",
+      "minute": 2,
+      "topic_id": null
+     },
+     {
+      "actor_ids": [
+       "A001",
+       "A002"
+      ],
+      "causation_id": null,
+      "deltas": null,
+      "event_id": "social-1",
+      "kind": "conversation",
+      "minute": 13,
+      "topic_id": null
+     },
+     {
+      "actor_ids": [
+       "A001",
+       "A002"
+      ],
+      "causation_id": null,
+      "deltas": {},
+      "event_id": "social-1",
+      "kind": "conversation",
+      "minute": 14,
+      "topic_id": null
+     },
+     {
+      "actor_ids": [
+       "A001",
+       "A002"
+      ],
+      "causation_id": null,
+      "deltas": {},
+      "event_id": "social-1",
+      "kind": "conversation",
+      "minute": 15,
+      "topic_id": null
+     }
+    ]
+   }
+  },
+  "body_not_a_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1": "body"
+   }
+  },
+  "body_policy": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.policy_version": null
+   }
+  },
+  "body_record_extra": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.agents.A001.extra": 0.0
+   }
+  },
+  "body_record_int": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.agents.A001.uncertainty": 1
+   }
+  },
+  "body_record_negative": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.agents.A003.hygiene_need": -0.1
+   }
+  },
+  "body_record_not_a_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.agents.A001": null
+   }
+  },
+  "body_record_sleep_high": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.agents.A001.sleep_debt_minutes": 1440.5
+   }
+  },
+  "body_record_sleep_max": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.agents.A001.sleep_debt_minutes": 1440
+   }
+  },
+  "body_record_true": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.agents.A001.uncertainty": true
+   }
+  },
+  "body_relationship_count_true": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": true,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.{\"A001\":\"A002\"}": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_escaped": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[\"\\u0041001\",\"A002\"]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_long_int": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999,\"A002\"]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_minute_float": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10.0,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_minutes_negative": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": 1,
+     "contact_minutes": -1,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_nan": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[NaN,\"A002\"]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_not_json": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.A001|A002": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_number": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[1e5000,\"A002\"]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_ok": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_record_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[\"A001\",\"A002\"]": []
+   }
+  },
+  "body_relationship_same": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[\"A001\",\"A001\"]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_single": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[\"A001\"]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_spaced": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[\"A001\", \"A002\"]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_surrogate": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[\"\\ud800\",\"A002\"]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_topic_int": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      1
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_topic_long": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_topic_too_long": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_topics": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t",
+      "t"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_trust_high": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 1.5
+    }
+   }
+  },
+  "body_relationship_trust_int": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 1
+    }
+   }
+  },
+  "body_relationship_trust_true": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": true
+    }
+   }
+  },
+  "body_relationship_unhashable_first": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[[\"A001\"],\"A002\"]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_unhashable_second": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[\"A001\",{\"a\":1}]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_unknown": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[\"A001\",\"Z999\"]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_unknown_then_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[\"Z9\",[\"A002\"]]": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationship_unparsable": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships.[": {
+     "contact_count": 1,
+     "contact_minutes": 5,
+     "last_contact_minute": 10,
+     "last_interaction": null,
+     "topic_ids": [
+      "water"
+     ],
+     "trust": 0.5
+    }
+   }
+  },
+  "body_relationships_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.relationships": []
+   }
+  },
+  "body_source": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.body_state_v1.source_id": "ASM-OTHER"
+   }
+  },
+  "pd_context_unknown": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_dynamics_v1.profile_context.Z999": {}
+   }
+  },
+  "pd_field_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "population_dynamics_v1",
+      "arrivals"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "pd_initial_repeated": {
+   "base": "generated",
+   "changes": [
+    [
+     "set",
+     [
+      "world",
+      "model_state",
+      "population_dynamics_v1",
+      "initial_agent_ids",
+      10
+     ],
+     "A001"
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "pd_not_a_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_dynamics_v1": []
+   }
+  },
+  "pd_pending_bad": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_dynamics_v1.pending_arrivals": [
+     {}
+    ]
+   }
+  },
+  "pd_traits_int": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_dynamics_v1.profile_traits.A001": 1
+   }
+  },
+  "pl_archive_bad": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_lifecycle_v1.relationship_archive": [
+     {}
+    ]
+   }
+  },
+  "pl_beliefs_bad": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_lifecycle_v1.deferred_beliefs.A001": []
+   }
+  },
+  "pl_field_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "population_lifecycle_v1",
+      "messages"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "pl_message_bad": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_lifecycle_v1.messages.m1": {}
+   }
+  },
+  "pl_message_unhashable": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_lifecycle_v1.messages.m1": {
+     "message_id": []
+    }
+   }
+  },
+  "pl_not_a_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_lifecycle_v1": 1
+   }
+  },
+  "pl_person_bad": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_lifecycle_v1.people.A001": {}
+   }
+  },
+  "pl_relocation_bad": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_lifecycle_v1.pending_relocations.A001": {}
+   }
+  },
+  "pl_return_bad": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_lifecycle_v1.pending_returns": [
+     {}
+    ]
+   }
+  },
+  "pl_schema": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.population_lifecycle_v1.schema_version": 2
+   }
+  },
+  "sd_config_extra": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.extra": 1
+   }
+  },
+  "sd_config_legacy": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "staff_dynamics_v1",
+      "config",
+      "off_shift_fatigue_recovery_per_minute"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "staff_dynamics_v1",
+      "config",
+      "shift_windows_by_staff"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "sd_config_max_float": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.max_continuous_work_minutes": 240.0
+   }
+  },
+  "sd_config_maxima_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.max_continuous_work_minutes_by_staff": []
+   }
+  },
+  "sd_config_maxima_ok": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.max_continuous_work_minutes_by_staff": {
+     "staff_001": 120
+    }
+   }
+  },
+  "sd_config_maxima_unknown": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.max_continuous_work_minutes_by_staff": {
+     "staff_999": 120
+    }
+   }
+  },
+  "sd_config_maxima_value": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.max_continuous_work_minutes_by_staff": {
+     "staff_001": 0
+    }
+   }
+  },
+  "sd_config_none": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config": null
+   }
+  },
+  "sd_config_not_a_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config": []
+   }
+  },
+  "sd_config_not_canonical": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "staff_dynamics_v1",
+      "config",
+      "rest_minutes"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "sd_config_policy_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.policy_version": []
+   }
+  },
+  "sd_config_policy_other": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.policy_version": "x"
+   }
+  },
+  "sd_config_rest_true": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.rest_minutes": true
+   }
+  },
+  "sd_config_rest_zero": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.rest_minutes": 0
+   }
+  },
+  "sd_config_source_empty": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.source_id": ""
+   }
+  },
+  "sd_config_v1_recovery": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.off_shift_fatigue_recovery_per_minute": 0.1
+   }
+  },
+  "sd_config_v1_windows": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.shift_windows_by_staff.staff_001": []
+   }
+  },
+  "sd_identity": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.source_id": "ASM-OTHER"
+   }
+  },
+  "sd_not_a_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1": 1
+   }
+  },
+  "sd_record_activity": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.staff.staff_001.last_activity": "sleeping"
+   }
+  },
+  "sd_record_activity_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.staff.staff_001.last_activity": [
+     "working"
+    ]
+   }
+  },
+  "sd_record_fatigue_high": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.staff.staff_001.fatigue": 1.5
+   }
+  },
+  "sd_record_fatigue_int": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.staff.staff_001.fatigue": 1
+   }
+  },
+  "sd_record_minutes_negative": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.staff.staff_002.rest_until_minute": -1
+   }
+  },
+  "sd_record_minutes_true": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.staff.staff_001.total_work_minutes": true
+   }
+  },
+  "sd_record_not_a_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.staff.staff_001": []
+   }
+  },
+  "sd_schema_float": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.schema_version": 1.5
+   }
+  },
+  "sd_schema_true": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.schema_version": true
+   }
+  },
+  "sd_staff_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "staff_dynamics_v1",
+      "staff",
+      "staff_003"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "sd_v2_ok": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.off_shift_fatigue_recovery_per_minute": 0.005,
+    "world.model_state.staff_dynamics_v1.config.policy_version": "continuous-duty-fatigue-v2",
+    "world.model_state.staff_dynamics_v1.config.shift_windows_by_staff.staff_001": [
+     {
+      "end_minute": 480,
+      "start_minute": 0
+     }
+    ],
+    "world.model_state.staff_dynamics_v1.config.source_id": "ASM-STAFF-DYNAMICS-V2",
+    "world.model_state.staff_dynamics_v1.policy_version": "continuous-duty-fatigue-v2",
+    "world.model_state.staff_dynamics_v1.source_id": "ASM-STAFF-DYNAMICS-V2"
+   }
+  },
+  "sd_v2_recovery_high": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.off_shift_fatigue_recovery_per_minute": 2.0,
+    "world.model_state.staff_dynamics_v1.config.policy_version": "continuous-duty-fatigue-v2",
+    "world.model_state.staff_dynamics_v1.config.source_id": "ASM-STAFF-DYNAMICS-V2",
+    "world.model_state.staff_dynamics_v1.policy_version": "continuous-duty-fatigue-v2",
+    "world.model_state.staff_dynamics_v1.source_id": "ASM-STAFF-DYNAMICS-V2"
+   }
+  },
+  "sd_v2_windows_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.off_shift_fatigue_recovery_per_minute": 0.005,
+    "world.model_state.staff_dynamics_v1.config.policy_version": "continuous-duty-fatigue-v2",
+    "world.model_state.staff_dynamics_v1.config.shift_windows_by_staff": [],
+    "world.model_state.staff_dynamics_v1.config.source_id": "ASM-STAFF-DYNAMICS-V2",
+    "world.model_state.staff_dynamics_v1.policy_version": "continuous-duty-fatigue-v2",
+    "world.model_state.staff_dynamics_v1.source_id": "ASM-STAFF-DYNAMICS-V2"
+   }
+  },
+  "sd_v2_windows_many": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.off_shift_fatigue_recovery_per_minute": 0.005,
+    "world.model_state.staff_dynamics_v1.config.policy_version": "continuous-duty-fatigue-v2",
+    "world.model_state.staff_dynamics_v1.config.shift_windows_by_staff.staff_001": [
+     {
+      "end_minute": 5,
+      "start_minute": 0
+     },
+     {
+      "end_minute": 15,
+      "start_minute": 10
+     },
+     {
+      "end_minute": 25,
+      "start_minute": 20
+     },
+     {
+      "end_minute": 35,
+      "start_minute": 30
+     },
+     {
+      "end_minute": 45,
+      "start_minute": 40
+     },
+     {
+      "end_minute": 55,
+      "start_minute": 50
+     },
+     {
+      "end_minute": 65,
+      "start_minute": 60
+     },
+     {
+      "end_minute": 75,
+      "start_minute": 70
+     },
+     {
+      "end_minute": 85,
+      "start_minute": 80
+     },
+     {
+      "end_minute": 95,
+      "start_minute": 90
+     },
+     {
+      "end_minute": 105,
+      "start_minute": 100
+     },
+     {
+      "end_minute": 115,
+      "start_minute": 110
+     },
+     {
+      "end_minute": 125,
+      "start_minute": 120
+     },
+     {
+      "end_minute": 135,
+      "start_minute": 130
+     },
+     {
+      "end_minute": 145,
+      "start_minute": 140
+     },
+     {
+      "end_minute": 155,
+      "start_minute": 150
+     },
+     {
+      "end_minute": 165,
+      "start_minute": 160
+     },
+     {
+      "end_minute": 175,
+      "start_minute": 170
+     },
+     {
+      "end_minute": 185,
+      "start_minute": 180
+     },
+     {
+      "end_minute": 195,
+      "start_minute": 190
+     },
+     {
+      "end_minute": 205,
+      "start_minute": 200
+     },
+     {
+      "end_minute": 215,
+      "start_minute": 210
+     }
+    ],
+    "world.model_state.staff_dynamics_v1.config.source_id": "ASM-STAFF-DYNAMICS-V2",
+    "world.model_state.staff_dynamics_v1.policy_version": "continuous-duty-fatigue-v2",
+    "world.model_state.staff_dynamics_v1.source_id": "ASM-STAFF-DYNAMICS-V2"
+   }
+  },
+  "sd_v2_windows_overlap": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.off_shift_fatigue_recovery_per_minute": 0.005,
+    "world.model_state.staff_dynamics_v1.config.policy_version": "continuous-duty-fatigue-v2",
+    "world.model_state.staff_dynamics_v1.config.shift_windows_by_staff.staff_001": [
+     {
+      "end_minute": 200,
+      "start_minute": 100
+     },
+     {
+      "end_minute": 120,
+      "start_minute": 0
+     }
+    ],
+    "world.model_state.staff_dynamics_v1.config.source_id": "ASM-STAFF-DYNAMICS-V2",
+    "world.model_state.staff_dynamics_v1.policy_version": "continuous-duty-fatigue-v2",
+    "world.model_state.staff_dynamics_v1.source_id": "ASM-STAFF-DYNAMICS-V2"
+   }
+  },
+  "sd_v2_windows_row": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.off_shift_fatigue_recovery_per_minute": 0.005,
+    "world.model_state.staff_dynamics_v1.config.policy_version": "continuous-duty-fatigue-v2",
+    "world.model_state.staff_dynamics_v1.config.shift_windows_by_staff.staff_001": [
+     {
+      "end_minute": 10,
+      "start_minute": 10
+     }
+    ],
+    "world.model_state.staff_dynamics_v1.config.source_id": "ASM-STAFF-DYNAMICS-V2",
+    "world.model_state.staff_dynamics_v1.policy_version": "continuous-duty-fatigue-v2",
+    "world.model_state.staff_dynamics_v1.source_id": "ASM-STAFF-DYNAMICS-V2"
+   }
+  },
+  "sd_v2_windows_touch": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.off_shift_fatigue_recovery_per_minute": 0.005,
+    "world.model_state.staff_dynamics_v1.config.policy_version": "continuous-duty-fatigue-v2",
+    "world.model_state.staff_dynamics_v1.config.shift_windows_by_staff.staff_001": [
+     {
+      "end_minute": 200,
+      "start_minute": 120
+     },
+     {
+      "end_minute": 120,
+      "start_minute": 0
+     }
+    ],
+    "world.model_state.staff_dynamics_v1.config.source_id": "ASM-STAFF-DYNAMICS-V2",
+    "world.model_state.staff_dynamics_v1.policy_version": "continuous-duty-fatigue-v2",
+    "world.model_state.staff_dynamics_v1.source_id": "ASM-STAFF-DYNAMICS-V2"
+   }
+  },
+  "sd_v2_windows_unknown": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_dynamics_v1.config.off_shift_fatigue_recovery_per_minute": 0.005,
+    "world.model_state.staff_dynamics_v1.config.policy_version": "continuous-duty-fatigue-v2",
+    "world.model_state.staff_dynamics_v1.config.shift_windows_by_staff.staff_999": [
+     {
+      "end_minute": 480,
+      "start_minute": 0
+     }
+    ],
+    "world.model_state.staff_dynamics_v1.config.source_id": "ASM-STAFF-DYNAMICS-V2",
+    "world.model_state.staff_dynamics_v1.policy_version": "continuous-duty-fatigue-v2",
+    "world.model_state.staff_dynamics_v1.source_id": "ASM-STAFF-DYNAMICS-V2"
+   }
+  },
+  "sn_count_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "social_network_v1",
+      "interaction_count"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "sn_count_negative": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": -1,
+     "last_contact_minute": 5,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": null
+    }
+   }
+  },
+  "sn_count_true": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": true,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": 5,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": null
+    }
+   }
+  },
+  "sn_key_empty": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": 5,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": null
+    }
+   }
+  },
+  "sn_key_escaped_quote": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.[\"A\\\"1\",\"A002\"]": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": 5,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": null
+    }
+   }
+  },
+  "sn_key_escaped_slash": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.[\"A\\/1\",\"A002\"]": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": 5,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": null
+    }
+   }
+  },
+  "sn_key_infinity": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.-Infinity": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": 5,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": null
+    }
+   }
+  },
+  "sn_key_int": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.[\"A001\",2]": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": 5,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": null
+    }
+   }
+  },
+  "sn_key_long_int": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.[11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111]": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": 5,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": null
+    }
+   }
+  },
+  "sn_key_same": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.[\"A001\",\"A001\"]": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": 5,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": null
+    }
+   }
+  },
+  "sn_key_single": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.[\"A001\"]": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": 5,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": null
+    }
+   }
+  },
+  "sn_key_spaced": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships. [\"A001\",\"A002\"]": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": 5,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": null
+    }
+   }
+  },
+  "sn_key_surrogate": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.[\"\\ud800\",\"A002\"]": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": 5,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": null
+    }
+   }
+  },
+  "sn_key_unknown_people": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.[\"Z1\",\"Z2\"]": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": 5,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": null
+    }
+   }
+  },
+  "sn_key_unparsable": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.[\"A001\"": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": 5,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": null
+    }
+   }
+  },
+  "sn_messages_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": 5,
+     "last_interaction": null,
+     "shared_message_ids": {},
+     "trust": null
+    }
+   }
+  },
+  "sn_minute_negative": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": -5,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": null
+    }
+   }
+  },
+  "sn_minute_true": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": true,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": null
+    }
+   }
+  },
+  "sn_not_a_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1": 1
+   }
+  },
+  "sn_policy": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.policy_version": "x"
+   }
+  },
+  "sn_relationships_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships": []
+   }
+  },
+  "sn_schema_float": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.schema_version": 1.0
+   }
+  },
+  "sn_tie_extra": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": 5,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": null,
+     "x": 1
+    }
+   }
+  },
+  "sn_tie_ok": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": 5,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": null
+    }
+   }
+  },
+  "sn_trust_high": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": 5,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": 1.01
+    }
+   }
+  },
+  "sn_trust_int": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": 5,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": 0
+    }
+   }
+  },
+  "sn_trust_true": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.social_network_v1.relationships.[\"A001\",\"A002\"]": {
+     "contact_count": 1,
+     "conversation_count": 0,
+     "cooperation_count": 0,
+     "last_contact_minute": 5,
+     "last_interaction": null,
+     "shared_message_ids": [],
+     "trust": false
+    }
+   }
+  },
+  "so_config_duration_float": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.config.task_duration_minutes.cleaning": 15.0
+   }
+  },
+  "so_config_duration_zero": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.config.task_duration_minutes.maintenance": 0
+   }
+  },
+  "so_config_durations_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "staff_operations_v1",
+      "config",
+      "task_duration_minutes",
+      "intake"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "so_config_effect_patrol": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.config.effects_by_zone.food": {
+     "patrol_reassurance": -0.5
+    }
+   }
+  },
+  "so_config_effect_sanitation": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.config.effects_by_zone.food": {
+     "sanitation_use_per_person_minute": 0.5
+    }
+   }
+  },
+  "so_config_effect_unknown_zone": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.config.effects_by_zone.roof": {
+     "patrol_reassurance": 0.5
+    }
+   }
+  },
+  "so_config_effects_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.config.effects_by_zone": 1
+   }
+  },
+  "so_config_extra": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.config.extra": 1
+   }
+  },
+  "so_config_legacy": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "staff_operations_v1",
+      "config",
+      "effects_by_zone"
+     ]
+    ],
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "staff_operations_v1",
+      "config",
+      "thresholds_by_zone"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "so_config_none": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.config": null
+   }
+  },
+  "so_config_not_canonical": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "staff_operations_v1",
+      "config",
+      "patrol_reassurance"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "so_config_rate_high": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.config.patrol_reassurance": 2
+   }
+  },
+  "so_config_rate_true": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.config.cleaning_sanitation_recovery": true
+   }
+  },
+  "so_config_source": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.config.source_id": "x"
+   }
+  },
+  "so_config_threshold_empty": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.config.thresholds_by_zone.food": {}
+   }
+  },
+  "so_config_threshold_name": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.config.thresholds_by_zone.food": {
+     "x": 0.1
+    }
+   }
+  },
+  "so_config_threshold_ok": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.config.thresholds_by_zone.food": {
+     "patrol_stress_at_least": 0.5
+    }
+   }
+  },
+  "so_config_threshold_unknown_zone": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.config.thresholds_by_zone.roof": {
+     "patrol_stress_at_least": 0.5
+    }
+   }
+  },
+  "so_config_threshold_value": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.config.thresholds_by_zone.food": {
+     "patrol_stress_at_least": 1.5
+    }
+   }
+  },
+  "so_config_thresholds_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.config.thresholds_by_zone": []
+   }
+  },
+  "so_history_arrival_late": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.history": [
+     {
+      "arrival_minute": 11,
+      "causation_event_ids": [
+       "order-1"
+      ],
+      "complete_minute": 10,
+      "reason": "a test order",
+      "staff_id": "staff_002",
+      "start_minute": 1,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": "sleeping",
+      "task_id": "staff-operation-1",
+      "task_kind": "patrol",
+      "travel_minutes": 2
+     }
+    ]
+   }
+  },
+  "so_history_causes": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.history": [
+     {
+      "arrival_minute": 3,
+      "causation_event_ids": [
+       ""
+      ],
+      "complete_minute": 10,
+      "reason": "a test order",
+      "staff_id": "staff_002",
+      "start_minute": 1,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": "sleeping",
+      "task_id": "staff-operation-1",
+      "task_kind": "patrol",
+      "travel_minutes": 2
+     }
+    ]
+   }
+  },
+  "so_history_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.history": {}
+   }
+  },
+  "so_history_interrupted": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.history": [
+     {
+      "arrival_minute": null,
+      "causation_event_ids": [
+       "order-1"
+      ],
+      "complete_minute": 10,
+      "reason": "a test order",
+      "staff_id": "staff_002",
+      "start_minute": 1,
+      "status": "interrupted",
+      "target_id": null,
+      "target_zone_id": "sleeping",
+      "task_id": "staff-operation-1",
+      "task_kind": "patrol",
+      "travel_minutes": 2
+     }
+    ]
+   }
+  },
+  "so_history_minutes": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.history": [
+     {
+      "arrival_minute": 3,
+      "causation_event_ids": [
+       "order-1"
+      ],
+      "complete_minute": 0,
+      "reason": "a test order",
+      "staff_id": "staff_002",
+      "start_minute": 1,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": "sleeping",
+      "task_id": "staff-operation-1",
+      "task_kind": "patrol",
+      "travel_minutes": 2
+     }
+    ]
+   }
+  },
+  "so_history_no_arrival": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.history": [
+     {
+      "arrival_minute": null,
+      "causation_event_ids": [
+       "order-1"
+      ],
+      "complete_minute": 10,
+      "reason": "a test order",
+      "staff_id": "staff_002",
+      "start_minute": 1,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": "sleeping",
+      "task_id": "staff-operation-1",
+      "task_kind": "patrol",
+      "travel_minutes": 2
+     }
+    ]
+   }
+  },
+  "so_history_ok": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.history": [
+     {
+      "arrival_minute": 3,
+      "causation_event_ids": [
+       "order-1"
+      ],
+      "complete_minute": 10,
+      "reason": "a test order",
+      "staff_id": "staff_002",
+      "start_minute": 1,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": "sleeping",
+      "task_id": "staff-operation-1",
+      "task_kind": "patrol",
+      "travel_minutes": 2
+     }
+    ]
+   }
+  },
+  "so_history_staff_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.history": [
+     {
+      "arrival_minute": 3,
+      "causation_event_ids": [
+       "order-1"
+      ],
+      "complete_minute": 10,
+      "reason": "a test order",
+      "staff_id": [
+       "staff_002"
+      ],
+      "start_minute": 1,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": "sleeping",
+      "task_id": "staff-operation-1",
+      "task_kind": "patrol",
+      "travel_minutes": 2
+     }
+    ]
+   }
+  },
+  "so_history_status": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.history": [
+     {
+      "arrival_minute": 3,
+      "causation_event_ids": [
+       "order-1"
+      ],
+      "complete_minute": 10,
+      "reason": "a test order",
+      "staff_id": "staff_002",
+      "start_minute": 1,
+      "status": "done",
+      "target_id": null,
+      "target_zone_id": "sleeping",
+      "task_id": "staff-operation-1",
+      "task_kind": "patrol",
+      "travel_minutes": 2
+     }
+    ]
+   }
+  },
+  "so_history_target_unknown": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.history": [
+     {
+      "arrival_minute": 3,
+      "causation_event_ids": [
+       "order-1"
+      ],
+      "complete_minute": 10,
+      "reason": "a test order",
+      "staff_id": "staff_002",
+      "start_minute": 1,
+      "status": "completed",
+      "target_id": "nowhere",
+      "target_zone_id": "sleeping",
+      "task_id": "staff-operation-1",
+      "task_kind": "patrol",
+      "travel_minutes": 2
+     }
+    ]
+   }
+  },
+  "so_history_zone_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.history": [
+     {
+      "arrival_minute": 3,
+      "causation_event_ids": [
+       "order-1"
+      ],
+      "complete_minute": 10,
+      "reason": "a test order",
+      "staff_id": "staff_002",
+      "start_minute": 1,
+      "status": "completed",
+      "target_id": null,
+      "target_zone_id": {},
+      "task_id": "staff-operation-1",
+      "task_kind": "patrol",
+      "travel_minutes": 2
+     }
+    ]
+   }
+  },
+  "so_idle_retains": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.staff.staff_002.task_id": "t"
+   }
+  },
+  "so_idle_travel_float": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.staff.staff_002.travel_minutes": 0.0
+   }
+  },
+  "so_not_a_dict": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1": []
+   }
+  },
+  "so_record_extra": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.staff.staff_002.extra": null
+   }
+  },
+  "so_record_phase": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.staff.staff_002.phase": "resting"
+   }
+  },
+  "so_record_phase_list": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.staff.staff_002.phase": [
+     "idle"
+    ]
+   }
+  },
+  "so_zone_minute_true": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.zones.food.updated_minute": true
+   }
+  },
+  "so_zone_missing": {
+   "base": "generated",
+   "changes": [
+    [
+     "del",
+     [
+      "world",
+      "model_state",
+      "staff_operations_v1",
+      "zones",
+      "toilet"
+     ]
+    ]
+   ],
+   "file": "validate_worlds"
+  },
+  "so_zone_sanitation": {
+   "base": "generated",
+   "file": "validate_worlds",
+   "set": {
+    "world.model_state.staff_operations_v1.zones.food.sanitation": 1.5
+   }
+  }
+ }
+}
