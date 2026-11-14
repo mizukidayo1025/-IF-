@@ -94,6 +94,9 @@ def test_relative_and_multiple_event_times_require_clarification(small_replay_de
         assert result.status == "clarification_required"
         assert result.draft_plan is None
         assert any("時刻" in question for question in result.questions)
+        # "HH:MM" is not a target ID; the screens made it a button that added
+        # "zone_id: HH:MM" to the request (#340).
+        assert result.choices == []
 
 
 def test_duplicate_effects_are_rejected_even_when_effect_ids_differ(

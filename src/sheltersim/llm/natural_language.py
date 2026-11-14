@@ -1780,8 +1780,9 @@ def _offline_compiler_result(
             status="clarification_required",
             support_mode=SupportMode.CLARIFICATION_REQUIRED,
             mechanism_summary="時刻を一意に決められないため、作用案を作成していません。",
+            # No choices: "HH:MM" is not a target ID, and the screens turn every choice into
+            # a button that adds a target line to the request (#340).
             questions=time_questions[:10],
-            choices=["HH:MM"],
             limitations=_with_fallback_reason(
                 ["各イベントの時刻を明示するまで作用を適用できません。"], reason
             ),
