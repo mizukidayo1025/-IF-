@@ -78,6 +78,8 @@ FIXTURES: dict[str, str] = {
     "validate_service": "support.core_validate_world:validate_service_fixture",
     "validate_information": "support.core_validate_world:validate_information_fixture",
     "validate_events": "support.core_validate_world:validate_events_fixture",
+    "validate_entities": "support.core_validate_entities:validate_entities_fixture",
+    "validate_entity_rows": "support.core_validate_entities:validate_entity_rows_fixture",
     "validate_namespaces": "support.core_validate_namespaces:validate_namespaces_fixture",
     "validate_staff_tasks": "support.core_validate_namespaces:validate_staff_tasks_fixture",
     "validate_resource_ledger": (
